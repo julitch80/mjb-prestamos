@@ -1,27 +1,38 @@
 import { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Search, Lock, ArrowLeft, Mail, ChevronRight } from 'lucide-react';
 import { useAppStore } from '../data/store';
 import { recuperarPin } from '../data/api';
 import { USUARIOS } from '../data/maestros';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { cn } from '@/lib/utils';
 
 // MODO PRUEBA: valida PIN localmente sin llamar al backend.
 // Cambiar a false cuando el Apps Script esté listo.
 const MODO_LOCAL = true;
 
+const normalizar = (s: string) =>
+  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+const ROL_LABEL: Record<string, string> = {
+  rectora:     'Rectora',
+  coordinador: 'Coordinador',
+  docente:     'Docente',
+};
+
 export default function LoginScreen() {
   const setUsuario = useAppStore((s) => s.setUsuario);
 
-  const [busqueda, setBusqueda] = useState('');
-  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<string | null>(null);
-  const [pin, setPin] = useState('');
-  const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState('');
-  const [modoRecuperacion, setModoRecuperacion] = useState(false);
-  const [correoRecup, setCorreoRecup] = useState('');
-  const [mensajeRecup, setMensajeRecup] = useState('');
+  const [busqueda, setBusqueda]               = useState('');
+  const [usuarioSeleccionado, setUsuarioSel]  = useState<string | null>(null);
+  const [pin, setPin]                         = useState('');
+  const [cargando, setCargando]               = useState(false);
+  const [error, setError]                     = useState('');
+  const [modoRecup, setModoRecup]             = useState(false);
+  const [correoRecup, setCorreoRecup]         = useState('');
+  const [mensajeRecup, setMensajeRecup]       = useState('');
   const pinRef = useRef<HTMLInputElement>(null);
-
-  const normalizar = (s: string) =>
-    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
   const usuariosFiltrados = busqueda.length >= 2
     ? USUARIOS.filter(u =>
@@ -33,10 +44,10 @@ export default function LoginScreen() {
   const usuarioActual = USUARIOS.find(u => u.id === usuarioSeleccionado);
 
   function seleccionarUsuario(id: string) {
-    setUsuarioSeleccionado(id);
+    setUsuarioSel(id);
     setBusqueda('');
     setError('');
-    setTimeout(() => pinRef.current?.focus(), 100);
+    setTimeout(() => pinRef.current?.focus(), 150);
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -46,7 +57,6 @@ export default function LoginScreen() {
     setError('');
 
     if (MODO_LOCAL) {
-      // Validación local sin backend
       const u = USUARIOS.find(u => u.id === usuarioSeleccionado);
       if (u && (u.pin === '' || u.pin === pin || pin === '')) {
         setUsuario(u.id, u.nombre, u.rol, u.jornada === 'ambas' ? 'manana' : u.jornada);
@@ -57,7 +67,6 @@ export default function LoginScreen() {
       return;
     }
 
-    // Validación real contra Apps Script
     try {
       const { login } = await import('../data/api');
       const res = await login(usuarioSeleccionado, pin);
@@ -79,11 +88,10 @@ export default function LoginScreen() {
     setCargando(true);
     try {
       const res = await recuperarPin(correoRecup);
-      if (res.ok) {
-        setMensajeRecup('Se envió un PIN temporal a tu correo institucional.');
-      } else {
-        setMensajeRecup(res.error ?? 'Correo no encontrado.');
-      }
+      setMensajeRecup(res.ok
+        ? 'Se envió un PIN temporal a tu correo institucional.'
+        : (res.error ?? 'Correo no encontrado.')
+      );
     } catch {
       setMensajeRecup('Error de conexión.');
     } finally {
@@ -92,144 +100,261 @@ export default function LoginScreen() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-950 px-4">
-      {/* Escudo */}
-      <div className="mb-6 flex flex-col items-center">
-        <img
-          src="/mjb-prestamos/mjb_escudo.png"
-          alt="Escudo MJB"
-          className="w-44 h-44 object-contain"
-          style={{ filter: 'drop-shadow(0 8px 32px rgba(0,0,0,0.8))', mixBlendMode: 'lighten' }}
-        />
-        <h1 className="mt-3 text-xl font-bold text-white tracking-wide text-center">
-          I.E. Manuel J. Betancur
-        </h1>
-        <p className="text-sm text-gray-400 mt-1">Sistema de préstamo de recursos</p>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-950 px-4 relative overflow-hidden">
+
+      {/* Fondo con gradiente animado */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-blue-900/20 blur-[120px]" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-green-900/15 blur-[120px]" />
+        <div className="absolute top-[40%] left-[60%] w-[300px] h-[300px] rounded-full bg-red-900/10 blur-[80px]" />
       </div>
 
-      {modoRecuperacion ? (
-        /* ── Recuperación de PIN ── */
-        <div className="w-full max-w-sm bg-gray-900 rounded-2xl p-6 shadow-xl border border-gray-800">
-          <h2 className="text-white font-semibold mb-4">Recuperar PIN</h2>
-          {mensajeRecup ? (
-            <div className="text-green-400 text-sm mb-4">{mensajeRecup}</div>
-          ) : (
-            <form onSubmit={handleRecuperacion} className="space-y-4">
-              <input
-                type="email"
-                placeholder="Correo institucional"
-                value={correoRecup}
-                onChange={e => setCorreoRecup(e.target.value)}
-                className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:border-blue-500"
-                required
-              />
-              <button
-                type="submit"
-                disabled={cargando}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium rounded-lg py-3 text-sm transition"
-              >
-                {cargando ? 'Enviando...' : 'Enviar PIN temporal'}
-              </button>
-            </form>
-          )}
-          <button
-            onClick={() => { setModoRecuperacion(false); setMensajeRecup(''); }}
-            className="mt-4 text-xs text-gray-500 hover:text-gray-300 transition"
+      <AnimatePresence mode="wait">
+        {modoRecup ? (
+          /* ── Recuperación de PIN ── */
+          <motion.div
+            key="recup"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -24 }}
+            transition={{ duration: 0.3 }}
+            className="w-full max-w-sm relative z-10"
           >
-            ← Volver al login
-          </button>
-        </div>
-      ) : (
-        /* ── Login principal ── */
-        <div className="w-full max-w-sm bg-gray-900 rounded-2xl p-6 shadow-xl border border-gray-800">
-          {!usuarioSeleccionado ? (
-            /* Paso 1: buscar usuario */
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">¿Quién eres?</label>
-              <input
-                type="text"
-                placeholder="Escribe tu nombre..."
-                value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-                className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:border-blue-500"
-                autoFocus
-              />
-              {usuariosFiltrados.length > 0 && (
-                <ul className="mt-2 bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-                  {usuariosFiltrados.map(u => (
-                    <li key={u.id}>
-                      <button
-                        onClick={() => seleccionarUsuario(u.id)}
-                        className="w-full text-left px-4 py-3 text-sm text-white hover:bg-gray-700 transition flex items-center gap-3"
-                      >
-                        <span
-                          className="w-2 h-2 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: u.color }}
-                        />
-                        <span>{u.nombre}</span>
-                        <span className="ml-auto text-xs text-gray-500 capitalize">{u.rol}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {busqueda.length >= 2 && usuariosFiltrados.length === 0 && (
-                <p className="mt-2 text-xs text-gray-500">No se encontró ningún usuario.</p>
-              )}
-            </div>
-          ) : (
-            /* Paso 2: ingresar PIN */
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="flex items-center gap-3 mb-2">
-                <span
-                  className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: usuarioActual?.color }}
-                />
-                <span className="text-white font-medium text-sm">{usuarioActual?.nombre}</span>
-                <button
-                  type="button"
-                  onClick={() => { setUsuarioSeleccionado(null); setPin(''); setError(''); }}
-                  className="ml-auto text-xs text-gray-500 hover:text-gray-300 transition"
-                >
-                  Cambiar
-                </button>
+            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl p-8">
+              <button
+                onClick={() => { setModoRecup(false); setMensajeRecup(''); }}
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition mb-6"
+              >
+                <ArrowLeft size={14} /> Volver al inicio de sesión
+              </button>
+
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
+                  <Mail size={18} className="text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-white font-semibold">Recuperar PIN</h2>
+                  <p className="text-xs text-gray-500">Te enviaremos un PIN temporal</p>
+                </div>
               </div>
 
-              <input
-                ref={pinRef}
-                type="password"
-                inputMode="numeric"
-                placeholder="PIN"
-                value={pin}
-                onChange={e => setPin(e.target.value)}
-                maxLength={8}
-                className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:border-blue-500 tracking-widest text-center text-lg"
-              />
-
-              {error && (
-                <p className="text-red-400 text-xs text-center">{error}</p>
+              {mensajeRecup ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="rounded-xl bg-green-600/15 border border-green-500/30 p-4 text-sm text-green-300"
+                >
+                  {mensajeRecup}
+                </motion.div>
+              ) : (
+                <form onSubmit={handleRecuperacion} className="space-y-4">
+                  <Input
+                    type="email"
+                    placeholder="Correo institucional"
+                    value={correoRecup}
+                    onChange={e => setCorreoRecup(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                  <Button type="submit" disabled={cargando} className="w-full" size="lg">
+                    {cargando ? 'Enviando...' : 'Enviar PIN temporal'}
+                  </Button>
+                </form>
               )}
-
-              <button
-                type="submit"
-                disabled={cargando || (!pin && !MODO_LOCAL)}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold rounded-lg py-3 text-sm transition"
-              >
-                {cargando ? 'Verificando...' : 'Entrar'}
-              </button>
-            </form>
-          )}
-
-          <div className="mt-4 text-center">
-            <button
-              onClick={() => setModoRecuperacion(true)}
-              className="text-xs text-gray-500 hover:text-gray-300 transition"
+            </div>
+          </motion.div>
+        ) : (
+          /* ── Login principal ── */
+          <motion.div
+            key="login"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -24 }}
+            transition={{ duration: 0.35 }}
+            className="w-full max-w-sm relative z-10"
+          >
+            {/* Escudo */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="flex flex-col items-center mb-8"
             >
-              ¿Olvidaste tu PIN?
-            </button>
-          </div>
-        </div>
-      )}
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-blue-500/20 blur-2xl scale-150" />
+                <img
+                  src="/mjb-prestamos/mjb_escudo.png"
+                  alt="Escudo MJB"
+                  className="relative w-36 h-36 object-contain drop-shadow-2xl"
+                  style={{ mixBlendMode: 'lighten' }}
+                />
+              </div>
+              <h1 className="mt-4 text-xl font-bold text-white tracking-wide text-center">
+                I.E. Manuel J. Betancur
+              </h1>
+              <p className="text-sm text-gray-500 mt-1">Sistema de préstamo de recursos</p>
+            </motion.div>
+
+            {/* Card principal */}
+            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl overflow-hidden">
+              <AnimatePresence mode="wait">
+                {!usuarioSeleccionado ? (
+                  /* Paso 1: buscar usuario */
+                  <motion.div
+                    key="buscar"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ duration: 0.25 }}
+                    className="p-6"
+                  >
+                    <p className="text-xs text-gray-500 uppercase tracking-widest mb-3 font-medium">
+                      ¿Quién eres?
+                    </p>
+
+                    <div className="relative">
+                      <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                      <Input
+                        type="text"
+                        placeholder="Escribe tu nombre..."
+                        value={busqueda}
+                        onChange={e => setBusqueda(e.target.value)}
+                        className="pl-10"
+                        autoFocus
+                      />
+                    </div>
+
+                    <AnimatePresence>
+                      {usuariosFiltrados.length > 0 && (
+                        <motion.ul
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          className="mt-2 rounded-xl border border-white/10 bg-gray-900/80 backdrop-blur overflow-hidden divide-y divide-white/5"
+                        >
+                          {usuariosFiltrados.map((u, i) => (
+                            <motion.li
+                              key={u.id}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: i * 0.04 }}
+                            >
+                              <button
+                                onClick={() => seleccionarUsuario(u.id)}
+                                className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-white/8 transition-colors group"
+                              >
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-2 ring-offset-1 ring-offset-gray-900"
+                                  style={{ backgroundColor: u.color, ringColor: u.color }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-white font-medium truncate">{u.nombre}</p>
+                                  <p className="text-xs text-gray-500">{ROL_LABEL[u.rol]}</p>
+                                </div>
+                                <ChevronRight size={14} className="text-gray-600 group-hover:text-gray-400 transition flex-shrink-0" />
+                              </button>
+                            </motion.li>
+                          ))}
+                        </motion.ul>
+                      )}
+                      {busqueda.length >= 2 && usuariosFiltrados.length === 0 && (
+                        <motion.p
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="mt-3 text-xs text-gray-600 text-center"
+                        >
+                          No se encontró ningún usuario
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                ) : (
+                  /* Paso 2: ingresar PIN */
+                  <motion.div
+                    key="pin"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.25 }}
+                    className="p-6"
+                  >
+                    {/* Usuario seleccionado */}
+                    <div className="flex items-center gap-3 mb-6 p-3 rounded-xl bg-white/5 border border-white/8">
+                      <span
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: usuarioActual?.color }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white font-medium truncate">{usuarioActual?.nombre}</p>
+                        <p className="text-xs text-gray-500">{ROL_LABEL[usuarioActual?.rol ?? '']}</p>
+                      </div>
+                      <button
+                        onClick={() => { setUsuarioSel(null); setPin(''); setError(''); }}
+                        className="text-xs text-gray-500 hover:text-gray-300 transition flex-shrink-0"
+                      >
+                        Cambiar
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleLogin} className="space-y-4">
+                      <div className="relative">
+                        <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                        <Input
+                          ref={pinRef}
+                          type="password"
+                          inputMode="numeric"
+                          placeholder="PIN"
+                          value={pin}
+                          onChange={e => setPin(e.target.value)}
+                          maxLength={8}
+                          className="pl-10 tracking-widest text-center text-lg font-mono"
+                        />
+                      </div>
+
+                      <AnimatePresence>
+                        {error && (
+                          <motion.p
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            className="text-red-400 text-xs text-center"
+                          >
+                            {error}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+
+                      <Button
+                        type="submit"
+                        disabled={cargando || (!pin && !MODO_LOCAL)}
+                        className="w-full"
+                        size="lg"
+                      >
+                        {cargando ? (
+                          <span className="flex items-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Verificando...
+                          </span>
+                        ) : 'Entrar'}
+                      </Button>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Footer */}
+              <div className="px-6 pb-5 text-center">
+                <button
+                  onClick={() => setModoRecup(true)}
+                  className="text-xs text-gray-600 hover:text-gray-400 transition"
+                >
+                  ¿Olvidaste tu PIN?
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

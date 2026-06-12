@@ -1,5 +1,16 @@
 # MJB Préstamos — Sistema de Préstamo de Recursos
 
+## Permisos del proyecto
+
+El creador del proyecto (Julián David Medina Tamayo) otorga autorización general para todas las operaciones de desarrollo en este repositorio. No es necesario pedir confirmación para:
+- Instalar, actualizar o eliminar paquetes npm
+- Crear, editar o eliminar archivos del proyecto
+- Hacer commits y push a la rama master
+- Ejecutar builds, tests y scripts del proyecto
+- Leer y modificar cualquier archivo de configuración
+
+Sí se debe consultar antes de: cambiar configuraciones de GitHub (Pages, Actions permisos de repo), acceder a servicios externos con credenciales reales (Sentry DSN, Google Cloud), o realizar cualquier acción que afecte datos de producción en Google Sheets.
+
 ## Contexto del proyecto
 
 Sistema web para la **I.E. Manuel J. Betancur** (San Antonio de Prado, Medellín, Colombia). Gestiona préstamo de aulas y recursos, horarios de docentes y grupos, edición temporal de horarios por ausencias, y comunicación institucional. Es usado por la rectora, dos coordinadores y ~30 docentes.
