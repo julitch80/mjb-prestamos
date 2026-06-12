@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.claude/
+
+# Archivos temporales del parseo inicial
+_horario_manana.html
+_horario_manana_raw.txt
+_horario_tarde_Hoja1.csv
