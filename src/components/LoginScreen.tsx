@@ -96,7 +96,7 @@ export default function LoginScreen() {
       {/* Escudo */}
       <div className="mb-6 flex flex-col items-center">
         <img
-          src="/mjb-prestamos/mjb_hd.png"
+          src="/mjb-prestamos/mjb_escudo.png"
           alt="Escudo MJB"
           className="w-44 h-44 object-contain"
           style={{ filter: 'drop-shadow(0 8px 32px rgba(0,0,0,0.8))', mixBlendMode: 'lighten' }}
