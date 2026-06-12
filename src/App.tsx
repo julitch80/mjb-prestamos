@@ -61,9 +61,10 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3">
           {/* Logo + nombre institución */}
           <img
-            src="/mjb-prestamos/mjb_icon.png"
+            src="/mjb-prestamos/mjb_hd.png"
             alt="MJB"
             className="w-8 h-8 object-contain"
+            style={{ mixBlendMode: 'lighten' }}
           />
           <span className="text-sm font-semibold hidden sm:block">
             I.E. Manuel J. Betancur

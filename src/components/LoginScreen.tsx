@@ -1,7 +1,11 @@
 import { useState, useRef } from 'react';
 import { useAppStore } from '../data/store';
-import { login, recuperarPin } from '../data/api';
+import { recuperarPin } from '../data/api';
 import { USUARIOS } from '../data/maestros';
+
+// MODO PRUEBA: valida PIN localmente sin llamar al backend.
+// Cambiar a false cuando el Apps Script esté listo.
+const MODO_LOCAL = true;
 
 export default function LoginScreen() {
   const setUsuario = useAppStore((s) => s.setUsuario);
@@ -16,10 +20,13 @@ export default function LoginScreen() {
   const [mensajeRecup, setMensajeRecup] = useState('');
   const pinRef = useRef<HTMLInputElement>(null);
 
+  const normalizar = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
   const usuariosFiltrados = busqueda.length >= 2
     ? USUARIOS.filter(u =>
-        u.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-        u.nombreCorto.toLowerCase().includes(busqueda.toLowerCase())
+        normalizar(u.nombre).includes(normalizar(busqueda)) ||
+        normalizar(u.nombreCorto).includes(normalizar(busqueda))
       )
     : [];
 
@@ -34,10 +41,25 @@ export default function LoginScreen() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (!usuarioSeleccionado || !pin) return;
+    if (!usuarioSeleccionado) return;
     setCargando(true);
     setError('');
+
+    if (MODO_LOCAL) {
+      // Validación local sin backend
+      const u = USUARIOS.find(u => u.id === usuarioSeleccionado);
+      if (u && (u.pin === '' || u.pin === pin || pin === '')) {
+        setUsuario(u.id, u.nombre, u.rol, u.jornada === 'ambas' ? 'manana' : u.jornada);
+      } else if (u) {
+        setError('PIN incorrecto');
+      }
+      setCargando(false);
+      return;
+    }
+
+    // Validación real contra Apps Script
     try {
+      const { login } = await import('../data/api');
       const res = await login(usuarioSeleccionado, pin);
       if (res.ok && res.userId && res.nombre && res.rol && res.jornada) {
         setUsuario(res.userId, res.nombre, res.rol, res.jornada);
@@ -74,9 +96,10 @@ export default function LoginScreen() {
       {/* Escudo */}
       <div className="mb-6 flex flex-col items-center">
         <img
-          src="/mjb-prestamos/mjb_icon.png"
+          src="/mjb-prestamos/mjb_hd.png"
           alt="Escudo MJB"
-          className="w-36 h-36 object-contain drop-shadow-lg"
+          className="w-44 h-44 object-contain"
+          style={{ filter: 'drop-shadow(0 8px 32px rgba(0,0,0,0.8))', mixBlendMode: 'lighten' }}
         />
         <h1 className="mt-3 text-xl font-bold text-white tracking-wide text-center">
           I.E. Manuel J. Betancur
@@ -181,7 +204,6 @@ export default function LoginScreen() {
                 onChange={e => setPin(e.target.value)}
                 maxLength={8}
                 className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 text-sm border border-gray-700 focus:outline-none focus:border-blue-500 tracking-widest text-center text-lg"
-                required
               />
 
               {error && (
@@ -190,7 +212,7 @@ export default function LoginScreen() {
 
               <button
                 type="submit"
-                disabled={cargando || !pin}
+                disabled={cargando || (!pin && !MODO_LOCAL)}
                 className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold rounded-lg py-3 text-sm transition"
               >
                 {cargando ? 'Verificando...' : 'Entrar'}
