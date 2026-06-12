@@ -6,7 +6,6 @@ import { recuperarPin } from '../data/api';
 import { USUARIOS } from '../data/maestros';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { cn } from '@/lib/utils';
 
 // MODO PRUEBA: valida PIN localmente sin llamar al backend.
 // Cambiar a false cuando el Apps Script esté listo.
@@ -244,8 +243,8 @@ export default function LoginScreen() {
                                 className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-white/8 transition-colors group"
                               >
                                 <span
-                                  className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-2 ring-offset-1 ring-offset-gray-900"
-                                  style={{ backgroundColor: u.color, ringColor: u.color }}
+                                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: u.color }}
                                 />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm text-white font-medium truncate">{u.nombre}</p>
