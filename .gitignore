@@ -1,6 +1,8 @@
 node_modules/
 dist/
 .claude/
+.env.local
+.env.*.local
 
 # Archivos temporales del parseo inicial
 _horario_manana.html

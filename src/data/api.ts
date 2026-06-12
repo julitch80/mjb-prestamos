@@ -1,5 +1,4 @@
-const APPS_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbyIxTCPm0PvibDjbqYYv6gYgJtc6MqL-2NVzdEaRLsMO2nAasseQgDO0UUixkeX4X4zZA/exec';
+const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL as string;
 
 // JSONP fallback — necesario para evitar error CORS desde GitHub Pages
 function fetchJsonp<T>(params: Record<string, string>): Promise<T> {

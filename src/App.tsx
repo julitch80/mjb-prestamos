@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAppStore } from './data/store';
 import { useTheme } from './hooks/useTheme';
 import LoginScreen from './components/LoginScreen';
@@ -33,13 +34,17 @@ export default function App() {
   const notificaciones = useAppStore(s => s.notificaciones);
   const notifNoLeidas = notificaciones.filter(n => !n.leida).length;
 
-  // Cargar notificaciones al iniciar sesión
+  // Polling de notificaciones cada 30s con TanStack Query
+  const { data: notifData } = useQuery({
+    queryKey: ['notificaciones', userId],
+    queryFn: () => getNotificaciones(userId!),
+    enabled: !!userId,
+    refetchInterval: 1000 * 30,
+  });
+
   useEffect(() => {
-    if (!userId) return;
-    getNotificaciones(userId)
-      .then(setNotificaciones)
-      .catch(() => {/* silencioso */});
-  }, [userId, setNotificaciones]);
+    if (notifData) setNotificaciones(notifData);
+  }, [notifData, setNotificaciones]);
 
   if (!userId) return <LoginScreen />;
 
