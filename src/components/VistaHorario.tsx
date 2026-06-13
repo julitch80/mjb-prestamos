@@ -20,7 +20,7 @@ import {
 import { horarioBase } from '../data/horarioBase';
 import { cn } from '@/lib/utils';
 import EditorHorarioWizard from './EditorHorarioWizard';
-import { formatearFechaLegible } from '../data/horarioModificado';
+import EditorHorarioMode from './EditorHorarioMode';
 import type { HorarioModificado } from '../data/horarioModificado';
 
 type Modo         = 'aulas' | 'docente' | 'grupo';
@@ -1150,7 +1150,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
 // ── Componente principal ─────────────────────────────────────────────────────
 
 export default function VistaHorario() {
-  const { jornada, rol, userId } = useAppStore();
+  const { jornada, rol, userId, horariosModificados } = useAppStore();
   const defaultJornada: 'manana' | 'tarde' = jornada === 'tarde' ? 'tarde' : 'manana';
 
   const [modo, setModo]               = useState<Modo>('aulas');
@@ -1160,9 +1160,15 @@ export default function VistaHorario() {
   const [vistaOverview, setVistaOverview] = useState<VistaDetalle>('semana');
   const [diaOverview, setDiaOverview]     = useState('lunes');
 
-  // Editor de horario (Fase 1+2: solo el wizard)
-  const [wizardAbierto, setWizardAbierto]     = useState(false);
-  const [borradorReciente, setBorradorReciente] = useState<HorarioModificado | null>(null);
+  // Editor de horario
+  const [wizardAbierto, setWizardAbierto]   = useState(false);
+  const [editandoBorrador, setEditandoBorrador] = useState<HorarioModificado | null>(null);
+
+  // ¿Hay borrador activo del usuario para entrar al modo edición?
+  // Cuando el wizard completa o el usuario decide retomar, este estado activa el editor.
+  const borradorActivo = editandoBorrador
+    ? horariosModificados.find(h => h.id === editandoBorrador.id) ?? null
+    : null;
 
   // Al cambiar jornada (solo coord/rectora), volver al overview de cada modo
   useEffect(() => {
@@ -1193,6 +1199,16 @@ export default function VistaHorario() {
     docente: 'Por docente',
     grupo:   'Por grupo',
   };
+
+  // Si hay borrador activo, el editor toma el control de toda la vista
+  if (borradorActivo) {
+    return (
+      <EditorHorarioMode
+        borrador={borradorActivo}
+        onSalir={() => setEditandoBorrador(null)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -1235,32 +1251,6 @@ export default function VistaHorario() {
         )}
       </div>
 
-      {/* Banner de borrador creado (Fase 1+2: el editor real llega en Fase 3) */}
-      {borradorReciente && (
-        <motion.div
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-start gap-3 p-3 rounded-2xl bg-blue-950/40 border border-blue-700/40"
-        >
-          <div className="text-blue-400 text-base leading-none mt-0.5">📋</div>
-          <div className="flex-1 text-xs">
-            <div className="text-white font-semibold">Borrador guardado</div>
-            <div className="text-blue-300 mt-0.5">
-              {formatearFechaLegible(borradorReciente.fecha)} ·{' '}
-              {borradorReciente.ausencias.length} {borradorReciente.ausencias.length === 1 ? 'docente ausente' : 'docentes ausentes'}
-              {borradorReciente.apoyos.length > 0 && ` · ${borradorReciente.apoyos.length} apoyo(s)`}
-            </div>
-            <div className="text-gray-500 mt-1.5 italic">
-              El editor de bloques estará disponible en la próxima actualización.
-            </div>
-          </div>
-          <button
-            onClick={() => setBorradorReciente(null)}
-            className="text-gray-500 hover:text-white transition text-sm leading-none p-1"
-            aria-label="Cerrar"
-          >✕</button>
-        </motion.div>
-      )}
 
       {/* Contenido */}
       <AnimatePresence mode="wait">
@@ -1353,7 +1343,7 @@ export default function VistaHorario() {
           open={wizardAbierto}
           jornada={jornadaPropia}
           onClose={() => setWizardAbierto(false)}
-          onCompletar={(hm) => setBorradorReciente(hm)}
+          onCompletar={(hm) => setEditandoBorrador(hm)}
         />
       )}
     </div>
