@@ -324,6 +324,182 @@ export function generarPropuestasAsistente(
   return propuestas;
 }
 
+// ── Generación de resumen para difundir ─────────────────────────────────────
+
+const HORAS_MANANA = ['06:00', '06:55', '08:10', '09:05', '10:10', '11:05'];
+const HORAS_TARDE  = ['12:15', '13:10', '14:25', '15:20', '16:25', '17:20'];
+
+export interface DocenteAfectadoResumen {
+  id: string;
+  nombre: string;
+  nombreCorto: string;
+  correo: string;
+  motivo: string; // 'ausente' | 'clase movida' | 'supervisor de taller'
+}
+
+export interface ResumenDifusion {
+  html: string;
+  texto: string;
+  docentesAfectados: DocenteAfectadoResumen[];
+}
+
+export function generarResumenDifusion(
+  borrador: HorarioModificado,
+  fichas: FichaEditor[],
+  usuarios: Array<{ id: string; nombre: string; nombreCorto: string; correo: string }>,
+): ResumenDifusion {
+  const fechaLegible = formatearFechaLegible(borrador.fecha);
+  const jornadaTxt = borrador.jornada === 'manana' ? 'mañana' : 'tarde';
+  const horas = borrador.jornada === 'manana' ? HORAS_MANANA : HORAS_TARDE;
+
+  // Agrupar fichas (visibles tras edición) por grupo
+  const fichasPorGrupo: Record<string, FichaEditor[]> = {};
+  fichas.forEach(f => {
+    if (f.ubicacion.tipo === 'eliminada' || f.ubicacion.tipo === 'pendiente') return;
+    (fichasPorGrupo[f.origen.grupo] ??= []).push(f);
+  });
+
+  // Detectar grupos afectados (los que tuvieron al menos una modificación)
+  const gruposAfectados = new Set<string>();
+  const ausenteIdsPorBloque: Record<string, Set<number>> = {};
+  borrador.ausencias.forEach(a => {
+    ausenteIdsPorBloque[a.docenteId] = new Set(a.bloques);
+  });
+  fichas.forEach(f => {
+    if (ausenteIdsPorBloque[f.origen.docente]?.has(f.origen.bloque)) {
+      gruposAfectados.add(f.origen.grupo);
+    }
+  });
+
+  // ── HTML ─────────────────────────────────────────────────────────────────
+  const htmlPartes: string[] = [];
+  htmlPartes.push(`<div style="font-family:Arial,sans-serif;max-width:600px;color:#1f2937">`);
+  htmlPartes.push(`<h2 style="margin:0 0 4px 0;color:#1e3a8a">I.E. Manuel J. Betancur — Modificación de horario</h2>`);
+  htmlPartes.push(`<p style="margin:0 0 16px 0;color:#475569"><strong>${fechaLegible}</strong> · Jornada ${jornadaTxt}</p>`);
+
+  const textoPartes: string[] = [];
+  textoPartes.push(`*MJB — Modificación de horario*`);
+  textoPartes.push(`${fechaLegible} · Jornada ${jornadaTxt}`);
+  textoPartes.push('');
+
+  // Por cada grupo afectado, listar el horario resultante
+  Array.from(gruposAfectados).sort().forEach(grupo => {
+    const colocadas = (fichasPorGrupo[grupo] ?? [])
+      .filter(f => f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller')
+      .sort((a, b) => {
+        const ba = a.ubicacion.tipo === 'colocada' || a.ubicacion.tipo === 'taller' ? a.ubicacion.bloque : 0;
+        const bb = b.ubicacion.tipo === 'colocada' || b.ubicacion.tipo === 'taller' ? b.ubicacion.bloque : 0;
+        return ba - bb;
+      });
+    const eliminadas = fichas
+      .filter(f => f.origen.grupo === grupo && f.ubicacion.tipo === 'eliminada')
+      .map(f => f.origen.bloque)
+      .sort();
+
+    // HTML
+    htmlPartes.push(`<h3 style="margin:16px 0 6px 0;color:#1f2937;border-bottom:1px solid #e5e7eb;padding-bottom:4px">${grupo}</h3>`);
+    htmlPartes.push(`<table style="width:100%;border-collapse:collapse;font-size:13px">`);
+    htmlPartes.push(`<thead><tr style="background:#f3f4f6">`);
+    htmlPartes.push(`<th style="text-align:left;padding:6px 8px;border:1px solid #e5e7eb">Hora</th>`);
+    htmlPartes.push(`<th style="text-align:left;padding:6px 8px;border:1px solid #e5e7eb">Docente</th>`);
+    htmlPartes.push(`<th style="text-align:left;padding:6px 8px;border:1px solid #e5e7eb">Aula</th>`);
+    htmlPartes.push(`</tr></thead><tbody>`);
+
+    colocadas.forEach(f => {
+      const bloque = f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller' ? f.ubicacion.bloque : 0;
+      const docente = usuarios.find(u => u.id === f.origen.docente)?.nombreCorto ?? f.origen.docente;
+      const hora = horas[bloque - 1] ?? '';
+      const esTaller = f.ubicacion.tipo === 'taller';
+      const supId = esTaller ? f.ubicacion.supervisorId : undefined;
+      const supervisor = supId ? usuarios.find(u => u.id === supId)?.nombreCorto : undefined;
+      const docTexto = esTaller
+        ? `Taller dejado por ${docente}${supervisor ? ` · supervisa ${supervisor}` : ''}`
+        : docente;
+      const movida = bloque !== f.origen.bloque;
+      const estilo = esTaller ? 'background:#fef3c7' : movida ? 'background:#dbeafe' : '';
+      htmlPartes.push(`<tr style="${estilo}">`);
+      htmlPartes.push(`<td style="padding:6px 8px;border:1px solid #e5e7eb">${bloque}.ª (${hora})</td>`);
+      htmlPartes.push(`<td style="padding:6px 8px;border:1px solid #e5e7eb">${docTexto}</td>`);
+      htmlPartes.push(`<td style="padding:6px 8px;border:1px solid #e5e7eb">${f.origen.aula}</td>`);
+      htmlPartes.push(`</tr>`);
+    });
+    htmlPartes.push(`</tbody></table>`);
+    if (eliminadas.length > 0) {
+      htmlPartes.push(`<p style="margin:6px 0 0 0;color:#b91c1c;font-size:12px"><strong>Bloques sin clase:</strong> ${eliminadas.map(b => `${b}.ª`).join(', ')}</p>`);
+    }
+
+    // Texto
+    textoPartes.push(`*${grupo}*`);
+    colocadas.forEach(f => {
+      const bloque = f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller' ? f.ubicacion.bloque : 0;
+      const docente = usuarios.find(u => u.id === f.origen.docente)?.nombreCorto ?? f.origen.docente;
+      const hora = horas[bloque - 1] ?? '';
+      const esTaller = f.ubicacion.tipo === 'taller';
+      const supId = esTaller ? f.ubicacion.supervisorId : undefined;
+      const supervisor = supId ? usuarios.find(u => u.id === supId)?.nombreCorto : undefined;
+      const marca = esTaller ? ' 🟡' : (bloque !== f.origen.bloque ? ' 🔵' : '');
+      const docTexto = esTaller
+        ? `Taller (${docente})${supervisor ? ` con ${supervisor}` : ''}`
+        : docente;
+      textoPartes.push(`${bloque}.ª ${hora} — ${docTexto} · ${f.origen.aula}${marca}`);
+    });
+    if (eliminadas.length > 0) {
+      textoPartes.push(`❌ Sin clase: ${eliminadas.map(b => `${b}.ª`).join(', ')}`);
+    }
+    textoPartes.push('');
+  });
+
+  htmlPartes.push(`<p style="margin-top:20px;font-size:11px;color:#94a3b8">Generado por MJB Préstamos</p>`);
+  htmlPartes.push(`</div>`);
+  textoPartes.push('— MJB Préstamos');
+
+  // ── Docentes afectados ─────────────────────────────────────────────────────
+  const docentesAfectadosMap = new Map<string, DocenteAfectadoResumen>();
+
+  // (1) los declarados ausentes
+  borrador.ausencias.forEach(a => {
+    const u = usuarios.find(x => x.id === a.docenteId);
+    if (u && !docentesAfectadosMap.has(u.id)) {
+      docentesAfectadosMap.set(u.id, {
+        id: u.id, nombre: u.nombre, nombreCorto: u.nombreCorto, correo: u.correo,
+        motivo: 'ausente',
+      });
+    }
+  });
+
+  // (2) docentes con alguna clase movida (origen distinto de actual)
+  fichas.forEach(f => {
+    if (f.ubicacion.tipo === 'colocada' && f.ubicacion.bloque !== f.origen.bloque) {
+      const u = usuarios.find(x => x.id === f.origen.docente);
+      if (u && !docentesAfectadosMap.has(u.id)) {
+        docentesAfectadosMap.set(u.id, {
+          id: u.id, nombre: u.nombre, nombreCorto: u.nombreCorto, correo: u.correo,
+          motivo: 'clase movida',
+        });
+      }
+    }
+  });
+
+  // (3) supervisores de taller
+  fichas.forEach(f => {
+    if (f.ubicacion.tipo === 'taller' && f.ubicacion.supervisorId) {
+      const u = usuarios.find(x => x.id === f.ubicacion.supervisorId);
+      if (u && !docentesAfectadosMap.has(u.id)) {
+        docentesAfectadosMap.set(u.id, {
+          id: u.id, nombre: u.nombre, nombreCorto: u.nombreCorto, correo: u.correo,
+          motivo: 'supervisor de taller',
+        });
+      }
+    }
+  });
+
+  return {
+    html: htmlPartes.join('\n'),
+    texto: textoPartes.join('\n'),
+    docentesAfectados: Array.from(docentesAfectadosMap.values()),
+  };
+}
+
 function encontrarHuecosDocente(
   fichas: FichaEditor[],
   docenteId: string,

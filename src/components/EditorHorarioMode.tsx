@@ -34,12 +34,14 @@ import {
   esFichaAusenteAhora,
   docentesLibresEn,
   generarPropuestasAsistente,
+  generarResumenDifusion,
   TIPO_APOYO_LABEL,
 } from '../data/horarioModificado';
 import type {
   HorarioModificado,
   FichaEditor,
   PropuestaAsistente,
+  ResumenDifusion,
 } from '../data/horarioModificado';
 import { cn } from '@/lib/utils';
 
@@ -304,6 +306,8 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   const [errorMovimiento, setErrorMovimiento] = useState<string | null>(null);
   const [verTodoElHorario, setVerTodoElHorario] = useState(false);
   const [asistenteAbierto, setAsistenteAbierto] = useState(false);
+  const [resumenDifusion, setResumenDifusion] = useState<ResumenDifusion | null>(null);
+  const [copiado, setCopiado] = useState<'html' | 'texto' | 'correos' | null>(null);
 
   // Auto-dismiss del toast de error tras 5 segundos
   useEffect(() => {
@@ -532,7 +536,42 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
       estado: 'guardado',
       timestamp: new Date().toISOString(),
     });
-    onSalir();
+    // Generar resumen para difundir
+    const usuariosMinimos = USUARIOS.map(u => ({
+      id: u.id, nombre: u.nombre, nombreCorto: u.nombreCorto, correo: u.correo,
+    }));
+    const resumen = generarResumenDifusion(
+      { ...borrador, modificaciones, estado: 'guardado' },
+      fichas,
+      usuariosMinimos,
+    );
+    setResumenDifusion(resumen);
+  }
+
+  async function copiarPortapapeles(texto: string, kind: 'html' | 'texto' | 'correos') {
+    try {
+      if (kind === 'html' && navigator.clipboard?.write) {
+        const blob = new Blob([texto], { type: 'text/html' });
+        const blobTxt = new Blob([texto], { type: 'text/plain' });
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'text/html': blob, 'text/plain': blobTxt }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(texto);
+      }
+      setCopiado(kind);
+      setTimeout(() => setCopiado(null), 2500);
+    } catch {
+      // Fallback simple
+      const ta = document.createElement('textarea');
+      ta.value = texto;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setCopiado(kind);
+      setTimeout(() => setCopiado(null), 2500);
+    }
   }
 
   function descartar() {
@@ -774,6 +813,127 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                 aria-label="Cerrar"
               >✕</button>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de resumen para difundir tras guardar */}
+      <AnimatePresence>
+        {resumenDifusion && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-6"
+          >
+            <motion.div
+              initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+              className="w-full max-w-2xl bg-gray-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+            >
+              <div className="px-6 pt-5 pb-4 border-b border-white/8">
+                <h2 className="text-white font-semibold text-base flex items-center gap-2">
+                  <span className="text-green-400">✓</span> Cambios guardados — Listo para difundir
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Copia el resumen y envíalo por correo, WhatsApp o pégalo en la página web.
+                </p>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+                {/* Vista previa del HTML */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-gray-300">Vista previa</h3>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => copiarPortapapeles(resumenDifusion.html, 'html')}
+                        className={cn(
+                          'px-3 py-1.5 rounded-lg text-xs font-medium transition',
+                          copiado === 'html'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-blue-600 hover:bg-blue-500 text-white'
+                        )}
+                      >
+                        {copiado === 'html' ? '✓ Copiado' : 'Copiar HTML (correo / web)'}
+                      </button>
+                      <button
+                        onClick={() => copiarPortapapeles(resumenDifusion.texto, 'texto')}
+                        className={cn(
+                          'px-3 py-1.5 rounded-lg text-xs font-medium transition',
+                          copiado === 'texto'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-green-700 hover:bg-green-600 text-white'
+                        )}
+                      >
+                        {copiado === 'texto' ? '✓ Copiado' : 'Copiar texto (WhatsApp)'}
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    className="bg-white rounded-xl p-4 max-h-72 overflow-y-auto text-gray-900"
+                    dangerouslySetInnerHTML={{ __html: resumenDifusion.html }}
+                  />
+                </div>
+
+                {/* Docentes afectados */}
+                {resumenDifusion.docentesAfectados.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-gray-300">
+                        Docentes afectados ({resumenDifusion.docentesAfectados.length})
+                      </h3>
+                      <button
+                        onClick={() => {
+                          const correos = resumenDifusion.docentesAfectados
+                            .map(d => d.correo)
+                            .filter(Boolean)
+                            .join(', ');
+                          const cc = ['juancarlosbv@iemanueljbetancur.edu.co', 'uriel.lopez@iemanueljbetancur.edu.co'].join(', ');
+                          copiarPortapapeles(correos ? `${correos}, ${cc}` : cc, 'correos');
+                        }}
+                        className={cn(
+                          'px-3 py-1.5 rounded-lg text-xs font-medium transition',
+                          copiado === 'correos'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-purple-600 hover:bg-purple-500 text-white'
+                        )}
+                      >
+                        {copiado === 'correos' ? '✓ Copiado' : 'Copiar correos (+ Blandón, Uriel)'}
+                      </button>
+                    </div>
+                    <div className="bg-white/4 border border-white/8 rounded-xl divide-y divide-white/8">
+                      {resumenDifusion.docentesAfectados.map(d => (
+                        <div key={d.id} className="flex items-center gap-3 px-3 py-2 text-xs">
+                          <span className="font-semibold text-gray-200 flex-1">{d.nombre}</span>
+                          <span className={cn(
+                            'px-2 py-0.5 rounded-full text-[10px] font-medium',
+                            d.motivo === 'ausente' ? 'bg-red-900/40 text-red-200' :
+                            d.motivo === 'clase movida' ? 'bg-blue-900/40 text-blue-200' :
+                            'bg-amber-900/40 text-amber-200'
+                          )}>
+                            {d.motivo}
+                          </span>
+                          {d.correo && (
+                            <span className="text-gray-500 truncate max-w-[200px]">{d.correo}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-gray-600 mt-1.5 italic">
+                      El correo de difusión incluye automáticamente a Juan Carlos Blandón y Uriel López.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-6 py-4 border-t border-white/8 bg-gray-950/80 flex justify-end gap-3">
+                <button
+                  onClick={() => { setResumenDifusion(null); onSalir(); }}
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition"
+                >
+                  Cerrar y volver al horario
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
