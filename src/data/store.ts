@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Notificacion, Reserva } from './api';
-import type { HorarioModificado } from './horarioModificado';
+import type { HorarioModificado, JornadaReducida } from './horarioModificado';
 
 export type VistaActual =
   | 'disponibilidad'
@@ -35,6 +35,9 @@ interface AppState {
   // Horarios modificados (ediciones temporales del coordinador)
   horariosModificados: HorarioModificado[];
 
+  // Jornadas reducidas (acortar día por acto cívico)
+  jornadasReducidas: JornadaReducida[];
+
   // Acciones auth
   setUsuario: (userId: string, nombre: string, rol: string, jornada: string) => void;
   cerrarSesion: () => void;
@@ -59,6 +62,10 @@ interface AppState {
   agregarHorarioModificado: (hm: HorarioModificado) => void;
   actualizarHorarioModificado: (id: string, cambios: Partial<HorarioModificado>) => void;
   eliminarHorarioModificado: (id: string) => void;
+
+  // Acciones jornadas reducidas
+  agregarJornadaReducida: (jr: JornadaReducida) => void;
+  eliminarJornadaReducida: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -75,6 +82,7 @@ export const useAppStore = create<AppState>()(
       notifCargadas: false,
       reservas: [],
       horariosModificados: [],
+      jornadasReducidas: [],
 
       // Auth
       setUsuario: (userId, nombre, rol, jornada) =>
@@ -139,6 +147,15 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           horariosModificados: s.horariosModificados.filter((h) => h.id !== id),
         })),
+
+      // Jornadas reducidas
+      agregarJornadaReducida: (jr) =>
+        set((s) => ({ jornadasReducidas: [jr, ...s.jornadasReducidas] })),
+
+      eliminarJornadaReducida: (id) =>
+        set((s) => ({
+          jornadasReducidas: s.jornadasReducidas.filter((j) => j.id !== id),
+        })),
     }),
     {
       name: 'mjb-app-storage',
@@ -150,6 +167,7 @@ export const useAppStore = create<AppState>()(
         jornada: s.jornada,
         temaOscuro: s.temaOscuro,
         horariosModificados: s.horariosModificados,
+        jornadasReducidas: s.jornadasReducidas,
       }),
     }
   )

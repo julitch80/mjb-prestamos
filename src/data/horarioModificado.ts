@@ -91,6 +91,96 @@ export function obtenerHorariosVigentes(
   return horarios.filter(h => h.fecha === fecha && h.jornada === jornada && h.estado === 'guardado');
 }
 
+// ── Jornada reducida (acortar día por acto cívico / reunión) ─────────────────
+
+export interface BloqueRecalculado {
+  id: number;
+  inicio: string; // HH:MM
+  fin: string;
+}
+
+export interface JornadaReducida {
+  id: string;
+  fecha: string;
+  jornada: 'manana' | 'tarde';
+  autor: string;
+  horaFin: string;       // hora de fin de la jornada (HH:MM)
+  motivo: string;        // ej. "Acto cívico", "Reunión de docentes"
+  bloques: BloqueRecalculado[];
+  timestamp: string;
+}
+
+/** Convierte "HH:MM" a minutos desde medianoche. */
+function aMinutos(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+/** Convierte minutos desde medianoche a "HH:MM". */
+function aHhmm(mins: number): string {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/**
+ * Recalcula los 6 bloques manteniendo los descansos institucionales
+ * (20 min después de la 2.ª y 10 min después de la 4.ª) y repartiendo
+ * el tiempo restante equitativamente entre las clases.
+ *
+ * Mañana arranca 06:00 → fin normal 12:00 (clases de 55 min).
+ * Tarde arranca 12:15 → fin normal 18:15.
+ */
+export function recalcularBloquesAcortados(
+  jornada: 'manana' | 'tarde',
+  horaFin: string,
+): BloqueRecalculado[] | { error: string } {
+  const inicioBase = jornada === 'manana' ? '06:00' : '12:15';
+  const inicioMin = aMinutos(inicioBase);
+  const finMin = aMinutos(horaFin);
+  const totalMin = finMin - inicioMin;
+  const descansos = 20 + 10; // 30 min total de descansos
+  const minutosClases = totalMin - descansos;
+  if (minutosClases < 60) {
+    return { error: 'La jornada es demasiado corta para 6 clases con los descansos institucionales (mínimo ~90 min, recomendado >120).' };
+  }
+  const duracionClase = Math.floor(minutosClases / 6);
+  // Repartir minutos residuales: dar el extra a las primeras clases
+  const sobrante = minutosClases - duracionClase * 6;
+
+  const bloques: BloqueRecalculado[] = [];
+  let cursor = inicioMin;
+  for (let i = 1; i <= 6; i++) {
+    const dur = duracionClase + (i <= sobrante ? 1 : 0);
+    const inicio = cursor;
+    const fin = cursor + dur;
+    bloques.push({ id: i, inicio: aHhmm(inicio), fin: aHhmm(fin) });
+    cursor = fin;
+    // Descanso después de 2 (20 min) y 4 (10 min)
+    if (i === 2) cursor += 20;
+    if (i === 4) cursor += 10;
+  }
+  return bloques;
+}
+
+export function generarIdJornadaReducida(): string {
+  return `jr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/** Lista las jornadas reducidas vigentes hoy o en el futuro próximo. */
+export function jornadasReducidasProximas(
+  jornadas: JornadaReducida[],
+  diasAdelante: number = 14,
+): JornadaReducida[] {
+  const hoy = fechaHoyLocal();
+  const limite = new Date(hoy + 'T12:00:00');
+  limite.setDate(limite.getDate() + diasAdelante);
+  const limiteStr = `${limite.getFullYear()}-${String(limite.getMonth() + 1).padStart(2, '0')}-${String(limite.getDate()).padStart(2, '0')}`;
+  return jornadas
+    .filter(j => j.fecha >= hoy && j.fecha <= limiteStr)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+}
+
 // ── Horario efectivo (aplicar modificaciones a un día) ───────────────────────
 
 export interface EntradaEfectiva {

@@ -22,8 +22,9 @@ import { cn } from '@/lib/utils';
 import EditorHorarioWizard from './EditorHorarioWizard';
 import EditorHorarioMode from './EditorHorarioMode';
 import ModalDiaModificado from './ModalDiaModificado';
-import { modificacionesProximas, formatearFechaLegible } from '../data/horarioModificado';
-import type { HorarioModificado } from '../data/horarioModificado';
+import ModalAcortarJornada from './ModalAcortarJornada';
+import { modificacionesProximas, jornadasReducidasProximas, formatearFechaLegible } from '../data/horarioModificado';
+import type { HorarioModificado, JornadaReducida } from '../data/horarioModificado';
 
 type Modo         = 'aulas' | 'docente' | 'grupo';
 type VistaDetalle = 'semana' | 'dia';
@@ -1152,7 +1153,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
 // ── Componente principal ─────────────────────────────────────────────────────
 
 export default function VistaHorario() {
-  const { jornada, rol, userId, horariosModificados } = useAppStore();
+  const { jornada, rol, userId, horariosModificados, jornadasReducidas } = useAppStore();
   const defaultJornada: 'manana' | 'tarde' = jornada === 'tarde' ? 'tarde' : 'manana';
 
   const [modo, setModo]               = useState<Modo>('aulas');
@@ -1166,9 +1167,12 @@ export default function VistaHorario() {
   const [wizardAbierto, setWizardAbierto]   = useState(false);
   const [editandoBorrador, setEditandoBorrador] = useState<HorarioModificado | null>(null);
   const [verDetalleMod, setVerDetalleMod] = useState<HorarioModificado | null>(null);
+  const [acortarAbierto, setAcortarAbierto] = useState(false);
+  const [verDetalleJr, setVerDetalleJr] = useState<JornadaReducida | null>(null);
 
-  // Modificaciones próximas (vigentes hoy o futuro próximo) — visibles para todos
+  // Modificaciones y jornadas reducidas próximas — visibles para todos
   const proximasMods = modificacionesProximas(horariosModificados);
+  const proximasJr = jornadasReducidasProximas(jornadasReducidas);
 
   // ¿Hay borrador activo del usuario para entrar al modo edición?
   // Cuando el wizard completa o el usuario decide retomar, este estado activa el editor.
@@ -1248,6 +1252,31 @@ export default function VistaHorario() {
         </div>
       )}
 
+      {/* Banner de jornadas reducidas próximas — visible para todos */}
+      {proximasJr.length > 0 && (
+        <div className="rounded-2xl border border-amber-700/40 bg-amber-950/30 p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-amber-200">
+            <span className="text-base">⏱</span>
+            {proximasJr.length === 1 ? 'Hay 1 jornada acortada' : `Hay ${proximasJr.length} jornadas acortadas`}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {proximasJr.map(j => (
+              <button
+                key={j.id}
+                onClick={() => setVerDetalleJr(j)}
+                className="text-left px-3 py-2 rounded-xl bg-white/6 hover:bg-white/12 border border-white/8 transition flex-1 min-w-[220px]"
+              >
+                <div className="text-xs font-semibold text-white">{formatearFechaLegible(j.fecha)}</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">
+                  Jornada {j.jornada === 'manana' ? 'mañana' : 'tarde'} · termina {j.horaFin} · {j.motivo}
+                </div>
+                <div className="text-[10px] text-amber-300 mt-1">Ver bloques →</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Barra de controles: modo · jornada · semana/día — todo en una línea */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex gap-1 p-1 rounded-xl bg-white/4 border border-white/8">
@@ -1277,13 +1306,22 @@ export default function VistaHorario() {
         )}
 
         {puedeEditar && (
-          <button
-            onClick={() => setWizardAbierto(true)}
-            className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition shadow-lg shadow-blue-900/30"
-            title="Crear modificación temporal del horario"
-          >
-            <span className="text-base leading-none">✎</span> Editar
-          </button>
+          <>
+            <button
+              onClick={() => setWizardAbierto(true)}
+              className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition shadow-lg shadow-blue-900/30"
+              title="Crear modificación temporal del horario"
+            >
+              <span className="text-base leading-none">✎</span> Editar
+            </button>
+            <button
+              onClick={() => setAcortarAbierto(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition shadow-lg shadow-amber-900/30"
+              title="Acortar la jornada por acto cívico o reunión"
+            >
+              <span className="text-base leading-none">⏱</span> Acortar
+            </button>
+          </>
         )}
       </div>
 
@@ -1388,6 +1426,65 @@ export default function VistaHorario() {
         modificacion={verDetalleMod}
         onClose={() => setVerDetalleMod(null)}
       />
+
+      {/* Modal acortar jornada */}
+      {jornadaPropia && (
+        <ModalAcortarJornada
+          open={acortarAbierto}
+          jornada={jornadaPropia}
+          onClose={() => setAcortarAbierto(false)}
+        />
+      )}
+
+      {/* Modal de detalle de jornada reducida */}
+      <AnimatePresence>
+        {verDetalleJr && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-6"
+            onClick={() => setVerDetalleJr(null)}
+          >
+            <motion.div
+              initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+              className="w-full max-w-md bg-gray-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="px-6 pt-5 pb-4 border-b border-white/8 flex items-center justify-between">
+                <div>
+                  <h2 className="text-white font-semibold text-base flex items-center gap-2">
+                    <span className="text-amber-400">⏱</span> Jornada acortada
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {formatearFechaLegible(verDetalleJr.fecha)} · {verDetalleJr.jornada === 'manana' ? 'mañana' : 'tarde'} · termina {verDetalleJr.horaFin}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setVerDetalleJr(null)}
+                  className="text-gray-500 hover:text-white text-lg leading-none p-1"
+                  aria-label="Cerrar"
+                >✕</button>
+              </div>
+              <div className="px-6 py-5 space-y-3">
+                <div className="text-xs text-amber-300">Motivo: {verDetalleJr.motivo}</div>
+                <div className="bg-white/4 border border-white/10 rounded-2xl p-4">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {verDetalleJr.bloques.map(b => (
+                        <tr key={b.id} className="border-b border-white/6 last:border-b-0">
+                          <td className="py-2 text-gray-400 w-24 text-sm">{b.id}.ª hora</td>
+                          <td className="py-2 font-semibold text-white tabular-nums">{b.inicio} – {b.fin}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="text-[11px] text-gray-600 italic">Descansos: 20 min después de 2.ª · 10 min después de 4.ª</div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
