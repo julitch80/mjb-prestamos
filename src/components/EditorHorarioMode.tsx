@@ -33,11 +33,13 @@ import {
   diaDeSemana,
   esFichaAusenteAhora,
   docentesLibresEn,
+  generarPropuestasAsistente,
   TIPO_APOYO_LABEL,
 } from '../data/horarioModificado';
 import type {
   HorarioModificado,
   FichaEditor,
+  PropuestaAsistente,
 } from '../data/horarioModificado';
 import { cn } from '@/lib/utils';
 
@@ -301,6 +303,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   const [confirmDescartar, setConfirmDescartar] = useState(false);
   const [errorMovimiento, setErrorMovimiento] = useState<string | null>(null);
   const [verTodoElHorario, setVerTodoElHorario] = useState(false);
+  const [asistenteAbierto, setAsistenteAbierto] = useState(false);
 
   // Auto-dismiss del toast de error tras 5 segundos
   useEffect(() => {
@@ -506,6 +509,20 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     }));
   }
 
+  // ── Asistente: propuestas y aplicación ─────────────────────────────────────
+  const propuestas = useMemo(
+    () => generarPropuestasAsistente(fichas, borrador),
+    [fichas, borrador]
+  );
+
+  function aplicarPropuesta(p: PropuestaAsistente) {
+    setFichas(prev => prev.map(f => {
+      const cambio = p.cambios.find(c => c.fichaId === f.id);
+      return cambio ? { ...f, ubicacion: cambio.nuevaUbicacion } : f;
+    }));
+    setAsistenteAbierto(false);
+  }
+
   // ── Guardar / descartar ────────────────────────────────────────────────────
   function guardar() {
     if (pendientes.length > 0) return;
@@ -605,6 +622,29 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               Por docente
             </button>
           </div>
+
+          {/* Asistente de alternativas */}
+          <button
+            onClick={() => setAsistenteAbierto(true)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition',
+              propuestas.length > 0
+                ? 'bg-purple-950/50 text-purple-200 border-purple-600/50 hover:bg-purple-900/50'
+                : 'bg-white/4 text-gray-500 border-white/10 cursor-not-allowed'
+            )}
+            disabled={propuestas.length === 0}
+            title={propuestas.length === 0
+              ? 'No hay alternativas automáticas para este caso'
+              : `${propuestas.length} propuesta(s) automática(s)`}
+          >
+            <span className="text-sm leading-none">✨</span>
+            Alternativas
+            {propuestas.length > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-500/40 text-[10px] font-bold text-white">
+                {propuestas.length}
+              </span>
+            )}
+          </button>
 
           {/* Toggle: mostrar solo afectados o todo el horario */}
           <button
@@ -734,6 +774,78 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                 aria-label="Cerrar"
               >✕</button>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal del asistente de alternativas */}
+      <AnimatePresence>
+        {asistenteAbierto && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-6"
+            onClick={() => setAsistenteAbierto(false)}
+          >
+            <motion.div
+              initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+              className="w-full max-w-xl bg-gray-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="px-6 pt-5 pb-4 border-b border-white/8 flex items-center justify-between">
+                <div>
+                  <h2 className="text-white font-semibold text-base flex items-center gap-2">
+                    <span className="text-purple-400">✨</span> Alternativas del sistema
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Propuestas automáticas para resolver las ausencias declaradas.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setAsistenteAbierto(false)}
+                  className="text-gray-500 hover:text-white transition text-lg leading-none p-1"
+                  aria-label="Cerrar"
+                >✕</button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
+                {propuestas.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 text-sm">
+                    Sin propuestas automáticas viables para este caso. Sigue editando manualmente.
+                  </div>
+                ) : propuestas.map(p => {
+                  const colorBg = p.tipo === 'entrada_tardia' ? 'bg-blue-950/40 border-blue-700/40'
+                    : p.tipo === 'salida_temprana' ? 'bg-amber-950/40 border-amber-700/40'
+                    : 'bg-green-950/40 border-green-700/40';
+                  const colorTexto = p.tipo === 'entrada_tardia' ? 'text-blue-200'
+                    : p.tipo === 'salida_temprana' ? 'text-amber-200'
+                    : 'text-green-200';
+                  const colorBtn = p.tipo === 'entrada_tardia' ? 'bg-blue-600 hover:bg-blue-500'
+                    : p.tipo === 'salida_temprana' ? 'bg-amber-600 hover:bg-amber-500'
+                    : 'bg-green-600 hover:bg-green-500';
+                  return (
+                    <div key={p.id} className={cn('rounded-2xl border p-4 space-y-2', colorBg)}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className={cn('font-semibold text-sm', colorTexto)}>{p.titulo}</div>
+                          <div className="text-xs text-gray-300 mt-1">{p.descripcion}</div>
+                        </div>
+                        <button
+                          onClick={() => aplicarPropuesta(p)}
+                          className={cn('px-3 py-2 rounded-xl text-white text-xs font-semibold transition flex-shrink-0', colorBtn)}
+                        >
+                          Aplicar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="px-6 py-3 border-t border-white/8 bg-gray-950/80 text-[11px] text-gray-500">
+                Las propuestas se calculan sobre el estado actual del editor. Puedes seguir ajustando manualmente después de aplicar.
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
