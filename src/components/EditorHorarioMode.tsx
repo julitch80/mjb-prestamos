@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   DndContext,
@@ -299,6 +299,14 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     crearFichasIniciales(borrador, horarioBase as any)
   );
   const [confirmDescartar, setConfirmDescartar] = useState(false);
+  const [errorMovimiento, setErrorMovimiento] = useState<string | null>(null);
+
+  // Auto-dismiss del toast de error tras 5 segundos
+  useEffect(() => {
+    if (!errorMovimiento) return;
+    const t = setTimeout(() => setErrorMovimiento(null), 5000);
+    return () => clearTimeout(t);
+  }, [errorMovimiento]);
 
   const dia = diaDeSemana(borrador.fecha);
   const bloques = borrador.jornada === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
@@ -363,29 +371,73 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
 
     const overId = String(over.id);
 
+    // Drop en Pendientes — siempre permitido
+    if (overId === '__pendientes__') {
+      setFichas(prev => prev.map(f =>
+        f.id === active.id ? { ...f, ubicacion: { tipo: 'pendiente' as const } } : f
+      ));
+      return;
+    }
+
+    const [overRowId, overBloqueStr] = overId.split('__');
+    const overBloque = parseInt(overBloqueStr, 10);
+    if (!overRowId || isNaN(overBloque)) return;
+
+    // Restricción 1: solo se permite drop dentro de la misma fila
+    const filaActiva = modo === 'docente' ? fichaActiva.origen.docente : fichaActiva.origen.grupo;
+    if (overRowId !== filaActiva) return;
+
+    // Helper para extraer el bloque actual de una ficha colocada o en taller
+    const bloqueDe = (f: FichaEditor): number | null => {
+      if (f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller') return f.ubicacion.bloque;
+      return null;
+    };
+
+    // Restricción 2: conflicto cruzado de DOCENTE
+    // El docente de la ficha movida ya tiene clase en este bloque con OTRO grupo
+    const conflictoDoc = fichas.find(f =>
+      f.id !== active.id &&
+      f.origen.docente === fichaActiva.origen.docente &&
+      f.origen.grupo !== fichaActiva.origen.grupo &&
+      bloqueDe(f) === overBloque
+    );
+    if (conflictoDoc) {
+      const docNombre = USUARIOS.find(u => u.id === fichaActiva.origen.docente)?.nombreCorto ?? 'El docente';
+      setErrorMovimiento(
+        `${docNombre} a la ${horaOrdinal(overBloque)} hora está con ${conflictoDoc.origen.grupo}. ` +
+        `No se puede tener dos grupos al mismo tiempo.`
+      );
+      return;
+    }
+
+    // Restricción 3: conflicto cruzado de GRUPO
+    // El grupo de la ficha movida ya tiene clase en este bloque con OTRO docente
+    const conflictoGrp = fichas.find(f =>
+      f.id !== active.id &&
+      f.origen.grupo === fichaActiva.origen.grupo &&
+      f.origen.docente !== fichaActiva.origen.docente &&
+      bloqueDe(f) === overBloque
+    );
+    if (conflictoGrp) {
+      const docOtro = USUARIOS.find(u => u.id === conflictoGrp.origen.docente)?.nombreCorto ?? 'otro docente';
+      setErrorMovimiento(
+        `${fichaActiva.origen.grupo} a la ${horaOrdinal(overBloque)} hora ya tiene clase con ${docOtro}. ` +
+        `Un grupo no puede tener dos clases al mismo tiempo.`
+      );
+      return;
+    }
+
+    // Movimiento permitido: aplicar
     setFichas(prev => {
       const next = [...prev];
       const idxActiva = next.findIndex(f => f.id === active.id);
       if (idxActiva === -1) return prev;
 
-      if (overId === '__pendientes__') {
-        next[idxActiva] = { ...next[idxActiva], ubicacion: { tipo: 'pendiente' } };
-        return next;
-      }
-
-      const [overRowId, overBloqueStr] = overId.split('__');
-      const overBloque = parseInt(overBloqueStr, 10);
-      if (!overRowId || isNaN(overBloque)) return prev;
-
-      // Solo permitir drop dentro de la misma fila (mismo docente o mismo grupo)
-      const filaActiva = modo === 'docente' ? fichaActiva.origen.docente : fichaActiva.origen.grupo;
-      if (overRowId !== filaActiva) return prev;
-
-      // ¿Hay ficha ya colocada en (overRowId, overBloque)?
+      // El ocupante en la MISMA fila (mismo docente o mismo grupo en ese bloque) va a pendientes
       const ocupanteIdx = next.findIndex(f =>
         f.id !== active.id &&
         (f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller') &&
-        (f.ubicacion.tipo === 'colocada' ? f.ubicacion.bloque : f.ubicacion.bloque) === overBloque &&
+        bloqueDe(f) === overBloque &&
         (modo === 'docente' ? f.origen.docente === overRowId : f.origen.grupo === overRowId)
       );
       if (ocupanteIdx !== -1) {
@@ -620,6 +672,28 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
           </div>
         )}
       </div>
+
+      {/* Toast de error por conflicto cruzado */}
+      <AnimatePresence>
+        {errorMovimiento && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md z-40 bg-red-950/95 backdrop-blur border border-red-700/60 rounded-2xl px-4 py-3 text-red-100 text-sm shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-base leading-none mt-0.5">⛔</span>
+              <div className="flex-1">{errorMovimiento}</div>
+              <button
+                onClick={() => setErrorMovimiento(null)}
+                className="text-red-300 hover:text-white text-sm leading-none p-0.5"
+                aria-label="Cerrar"
+              >✕</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Confirmación de descarte */}
       <AnimatePresence>
