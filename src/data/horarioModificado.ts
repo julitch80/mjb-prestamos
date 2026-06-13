@@ -91,6 +91,116 @@ export function obtenerHorariosVigentes(
   return horarios.filter(h => h.fecha === fecha && h.jornada === jornada && h.estado === 'guardado');
 }
 
+// ── Horario efectivo (aplicar modificaciones a un día) ───────────────────────
+
+export interface EntradaEfectiva {
+  jornada: string;
+  dia: string;
+  bloque: number;
+  docente: string;
+  grado: string;
+  aula: string;
+  esModificada: boolean;
+  esTaller: boolean;
+  bloqueOriginal?: number;     // si fue movida, dónde estaba antes
+  supervisorId?: string;       // si es taller
+}
+
+/**
+ * Cruza horarioBase con las modificaciones guardadas para una fecha+jornada
+ * específicas y devuelve las entradas efectivas del día (clases que sí ocurren),
+ * marcando cuáles fueron movidas, cancelaciones y talleres.
+ */
+export function aplicarModificacionesAlDia(
+  fecha: string,
+  jornada: 'manana' | 'tarde',
+  horarioBase: EntradaHorarioBase[],
+  horariosModificados: HorarioModificado[],
+): EntradaEfectiva[] {
+  const dia = diaDeSemana(fecha);
+  const hm = horariosModificados.find(h =>
+    h.fecha === fecha && h.jornada === jornada && h.estado === 'guardado'
+  );
+
+  const entradasBase = horarioBase
+    .filter(e => e.jornada === jornada && e.dia === dia)
+    .map(e => ({
+      ...e,
+      grado: e.grado.includes('/') ? e.grado.split('/')[0] : e.grado,
+    }));
+
+  if (!hm) {
+    return entradasBase.map(e => ({
+      jornada: e.jornada,
+      dia: e.dia,
+      bloque: e.bloque,
+      docente: e.docente,
+      grado: e.grado,
+      aula: e.aula,
+      esModificada: false,
+      esTaller: false,
+    }));
+  }
+
+  // Mapa por (docente_grupo_bloqueOriginal) → modificación
+  const modPorEntrada = new Map<string, ModificacionBloque>();
+  hm.modificaciones.forEach(mod => {
+    const key = `${mod.docenteOriginal}_${mod.grupo}_${mod.bloqueOriginal}`;
+    modPorEntrada.set(key, mod);
+  });
+
+  const resultado: EntradaEfectiva[] = [];
+
+  for (const e of entradasBase) {
+    const key = `${e.docente}_${e.grado}_${e.bloque}`;
+    const mod = modPorEntrada.get(key);
+    if (!mod) {
+      // Sin modificación → entrada base tal cual
+      resultado.push({
+        jornada: e.jornada,
+        dia: e.dia,
+        bloque: e.bloque,
+        docente: e.docente,
+        grado: e.grado,
+        aula: e.aula,
+        esModificada: false,
+        esTaller: false,
+      });
+      continue;
+    }
+    if (mod.bloqueNuevo === null) continue; // eliminada
+    // Movida o convertida en taller
+    resultado.push({
+      jornada: e.jornada,
+      dia: e.dia,
+      bloque: mod.bloqueNuevo,
+      docente: e.docente,
+      grado: e.grado,
+      aula: e.aula,
+      esModificada: mod.bloqueNuevo !== e.bloque,
+      esTaller: mod.esTaller ?? false,
+      bloqueOriginal: mod.bloqueNuevo !== e.bloque ? e.bloque : undefined,
+      supervisorId: mod.supervisorId,
+    });
+  }
+
+  return resultado.sort((a, b) => a.bloque - b.bloque);
+}
+
+/** Lista las modificaciones guardadas vigentes hoy o en el futuro próximo. */
+export function modificacionesProximas(
+  horariosModificados: HorarioModificado[],
+  diasAdelante: number = 14,
+): HorarioModificado[] {
+  const hoy = fechaHoyLocal();
+  const limite = new Date(hoy + 'T12:00:00');
+  limite.setDate(limite.getDate() + diasAdelante);
+  const limiteStr = `${limite.getFullYear()}-${String(limite.getMonth() + 1).padStart(2, '0')}-${String(limite.getDate()).padStart(2, '0')}`;
+  return horariosModificados
+    .filter(h => h.estado === 'guardado' && h.fecha >= hoy && h.fecha <= limiteStr)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+}
+
 // ── Editor: fichas y conversión ───────────────────────────────────────────────
 
 export type UbicacionFicha =

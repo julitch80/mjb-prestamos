@@ -21,6 +21,8 @@ import { horarioBase } from '../data/horarioBase';
 import { cn } from '@/lib/utils';
 import EditorHorarioWizard from './EditorHorarioWizard';
 import EditorHorarioMode from './EditorHorarioMode';
+import ModalDiaModificado from './ModalDiaModificado';
+import { modificacionesProximas, formatearFechaLegible } from '../data/horarioModificado';
 import type { HorarioModificado } from '../data/horarioModificado';
 
 type Modo         = 'aulas' | 'docente' | 'grupo';
@@ -1163,6 +1165,10 @@ export default function VistaHorario() {
   // Editor de horario
   const [wizardAbierto, setWizardAbierto]   = useState(false);
   const [editandoBorrador, setEditandoBorrador] = useState<HorarioModificado | null>(null);
+  const [verDetalleMod, setVerDetalleMod] = useState<HorarioModificado | null>(null);
+
+  // Modificaciones próximas (vigentes hoy o futuro próximo) — visibles para todos
+  const proximasMods = modificacionesProximas(horariosModificados);
 
   // ¿Hay borrador activo del usuario para entrar al modo edición?
   // Cuando el wizard completa o el usuario decide retomar, este estado activa el editor.
@@ -1212,6 +1218,36 @@ export default function VistaHorario() {
 
   return (
     <div className="space-y-4">
+      {/* Banner de modificaciones próximas — visible para todos */}
+      {proximasMods.length > 0 && (
+        <div className="rounded-2xl border border-blue-700/40 bg-blue-950/30 p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-blue-200">
+            <span className="text-base">📌</span>
+            {proximasMods.length === 1 ? 'Hay 1 modificación de horario' : `Hay ${proximasMods.length} modificaciones de horario`}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {proximasMods.map(m => {
+              const ausentes = m.ausencias.length;
+              const docNombres = m.ausencias.map(a => USUARIOS.find(u => u.id === a.docenteId)?.nombreCorto ?? a.docenteId).join(', ');
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setVerDetalleMod(m)}
+                  className="text-left px-3 py-2 rounded-xl bg-white/6 hover:bg-white/12 border border-white/8 transition flex-1 min-w-[220px]"
+                >
+                  <div className="text-xs font-semibold text-white">{formatearFechaLegible(m.fecha)}</div>
+                  <div className="text-[11px] text-gray-400 mt-0.5">
+                    Jornada {m.jornada === 'manana' ? 'mañana' : 'tarde'} · {ausentes} {ausentes === 1 ? 'ausente' : 'ausentes'}
+                    {docNombres && `: ${docNombres}`}
+                  </div>
+                  <div className="text-[10px] text-blue-300 mt-1">Ver detalle →</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Barra de controles: modo · jornada · semana/día — todo en una línea */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex gap-1 p-1 rounded-xl bg-white/4 border border-white/8">
@@ -1346,6 +1382,12 @@ export default function VistaHorario() {
           onCompletar={(hm) => setEditandoBorrador(hm)}
         />
       )}
+
+      {/* Modal de detalle del día modificado */}
+      <ModalDiaModificado
+        modificacion={verDetalleMod}
+        onClose={() => setVerDetalleMod(null)}
+      />
     </div>
   );
 }
