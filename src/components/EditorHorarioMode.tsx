@@ -35,14 +35,20 @@ import {
   docentesLibresEn,
   generarPropuestasAsistente,
   generarResumenDifusion,
+  configurarResolverNombreDocente,
   TIPO_APOYO_LABEL,
 } from '../data/horarioModificado';
 import type {
   HorarioModificado,
   FichaEditor,
   PropuestaAsistente,
+  NivelPropuesta,
   ResumenDifusion,
 } from '../data/horarioModificado';
+
+configurarResolverNombreDocente(id =>
+  USUARIOS.find(u => u.id === id)?.nombreCorto ?? id
+);
 import { cn } from '@/lib/utils';
 
 type ModoEditor = 'docente' | 'grupo';
@@ -968,34 +974,65 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                 >✕</button>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
                 {propuestas.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 text-sm">
-                    Sin propuestas automáticas viables para este caso. Sigue editando manualmente.
+                    Sin propuestas automáticas para este caso. Sigue editando manualmente.
                   </div>
-                ) : propuestas.map(p => {
-                  const colorBg = p.tipo === 'entrada_tardia' ? 'bg-blue-950/40 border-blue-700/40'
-                    : p.tipo === 'salida_temprana' ? 'bg-amber-950/40 border-amber-700/40'
-                    : 'bg-green-950/40 border-green-700/40';
-                  const colorTexto = p.tipo === 'entrada_tardia' ? 'text-blue-200'
-                    : p.tipo === 'salida_temprana' ? 'text-amber-200'
-                    : 'text-green-200';
-                  const colorBtn = p.tipo === 'entrada_tardia' ? 'bg-blue-600 hover:bg-blue-500'
-                    : p.tipo === 'salida_temprana' ? 'bg-amber-600 hover:bg-amber-500'
-                    : 'bg-green-600 hover:bg-green-500';
+                ) : ([1, 2, 3] as NivelPropuesta[]).map(nivel => {
+                  const grupo = propuestas.filter(p => p.nivel === nivel);
+                  if (grupo.length === 0) return null;
+                  const tituloNivel = nivel === 1
+                    ? 'Nivel 1 · Reorganizar el día'
+                    : nivel === 2
+                      ? 'Nivel 2 · Aprovechar apoyos disponibles'
+                      : 'Nivel 3 · Modificar entrada o salida del grupo';
+                  const subtitulo = nivel === 1
+                    ? 'Mínima pérdida de clases. El grupo cumple su jornada completa.'
+                    : nivel === 2
+                      ? 'Cubrir las clases del ausente con talleres o docentes de apoyo registrados.'
+                      : borrador.jornada === 'manana'
+                        ? 'Última opción. Se prioriza entrada tardía sobre salida temprana en la jornada de la mañana.'
+                        : 'Última opción. Se prioriza salida temprana sobre entrada tardía en la jornada de la tarde.';
+                  const colorNivel = nivel === 1 ? 'text-green-300' : nivel === 2 ? 'text-purple-300' : 'text-amber-300';
                   return (
-                    <div key={p.id} className={cn('rounded-2xl border p-4 space-y-2', colorBg)}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className={cn('font-semibold text-sm', colorTexto)}>{p.titulo}</div>
-                          <div className="text-xs text-gray-300 mt-1">{p.descripcion}</div>
-                        </div>
-                        <button
-                          onClick={() => aplicarPropuesta(p)}
-                          className={cn('px-3 py-2 rounded-xl text-white text-xs font-semibold transition flex-shrink-0', colorBtn)}
-                        >
-                          Aplicar
-                        </button>
+                    <div key={nivel} className="space-y-3">
+                      <div className="flex items-baseline justify-between gap-3 pb-1 border-b border-white/8">
+                        <h3 className={cn('text-sm font-semibold', colorNivel)}>{tituloNivel}</h3>
+                        <span className="text-[11px] text-gray-500">{grupo.length} opci{grupo.length === 1 ? 'ón' : 'ones'}</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 -mt-1">{subtitulo}</p>
+                      <div className="space-y-2">
+                        {grupo.map(p => {
+                          const colorBg = p.tipo === 'compactar' ? 'bg-green-950/40 border-green-700/40'
+                            : p.tipo === 'apoyo_taller' ? 'bg-purple-950/40 border-purple-700/40'
+                            : p.tipo === 'entrada_tardia' ? 'bg-blue-950/40 border-blue-700/40'
+                            : 'bg-amber-950/40 border-amber-700/40';
+                          const colorTexto = p.tipo === 'compactar' ? 'text-green-200'
+                            : p.tipo === 'apoyo_taller' ? 'text-purple-200'
+                            : p.tipo === 'entrada_tardia' ? 'text-blue-200'
+                            : 'text-amber-200';
+                          const colorBtn = p.tipo === 'compactar' ? 'bg-green-600 hover:bg-green-500'
+                            : p.tipo === 'apoyo_taller' ? 'bg-purple-600 hover:bg-purple-500'
+                            : p.tipo === 'entrada_tardia' ? 'bg-blue-600 hover:bg-blue-500'
+                            : 'bg-amber-600 hover:bg-amber-500';
+                          return (
+                            <div key={p.id} className={cn('rounded-2xl border p-4', colorBg)}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className={cn('font-semibold text-sm', colorTexto)}>{p.titulo}</div>
+                                  <div className="text-xs text-gray-300 mt-1">{p.descripcion}</div>
+                                </div>
+                                <button
+                                  onClick={() => aplicarPropuesta(p)}
+                                  className={cn('px-3 py-2 rounded-xl text-white text-xs font-semibold transition flex-shrink-0', colorBtn)}
+                                >
+                                  Aplicar
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -1003,7 +1040,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               </div>
 
               <div className="px-6 py-3 border-t border-white/8 bg-gray-950/80 text-[11px] text-gray-500">
-                Las propuestas se calculan sobre el estado actual del editor. Puedes seguir ajustando manualmente después de aplicar.
+                Las propuestas se ordenan por nivel de prioridad. Puedes aplicar más de una y combinar con ediciones manuales.
               </div>
             </motion.div>
           </motion.div>

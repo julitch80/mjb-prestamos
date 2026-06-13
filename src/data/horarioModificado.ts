@@ -192,11 +192,19 @@ export function docentesLibresEn(
  */
 // ── Asistente de alternativas automáticas ────────────────────────────────────
 
-export type TipoPropuesta = 'entrada_tardia' | 'salida_temprana' | 'compactar';
+export type TipoPropuesta =
+  | 'compactar'           // mover clases del ausente a sus horas libres
+  | 'apoyo_taller'        // cubrir el bloque con un apoyo declarado
+  | 'entrada_tardia'      // cancelar los primeros bloques afectados
+  | 'salida_temprana';    // cancelar los últimos bloques afectados
+
+export type NivelPropuesta = 1 | 2 | 3;
 
 export interface PropuestaAsistente {
   id: string;
   tipo: TipoPropuesta;
+  nivel: NivelPropuesta;
+  prioridad: number;       // dentro del nivel, menor = más prioritario
   grupo: string;
   titulo: string;
   descripcion: string;
@@ -205,16 +213,28 @@ export interface PropuestaAsistente {
 }
 
 /**
- * Genera propuestas automáticas para resolver las ausencias de un borrador.
- * Por cada grupo afectado, evalúa si las clases del ausente caen al inicio
- * del día (entrada tardía), al final (salida temprana), o si se pueden
- * compactar dentro de horas libres del mismo docente.
+ * Genera propuestas automáticas para resolver las ausencias del borrador,
+ * agrupadas en 3 niveles de prioridad:
+ *
+ *   Nivel 1 — Reorganizar el día (mínima pérdida de clases)
+ *             ▸ compactar: mover clases del ausente a sus horas libres
+ *
+ *   Nivel 2 — Aprovechar apoyos disponibles (PTA, UAI, docente de apoyo,
+ *             taller) registrados en el wizard
+ *
+ *   Nivel 3 — Modificar entrada o salida del grupo
+ *             ▸ mañana → prioriza entrada tardía
+ *             ▸ tarde  → prioriza salida temprana
+ *
+ * Las propuestas NO son excluyentes ni se filtran entre sí: el coordinador
+ * decide cuál aplicar.
  */
 export function generarPropuestasAsistente(
   fichas: FichaEditor[],
   borrador: HorarioModificado
 ): PropuestaAsistente[] {
   const propuestas: PropuestaAsistente[] = [];
+  const esManana = borrador.jornada === 'manana';
   const bloquesAusentesPorDoc: Record<string, Set<number>> = {};
   borrador.ausencias.forEach(a => {
     bloquesAusentesPorDoc[a.docenteId] = new Set(a.bloques);
@@ -251,51 +271,11 @@ export function generarPropuestasAsistente(
     const minAusente = bloquesAusentes[0];
     const maxAusente = bloquesAusentes[bloquesAusentes.length - 1];
 
-    // Entrada tardía: los bloques ausentes son contiguos y empiezan en la 1ª
-    // clase real del grupo ese día (no hay clases del grupo antes de ellos).
-    const esContiguoDesdeInicio =
-      minAusente === minGrupo &&
-      bloquesAusentes.every((b, i) => b === minAusente + i);
-    if (esContiguoDesdeInicio) {
-      const proximoBloque = maxAusente + 1;
-      propuestas.push({
-        id: `entrada_tardia_${grupo}`,
-        tipo: 'entrada_tardia',
-        grupo,
-        titulo: `${grupo}: entrada tardía`,
-        descripcion: `Cancelar ${bloquesAusentes.map(b => `${b}.ª`).join(', ')} y entrar a la ${proximoBloque}.ª hora.`,
-        cambios: fichasAusentes.map(f => ({
-          fichaId: f.id,
-          nuevaUbicacion: { tipo: 'eliminada' as const },
-        })),
-      });
-    }
-
-    // Salida temprana: bloques ausentes contiguos hasta el último bloque del grupo
-    const esContiguoHastaFin =
-      maxAusente === maxGrupo &&
-      bloquesAusentes.every((b, i) => b === minAusente + i);
-    if (esContiguoHastaFin && !esContiguoDesdeInicio) {
-      propuestas.push({
-        id: `salida_temprana_${grupo}`,
-        tipo: 'salida_temprana',
-        grupo,
-        titulo: `${grupo}: salida temprana`,
-        descripcion: `Cancelar ${bloquesAusentes.map(b => `${b}.ª`).join(', ')} y salir después de la ${minAusente - 1}.ª hora.`,
-        cambios: fichasAusentes.map(f => ({
-          fichaId: f.id,
-          nuevaUbicacion: { tipo: 'eliminada' as const },
-        })),
-      });
-    }
-
-    // Compactación: el docente ausente tiene horas libres ANTES (o después) de
-    // los bloques ausentes dentro del horario del grupo. Mueve las clases del
-    // ausente a esas horas libres si no generan conflicto cruzado.
+    // ── NIVEL 1: COMPACTAR ─────────────────────────────────────────────────
+    // El docente ausente tiene horas libres en el día → mover sus clases ahí
     const docenteId = fichasAusentes[0].origen.docente;
     const huecosDocente = encontrarHuecosDocente(fichas, docenteId, bloquesAusentes);
     if (huecosDocente.length >= bloquesAusentes.length) {
-      // Validar que mover ahí no genere conflicto cruzado con el grupo
       const destinos = huecosDocente.slice(0, bloquesAusentes.length);
       const conflictoGrupo = destinos.some(b =>
         fichas.some(f =>
@@ -306,12 +286,15 @@ export function generarPropuestasAsistente(
         )
       );
       if (!conflictoGrupo) {
+        const docNombre = USUARIO_NOMBRE_FN ? USUARIO_NOMBRE_FN(docenteId) : docenteId;
         propuestas.push({
           id: `compactar_${grupo}`,
           tipo: 'compactar',
+          nivel: 1,
+          prioridad: 0,
           grupo,
-          titulo: `${grupo}: compactar día`,
-          descripcion: `Mover las clases del ausente a sus horas libres (${destinos.map(b => `${b}.ª`).join(', ')}).`,
+          titulo: `Compactar el día de ${grupo}`,
+          descripcion: `Mover las clases de ${docNombre} con ${grupo} a sus horas libres (${destinos.map(b => `${b}.ª`).join(', ')}). El grupo no pierde ninguna clase.`,
           cambios: fichasAusentes.map((f, i) => ({
             fichaId: f.id,
             nuevaUbicacion: { tipo: 'colocada' as const, bloque: destinos[i] },
@@ -319,9 +302,88 @@ export function generarPropuestasAsistente(
         });
       }
     }
+
+    // ── NIVEL 2: USAR APOYOS DISPONIBLES ──────────────────────────────────
+    // Para cada apoyo declarado en el borrador, ver qué bloques ausentes
+    // cubre y proponer marcarlos como taller con ese apoyo como supervisor.
+    borrador.apoyos.forEach(apoyo => {
+      const bloquesCubiertos = bloquesAusentes.filter(b => apoyo.bloques.includes(b));
+      if (bloquesCubiertos.length === 0) return;
+      const fichasCubiertas = fichasAusentes.filter(f =>
+        bloquesCubiertos.includes(f.origen.bloque)
+      );
+      propuestas.push({
+        id: `apoyo_${apoyo.id}_${grupo}`,
+        tipo: 'apoyo_taller',
+        nivel: 2,
+        prioridad: 0,
+        grupo,
+        titulo: `Cubrir con ${apoyo.nombre} (${apoyo.tipo === 'taller' ? 'taller' : TIPO_APOYO_LABEL[apoyo.tipo]})`,
+        descripcion: bloquesCubiertos.length === bloquesAusentes.length
+          ? `${grupo}: las clases de ${bloquesCubiertos.map(b => `${b}.ª`).join(', ')} quedan con ${apoyo.nombre}. El grupo cumple jornada completa.`
+          : `${grupo}: ${apoyo.nombre} cubre ${bloquesCubiertos.map(b => `${b}.ª`).join(', ')}. Quedan ${bloquesAusentes.length - bloquesCubiertos.length} bloque(s) por resolver.`,
+        cambios: fichasCubiertas.map(f => ({
+          fichaId: f.id,
+          nuevaUbicacion: {
+            tipo: 'taller' as const,
+            bloque: f.origen.bloque,
+            // apoyo.id no corresponde a un usuario; lo guardamos como referencia
+            // textual via descripción. supervisorId queda undefined a propósito.
+          },
+        })),
+      });
+    });
+
+    // ── NIVEL 3: MODIFICAR ENTRADA O SALIDA DEL GRUPO ─────────────────────
+    // En mañana se prioriza entrada tardía; en tarde, salida temprana.
+    const esContiguoDesdeInicio =
+      minAusente === minGrupo &&
+      bloquesAusentes.every((b, i) => b === minAusente + i);
+    const esContiguoHastaFin =
+      maxAusente === maxGrupo &&
+      bloquesAusentes.every((b, i) => b === minAusente + i);
+
+    if (esContiguoDesdeInicio) {
+      const proximoBloque = maxAusente + 1;
+      propuestas.push({
+        id: `entrada_tardia_${grupo}`,
+        tipo: 'entrada_tardia',
+        nivel: 3,
+        prioridad: esManana ? 0 : 1,
+        grupo,
+        titulo: `${grupo}: entrada tardía`,
+        descripcion: `Cancelar ${bloquesAusentes.map(b => `${b}.ª`).join(', ')}. El grupo entra a la ${proximoBloque}.ª hora.`,
+        cambios: fichasAusentes.map(f => ({
+          fichaId: f.id,
+          nuevaUbicacion: { tipo: 'eliminada' as const },
+        })),
+      });
+    }
+    if (esContiguoHastaFin) {
+      propuestas.push({
+        id: `salida_temprana_${grupo}`,
+        tipo: 'salida_temprana',
+        nivel: 3,
+        prioridad: esManana ? 1 : 0,
+        grupo,
+        titulo: `${grupo}: salida temprana`,
+        descripcion: `Cancelar ${bloquesAusentes.map(b => `${b}.ª`).join(', ')}. El grupo sale después de la ${minAusente - 1}.ª hora.`,
+        cambios: fichasAusentes.map(f => ({
+          fichaId: f.id,
+          nuevaUbicacion: { tipo: 'eliminada' as const },
+        })),
+      });
+    }
   });
 
-  return propuestas;
+  // Ordenar por nivel y luego prioridad
+  return propuestas.sort((a, b) => a.nivel - b.nivel || a.prioridad - b.prioridad);
+}
+
+// Inyectable desde el componente para enriquecer descripciones con nombres
+let USUARIO_NOMBRE_FN: ((id: string) => string) | null = null;
+export function configurarResolverNombreDocente(fn: (id: string) => string) {
+  USUARIO_NOMBRE_FN = fn;
 }
 
 // ── Generación de resumen para difundir ─────────────────────────────────────
