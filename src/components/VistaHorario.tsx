@@ -19,6 +19,9 @@ import {
 } from '../data/maestros';
 import { horarioBase } from '../data/horarioBase';
 import { cn } from '@/lib/utils';
+import EditorHorarioWizard from './EditorHorarioWizard';
+import { formatearFechaLegible } from '../data/horarioModificado';
+import type { HorarioModificado } from '../data/horarioModificado';
 
 type Modo         = 'aulas' | 'docente' | 'grupo';
 type VistaDetalle = 'semana' | 'dia';
@@ -1155,7 +1158,11 @@ export default function VistaHorario() {
   const [docenteSel, setDocenteSel]   = useState(rol === 'docente' ? (userId ?? '') : '');
   const [grupoSel, setGrupoSel]       = useState('');
   const [vistaOverview, setVistaOverview] = useState<VistaDetalle>('semana');
-  const [diaOverview, setDiaOverview] = useState('lunes');
+  const [diaOverview, setDiaOverview]     = useState('lunes');
+
+  // Editor de horario (Fase 1+2: solo el wizard)
+  const [wizardAbierto, setWizardAbierto]     = useState(false);
+  const [borradorReciente, setBorradorReciente] = useState<HorarioModificado | null>(null);
 
   // Al cambiar jornada (solo coord/rectora), volver al overview de cada modo
   useEffect(() => {
@@ -1164,6 +1171,16 @@ export default function VistaHorario() {
   }, [jornadaTab, rol]);
 
   const puedeVerAmbas = rol === 'rectora' || rol === 'coordinador';
+
+  // Botón "Editar": solo el coordinador, en su propia jornada, en vistas docente/grupo
+  const jornadaPropia: 'manana' | 'tarde' | null =
+    rol === 'coordinador'
+      ? (jornada === 'tarde' ? 'tarde' : 'manana')
+      : null;
+  const puedeEditar =
+    rol === 'coordinador' &&
+    jornadaTab === jornadaPropia &&
+    (modo === 'docente' || modo === 'grupo');
 
   // El toggle Semana/Día aplica solo cuando estamos en el overview (no en detalle)
   const enOverview =
@@ -1206,7 +1223,44 @@ export default function VistaHorario() {
             <TabButton active={vistaOverview === 'dia'}    onClick={() => setVistaOverview('dia')}    color="overview">Día</TabButton>
           </div>
         )}
+
+        {puedeEditar && (
+          <button
+            onClick={() => setWizardAbierto(true)}
+            className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition shadow-lg shadow-blue-900/30"
+            title="Crear modificación temporal del horario"
+          >
+            <span className="text-base leading-none">✎</span> Editar
+          </button>
+        )}
       </div>
+
+      {/* Banner de borrador creado (Fase 1+2: el editor real llega en Fase 3) */}
+      {borradorReciente && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-start gap-3 p-3 rounded-2xl bg-blue-950/40 border border-blue-700/40"
+        >
+          <div className="text-blue-400 text-base leading-none mt-0.5">📋</div>
+          <div className="flex-1 text-xs">
+            <div className="text-white font-semibold">Borrador guardado</div>
+            <div className="text-blue-300 mt-0.5">
+              {formatearFechaLegible(borradorReciente.fecha)} ·{' '}
+              {borradorReciente.ausencias.length} {borradorReciente.ausencias.length === 1 ? 'docente ausente' : 'docentes ausentes'}
+              {borradorReciente.apoyos.length > 0 && ` · ${borradorReciente.apoyos.length} apoyo(s)`}
+            </div>
+            <div className="text-gray-500 mt-1.5 italic">
+              El editor de bloques estará disponible en la próxima actualización.
+            </div>
+          </div>
+          <button
+            onClick={() => setBorradorReciente(null)}
+            className="text-gray-500 hover:text-white transition text-sm leading-none p-1"
+            aria-label="Cerrar"
+          >✕</button>
+        </motion.div>
+      )}
 
       {/* Contenido */}
       <AnimatePresence mode="wait">
@@ -1292,6 +1346,16 @@ export default function VistaHorario() {
           )}
         </motion.div>
       </AnimatePresence>
+
+      {/* Wizard de parametrización */}
+      {jornadaPropia && (
+        <EditorHorarioWizard
+          open={wizardAbierto}
+          jornada={jornadaPropia}
+          onClose={() => setWizardAbierto(false)}
+          onCompletar={(hm) => setBorradorReciente(hm)}
+        />
+      )}
     </div>
   );
 }

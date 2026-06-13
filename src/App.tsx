@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'motion/react';
+import { Sun, Moon, LogOut, Bell } from 'lucide-react';
 import { useAppStore } from './data/store';
 import { useTheme } from './hooks/useTheme';
 import LoginScreen from './components/LoginScreen';
@@ -11,20 +13,23 @@ import MiHistorial from './components/MiHistorial';
 import BannerNotificaciones from './components/BannerNotificaciones';
 import { getNotificaciones } from './data/api';
 import { USUARIOS } from './data/maestros';
+import { cn } from './lib/utils';
 
-type NavItem = {
-  id: string;
-  label: string;
-  roles: string[];
-};
+type NavItem = { id: string; label: string; roles: string[] };
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'disponibilidad', label: 'Reservar',    roles: ['docente', 'coordinador'] },
+  { id: 'disponibilidad', label: 'Reservar',     roles: ['docente', 'coordinador'] },
   { id: 'historial',      label: 'Mis reservas', roles: ['docente', 'coordinador', 'rectora'] },
-  { id: 'admin',          label: 'Panel',        roles: ['coordinador'] },
-  { id: 'rectora',        label: 'Asignación',   roles: ['rectora'] },
-  { id: 'horario',        label: 'Horario del J', roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'admin',          label: 'Panel',         roles: ['coordinador'] },
+  { id: 'rectora',        label: 'Asignación',    roles: ['rectora'] },
+  { id: 'horario',        label: 'Horario',       roles: ['docente', 'coordinador', 'rectora'] },
 ];
+
+const ROL_COLOR: Record<string, string> = {
+  rectora:     'rgba(232,200,74,0.18)',
+  coordinador: 'rgba(240,128,128,0.18)',
+  docente:     'rgba(134,239,172,0.18)',
+};
 
 export default function App() {
   const { temaOscuro, toggleTema } = useTheme();
@@ -34,7 +39,6 @@ export default function App() {
   const notificaciones = useAppStore(s => s.notificaciones);
   const notifNoLeidas = notificaciones.filter(n => !n.leida).length;
 
-  // Polling de notificaciones cada 30s con TanStack Query
   const { data: notifData } = useQuery({
     queryKey: ['notificaciones', userId],
     queryFn: () => getNotificaciones(userId!),
@@ -49,49 +53,57 @@ export default function App() {
   if (!userId) return <LoginScreen />;
 
   const navItems = NAV_ITEMS.filter(item => item.roles.includes(rol ?? ''));
-  const usuario = USUARIOS.find(u => u.id === userId);
-
-  const bgBase = temaOscuro
-    ? 'bg-gray-950 text-white'
-    : 'bg-gray-100 text-gray-900';
-
-  const headerBg = temaOscuro
-    ? 'bg-gray-900 border-gray-800'
-    : 'bg-white border-gray-200';
+  const usuario  = USUARIOS.find(u => u.id === userId);
 
   return (
-    <div className={`min-h-screen flex flex-col ${bgBase}`}>
-      {/* ── Header ─────────────────────────────────────────────────── */}
-      <header className={`sticky top-0 z-40 border-b ${headerBg} shadow-sm`}>
-        <div className="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3">
-          {/* Logo + nombre institución */}
-          <img
-            src="/mjb-prestamos/mjb_escudo.png"
-            alt="MJB"
-            className="w-8 h-8 object-contain"
-            style={{ mixBlendMode: 'lighten' }}
-          />
-          <span className="text-sm font-semibold hidden sm:block">
-            I.E. Manuel J. Betancur
-          </span>
+    <div className={cn('min-h-screen flex flex-col bg-gray-950 text-white')}>
+
+      {/* ── Header ───────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-40 border-b border-white/8 bg-gray-950/80 backdrop-blur-xl shadow-lg shadow-black/20">
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
+
+          {/* Logo */}
+          <div className="flex items-center gap-2.5 flex-shrink-0">
+            <img
+              src="/mjb-prestamos/mjb_escudo.png"
+              alt="MJB"
+              className="w-8 h-8 object-contain"
+              style={{ mixBlendMode: 'lighten' }}
+            />
+            <span className="text-sm font-semibold text-white/80 hidden md:block tracking-wide">
+              Manuel J. Betancur
+            </span>
+          </div>
+
+          {/* Divisor */}
+          <div className="w-px h-5 bg-white/10 hidden md:block flex-shrink-0" />
 
           {/* Nav */}
-          <nav className="flex items-center gap-1 ml-4 flex-1 overflow-x-auto">
+          <nav className="flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none">
             {navItems.map(item => (
               <button
                 key={item.id}
                 onClick={() => setVistaActual(item.id as typeof vistaActual)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition whitespace-nowrap ${
+                className={cn(
+                  'relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-1.5',
                   vistaActual === item.id
-                    ? 'bg-blue-600 text-white'
-                    : temaOscuro
-                      ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                      : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-                }`}
+                    ? 'text-white'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/6'
+                )}
               >
-                {item.label}
+                {/* Indicador activo */}
+                {vistaActual === item.id && (
+                  <motion.span
+                    layoutId="nav-active"
+                    className="absolute inset-0 rounded-lg bg-white/10 border border-white/15"
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10">{item.label}</span>
+
+                {/* Badge notificaciones */}
                 {item.id === 'disponibilidad' && notifNoLeidas > 0 && (
-                  <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                  <span className="relative z-10 min-w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
                     {notifNoLeidas}
                   </span>
                 )}
@@ -99,63 +111,85 @@ export default function App() {
             ))}
           </nav>
 
-          {/* Pastilla usuario + tema + logout */}
-          <div className="flex items-center gap-2 ml-auto flex-shrink-0">
-            {/* Pastilla rol */}
-            <span
-              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-              style={{
-                backgroundColor:
-                  rol === 'rectora'
-                    ? 'rgba(232,200,74,0.15)'
-                    : rol === 'coordinador'
-                      ? 'rgba(240,128,128,0.15)'
-                      : 'rgba(134,239,172,0.15)',
-                color: usuario?.color ?? '#fff',
-              }}
-            >
-              {nombre?.split(' ')[0]}
-            </span>
+          {/* Acciones derecha */}
+          <div className="flex items-center gap-1 ml-auto flex-shrink-0">
 
-            {/* Tema */}
+            {/* Pastilla usuario */}
+            <div
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border border-white/10"
+              style={{ backgroundColor: ROL_COLOR[rol ?? 'docente'], color: usuario?.color ?? '#fff' }}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                style={{ backgroundColor: usuario?.color ?? '#fff' }}
+              />
+              {nombre?.split(' ')[0]}
+            </div>
+
+            {/* Bell (solo docentes con notifs) */}
+            {rol === 'docente' && notifNoLeidas > 0 && (
+              <button
+                onClick={() => setVistaActual('disponibilidad' as typeof vistaActual)}
+                className="relative p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/8 transition"
+                title="Notificaciones"
+              >
+                <Bell size={16} />
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full" />
+              </button>
+            )}
+
+            {/* Toggle tema */}
             <button
               onClick={toggleTema}
-              className={`p-1.5 rounded-lg text-sm transition ${
-                temaOscuro
-                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200'
-              }`}
+              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/8 transition"
               title="Cambiar tema"
             >
-              {temaOscuro ? '☀️' : '🌙'}
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={temaOscuro ? 'moon' : 'sun'}
+                  initial={{ opacity: 0, rotate: -30, scale: 0.7 }}
+                  animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                  exit={{ opacity: 0, rotate: 30, scale: 0.7 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex"
+                >
+                  {temaOscuro ? <Sun size={16} /> : <Moon size={16} />}
+                </motion.span>
+              </AnimatePresence>
             </button>
 
             {/* Logout */}
             <button
               onClick={cerrarSesion}
-              className={`p-1.5 rounded-lg text-sm transition ${
-                temaOscuro
-                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200'
-              }`}
+              className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition"
               title="Cerrar sesión"
             >
-              🏠
+              <LogOut size={16} />
             </button>
           </div>
         </div>
       </header>
 
-      {/* ── Banner notificaciones (solo docentes) ──────────────────── */}
+      {/* ── Banner notificaciones ─────────────────────────────────── */}
       {rol === 'docente' && <BannerNotificaciones />}
 
-      {/* ── Contenido principal ────────────────────────────────────── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-4">
-        {vistaActual === 'disponibilidad' && <DisponibilidadGrid />}
-        {vistaActual === 'historial'      && <MiHistorial />}
-        {vistaActual === 'admin'          && rol === 'coordinador' && <PanelAdmin />}
-        {vistaActual === 'rectora'        && rol === 'rectora'     && <PanelRectora />}
-        {vistaActual === 'horario'        && <VistaHorario />}
+      {/* ── Contenido ────────────────────────────────────────────── */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-5">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={vistaActual}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            {vistaActual === 'disponibilidad' && <DisponibilidadGrid />}
+            {vistaActual === 'historial'      && <MiHistorial />}
+            {vistaActual === 'admin'          && rol === 'coordinador' && <PanelAdmin />}
+            {vistaActual === 'rectora'        && rol === 'rectora'     && <PanelRectora />}
+            {vistaActual === 'horario'        && <VistaHorario />}
+          </motion.div>
+        </AnimatePresence>
       </main>
     </div>
   );

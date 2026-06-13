@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Notificacion, Reserva } from './api';
+import type { HorarioModificado } from './horarioModificado';
 
 export type VistaActual =
   | 'disponibilidad'
@@ -31,6 +32,9 @@ interface AppState {
   // Reservas (caché local)
   reservas: Reserva[];
 
+  // Horarios modificados (ediciones temporales del coordinador)
+  horariosModificados: HorarioModificado[];
+
   // Acciones auth
   setUsuario: (userId: string, nombre: string, rol: string, jornada: string) => void;
   cerrarSesion: () => void;
@@ -50,6 +54,11 @@ interface AppState {
   setReservas: (reservas: Reserva[]) => void;
   agregarReserva: (reserva: Reserva) => void;
   actualizarReserva: (id: string, cambios: Partial<Reserva>) => void;
+
+  // Acciones horarios modificados
+  agregarHorarioModificado: (hm: HorarioModificado) => void;
+  actualizarHorarioModificado: (id: string, cambios: Partial<HorarioModificado>) => void;
+  eliminarHorarioModificado: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -65,6 +74,7 @@ export const useAppStore = create<AppState>()(
       notificaciones: [],
       notifCargadas: false,
       reservas: [],
+      horariosModificados: [],
 
       // Auth
       setUsuario: (userId, nombre, rol, jornada) =>
@@ -113,6 +123,22 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           reservas: s.reservas.map((r) => (r.id === id ? { ...r, ...cambios } : r)),
         })),
+
+      // Horarios modificados
+      agregarHorarioModificado: (hm) =>
+        set((s) => ({ horariosModificados: [hm, ...s.horariosModificados] })),
+
+      actualizarHorarioModificado: (id, cambios) =>
+        set((s) => ({
+          horariosModificados: s.horariosModificados.map((h) =>
+            h.id === id ? { ...h, ...cambios } : h
+          ),
+        })),
+
+      eliminarHorarioModificado: (id) =>
+        set((s) => ({
+          horariosModificados: s.horariosModificados.filter((h) => h.id !== id),
+        })),
     }),
     {
       name: 'mjb-app-storage',
@@ -123,6 +149,7 @@ export const useAppStore = create<AppState>()(
         rol: s.rol,
         jornada: s.jornada,
         temaOscuro: s.temaOscuro,
+        horariosModificados: s.horariosModificados,
       }),
     }
   )
