@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../data/store';
 import {
@@ -690,23 +690,295 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
   );
 }
 
+// ── Helper ────────────────────────────────────────────────────────────────────
+
+function abrevAula(aula: string): string {
+  return aula
+    .replace('Aula ', 'A')
+    .replace('Lab. Ciencias', 'Lab.')
+    .replace('Sala Informática', 'SI')
+    .replace('Sala Info.', 'SI');
+}
+
+// ── Tabla maestra: todos los docentes × días × horas ─────────────────────────
+
+function TablaDocentesOverview({ jornadaTab, onSelect }: {
+  jornadaTab: 'manana' | 'tarde';
+  onSelect: (id: string) => void;
+}) {
+  const docentes = getDocentes(jornadaTab);
+  const bloques  = jornadaTab === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
+  const CELL_H   = 46;
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
+      <table className="text-xs border-collapse" style={{ minWidth: 860 }}>
+        <thead>
+          <tr>
+            <th className="sticky left-0 bg-gray-950/98 z-20 w-24 border-b border-white/8" />
+            {DIAS.map((dia, di) => (
+              <th
+                key={dia}
+                colSpan={bloques.length}
+                className={cn(
+                  'text-center py-2.5 font-semibold text-sm border-b border-white/8 text-gray-300',
+                  di > 0 ? 'border-l border-white/10' : ''
+                )}
+              >
+                {DIAS_LABEL[dia]}
+              </th>
+            ))}
+          </tr>
+          <tr className="border-b border-white/6">
+            <th className="sticky left-0 bg-gray-950/98 z-20 px-3 py-1 text-[9px] text-gray-600 font-normal text-left">
+              Docente
+            </th>
+            {DIAS.map((dia, di) =>
+              bloques.map((b, bi) => (
+                <th
+                  key={`${dia}-${b.id}`}
+                  className={cn(
+                    'text-center py-1 font-normal min-w-[42px]',
+                    bi === 0 && di > 0 ? 'border-l border-white/10' : ''
+                  )}
+                >
+                  <span className="text-gray-500 text-[9px]">{horaOrdinal(b.id)}</span>
+                </th>
+              ))
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {docentes.map((docente, ri) => (
+            <tr key={docente.id} className={cn('border-b border-white/5', ri % 2 !== 0 ? 'bg-white/[0.015]' : '')}>
+              <td
+                className="sticky left-0 bg-gray-950/95 z-10 px-3 cursor-pointer group hover:bg-gray-900/80 transition-colors"
+                style={{ height: CELL_H }}
+                onClick={() => onSelect(docente.id)}
+              >
+                <div className="font-bold text-[11px] leading-tight" style={{ color: docente.color }}>
+                  {docente.nombreCorto}
+                </div>
+                <div className="text-[9px] text-gray-700 group-hover:text-gray-500 transition-colors mt-0.5">
+                  ver →
+                </div>
+              </td>
+              {DIAS.map((dia, di) =>
+                bloques.map((b, bi) => {
+                  const esTardeHoy = docenteEnTarde(docente.id, dia) && jornadaTab === 'manana';
+                  const esCI       = dia === 'martes' && b.id === 6 && jornadaTab === 'manana';
+                  const entrada    = (!esTardeHoy && !esCI)
+                    ? horarioBase.find(e =>
+                        e.docente === docente.id && e.dia === dia &&
+                        e.bloque === b.id && e.jornada === jornadaTab
+                      )
+                    : undefined;
+                  const gradoStr = entrada?.grado.includes('/')
+                    ? entrada.grado.split('/')[0]
+                    : entrada?.grado;
+
+                  return (
+                    <td
+                      key={`${dia}-${b.id}`}
+                      className={cn('p-0.5', bi === 0 && di > 0 ? 'border-l border-white/8' : '')}
+                      style={{ height: CELL_H }}
+                    >
+                      {esTardeHoy ? (
+                        <div className="h-full rounded border border-yellow-900/30 bg-yellow-900/10 flex items-center justify-center">
+                          <span className="text-yellow-800 text-[9px]">T</span>
+                        </div>
+                      ) : esCI ? (
+                        <div className="h-full rounded border border-yellow-700/40 bg-yellow-900/20 flex items-center justify-center">
+                          <span className="text-yellow-500 text-[9px] font-bold">★CI</span>
+                        </div>
+                      ) : entrada ? (
+                        <div
+                          className="h-full rounded flex flex-col items-center justify-center gap-0.5 px-0.5"
+                          style={{
+                            borderWidth: 1,
+                            borderColor: COLORES_AULA[entrada.aula] ?? '#aaa',
+                            backgroundColor: `${COLORES_AULA[entrada.aula] ?? '#aaa'}15`,
+                          }}
+                        >
+                          <span
+                            className="text-[9px] font-bold leading-none w-full text-center truncate"
+                            style={{ color: COLORES_AULA[entrada.aula] ?? '#aaa' }}
+                          >
+                            {abrevAula(entrada.aula)}
+                          </span>
+                          <span
+                            className="text-[8px] leading-none w-full text-center truncate"
+                            style={{ color: colorGrado(gradoStr ?? '') }}
+                          >
+                            {gradoStr}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="h-full rounded border border-dashed border-white/6 flex items-center justify-center">
+                          <span className="text-gray-800 text-[9px]">—</span>
+                        </div>
+                      )}
+                    </td>
+                  );
+                })
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Tabla maestra: todos los grupos × días × horas ───────────────────────────
+
+function TablaGruposOverview({ jornadaTab, onSelect }: {
+  jornadaTab: 'manana' | 'tarde';
+  onSelect: (grado: string) => void;
+}) {
+  const bloques    = jornadaTab === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
+  const directores = jornadaTab === 'manana' ? DIRECTORES_MANANA : DIRECTORES_TARDE;
+  const gruposUnicos = Array.from(new Set(
+    horarioBase
+      .filter(e => e.jornada === jornadaTab)
+      .map(e => e.grado.includes('/') ? e.grado.split('/')[0] : e.grado)
+  )).sort();
+  const CELL_H = 46;
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
+      <table className="text-xs border-collapse" style={{ minWidth: 860 }}>
+        <thead>
+          <tr>
+            <th className="sticky left-0 bg-gray-950/98 z-20 w-28 border-b border-white/8" />
+            {DIAS.map((dia, di) => (
+              <th
+                key={dia}
+                colSpan={bloques.length}
+                className={cn(
+                  'text-center py-2.5 font-semibold text-sm border-b border-white/8 text-gray-300',
+                  di > 0 ? 'border-l border-white/10' : ''
+                )}
+              >
+                {DIAS_LABEL[dia]}
+              </th>
+            ))}
+          </tr>
+          <tr className="border-b border-white/6">
+            <th className="sticky left-0 bg-gray-950/98 z-20 px-3 py-1 text-[9px] text-gray-600 font-normal text-left">
+              Grupo
+            </th>
+            {DIAS.map((dia, di) =>
+              bloques.map((b, bi) => (
+                <th
+                  key={`${dia}-${b.id}`}
+                  className={cn(
+                    'text-center py-1 font-normal min-w-[42px]',
+                    bi === 0 && di > 0 ? 'border-l border-white/10' : ''
+                  )}
+                >
+                  <span className="text-gray-500 text-[9px]">{horaOrdinal(b.id)}</span>
+                </th>
+              ))
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {gruposUnicos.map((grado, ri) => {
+            const dirId  = directores[grado];
+            const dir    = USUARIOS.find(u => u.id === dirId);
+            const gColor = colorGrado(grado);
+
+            return (
+              <tr key={grado} className={cn('border-b border-white/5', ri % 2 !== 0 ? 'bg-white/[0.015]' : '')}>
+                <td
+                  className="sticky left-0 bg-gray-950/95 z-10 px-3 cursor-pointer group hover:bg-gray-900/80 transition-colors"
+                  style={{ height: CELL_H }}
+                  onClick={() => onSelect(grado)}
+                >
+                  <div className="font-bold text-[11px] leading-tight" style={{ color: gColor }}>
+                    {grado}
+                  </div>
+                  {dir && (
+                    <div className="text-[9px] mt-0.5" style={{ color: dir.color }}>
+                      {dir.nombreCorto}
+                    </div>
+                  )}
+                </td>
+                {DIAS.map((dia, di) =>
+                  bloques.map((b, bi) => {
+                    const esCI   = dia === 'martes' && b.id === 6 && jornadaTab === 'manana';
+                    const entrada = !esCI
+                      ? horarioBase.find(e => {
+                          const g = e.grado.includes('/') ? e.grado.split('/')[0] : e.grado;
+                          return g === grado && e.dia === dia && e.bloque === b.id && e.jornada === jornadaTab;
+                        })
+                      : undefined;
+                    const docente = entrada ? USUARIOS.find(u => u.id === entrada.docente) : undefined;
+
+                    return (
+                      <td
+                        key={`${dia}-${b.id}`}
+                        className={cn('p-0.5', bi === 0 && di > 0 ? 'border-l border-white/8' : '')}
+                        style={{ height: CELL_H }}
+                      >
+                        {esCI ? (
+                          <div className="h-full rounded border border-yellow-700/40 bg-yellow-900/20 flex items-center justify-center">
+                            <span className="text-yellow-500 text-[9px] font-bold">★CI</span>
+                          </div>
+                        ) : entrada && docente ? (
+                          <div
+                            className="h-full rounded flex flex-col items-center justify-center gap-0.5 px-0.5"
+                            style={{
+                              borderWidth: 1,
+                              borderColor: docente.color,
+                              backgroundColor: `${docente.color}15`,
+                            }}
+                          >
+                            <span
+                              className="text-[9px] font-bold leading-none w-full text-center truncate"
+                              style={{ color: docente.color }}
+                            >
+                              {docente.nombreCorto.split(' ')[0]}
+                            </span>
+                            <span className="text-[8px] leading-none text-gray-500 w-full text-center truncate">
+                              {abrevAula(entrada.aula)}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="h-full rounded border border-dashed border-white/6 flex items-center justify-center">
+                            <span className="text-gray-800 text-[9px]">—</span>
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── Componente principal ─────────────────────────────────────────────────────
 
 export default function VistaHorario() {
   const { jornada, rol, userId } = useAppStore();
   const defaultJornada: 'manana' | 'tarde' = jornada === 'tarde' ? 'tarde' : 'manana';
 
-  const [modo, setModo]           = useState<Modo>('aulas');
+  const [modo, setModo]             = useState<Modo>('aulas');
   const [jornadaTab, setJornadaTab] = useState<'manana' | 'tarde'>(defaultJornada);
   const [docenteSel, setDocenteSel] = useState(rol === 'docente' ? (userId ?? '') : '');
   const [grupoSel, setGrupoSel]     = useState('');
 
-  const docentesMostrar = getDocentes(jornadaTab);
-  const gruposUnicos = Array.from(new Set(
-    horarioBase
-      .filter(e => e.jornada === jornadaTab)
-      .map(e => e.grado.includes('/') ? e.grado.split('/')[0] : e.grado)
-  )).sort();
+  // Al cambiar jornada (solo coord/rectora), volver al overview de cada modo
+  useEffect(() => {
+    if (rol !== 'docente') setDocenteSel('');
+    setGrupoSel('');
+  }, [jornadaTab, rol]);
 
   const puedeVerAmbas = rol === 'rectora' || rol === 'coordinador';
 
@@ -747,65 +1019,56 @@ export default function VistaHorario() {
           {modo === 'aulas' && <VistaAulas jornadaTab={jornadaTab} />}
 
           {modo === 'docente' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                {docentesMostrar.map(d => (
+            docenteSel ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
                   <button
-                    key={d.id}
-                    onClick={() => setDocenteSel(d.id)}
-                    className={cn(
-                      'flex flex-col items-center justify-center gap-1 p-3 rounded-2xl border transition-all min-h-[60px]',
-                      docenteSel === d.id ? 'opacity-100' : 'opacity-35 border-transparent hover:opacity-65 hover:border-current'
-                    )}
-                    style={{
-                      color: d.color,
-                      borderColor: docenteSel === d.id ? d.color : undefined,
-                      backgroundColor: docenteSel === d.id ? `${d.color}22` : `${d.color}0a`,
-                    }}
+                    onClick={() => setDocenteSel('')}
+                    className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition px-3 py-1.5 rounded-xl bg-white/6 border border-white/10 flex-shrink-0"
                   >
-                    <span className="text-xs font-bold leading-tight text-center">{d.nombreCorto}</span>
+                    ← Todos los docentes
                   </button>
-                ))}
+                  {(() => {
+                    const d = USUARIOS.find(u => u.id === docenteSel);
+                    return d ? (
+                      <span className="font-semibold text-sm" style={{ color: d.color }}>{d.nombre}</span>
+                    ) : null;
+                  })()}
+                </div>
+                <VistaDocente docenteId={docenteSel} jornadaTab={jornadaTab} />
               </div>
-              {docenteSel
-                ? <VistaDocente docenteId={docenteSel} jornadaTab={jornadaTab} />
-                : <p className="text-sm text-gray-600 text-center py-8">Selecciona un docente para ver su horario</p>
-              }
-            </div>
+            ) : (
+              <TablaDocentesOverview jornadaTab={jornadaTab} onSelect={setDocenteSel} />
+            )
           )}
 
           {modo === 'grupo' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                {gruposUnicos.map(g => {
-                  const dirId = jornadaTab === 'manana' ? DIRECTORES_MANANA[g] : DIRECTORES_TARDE[g];
-                  const dir   = USUARIOS.find(u => u.id === dirId);
-                  const gColor = colorGrado(g);
-                  return (
-                    <button
-                      key={g}
-                      onClick={() => setGrupoSel(g)}
-                      className={cn(
-                        'flex flex-col items-center justify-center gap-0.5 p-3 rounded-2xl border transition-all min-h-[60px]',
-                        grupoSel === g ? 'opacity-100' : 'opacity-35 border-transparent hover:opacity-65 hover:border-current'
-                      )}
-                      style={{
-                        color: gColor,
-                        borderColor: grupoSel === g ? gColor : undefined,
-                        backgroundColor: grupoSel === g ? `${gColor}22` : `${gColor}0a`,
-                      }}
-                    >
-                      <span className="text-xs font-bold">{g}</span>
-                      {dir && <span className="text-[10px] opacity-70">{dir.nombreCorto}</span>}
-                    </button>
-                  );
-                })}
+            grupoSel ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setGrupoSel('')}
+                    className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition px-3 py-1.5 rounded-xl bg-white/6 border border-white/10 flex-shrink-0"
+                  >
+                    ← Todos los grupos
+                  </button>
+                  {(() => {
+                    const directores = jornadaTab === 'manana' ? DIRECTORES_MANANA : DIRECTORES_TARDE;
+                    const dirId = directores[grupoSel];
+                    const dir = USUARIOS.find(u => u.id === dirId);
+                    return (
+                      <span className="font-semibold text-sm" style={{ color: colorGrado(grupoSel) }}>
+                        {grupoSel}
+                        {dir && <span className="font-normal text-gray-500 ml-2 text-xs">Director: {dir.nombre}</span>}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <VistaGrupo grado={grupoSel} jornadaTab={jornadaTab} />
               </div>
-              {grupoSel
-                ? <VistaGrupo grado={grupoSel} jornadaTab={jornadaTab} />
-                : <p className="text-sm text-gray-600 text-center py-8">Selecciona un grupo para ver su horario</p>
-              }
-            </div>
+            ) : (
+              <TablaGruposOverview jornadaTab={jornadaTab} onSelect={setGrupoSel} />
+            )
           )}
         </motion.div>
       </AnimatePresence>
