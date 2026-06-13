@@ -22,6 +22,8 @@ export interface ModificacionBloque {
   grupo: string;
   aula: string;
   apoyoId?: string;            // si se cubrió con un apoyo
+  esTaller?: boolean;          // queda con actividad/taller en ese bloque
+  supervisorId?: string;       // docente libre que supervisa el taller
 }
 
 export type EstadoHorarioMod = 'borrador' | 'guardado';
@@ -94,7 +96,8 @@ export function obtenerHorariosVigentes(
 export type UbicacionFicha =
   | { tipo: 'colocada'; bloque: number }
   | { tipo: 'pendiente' }
-  | { tipo: 'eliminada' };
+  | { tipo: 'eliminada' }
+  | { tipo: 'taller'; bloque: number; supervisorId?: string };
 
 export interface FichaEditor {
   id: string;                  // único: `${docente}_${grupo}_${bloqueOriginal}`
@@ -106,7 +109,6 @@ export interface FichaEditor {
     aula: string;
   };
   ubicacion: UbicacionFicha;
-  esAusente: boolean;          // pertenecía al docente ausente
 }
 
 export interface EntradaHorarioBase {
@@ -130,14 +132,8 @@ export function crearFichasIniciales(
   const dia = diaDeSemana(borrador.fecha);
   const entradasDelDia = horarioBase.filter(e => e.jornada === borrador.jornada && e.dia === dia);
 
-  const bloquesAusentesPorDoc: Record<string, Set<number>> = {};
-  borrador.ausencias.forEach(a => {
-    bloquesAusentesPorDoc[a.docenteId] = new Set(a.bloques);
-  });
-
   return entradasDelDia.map(e => {
     const grado = e.grado.includes('/') ? e.grado.split('/')[0] : e.grado;
-    const esAusente = bloquesAusentesPorDoc[e.docente]?.has(e.bloque) ?? false;
     return {
       id: `${e.docente}_${grado}_${e.bloque}`,
       origen: {
@@ -148,9 +144,46 @@ export function crearFichasIniciales(
         aula: e.aula,
       },
       ubicacion: { tipo: 'colocada' as const, bloque: e.bloque },
-      esAusente,
     };
   });
+}
+
+/**
+ * Devuelve true si la ficha está actualmente posicionada en un bloque
+ * que coincide con una ausencia declarada para su docente.
+ */
+export function esFichaAusenteAhora(
+  ficha: FichaEditor,
+  ausencias: AusenciaDocente[]
+): boolean {
+  if (ficha.ubicacion.tipo !== 'colocada') return false;
+  const aus = ausencias.find(a => a.docenteId === ficha.origen.docente);
+  if (!aus) return false;
+  return aus.bloques.includes(ficha.ubicacion.bloque);
+}
+
+/**
+ * Lista de docentes libres en un (dia, bloque) específico:
+ *   - no tienen clase en horarioBase a esa hora
+ *   - no están en ausencias declaradas para ese bloque
+ */
+export function docentesLibresEn(
+  dia: string,
+  bloque: number,
+  jornada: 'manana' | 'tarde',
+  horarioBase: EntradaHorarioBase[],
+  candidatos: { id: string; nombreCorto: string; color?: string }[],
+  ausencias: AusenciaDocente[]
+): { id: string; nombreCorto: string; color?: string }[] {
+  const ocupados = new Set(
+    horarioBase
+      .filter(e => e.dia === dia && e.bloque === bloque && e.jornada === jornada)
+      .map(e => e.docente)
+  );
+  const ausentesEnBloque = new Set(
+    ausencias.filter(a => a.bloques.includes(bloque)).map(a => a.docenteId)
+  );
+  return candidatos.filter(d => !ocupados.has(d.id) && !ausentesEnBloque.has(d.id));
 }
 
 /**
@@ -168,6 +201,16 @@ export function fichasAModificaciones(fichas: FichaEditor[]): ModificacionBloque
         docenteOriginal: f.origen.docente,
         grupo: f.origen.grupo,
         aula: f.origen.aula,
+      });
+    } else if (f.ubicacion.tipo === 'taller') {
+      mods.push({
+        bloqueOriginal: original,
+        bloqueNuevo: f.ubicacion.bloque,
+        docenteOriginal: f.origen.docente,
+        grupo: f.origen.grupo,
+        aula: f.origen.aula,
+        esTaller: true,
+        supervisorId: f.ubicacion.supervisorId,
       });
     } else if (f.ubicacion.tipo === 'colocada' && f.ubicacion.bloque !== original) {
       mods.push({

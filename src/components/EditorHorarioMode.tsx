@@ -31,6 +31,8 @@ import {
   fichasAModificaciones,
   formatearFechaLegible,
   diaDeSemana,
+  esFichaAusenteAhora,
+  docentesLibresEn,
   TIPO_APOYO_LABEL,
 } from '../data/horarioModificado';
 import type {
@@ -61,31 +63,53 @@ function abrevAula(aula: string): string {
 function FichaArrastrable({
   ficha,
   modo,
+  esAusente,
+  esTaller,
+  docentesLibres,
   onEliminar,
+  onMarcarTaller,
+  onQuitarTaller,
+  onCambiarSupervisor,
 }: {
   ficha: FichaEditor;
   modo: ModoEditor;
+  esAusente: boolean;
+  esTaller: boolean;
+  docentesLibres: { id: string; nombreCorto: string; color?: string }[];
   onEliminar: () => void;
+  onMarcarTaller: () => void;
+  onQuitarTaller: () => void;
+  onCambiarSupervisor: (id: string | undefined) => void;
 }) {
-  const arrastrable = !ficha.esAusente;
+  // Taller no se arrastra (representa actividad fija); el resto sí
+  const arrastrable = !esTaller;
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: ficha.id,
     disabled: !arrastrable,
   });
 
   const docente = USUARIOS.find(u => u.id === ficha.origen.docente);
-  const colorBorde =
-    modo === 'docente'
+  const supervisorId = ficha.ubicacion.tipo === 'taller' ? ficha.ubicacion.supervisorId : undefined;
+  const supervisor   = supervisorId ? USUARIOS.find(u => u.id === supervisorId) : undefined;
+
+  const colorBorde = esTaller
+    ? '#f59e0b'
+    : modo === 'docente'
       ? (COLORES_AULA[ficha.origen.aula] ?? '#aaa')
       : (docente?.color ?? '#aaa');
-  const textoArriba = modo === 'docente'
-    ? abrevAula(ficha.origen.aula)
-    : (docente?.nombreCorto.split(' ')[0] ?? ficha.origen.docente);
+
+  const textoArriba = esTaller
+    ? 'Taller'
+    : (modo === 'docente'
+        ? abrevAula(ficha.origen.aula)
+        : (docente?.nombreCorto.split(' ')[0] ?? ficha.origen.docente));
   const textoAbajo  = modo === 'docente'
     ? ficha.origen.grupo
     : abrevAula(ficha.origen.aula);
 
-  const colorArriba = modo === 'docente' ? colorBorde : (docente?.color ?? '#aaa');
+  const colorArriba = esTaller
+    ? '#f59e0b'
+    : (modo === 'docente' ? colorBorde : (docente?.color ?? '#aaa'));
   const colorAbajo  = modo === 'docente' ? colorGrado(ficha.origen.grupo) : '#94a3b8';
 
   return (
@@ -97,39 +121,88 @@ function FichaArrastrable({
         transform: CSS.Translate.toString(transform),
         borderWidth: 1,
         borderColor: colorBorde,
-        backgroundColor: ficha.esAusente ? `${colorBorde}10` : `${colorBorde}20`,
-        opacity: isDragging ? 0.4 : (ficha.esAusente ? 0.55 : 1),
+        backgroundColor: esTaller
+          ? `${colorBorde}25`
+          : esAusente ? `${colorBorde}10` : `${colorBorde}20`,
+        opacity: isDragging ? 0.4 : (esAusente ? 0.55 : 1),
         cursor: arrastrable ? (isDragging ? 'grabbing' : 'grab') : 'default',
       }}
       className={cn(
         'relative h-full rounded-lg flex flex-col items-center justify-center px-1 gap-0.5 select-none transition-shadow',
-        !ficha.esAusente && !isDragging && 'hover:shadow-lg hover:shadow-black/40',
-        ficha.esAusente && 'border-dashed'
+        !esAusente && !esTaller && !isDragging && 'hover:shadow-lg hover:shadow-black/40',
+        (esAusente || esTaller) && 'border-dashed'
       )}
+      title={esTaller && docentesLibres.length > 0
+        ? `Docentes libres a esta hora: ${docentesLibres.map(d => d.nombreCorto).join(', ')}`
+        : undefined}
     >
       <span
-        className={cn('text-[10px] font-bold leading-none', ficha.esAusente && 'line-through')}
+        className={cn('text-[10px] font-bold leading-none', esAusente && !esTaller && 'line-through')}
         style={{ color: colorArriba }}
       >
         {textoArriba}
       </span>
       <span
-        className={cn('text-[9px] leading-none', ficha.esAusente && 'line-through')}
-        style={{ color: colorAbajo }}
+        className={cn('text-[9px] leading-none truncate w-full text-center', esAusente && !esTaller && 'line-through')}
+        style={{ color: esTaller && supervisor ? supervisor.color : colorAbajo }}
       >
-        {textoAbajo}
+        {esTaller
+          ? (supervisor ? `con ${supervisor.nombreCorto}` : ficha.origen.grupo)
+          : textoAbajo}
       </span>
-      {ficha.esAusente && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onEliminar();
-          }}
-          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold leading-none flex items-center justify-center shadow"
-          title="Eliminar"
-        >
-          ×
-        </button>
+
+      {/* Botones de acción */}
+      {esAusente && !esTaller && (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); onMarcarTaller(); }}
+            className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-bold leading-none flex items-center justify-center shadow"
+            title="Queda con actividad/taller"
+          >
+            T
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onEliminar(); }}
+            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold leading-none flex items-center justify-center shadow"
+            title="Eliminar"
+          >
+            ×
+          </button>
+        </>
+      )}
+      {esTaller && (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); onQuitarTaller(); }}
+            className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-gray-600 hover:bg-gray-500 text-white text-[9px] font-bold leading-none flex items-center justify-center shadow"
+            title="Quitar taller"
+          >
+            ↩
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onEliminar(); }}
+            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold leading-none flex items-center justify-center shadow"
+            title="Eliminar"
+          >
+            ×
+          </button>
+          {/* Selector compacto de supervisor */}
+          {docentesLibres.length > 0 && (
+            <select
+              value={supervisorId ?? ''}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => onCambiarSupervisor(e.target.value || undefined)}
+              className="absolute -bottom-1.5 left-1 right-1 text-[8px] bg-gray-900/95 text-amber-200 border border-amber-700/40 rounded px-1 py-0.5"
+              title={`${docentesLibres.length} docente(s) libre(s) a esta hora`}
+            >
+              <option value="">Asignar apoyo…</option>
+              {docentesLibres.map(d => (
+                <option key={d.id} value={d.id}>{d.nombreCorto}</option>
+              ))}
+            </select>
+          )}
+        </>
       )}
     </div>
   );
@@ -198,7 +271,17 @@ function PendientesDroppable({
         ) : (
           fichas.map(f => (
             <div key={f.id} className="flex-shrink-0 w-20 h-14 relative">
-              <FichaArrastrable ficha={f} modo={modo} onEliminar={() => onEliminar(f.id)} />
+              <FichaArrastrable
+                ficha={f}
+                modo={modo}
+                esAusente={false}
+                esTaller={false}
+                docentesLibres={[]}
+                onEliminar={() => onEliminar(f.id)}
+                onMarcarTaller={() => {}}
+                onQuitarTaller={() => {}}
+                onCambiarSupervisor={() => {}}
+              />
             </div>
           ))
         )}
@@ -249,25 +332,34 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     });
   }, [modo, fichas, borrador.jornada, directores]);
 
-  // ── Mapa: para cada (fila, bloque) cuál ficha está colocada ────────────────
+  // ── Mapa: para cada (fila, bloque) cuál ficha está colocada/taller ─────────
   const fichasColocadasPorCelda = useMemo(() => {
     const map: Record<string, FichaEditor> = {};
     fichas.forEach(f => {
-      if (f.ubicacion.tipo !== 'colocada') return;
+      if (f.ubicacion.tipo !== 'colocada' && f.ubicacion.tipo !== 'taller') return;
       const rowId = modo === 'docente' ? f.origen.docente : f.origen.grupo;
-      map[`${rowId}__${f.ubicacion.bloque}`] = f;
+      const bloque = f.ubicacion.tipo === 'colocada' ? f.ubicacion.bloque : f.ubicacion.bloque;
+      map[`${rowId}__${bloque}`] = f;
     });
     return map;
   }, [fichas, modo]);
 
   const pendientes = fichas.filter(f => f.ubicacion.tipo === 'pendiente');
 
+  // Lista de docentes candidatos para "libres en" — todos los de la jornada
+  const candidatosLibres = useMemo(
+    () => getDocentes(borrador.jornada).map(d => ({ id: d.id, nombreCorto: d.nombreCorto, color: d.color })),
+    [borrador.jornada]
+  );
+
   // ── Drag-and-drop handler ──────────────────────────────────────────────────
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     if (!over) return;
     const fichaActiva = fichas.find(f => f.id === active.id);
-    if (!fichaActiva || fichaActiva.esAusente) return;
+    if (!fichaActiva) return;
+    // Las fichas en estado "taller" no se arrastran
+    if (fichaActiva.ubicacion.tipo === 'taller') return;
 
     const overId = String(over.id);
 
@@ -292,8 +384,8 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
       // ¿Hay ficha ya colocada en (overRowId, overBloque)?
       const ocupanteIdx = next.findIndex(f =>
         f.id !== active.id &&
-        f.ubicacion.tipo === 'colocada' &&
-        f.ubicacion.bloque === overBloque &&
+        (f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller') &&
+        (f.ubicacion.tipo === 'colocada' ? f.ubicacion.bloque : f.ubicacion.bloque) === overBloque &&
         (modo === 'docente' ? f.origen.docente === overRowId : f.origen.grupo === overRowId)
       );
       if (ocupanteIdx !== -1) {
@@ -315,6 +407,30 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     ));
   }
 
+  function marcarTaller(id: string) {
+    setFichas(prev => prev.map(f => {
+      if (f.id !== id) return f;
+      if (f.ubicacion.tipo !== 'colocada') return f;
+      return { ...f, ubicacion: { tipo: 'taller' as const, bloque: f.ubicacion.bloque } };
+    }));
+  }
+
+  function quitarTaller(id: string) {
+    setFichas(prev => prev.map(f => {
+      if (f.id !== id) return f;
+      if (f.ubicacion.tipo !== 'taller') return f;
+      return { ...f, ubicacion: { tipo: 'colocada' as const, bloque: f.ubicacion.bloque } };
+    }));
+  }
+
+  function cambiarSupervisor(id: string, supervisorId: string | undefined) {
+    setFichas(prev => prev.map(f => {
+      if (f.id !== id) return f;
+      if (f.ubicacion.tipo !== 'taller') return f;
+      return { ...f, ubicacion: { ...f.ubicacion, supervisorId } };
+    }));
+  }
+
   // ── Guardar / descartar ────────────────────────────────────────────────────
   function guardar() {
     if (pendientes.length > 0) return;
@@ -332,7 +448,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     onSalir();
   }
 
-  const hayAusenteSinResolver = fichas.some(f => f.esAusente && f.ubicacion.tipo !== 'eliminada');
+  const hayAusenteSinResolver = fichas.some(f => esFichaAusenteAhora(f, borrador.ausencias));
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -452,13 +568,26 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                   </td>
                   {bloques.map(b => {
                     const ficha = fichasColocadasPorCelda[`${f.id}__${b.id}`];
+                    const esTaller   = ficha?.ubicacion.tipo === 'taller';
+                    const esAusente  = ficha ? esFichaAusenteAhora(ficha, borrador.ausencias) : false;
+                    const libres = (esTaller || esAusente)
+                      ? docentesLibresEn(dia, b.id, borrador.jornada, horarioBase as any, candidatosLibres, borrador.ausencias)
+                          // excluir al propio docente ausente como apoyo
+                          .filter(d => d.id !== ficha?.origen.docente)
+                      : [];
                     return (
                       <CeldaDroppable key={b.id} rowId={f.id} bloque={b.id}>
                         {ficha ? (
                           <FichaArrastrable
                             ficha={ficha}
                             modo={modo}
+                            esAusente={esAusente}
+                            esTaller={esTaller}
+                            docentesLibres={libres}
                             onEliminar={() => eliminarFicha(ficha.id)}
+                            onMarcarTaller={() => marcarTaller(ficha.id)}
+                            onQuitarTaller={() => quitarTaller(ficha.id)}
+                            onCambiarSupervisor={(supId) => cambiarSupervisor(ficha.id, supId)}
                           />
                         ) : (
                           <div className="h-full rounded-lg border border-dashed border-white/8 flex items-center justify-center">
