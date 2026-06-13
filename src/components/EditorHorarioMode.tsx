@@ -300,6 +300,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   );
   const [confirmDescartar, setConfirmDescartar] = useState(false);
   const [errorMovimiento, setErrorMovimiento] = useState<string | null>(null);
+  const [verTodoElHorario, setVerTodoElHorario] = useState(false);
 
   // Auto-dismiss del toast de error tras 5 segundos
   useEffect(() => {
@@ -318,17 +319,39 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     useSensor(TouchSensor,   { activationConstraint: { delay: 150, tolerance: 8 } }),
   );
 
+  // ── Grupos y docentes afectados por las ausencias declaradas ───────────────
+  // Un grupo está afectado si en alguno de los bloques ausentes del docente,
+  // ese docente daba clase a este grupo. Los docentes afectados son aquellos
+  // que dan clase a algún grupo afectado durante el día del borrador.
+  const { gruposAfectados, docentesAfectados } = useMemo(() => {
+    const grupos = new Set<string>();
+    borrador.ausencias.forEach(aus => {
+      fichas.forEach(f => {
+        if (f.origen.docente === aus.docenteId && aus.bloques.includes(f.origen.bloque)) {
+          grupos.add(f.origen.grupo);
+        }
+      });
+    });
+    const docentes = new Set<string>();
+    fichas.forEach(f => {
+      if (grupos.has(f.origen.grupo)) docentes.add(f.origen.docente);
+    });
+    return { gruposAfectados: grupos, docentesAfectados: docentes };
+  }, [borrador.ausencias, fichas]);
+
   // ── Estructura derivada: filas (docentes o grupos del día) ─────────────────
   const filas = useMemo(() => {
     if (modo === 'docente') {
-      // Solo docentes que tienen al menos una ficha (origen) en el día afectado
       const idsConFicha = new Set(fichas.map(f => f.origen.docente));
       return getDocentes(borrador.jornada)
         .filter(d => idsConFicha.has(d.id))
+        .filter(d => verTodoElHorario || docentesAfectados.has(d.id))
         .map(d => ({ id: d.id, nombre: d.nombreCorto, color: d.color, sub: '' }));
     }
     // grupo
-    const grupos = Array.from(new Set(fichas.map(f => f.origen.grupo))).sort();
+    const grupos = Array.from(new Set(fichas.map(f => f.origen.grupo)))
+      .filter(g => verTodoElHorario || gruposAfectados.has(g))
+      .sort();
     return grupos.map(g => {
       const dir = USUARIOS.find(u => u.id === directores[g]);
       return {
@@ -338,7 +361,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
         sub: dir?.nombreCorto ?? '',
       };
     });
-  }, [modo, fichas, borrador.jornada, directores]);
+  }, [modo, fichas, borrador.jornada, directores, verTodoElHorario, gruposAfectados, docentesAfectados]);
 
   // ── Mapa: para cada (fila, bloque) cuál ficha está colocada/taller ─────────
   const fichasColocadasPorCelda = useMemo(() => {
@@ -582,6 +605,24 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               Por docente
             </button>
           </div>
+
+          {/* Toggle: mostrar solo afectados o todo el horario */}
+          <button
+            onClick={() => setVerTodoElHorario(v => !v)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition',
+              verTodoElHorario
+                ? 'bg-white/10 text-gray-200 border-white/15'
+                : 'bg-blue-950/40 text-blue-200 border-blue-700/40'
+            )}
+            title={verTodoElHorario
+              ? 'Mostrando todo el horario del día. Clic para ver solo los afectados.'
+              : 'Mostrando solo lo afectado por las ausencias. Clic para ver todo el horario.'}
+          >
+            <span className="text-sm leading-none">{verTodoElHorario ? '☰' : '◎'}</span>
+            {verTodoElHorario ? 'Ver todo el horario' : 'Solo afectados'}
+          </button>
+
           {hayAusenteSinResolver && (
             <div className="text-[11px] text-red-300 bg-red-900/30 border border-red-700/40 rounded-lg px-2.5 py-1">
               Quedan clases del ausente sin resolver
@@ -653,7 +694,9 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               ))}
               {filas.length === 0 && (
                 <tr><td colSpan={bloques.length + 1} className="text-center py-8 text-gray-600 text-sm">
-                  No hay {modo === 'docente' ? 'docentes' : 'grupos'} con clases este {dia}.
+                  {!verTodoElHorario && (gruposAfectados.size > 0 || docentesAfectados.size > 0)
+                    ? `Sin ${modo === 'docente' ? 'docentes' : 'grupos'} afectados visibles. Activa “Ver todo el horario” para mostrar el resto.`
+                    : `No hay ${modo === 'docente' ? 'docentes' : 'grupos'} con clases este ${dia}.`}
                 </td></tr>
               )}
             </tbody>
