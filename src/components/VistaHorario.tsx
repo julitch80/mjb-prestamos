@@ -118,10 +118,12 @@ function BannerDescanso({ inicio, fin, lugar }: { inicio: string; fin: string; l
 
 // ── Vista por aulas ──────────────────────────────────────────────────────────
 
-function VistaAulas({ jornadaTab }: { jornadaTab: 'manana' | 'tarde' }) {
-  const [vistaDetalle, setVistaDetalle] = useState<VistaDetalle>('semana');
-  const [diaSeleccionado, setDiaSeleccionado] = useState('lunes');
-
+function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
+  jornadaTab: 'manana' | 'tarde';
+  vistaDetalle: VistaDetalle;
+  diaSeleccionado: string;
+  onSetDia: (dia: string) => void;
+}) {
   const bloques  = jornadaTab === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
   const entradas = horarioBase.filter(e => e.jornada === jornadaTab);
 
@@ -137,12 +139,6 @@ function VistaAulas({ jornadaTab }: { jornadaTab: 'manana' | 'tarde' }) {
 
   return (
     <div className="space-y-3">
-      {/* Toggle semana/día */}
-      <div className="flex gap-1">
-        <TabButton active={vistaDetalle === 'semana'} onClick={() => setVistaDetalle('semana')} color="aulas-det">Semana</TabButton>
-        <TabButton active={vistaDetalle === 'dia'} onClick={() => setVistaDetalle('dia')} color="aulas-det">Día</TabButton>
-      </div>
-
       <AnimatePresence mode="wait">
         {vistaDetalle === 'semana' ? (
           <motion.div key="semana" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -228,7 +224,7 @@ function VistaAulas({ jornadaTab }: { jornadaTab: 'manana' | 'tarde' }) {
               {DIAS.map(dia => (
                 <button
                   key={dia}
-                  onClick={() => setDiaSeleccionado(dia)}
+                  onClick={() => onSetDia(dia)}
                   className={cn(
                     'flex-1 py-2 rounded-xl text-xs font-medium transition-all border',
                     diaSeleccionado === dia
@@ -702,14 +698,107 @@ function abrevAula(aula: string): string {
 
 // ── Tabla maestra: todos los docentes × días × horas ─────────────────────────
 
-function TablaDocentesOverview({ jornadaTab, onSelect }: {
+function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccionado, onSetDia }: {
   jornadaTab: 'manana' | 'tarde';
   onSelect: (id: string) => void;
+  vistaDetalle: VistaDetalle;
+  diaSeleccionado: string;
+  onSetDia: (dia: string) => void;
 }) {
   const docentes = getDocentes(jornadaTab);
   const bloques  = jornadaTab === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
   const CELL_H   = 46;
 
+  // ── Vista día: selector + tabla de 6 columnas ─────────────────────────────
+  if (vistaDetalle === 'dia') return (
+    <div className="space-y-3">
+      <div className="flex gap-1">
+        {DIAS.map(dia => (
+          <button
+            key={dia}
+            onClick={() => onSetDia(dia)}
+            className={cn(
+              'flex-1 py-2 rounded-xl text-xs font-medium transition-all border',
+              diaSeleccionado === dia
+                ? 'bg-white/12 text-white border-white/20'
+                : 'text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/6'
+            )}
+          >
+            {DIAS_CORTO[dia]}
+          </button>
+        ))}
+      </div>
+      <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
+        <table className="text-xs border-collapse w-full">
+          <thead>
+            <tr className="border-b border-white/8">
+              <th className="sticky left-0 bg-gray-950/98 z-10 text-left px-3 py-2.5 text-gray-500 font-medium w-28">Docente</th>
+              {bloques.map(b => (
+                <th key={b.id} className="text-center px-1 py-2.5 min-w-[72px]">
+                  <div className="text-gray-300 font-semibold text-xs">{horaOrdinal(b.id)}</div>
+                  <div className="text-gray-600 text-[9px]">{b.inicio}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {docentes.map((docente, ri) => {
+              const esTardeHoy = docenteEnTarde(docente.id, diaSeleccionado) && jornadaTab === 'manana';
+              return (
+                <tr key={docente.id} className={cn('border-b border-white/5', ri % 2 !== 0 ? 'bg-white/[0.015]' : '')}>
+                  <td
+                    className="sticky left-0 bg-gray-950/95 z-10 px-3 cursor-pointer group hover:bg-gray-900/80 transition-colors"
+                    style={{ height: CELL_H }}
+                    onClick={() => onSelect(docente.id)}
+                  >
+                    <div className="font-bold text-[11px]" style={{ color: docente.color }}>{docente.nombreCorto}</div>
+                    <div className="text-[9px] text-gray-700 group-hover:text-gray-500 mt-0.5">ver →</div>
+                  </td>
+                  {bloques.map(b => {
+                    const esCI    = diaSeleccionado === 'martes' && b.id === 6 && jornadaTab === 'manana';
+                    const entrada = (!esTardeHoy && !esCI)
+                      ? horarioBase.find(e =>
+                          e.docente === docente.id && e.dia === diaSeleccionado &&
+                          e.bloque === b.id && e.jornada === jornadaTab
+                        )
+                      : undefined;
+                    const gradoStr = entrada?.grado.includes('/') ? entrada.grado.split('/')[0] : entrada?.grado;
+                    return (
+                      <td key={b.id} className="p-1" style={{ height: CELL_H }}>
+                        {esTardeHoy ? (
+                          <div className="h-full rounded border border-yellow-900/30 bg-yellow-900/10 flex items-center justify-center">
+                            <span className="text-yellow-800 text-[9px]">T</span>
+                          </div>
+                        ) : esCI ? (
+                          <div className="h-full rounded border border-yellow-700/40 bg-yellow-900/20 flex items-center justify-center">
+                            <span className="text-yellow-500 text-[9px] font-bold">★CI</span>
+                          </div>
+                        ) : entrada ? (
+                          <div
+                            className="h-full rounded flex flex-col items-center justify-center gap-0.5 px-1"
+                            style={{ borderWidth: 1, borderColor: COLORES_AULA[entrada.aula] ?? '#aaa', backgroundColor: `${COLORES_AULA[entrada.aula] ?? '#aaa'}15` }}
+                          >
+                            <span className="text-[10px] font-bold leading-none" style={{ color: COLORES_AULA[entrada.aula] ?? '#aaa' }}>{abrevAula(entrada.aula)}</span>
+                            <span className="text-[9px] leading-none" style={{ color: colorGrado(gradoStr ?? '') }}>{gradoStr}</span>
+                          </div>
+                        ) : (
+                          <div className="h-full rounded border border-dashed border-white/6 flex items-center justify-center">
+                            <span className="text-gray-800 text-[9px]">—</span>
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  // ── Vista semana: tabla completa (30 columnas) ────────────────────────────
   return (
     <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
       <table className="text-xs border-collapse" style={{ minWidth: 860 }}>
@@ -832,9 +921,12 @@ function TablaDocentesOverview({ jornadaTab, onSelect }: {
 
 // ── Tabla maestra: todos los grupos × días × horas ───────────────────────────
 
-function TablaGruposOverview({ jornadaTab, onSelect }: {
+function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccionado, onSetDia }: {
   jornadaTab: 'manana' | 'tarde';
   onSelect: (grado: string) => void;
+  vistaDetalle: VistaDetalle;
+  diaSeleccionado: string;
+  onSetDia: (dia: string) => void;
 }) {
   const bloques    = jornadaTab === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
   const directores = jornadaTab === 'manana' ? DIRECTORES_MANANA : DIRECTORES_TARDE;
@@ -845,6 +937,95 @@ function TablaGruposOverview({ jornadaTab, onSelect }: {
   )).sort();
   const CELL_H = 46;
 
+  // ── Vista día ─────────────────────────────────────────────────────────────
+  if (vistaDetalle === 'dia') return (
+    <div className="space-y-3">
+      <div className="flex gap-1">
+        {DIAS.map(dia => (
+          <button
+            key={dia}
+            onClick={() => onSetDia(dia)}
+            className={cn(
+              'flex-1 py-2 rounded-xl text-xs font-medium transition-all border',
+              diaSeleccionado === dia
+                ? 'bg-white/12 text-white border-white/20'
+                : 'text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/6'
+            )}
+          >
+            {DIAS_CORTO[dia]}
+          </button>
+        ))}
+      </div>
+      <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
+        <table className="text-xs border-collapse w-full">
+          <thead>
+            <tr className="border-b border-white/8">
+              <th className="sticky left-0 bg-gray-950/98 z-10 text-left px-3 py-2.5 text-gray-500 font-medium w-28">Grupo</th>
+              {bloques.map(b => (
+                <th key={b.id} className="text-center px-1 py-2.5 min-w-[72px]">
+                  <div className="text-gray-300 font-semibold text-xs">{horaOrdinal(b.id)}</div>
+                  <div className="text-gray-600 text-[9px]">{b.inicio}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {gruposUnicos.map((grado, ri) => {
+              const dirId  = directores[grado];
+              const dir    = USUARIOS.find(u => u.id === dirId);
+              const gColor = colorGrado(grado);
+              const esCI   = diaSeleccionado === 'martes' && jornadaTab === 'manana';
+              return (
+                <tr key={grado} className={cn('border-b border-white/5', ri % 2 !== 0 ? 'bg-white/[0.015]' : '')}>
+                  <td
+                    className="sticky left-0 bg-gray-950/95 z-10 px-3 cursor-pointer group hover:bg-gray-900/80 transition-colors"
+                    style={{ height: CELL_H }}
+                    onClick={() => onSelect(grado)}
+                  >
+                    <div className="font-bold text-[11px]" style={{ color: gColor }}>{grado}</div>
+                    {dir && <div className="text-[9px] mt-0.5" style={{ color: dir.color }}>{dir.nombreCorto}</div>}
+                  </td>
+                  {bloques.map(b => {
+                    const esCIcelda = esCI && b.id === 6;
+                    const entrada = !esCIcelda
+                      ? horarioBase.find(e => {
+                          const g = e.grado.includes('/') ? e.grado.split('/')[0] : e.grado;
+                          return g === grado && e.dia === diaSeleccionado && e.bloque === b.id && e.jornada === jornadaTab;
+                        })
+                      : undefined;
+                    const docente = entrada ? USUARIOS.find(u => u.id === entrada.docente) : undefined;
+                    return (
+                      <td key={b.id} className="p-1" style={{ height: CELL_H }}>
+                        {esCIcelda ? (
+                          <div className="h-full rounded border border-yellow-700/40 bg-yellow-900/20 flex items-center justify-center">
+                            <span className="text-yellow-500 text-[9px] font-bold">★CI</span>
+                          </div>
+                        ) : entrada && docente ? (
+                          <div
+                            className="h-full rounded flex flex-col items-center justify-center gap-0.5 px-1"
+                            style={{ borderWidth: 1, borderColor: docente.color, backgroundColor: `${docente.color}15` }}
+                          >
+                            <span className="text-[10px] font-bold leading-none" style={{ color: docente.color }}>{docente.nombreCorto.split(' ')[0]}</span>
+                            <span className="text-[9px] leading-none text-gray-500">{abrevAula(entrada.aula)}</span>
+                          </div>
+                        ) : (
+                          <div className="h-full rounded border border-dashed border-white/6 flex items-center justify-center">
+                            <span className="text-gray-800 text-[9px]">—</span>
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  // ── Vista semana: tabla completa ──────────────────────────────────────────
   return (
     <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
       <table className="text-xs border-collapse" style={{ minWidth: 860 }}>
@@ -969,10 +1150,12 @@ export default function VistaHorario() {
   const { jornada, rol, userId } = useAppStore();
   const defaultJornada: 'manana' | 'tarde' = jornada === 'tarde' ? 'tarde' : 'manana';
 
-  const [modo, setModo]             = useState<Modo>('aulas');
-  const [jornadaTab, setJornadaTab] = useState<'manana' | 'tarde'>(defaultJornada);
-  const [docenteSel, setDocenteSel] = useState(rol === 'docente' ? (userId ?? '') : '');
-  const [grupoSel, setGrupoSel]     = useState('');
+  const [modo, setModo]               = useState<Modo>('aulas');
+  const [jornadaTab, setJornadaTab]   = useState<'manana' | 'tarde'>(defaultJornada);
+  const [docenteSel, setDocenteSel]   = useState(rol === 'docente' ? (userId ?? '') : '');
+  const [grupoSel, setGrupoSel]       = useState('');
+  const [vistaOverview, setVistaOverview] = useState<VistaDetalle>('semana');
+  const [diaOverview, setDiaOverview] = useState('lunes');
 
   // Al cambiar jornada (solo coord/rectora), volver al overview de cada modo
   useEffect(() => {
@@ -982,6 +1165,12 @@ export default function VistaHorario() {
 
   const puedeVerAmbas = rol === 'rectora' || rol === 'coordinador';
 
+  // El toggle Semana/Día aplica solo cuando estamos en el overview (no en detalle)
+  const enOverview =
+    modo === 'aulas' ||
+    (modo === 'docente' && !docenteSel) ||
+    (modo === 'grupo'   && !grupoSel);
+
   const MODO_LABELS: Record<Modo, string> = {
     aulas:   'Por aulas',
     docente: 'Por docente',
@@ -990,22 +1179,34 @@ export default function VistaHorario() {
 
   return (
     <div className="space-y-4">
-      {/* Selector de modo */}
-      <div className="flex gap-1 p-1 rounded-xl bg-white/4 border border-white/8 w-fit">
-        {(['aulas', 'docente', 'grupo'] as Modo[]).map(m => (
-          <TabButton key={m} active={modo === m} onClick={() => setModo(m)} color="modo">
-            {MODO_LABELS[m]}
-          </TabButton>
-        ))}
-      </div>
-
-      {/* Selector de jornada */}
-      {puedeVerAmbas && (
-        <div className="flex gap-1">
-          <TabButton active={jornadaTab === 'manana'} onClick={() => setJornadaTab('manana')} color="jornada">Mañana</TabButton>
-          <TabButton active={jornadaTab === 'tarde'} onClick={() => setJornadaTab('tarde')} color="jornada">Tarde</TabButton>
+      {/* Barra de controles: modo · jornada · semana/día — todo en una línea */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex gap-1 p-1 rounded-xl bg-white/4 border border-white/8">
+          {(['aulas', 'docente', 'grupo'] as Modo[]).map(m => (
+            <TabButton key={m} active={modo === m} onClick={() => setModo(m)} color="modo">
+              {MODO_LABELS[m]}
+            </TabButton>
+          ))}
         </div>
-      )}
+
+        {puedeVerAmbas && <div className="h-5 w-px bg-white/20 flex-shrink-0" />}
+
+        {puedeVerAmbas && (
+          <div className="flex gap-1 p-1 rounded-xl bg-white/4 border border-white/8">
+            <TabButton active={jornadaTab === 'manana'} onClick={() => setJornadaTab('manana')} color="jornada">Mañana</TabButton>
+            <TabButton active={jornadaTab === 'tarde'}  onClick={() => setJornadaTab('tarde')}  color="jornada">Tarde</TabButton>
+          </div>
+        )}
+
+        {enOverview && <div className="h-5 w-px bg-white/20 flex-shrink-0" />}
+
+        {enOverview && (
+          <div className="flex gap-1 p-1 rounded-xl bg-white/4 border border-white/8">
+            <TabButton active={vistaOverview === 'semana'} onClick={() => setVistaOverview('semana')} color="overview">Semana</TabButton>
+            <TabButton active={vistaOverview === 'dia'}    onClick={() => setVistaOverview('dia')}    color="overview">Día</TabButton>
+          </div>
+        )}
+      </div>
 
       {/* Contenido */}
       <AnimatePresence mode="wait">
@@ -1016,7 +1217,14 @@ export default function VistaHorario() {
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.2 }}
         >
-          {modo === 'aulas' && <VistaAulas jornadaTab={jornadaTab} />}
+          {modo === 'aulas' && (
+            <VistaAulas
+              jornadaTab={jornadaTab}
+              vistaDetalle={vistaOverview}
+              diaSeleccionado={diaOverview}
+              onSetDia={setDiaOverview}
+            />
+          )}
 
           {modo === 'docente' && (
             docenteSel ? (
@@ -1038,7 +1246,13 @@ export default function VistaHorario() {
                 <VistaDocente docenteId={docenteSel} jornadaTab={jornadaTab} />
               </div>
             ) : (
-              <TablaDocentesOverview jornadaTab={jornadaTab} onSelect={setDocenteSel} />
+              <TablaDocentesOverview
+                jornadaTab={jornadaTab}
+                onSelect={setDocenteSel}
+                vistaDetalle={vistaOverview}
+                diaSeleccionado={diaOverview}
+                onSetDia={setDiaOverview}
+              />
             )
           )}
 
@@ -1067,7 +1281,13 @@ export default function VistaHorario() {
                 <VistaGrupo grado={grupoSel} jornadaTab={jornadaTab} />
               </div>
             ) : (
-              <TablaGruposOverview jornadaTab={jornadaTab} onSelect={setGrupoSel} />
+              <TablaGruposOverview
+                jornadaTab={jornadaTab}
+                onSelect={setGrupoSel}
+                vistaDetalle={vistaOverview}
+                diaSeleccionado={diaOverview}
+                onSetDia={setDiaOverview}
+              />
             )
           )}
         </motion.div>
