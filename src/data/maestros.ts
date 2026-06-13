@@ -45,22 +45,22 @@ export const USUARIOS: Usuario[] = [
   { id: 'coord_manana', nombre: 'Janneth Astrid Ocampo Carvajal', nombreCorto: 'Janneth',    rol: 'coordinador', jornada: 'manana', correo: 'janneth.ocampo@iemanueljbetancur.edu.co', pin: '11111', color: '#f08080' },
   { id: 'coord_tarde',  nombre: 'Juan Diego Salazar Rendón',      nombreCorto: 'Juan Diego', rol: 'coordinador', jornada: 'tarde',  correo: 'juan.salazar@iemanueljbetancur.edu.co',   pin: '11111', color: '#f08080' },
 
-  // Docentes mañana — paleta con máxima separación perceptual
-  { id: 'monica_c',  nombre: 'Mónica Córdoba',                  nombreCorto: 'Mónica C.',  rol: 'docente', jornada: 'ambas',  correo: '', pin: '', color: '#f472b6' }, // pink
-  { id: 'yoguis',    nombre: 'Juan Carlos Blandón Vargas',      nombreCorto: 'Yoguis',     rol: 'docente', jornada: 'ambas',  correo: 'juancarlosbv@iemanueljbetancur.edu.co', pin: '', color: '#38bdf8' }, // sky
-  { id: 'uriel',     nombre: 'José Uriel López Arias',          nombreCorto: 'Uriel',      rol: 'docente', jornada: 'manana', correo: 'uriel.lopez@iemanueljbetancur.edu.co', pin: '', color: '#a78bfa' }, // violet
-  { id: 'claudia',   nombre: 'Claudia Patricia Henao Bermúdez', nombreCorto: 'Claudia',    rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#818cf8' }, // indigo — era naranja, confundía con Beatriz
-  { id: 'carlos',    nombre: 'Carlos',                          nombreCorto: 'Carlos',     rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#22d3ee' }, // cyan
-  { id: 'julian',    nombre: 'Julián David Medina Tamayo',      nombreCorto: 'Julián',     rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#0d9488' }, // teal — era verde esmeralda, confundía con Marta
-  { id: 'margara',   nombre: 'Margarita Bedoya',                nombreCorto: 'Margarita',  rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#e879f9' }, // fuchsia
-  { id: 'beatriz',   nombre: 'Beatriz Elena Montoya Valdés',    nombreCorto: 'Beatriz',    rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#fb923c' }, // orange
-  { id: 'marta',     nombre: 'Marta Úsuga',                     nombreCorto: 'Marta',      rol: 'docente', jornada: 'ambas',  correo: '', pin: '', color: '#34d399' }, // emerald
-  { id: 'johana',    nombre: 'Leidy Johana Cano Ruiz',          nombreCorto: 'Johana',     rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#f87171' }, // red
-  { id: 'gloria_a',  nombre: 'Gloria Estella Álvarez López',    nombreCorto: 'Gloria A.',  rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#fde68a' }, // yellow-light
-  { id: 'ledis',     nombre: 'Ledis Laura Quintana Seguanes',   nombreCorto: 'Ledis',      rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#c4b5fd' }, // lavender
-  { id: 'adolfo',    nombre: 'Adolfo Díaz',                     nombreCorto: 'Adolfo',     rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#f59e0b' }, // amber — era amarillo pálido, confundía con Carlos
-  { id: 'jorge',     nombre: 'Jorge',                           nombreCorto: 'Jorge',      rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#60a5fa' }, // blue
-  { id: 'doris',     nombre: 'Doris',                           nombreCorto: 'Doris',      rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#a3e635' }, // lime
+  // Docentes mañana — paleta arcoíris de 15 colores equidistantes (~24° entre sí)
+  { id: 'johana',    nombre: 'Leidy Johana Cano Ruiz',          nombreCorto: 'Johana',     rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#ef4444' }, // red-500
+  { id: 'beatriz',   nombre: 'Beatriz Elena Montoya Valdés',    nombreCorto: 'Beatriz',    rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#f97316' }, // orange-500
+  { id: 'adolfo',    nombre: 'Adolfo Díaz',                     nombreCorto: 'Adolfo',     rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#eab308' }, // yellow-500
+  { id: 'gloria_a',  nombre: 'Gloria Estella Álvarez López',    nombreCorto: 'Gloria A.',  rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#84cc16' }, // lime-500
+  { id: 'doris',     nombre: 'Doris',                           nombreCorto: 'Doris',      rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#22c55e' }, // green-500
+  { id: 'marta',     nombre: 'Marta Úsuga',                     nombreCorto: 'Marta',      rol: 'docente', jornada: 'ambas',  correo: '', pin: '', color: '#10b981' }, // emerald-500
+  { id: 'julian',    nombre: 'Julián David Medina Tamayo',      nombreCorto: 'Julián',     rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#14b8a6' }, // teal-500
+  { id: 'carlos',    nombre: 'Carlos',                          nombreCorto: 'Carlos',     rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#0ea5e9' }, // sky-500
+  { id: 'yoguis',    nombre: 'Juan Carlos Blandón Vargas',      nombreCorto: 'Yoguis',     rol: 'docente', jornada: 'ambas',  correo: 'juancarlosbv@iemanueljbetancur.edu.co', pin: '', color: '#3b82f6' }, // blue-500
+  { id: 'jorge',     nombre: 'Jorge',                           nombreCorto: 'Jorge',      rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#6366f1' }, // indigo-500
+  { id: 'ledis',     nombre: 'Ledis Laura Quintana Seguanes',   nombreCorto: 'Ledis',      rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#8b5cf6' }, // violet-500
+  { id: 'uriel',     nombre: 'José Uriel López Arias',          nombreCorto: 'Uriel',      rol: 'docente', jornada: 'manana', correo: 'uriel.lopez@iemanueljbetancur.edu.co', pin: '', color: '#a855f7' }, // purple-500
+  { id: 'claudia',   nombre: 'Claudia Patricia Henao Bermúdez', nombreCorto: 'Claudia',    rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#d946ef' }, // fuchsia-500
+  { id: 'margara',   nombre: 'Margarita Bedoya',                nombreCorto: 'Margarita',  rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#ec4899' }, // pink-500
+  { id: 'monica_c',  nombre: 'Mónica Córdoba',                  nombreCorto: 'Mónica C.',  rol: 'docente', jornada: 'ambas',  correo: '', pin: '', color: '#f43f5e' }, // rose-500
 
   // Docentes tarde — paleta independiente
   { id: 'edgar',       nombre: 'Edgar Pérez',       nombreCorto: 'Edgar',       rol: 'docente', jornada: 'ambas', correo: '', pin: '', color: '#94a3b8' }, // slate
@@ -149,7 +149,7 @@ export const DIRECTORES_MANANA: Record<string, string> = {
   '11.1': 'johana',
   '11.2': 'julian',
   '11.3': 'claudia',
-  '10.1': 'yoguis',
+  '10.1': 'carlos',
   '10.2': 'beatriz',
   '10.3': 'ledis',
   '10.4': 'adolfo',

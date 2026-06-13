@@ -56,8 +56,12 @@ const ESTADO_ICONO: Record<CeldaEstado, string> = {
   libre: '', clase: '·', ocupado: '✕', propio: '●', rectoria: '★',
 };
 
+function toLocalDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function fechaHoy(): string {
-  return new Date().toISOString().split('T')[0];
+  return toLocalDate(new Date());
 }
 
 function formatFecha(f: string): string {
@@ -218,7 +222,7 @@ export default function DisponibilidadGrid() {
     const lunes = new Date(hoy);
     lunes.setDate(hoy.getDate() - hoy.getDay() + 1 + semanaOffset * 7);
     lunes.setDate(lunes.getDate() + i);
-    return lunes.toISOString().split('T')[0];
+    return toLocalDate(lunes);
   });
 
   const semanaInicio = fechas[0];

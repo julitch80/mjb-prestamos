@@ -2,6 +2,11 @@ import { useState } from 'react';
 import { useAppStore } from '../data/store';
 import { crearReserva } from '../data/api';
 import { RECURSOS, BLOQUES_MANANA, BLOQUES_TARDE, PROPOSITOS, horaOrdinal } from '../data/maestros';
+import { cn } from '@/lib/utils';
+
+const EQUIPOS_LISTA = [
+  'Computadores', 'Video beam', 'Parlante', 'Emisora', 'TV interactivo', 'Impresora 3D',
+];
 
 interface Props {
   recursoId: string;
@@ -25,10 +30,20 @@ function traducirError(msg: string): string {
 
 export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar }: Props) {
   const { userId, jornada, agregarReserva } = useAppStore();
-  const [proposito, setProposito] = useState('');
-  const [equipos, setEquipos]     = useState('');
-  const [cargando, setCargando]   = useState(false);
-  const [error, setError]         = useState('');
+  const [proposito, setProposito]           = useState('');
+  const [equiposSel, setEquiposSel]         = useState<string[]>([]);
+  const [otroEquipo, setOtroEquipo]         = useState('');
+  const [cargando, setCargando]             = useState(false);
+  const [error, setError]                   = useState('');
+
+  function toggleEquipo(eq: string) {
+    setEquiposSel(prev => prev.includes(eq) ? prev.filter(x => x !== eq) : [...prev, eq]);
+  }
+
+  const equiposStr = [
+    ...equiposSel,
+    ...(equiposSel.includes('__otro__') && otroEquipo ? [`Otro: ${otroEquipo}`] : []),
+  ].filter(x => x !== '__otro__').join(', ');
 
   const recurso = RECURSOS.find(r => r.id === recursoId);
   const bloques = jornada === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
@@ -51,7 +66,7 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
         bloque: bloqueId,
         solicitante: userId,
         proposito,
-        equipos: equipos || undefined,
+        equipos: equiposStr || undefined,
       });
       if (res.ok && res.id) {
         agregarReserva({
@@ -61,7 +76,7 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
           bloque: bloqueId,
           solicitante: userId,
           proposito,
-          equipos: equipos || undefined,
+          equipos: equiposStr || undefined,
           estado: 'pendiente',
           timestamp: new Date().toISOString(),
         });
@@ -126,13 +141,56 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
 
           <div>
             <label className="block text-sm text-gray-400 mb-1.5">Equipos adicionales</label>
-            <input
-              type="text"
-              placeholder="Ej: proyector, parlantes..."
-              value={equipos}
-              onChange={e => setEquipos(e.target.value)}
-              className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 text-sm border border-white/10 focus:outline-none focus:border-blue-500 transition"
-            />
+            <div className="grid grid-cols-2 gap-1.5">
+              {EQUIPOS_LISTA.map(eq => (
+                <button
+                  key={eq}
+                  type="button"
+                  onClick={() => toggleEquipo(eq)}
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-2 rounded-xl border text-xs text-left transition-all',
+                    equiposSel.includes(eq)
+                      ? 'bg-blue-600/20 border-blue-500/60 text-blue-300'
+                      : 'bg-white/4 border-white/10 text-gray-400 hover:border-white/20 hover:text-gray-300'
+                  )}
+                >
+                  <span className={cn(
+                    'w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center text-[9px]',
+                    equiposSel.includes(eq) ? 'bg-blue-500 border-blue-500 text-white' : 'border-gray-600'
+                  )}>
+                    {equiposSel.includes(eq) && '✓'}
+                  </span>
+                  {eq}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => toggleEquipo('__otro__')}
+                className={cn(
+                  'flex items-center gap-2 px-3 py-2 rounded-xl border text-xs text-left transition-all',
+                  equiposSel.includes('__otro__')
+                    ? 'bg-blue-600/20 border-blue-500/60 text-blue-300'
+                    : 'bg-white/4 border-white/10 text-gray-400 hover:border-white/20 hover:text-gray-300'
+                )}
+              >
+                <span className={cn(
+                  'w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center text-[9px]',
+                  equiposSel.includes('__otro__') ? 'bg-blue-500 border-blue-500 text-white' : 'border-gray-600'
+                )}>
+                  {equiposSel.includes('__otro__') && '✓'}
+                </span>
+                Otro
+              </button>
+            </div>
+            {equiposSel.includes('__otro__') && (
+              <input
+                type="text"
+                placeholder="Especifica el equipo..."
+                value={otroEquipo}
+                onChange={e => setOtroEquipo(e.target.value)}
+                className="mt-2 w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-white/10 focus:outline-none focus:border-blue-500 transition"
+              />
+            )}
           </div>
 
           {error && (

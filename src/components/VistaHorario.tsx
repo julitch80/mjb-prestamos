@@ -191,10 +191,15 @@ function VistaAulas({ jornadaTab }: { jornadaTab: 'manana' | 'tarde' }) {
                   {aulas.map((aula, ai) => (
                     <tr key={aula} className={cn('border-b border-white/5', ai % 2 !== 0 ? 'bg-white/2' : '')}>
                       <td
-                        className="px-3 font-bold sticky left-0 bg-gray-950/98 z-10 text-sm"
-                        style={{ color: COLORES_AULA[aula] ?? '#fff', height: CELL_H }}
+                        className="px-3 sticky left-0 bg-gray-950/98 z-10"
+                        style={{ height: CELL_H }}
                       >
-                        {aula}
+                        <div className="font-bold text-sm" style={{ color: COLORES_AULA[aula] ?? '#fff' }}>{aula}</div>
+                        {jornadaTab === 'tarde' && AULA_GRUPO_TARDE[aula] && (
+                          <div className="text-[10px] mt-0.5" style={{ color: colorGrado(AULA_GRUPO_TARDE[aula]) }}>
+                            {AULA_GRUPO_TARDE[aula]}
+                          </div>
+                        )}
                       </td>
                       {DIAS.map((dia, di) =>
                         bloques.map((b, bi) => {
@@ -252,8 +257,13 @@ function VistaAulas({ jornadaTab }: { jornadaTab: 'manana' | 'tarde' }) {
                 <tbody>
                   {aulas.map((aula, ai) => (
                     <tr key={aula} className={cn('border-b border-white/5', ai % 2 !== 0 ? 'bg-white/2' : '')}>
-                      <td className="px-3 font-bold" style={{ color: COLORES_AULA[aula] ?? '#fff', height: CELL_H }}>
-                        {aula}
+                      <td className="px-3" style={{ height: CELL_H }}>
+                        <div className="font-bold text-sm" style={{ color: COLORES_AULA[aula] ?? '#fff' }}>{aula}</div>
+                        {jornadaTab === 'tarde' && AULA_GRUPO_TARDE[aula] && (
+                          <div className="text-[10px] mt-0.5" style={{ color: colorGrado(AULA_GRUPO_TARDE[aula]) }}>
+                            {AULA_GRUPO_TARDE[aula]}
+                          </div>
+                        )}
                       </td>
                       {bloques.map(b => {
                         const entrada = entradas.find(e => e.dia === diaSeleccionado && e.bloque === b.id && e.aula === aula);
@@ -683,12 +693,12 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
 // ── Componente principal ─────────────────────────────────────────────────────
 
 export default function VistaHorario() {
-  const { jornada, rol } = useAppStore();
+  const { jornada, rol, userId } = useAppStore();
   const defaultJornada: 'manana' | 'tarde' = jornada === 'tarde' ? 'tarde' : 'manana';
 
   const [modo, setModo]           = useState<Modo>('aulas');
   const [jornadaTab, setJornadaTab] = useState<'manana' | 'tarde'>(defaultJornada);
-  const [docenteSel, setDocenteSel] = useState('');
+  const [docenteSel, setDocenteSel] = useState(rol === 'docente' ? (userId ?? '') : '');
   const [grupoSel, setGrupoSel]     = useState('');
 
   const docentesMostrar = getDocentes(jornadaTab);
@@ -738,22 +748,22 @@ export default function VistaHorario() {
 
           {modo === 'docente' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-1.5">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
                 {docentesMostrar.map(d => (
                   <button
                     key={d.id}
                     onClick={() => setDocenteSel(d.id)}
                     className={cn(
-                      'px-3 py-1.5 rounded-full text-xs font-bold transition-all border',
-                      docenteSel === d.id ? 'opacity-100' : 'opacity-50 border-transparent hover:opacity-80 hover:bg-white/5'
+                      'flex flex-col items-center justify-center gap-1 p-3 rounded-2xl border transition-all min-h-[60px]',
+                      docenteSel === d.id ? 'opacity-100' : 'opacity-35 border-transparent hover:opacity-65 hover:border-current'
                     )}
                     style={{
                       color: d.color,
                       borderColor: docenteSel === d.id ? d.color : undefined,
-                      backgroundColor: docenteSel === d.id ? `${d.color}1a` : undefined,
+                      backgroundColor: docenteSel === d.id ? `${d.color}22` : `${d.color}0a`,
                     }}
                   >
-                    {d.nombreCorto}
+                    <span className="text-xs font-bold leading-tight text-center">{d.nombreCorto}</span>
                   </button>
                 ))}
               </div>
@@ -766,7 +776,7 @@ export default function VistaHorario() {
 
           {modo === 'grupo' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-1.5">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
                 {gruposUnicos.map(g => {
                   const dirId = jornadaTab === 'manana' ? DIRECTORES_MANANA[g] : DIRECTORES_TARDE[g];
                   const dir   = USUARIOS.find(u => u.id === dirId);
@@ -776,16 +786,17 @@ export default function VistaHorario() {
                       key={g}
                       onClick={() => setGrupoSel(g)}
                       className={cn(
-                        'px-3 py-1.5 rounded-full text-xs font-bold transition-all border',
-                        grupoSel === g ? 'opacity-100' : 'opacity-50 border-transparent hover:opacity-80 hover:bg-white/5'
+                        'flex flex-col items-center justify-center gap-0.5 p-3 rounded-2xl border transition-all min-h-[60px]',
+                        grupoSel === g ? 'opacity-100' : 'opacity-35 border-transparent hover:opacity-65 hover:border-current'
                       )}
                       style={{
                         color: gColor,
                         borderColor: grupoSel === g ? gColor : undefined,
-                        backgroundColor: grupoSel === g ? `${gColor}1a` : undefined,
+                        backgroundColor: grupoSel === g ? `${gColor}22` : `${gColor}0a`,
                       }}
                     >
-                      {dir ? `${dir.nombreCorto}·${g}` : g}
+                      <span className="text-xs font-bold">{g}</span>
+                      {dir && <span className="text-[10px] opacity-70">{dir.nombreCorto}</span>}
                     </button>
                   );
                 })}
