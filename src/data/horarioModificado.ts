@@ -271,36 +271,41 @@ export function generarPropuestasAsistente(
     const minAusente = bloquesAusentes[0];
     const maxAusente = bloquesAusentes[bloquesAusentes.length - 1];
 
-    // ── NIVEL 1: COMPACTAR ─────────────────────────────────────────────────
-    // El docente ausente tiene horas libres en el día → mover sus clases ahí
-    const docenteId = fichasAusentes[0].origen.docente;
-    const huecosDocente = encontrarHuecosDocente(fichas, docenteId, bloquesAusentes);
-    if (huecosDocente.length >= bloquesAusentes.length) {
-      const destinos = huecosDocente.slice(0, bloquesAusentes.length);
-      const conflictoGrupo = destinos.some(b =>
-        fichas.some(f =>
-          f.origen.grupo === grupo &&
-          f.origen.docente !== docenteId &&
-          (f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller') &&
-          (f.ubicacion.tipo === 'colocada' ? f.ubicacion.bloque : f.ubicacion.bloque) === b
-        )
-      );
-      if (!conflictoGrupo) {
-        const docNombre = USUARIO_NOMBRE_FN ? USUARIO_NOMBRE_FN(docenteId) : docenteId;
-        propuestas.push({
-          id: `compactar_${grupo}`,
-          tipo: 'compactar',
-          nivel: 1,
-          prioridad: 0,
-          grupo,
-          titulo: `Compactar el día de ${grupo}`,
-          descripcion: `Mover las clases de ${docNombre} con ${grupo} a sus horas libres (${destinos.map(b => `${b}.ª`).join(', ')}). El grupo no pierde ninguna clase.`,
-          cambios: fichasAusentes.map((f, i) => ({
-            fichaId: f.id,
-            nuevaUbicacion: { tipo: 'colocada' as const, bloque: destinos[i] },
-          })),
-        });
-      }
+    // ── NIVEL 1: REORGANIZAR CON CASCADAS DE INTERCAMBIO ──────────────────
+    // Busca una cadena de movimientos entre los docentes del grupo afectado
+    // tal que cada uno termine en una hora donde está disponible y el grupo
+    // no pierda ninguna clase. Si la encuentra, propone aplicarla en bloque.
+    const cascada = buscarCompactacionCascada(fichas, borrador, grupo);
+    if (cascada && cascada.length > 0) {
+      // Texto descriptivo: agrupar movimientos por docente
+      const porDocente = new Map<string, Array<{ desde: number; hasta: number }>>();
+      cascada.forEach(m => {
+        const ficha = fichas.find(f => f.id === m.fichaId)!;
+        const arr = porDocente.get(ficha.origen.docente) ?? [];
+        arr.push({ desde: m.desdeBloque, hasta: m.hastaBloque });
+        porDocente.set(ficha.origen.docente, arr);
+      });
+      const lineas = Array.from(porDocente.entries()).map(([docId, movs]) => {
+        const nombre = USUARIO_NOMBRE_FN ? USUARIO_NOMBRE_FN(docId) : docId;
+        const detalle = movs
+          .sort((a, b) => a.desde - b.desde)
+          .map(m => `${m.desde}.ª → ${m.hasta}.ª`)
+          .join(', ');
+        return `${nombre}: ${detalle}`;
+      });
+      propuestas.push({
+        id: `cascada_${grupo}`,
+        tipo: 'compactar',
+        nivel: 1,
+        prioridad: 0,
+        grupo,
+        titulo: `Reorganizar el día de ${grupo} (${cascada.length} ${cascada.length === 1 ? 'movimiento' : 'movimientos'})`,
+        descripcion: `El grupo no pierde ninguna clase. Cadena de intercambios: ${lineas.join(' · ')}.`,
+        cambios: cascada.map(m => ({
+          fichaId: m.fichaId,
+          nuevaUbicacion: { tipo: 'colocada' as const, bloque: m.hastaBloque },
+        })),
+      });
     }
 
     // ── NIVEL 2: USAR APOYOS DISPONIBLES ──────────────────────────────────
@@ -560,6 +565,141 @@ export function generarResumenDifusion(
     texto: textoPartes.join('\n'),
     docentesAfectados: Array.from(docentesAfectadosMap.values()),
   };
+}
+
+interface MovCascada {
+  fichaId: string;
+  desdeBloque: number;
+  hastaBloque: number;
+}
+
+/**
+ * Busca por backtracking una cadena de movimientos entre los docentes
+ * del grupo afectado, tal que las clases del docente ausente queden
+ * en sus horas libres (no ausentes) y todas las otras clases del grupo
+ * se preserven en bloques donde cada respectivo docente esté disponible.
+ *
+ * Caso típico: A falta en 5.ª-6.ª con grupo G. A tiene libres 1.ª-2.ª.
+ * En 1.ª-2.ª, G está con B. B tiene libres 3.ª-4.ª.
+ * En 3.ª-4.ª, G está con C. C tiene libres 5.ª-6.ª.
+ * Resultado: B pasa a 3-4, C pasa a 5-6, A pasa a 1-2.
+ *
+ * Devuelve null si no encuentra una cadena viable. Tiene cap de profundidad
+ * para evitar explosión combinatoria.
+ */
+function buscarCompactacionCascada(
+  fichas: FichaEditor[],
+  borrador: HorarioModificado,
+  grupo: string,
+): MovCascada[] | null {
+  const bloquesAusentesPorDoc: Record<string, Set<number>> = {};
+  borrador.ausencias.forEach(a => {
+    bloquesAusentesPorDoc[a.docenteId] = new Set(a.bloques);
+  });
+
+  // Fichas del grupo cuyas ubicaciones pueden cambiar durante la búsqueda
+  const fichasGrupo = fichas.filter(f =>
+    f.origen.grupo === grupo &&
+    (f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller')
+  );
+  if (fichasGrupo.length === 0) return null;
+
+  // Ubicación inicial de cada ficha del grupo
+  const ubicacionInicial: Record<string, number> = {};
+  fichasGrupo.forEach(f => {
+    ubicacionInicial[f.id] = f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller'
+      ? f.ubicacion.bloque : 0;
+  });
+
+  // Fichas iniciales por mover: aquellas en bloques ausentes de su docente
+  const iniciales = fichasGrupo.filter(f => {
+    const b = ubicacionInicial[f.id];
+    return bloquesAusentesPorDoc[f.origen.docente]?.has(b);
+  });
+  if (iniciales.length === 0) return null;
+
+  // Fichas "fijas" (no pertenecen al grupo): mapa docente → set de bloques ocupados
+  const ocupacionFijaPorDoc: Record<string, Set<number>> = {};
+  fichas.forEach(f => {
+    if (f.origen.grupo === grupo) return;
+    if (f.ubicacion.tipo !== 'colocada' && f.ubicacion.tipo !== 'taller') return;
+    const b = f.ubicacion.bloque;
+    (ocupacionFijaPorDoc[f.origen.docente] ??= new Set()).add(b);
+  });
+
+  function huecosDocente(docenteId: string, ubicaciones: Record<string, number>): number[] {
+    const ocupados = new Set<number>(ocupacionFijaPorDoc[docenteId] ?? []);
+    fichasGrupo.forEach(f => {
+      if (f.origen.docente !== docenteId) return;
+      const b = ubicaciones[f.id];
+      if (b > 0) ocupados.add(b);
+    });
+    const ausentes = bloquesAusentesPorDoc[docenteId] ?? new Set();
+    const huecos: number[] = [];
+    for (let b = 1; b <= 6; b++) {
+      if (!ocupados.has(b) && !ausentes.has(b)) huecos.push(b);
+    }
+    return huecos;
+  }
+
+  const visitados = new Set<string>();
+  function claveEstado(ub: Record<string, number>, restantes: string[]): string {
+    return Object.entries(ub).sort().map(([k, v]) => `${k}:${v}`).join('|') + '#' + restantes.sort().join(',');
+  }
+
+  function intentar(
+    ubicaciones: Record<string, number>,
+    porMover: FichaEditor[],
+    depth: number,
+  ): Record<string, number> | null {
+    if (depth > 20) return null;
+    if (porMover.length === 0) return ubicaciones;
+
+    const key = claveEstado(ubicaciones, porMover.map(f => f.id));
+    if (visitados.has(key)) return null;
+    visitados.add(key);
+
+    const f = porMover[0];
+    const resto = porMover.slice(1);
+    const huecos = huecosDocente(f.origen.docente, ubicaciones);
+
+    for (const h of huecos) {
+      // Si el nuevo bloque es el mismo que el actual, no es un movimiento real
+      if (ubicaciones[f.id] === h) continue;
+
+      // ¿Hay otra ficha del grupo ya en h?
+      const ocupante = fichasGrupo.find(x =>
+        x.id !== f.id && ubicaciones[x.id] === h
+      );
+
+      const nuevasUbicaciones = { ...ubicaciones, [f.id]: h };
+      const nuevoPorMover = ocupante && !resto.includes(ocupante)
+        ? [ocupante, ...resto]
+        : resto;
+
+      const sol = intentar(nuevasUbicaciones, nuevoPorMover, depth + 1);
+      if (sol) return sol;
+    }
+
+    return null;
+  }
+
+  const solucion = intentar(ubicacionInicial, iniciales, 0);
+  if (!solucion) return null;
+
+  const movimientos: MovCascada[] = [];
+  fichasGrupo.forEach(f => {
+    const original = ubicacionInicial[f.id];
+    const finalB = solucion[f.id];
+    if (finalB !== original) {
+      movimientos.push({
+        fichaId: f.id,
+        desdeBloque: original,
+        hastaBloque: finalB,
+      });
+    }
+  });
+  return movimientos.length > 0 ? movimientos : null;
 }
 
 function encontrarHuecosDocente(
