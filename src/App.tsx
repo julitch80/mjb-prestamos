@@ -152,7 +152,7 @@ export default function App() {
                   transition={{ duration: 0.2 }}
                   className="flex"
                 >
-                  {temaOscuro ? <Sun size={16} /> : <Moon size={16} />}
+                  {temaOscuro ? <Moon size={16} /> : <Sun size={16} />}
                 </motion.span>
               </AnimatePresence>
             </button>

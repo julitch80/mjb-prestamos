@@ -51,13 +51,13 @@ function TabButton({ active, onClick, children, color = 'blue' }: {
       onClick={onClick}
       className={cn(
         'relative px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200',
-        active ? 'text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-white/6'
+        active ? 'text-strong' : 'text-muted hover:text-soft hover:bg-elevated'
       )}
     >
       {active && (
         <motion.span
           layoutId={`tab-${color}`}
-          className="absolute inset-0 rounded-xl bg-white/12 border border-white/15"
+          className="absolute inset-0 rounded-xl bg-hover border border-line-strong"
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         />
       )}
@@ -71,8 +71,8 @@ function TabButton({ active, onClick, children, color = 'blue' }: {
 function CeldaDocente({ docenteId, aula }: { docenteId?: string; aula?: string }) {
   const docente = USUARIOS.find(u => u.id === docenteId);
   if (!docente) return (
-    <div className="h-full rounded-lg border border-dashed border-white/10 flex items-center justify-center">
-      <span className="text-gray-700 text-[10px]">—</span>
+    <div className="h-full rounded-lg border border-dashed border-line flex items-center justify-center">
+      <span className="text-muted opacity-70 text-[10px]">—</span>
     </div>
   );
   const color = docente.color;
@@ -85,7 +85,7 @@ function CeldaDocente({ docenteId, aula }: { docenteId?: string; aula?: string }
         {docente.nombreCorto}
       </span>
       {aula && (
-        <span className="text-[9px] leading-none text-gray-500 truncate w-full text-center">
+        <span className="text-[9px] leading-none text-muted truncate w-full text-center">
           {aula}
         </span>
       )}
@@ -112,12 +112,12 @@ function BannerDescanso({ inicio, fin, lugar }: { inicio: string; fin: string; l
         : 'bg-gray-900/50 border border-white/5'
     )}>
       <div className="flex-1 flex items-center gap-2">
-        <span className={lugar ? 'text-orange-400 font-medium' : 'text-gray-600'}>
+        <span className={lugar ? 'text-orange-400 font-medium' : 'text-muted'}>
           {lugar ? '🧑‍🏫 Acompañamiento' : 'Descanso'}
         </span>
         {lugar && <span className="text-orange-300 font-semibold">{lugar}</span>}
       </div>
-      <span className="text-gray-600 tabular-nums">{inicio} – {fin}</span>
+      <span className="text-muted tabular-nums">{inicio} – {fin}</span>
     </div>
   );
 }
@@ -138,7 +138,7 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
   const aulas = Array.from(aulasSet).sort();
 
   if (aulas.length === 0) return (
-    <div className="text-center py-16 text-gray-600 text-sm">Sin datos de aulas para esta jornada.</div>
+    <div className="text-center py-16 text-muted text-sm">Sin datos de aulas para esta jornada.</div>
   );
 
   const CELL_H = 48;
@@ -148,20 +148,20 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
       <AnimatePresence mode="wait">
         {vistaDetalle === 'semana' ? (
           <motion.div key="semana" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
+            <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
               <table className="text-xs border-collapse" style={{ minWidth: 720 }}>
                 <thead>
                   {/* Fila de días */}
                   <tr>
-                    <th className="sticky left-0 bg-gray-950/98 z-10 text-left text-gray-600 px-3 py-2 w-24 font-medium border-b border-white/8" />
+                    <th className="sticky left-0 bg-card z-10 text-left text-muted px-3 py-2 w-24 font-medium border-b border-line" />
                     {DIAS.map((dia, di) => (
                       <th
                         key={dia}
                         colSpan={bloques.length}
                         className={cn(
-                          'text-center py-2.5 font-semibold text-sm border-b border-white/8',
-                          di > 0 ? 'border-l border-white/10' : '',
-                          'text-gray-300'
+                          'text-center py-2.5 font-semibold text-sm border-b border-line',
+                          di > 0 ? 'border-l-[3px] border-line-strong' : '',
+                          'text-soft'
                         )}
                       >
                         {DIAS_LABEL[dia]}
@@ -169,8 +169,8 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
                     ))}
                   </tr>
                   {/* Fila de horas */}
-                  <tr className="border-b border-white/6">
-                    <th className="sticky left-0 bg-gray-950/98 z-10 text-left text-gray-600 px-3 py-1.5 font-normal text-[10px]">
+                  <tr className="border-b border-line">
+                    <th className="sticky left-0 bg-card z-10 text-left text-muted px-3 py-1.5 font-normal text-[10px]">
                       Aula
                     </th>
                     {DIAS.map((dia, di) =>
@@ -179,11 +179,11 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
                           key={`${dia}-${b.id}`}
                           className={cn(
                             'text-center px-0.5 py-1.5 font-normal min-w-[54px]',
-                            bi === 0 && di > 0 ? 'border-l border-white/10' : ''
+                            bi === 0 && di > 0 ? 'border-l-[3px] border-line-strong' : ''
                           )}
                         >
-                          <span className="block text-gray-400 text-[10px]">{horaOrdinal(b.id)}</span>
-                          <span className="block text-gray-700 text-[9px]">{b.inicio}</span>
+                          <span className="block text-soft text-[10px]">{horaOrdinal(b.id)}</span>
+                          <span className="block text-muted opacity-70 text-[9px]">{b.inicio}</span>
                         </th>
                       ))
                     )}
@@ -191,9 +191,9 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
                 </thead>
                 <tbody>
                   {aulas.map((aula, ai) => (
-                    <tr key={aula} className={cn('border-b border-white/5', ai % 2 !== 0 ? 'bg-white/2' : '')}>
+                    <tr key={aula} className={cn('border-b border-white/5', ai % 2 !== 0 ? 'bg-elevated/40' : '')}>
                       <td
-                        className="px-3 sticky left-0 bg-gray-950/98 z-10"
+                        className="px-3 sticky left-0 bg-card z-10"
                         style={{ height: CELL_H }}
                       >
                         <div className="font-bold text-sm" style={{ color: COLORES_AULA[aula] ?? '#fff' }}>{aula}</div>
@@ -209,7 +209,7 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
                           return (
                             <td
                               key={`${dia}-${b.id}`}
-                              className={cn('p-0.5', bi === 0 && di > 0 ? 'border-l border-white/8' : '')}
+                              className={cn('p-0.5', bi === 0 && di > 0 ? 'border-l-[3px] border-line-strong' : '')}
                               style={{ height: CELL_H }}
                             >
                               <CeldaDocente docenteId={entrada?.docente} />
@@ -234,8 +234,8 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
                   className={cn(
                     'flex-1 py-2 rounded-xl text-xs font-medium transition-all border',
                     diaSeleccionado === dia
-                      ? 'bg-white/12 text-white border-white/20'
-                      : 'text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/6'
+                      ? 'bg-hover text-strong border-line-strong'
+                      : 'text-muted border-transparent hover:text-soft hover:bg-elevated'
                   )}
                 >
                   {DIAS_CORTO[dia]}
@@ -243,22 +243,22 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
               ))}
             </div>
             {/* Tabla por aulas del día */}
-            <div className="rounded-2xl border border-white/8 bg-white/2 overflow-hidden">
+            <div className="rounded-2xl border border-line bg-elevated/40 overflow-hidden">
               <table className="text-xs border-collapse w-full">
                 <thead>
-                  <tr className="border-b border-white/8">
-                    <th className="text-left text-gray-500 px-3 py-2.5 font-medium w-28">Aula</th>
+                  <tr className="border-b border-line">
+                    <th className="text-left text-muted px-3 py-2.5 font-medium w-28">Aula</th>
                     {bloques.map(b => (
                       <th key={b.id} className="text-center px-2 py-2.5 min-w-[80px]">
-                        <div className="text-gray-300 font-semibold text-xs">{horaOrdinal(b.id)}</div>
-                        <div className="text-gray-600 text-[10px]">{b.inicio} – {b.fin}</div>
+                        <div className="text-soft font-semibold text-xs">{horaOrdinal(b.id)}</div>
+                        <div className="text-muted text-[10px]">{b.inicio} – {b.fin}</div>
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {aulas.map((aula, ai) => (
-                    <tr key={aula} className={cn('border-b border-white/5', ai % 2 !== 0 ? 'bg-white/2' : '')}>
+                    <tr key={aula} className={cn('border-b border-white/5', ai % 2 !== 0 ? 'bg-elevated/40' : '')}>
                       <td className="px-3" style={{ height: CELL_H }}>
                         <div className="font-bold text-sm" style={{ color: COLORES_AULA[aula] ?? '#fff' }}>{aula}</div>
                         {jornadaTab === 'tarde' && AULA_GRUPO_TARDE[aula] && (
@@ -316,17 +316,17 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
       <AnimatePresence mode="wait">
         {vistaDetalle === 'semana' ? (
           <motion.div key="semana" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
+            <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
               <table className="text-xs border-collapse" style={{ minWidth: 400 }}>
                 <thead>
-                  <tr className="border-b border-white/8">
-                    <th className="text-gray-500 px-3 py-2.5 text-left font-medium w-28">Hora</th>
+                  <tr className="border-b border-line">
+                    <th className="text-muted px-3 py-2.5 text-left font-medium w-28">Hora</th>
                     {DIAS.map(dia => {
                       const esTarde = docenteEnTarde(docenteId, dia);
                       return (
                         <th key={dia} className={cn(
                           'text-center px-2 py-2.5 font-semibold min-w-[90px]',
-                          esTarde ? 'text-yellow-500' : 'text-gray-300'
+                          esTarde ? 'text-yellow-500' : 'text-soft'
                         )}>
                           {DIAS_LABEL[dia].slice(0, 2)}
                           {esTarde && <span className="ml-1 text-yellow-600 text-[9px]">T</span>}
@@ -343,8 +343,8 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
                     rows.push(
                       <tr key={b.id} className="border-b border-white/5">
                         <td className="px-3" style={{ height: CELL_H }}>
-                          <div className="font-bold text-white">{horaOrdinal(b.id)} hora</div>
-                          <div className="text-gray-600 text-[10px]">{b.inicio} – {b.fin}</div>
+                          <div className="font-bold text-strong">{horaOrdinal(b.id)} hora</div>
+                          <div className="text-muted text-[10px]">{b.inicio} – {b.fin}</div>
                         </td>
                         {DIAS.map(dia => {
                           const esTardeHoy = docenteEnTarde(docenteId, dia);
@@ -361,8 +361,8 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
                           const entrada = entradas.find(e => e.dia === dia && e.bloque === b.id);
                           if (!entrada) return (
                             <td key={dia} className="p-1" style={{ height: CELL_H }}>
-                              <div className="h-full rounded-lg border border-dashed border-white/6 flex items-center justify-center">
-                                <span className="text-gray-700 text-[10px]">—</span>
+                              <div className="h-full rounded-lg border border-dashed border-line flex items-center justify-center">
+                                <span className="text-muted opacity-70 text-[10px]">—</span>
                               </div>
                             </td>
                           );
@@ -392,8 +392,8 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
                       rows.push(
                         <tr key={`desc-${b.id}`} className="bg-gray-900/30">
                           <td className="px-3 py-1.5">
-                            <div className="text-gray-700 text-[10px]">Descanso</div>
-                            <div className="text-gray-800 text-[9px]">{descanso.inicio} – {descanso.fin} ({descanso.duracion} min)</div>
+                            <div className="text-muted opacity-70 text-[10px]">Descanso</div>
+                            <div className="text-muted opacity-50 text-[9px]">{descanso.inicio} – {descanso.fin} ({descanso.duracion} min)</div>
                           </td>
                           {DIAS.map(dia => {
                             const acomp = getAcomp(dia, descanso.id as 1 | 2);
@@ -432,8 +432,8 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
                     className={cn(
                       'flex-1 py-2 rounded-xl text-xs font-medium transition-all border',
                       diaSeleccionado === dia
-                        ? 'bg-white/12 text-white border-white/20'
-                        : 'text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/6',
+                        ? 'bg-hover text-strong border-line-strong'
+                        : 'text-muted border-transparent hover:text-soft hover:bg-elevated',
                       esTarde ? 'border-yellow-800/40' : ''
                     )}
                   >
@@ -474,12 +474,12 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
                 const entrada = entradas.find(e => e.dia === diaSeleccionado && e.bloque === b.id);
                 if (!entrada) {
                   items.push(
-                    <div key={b.id} className="flex items-center gap-3 rounded-xl border border-dashed border-white/8 p-3 opacity-40">
+                    <div key={b.id} className="flex items-center gap-3 rounded-xl border border-dashed border-line p-3 opacity-40">
                       <div className="w-24 flex-shrink-0">
-                        <div className="text-gray-500 font-bold">{horaOrdinal(b.id)} hora</div>
-                        <div className="text-gray-700 text-[10px]">{b.inicio} – {b.fin}</div>
+                        <div className="text-muted font-bold">{horaOrdinal(b.id)} hora</div>
+                        <div className="text-muted opacity-70 text-[10px]">{b.inicio} – {b.fin}</div>
                       </div>
-                      <span className="text-gray-600">Libre</span>
+                      <span className="text-muted">Libre</span>
                     </div>
                   );
                 } else {
@@ -492,8 +492,8 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
                       style={{ borderColor: aulaColor, borderWidth: 1, backgroundColor: `${aulaColor}18` }}
                     >
                       <div className="w-24 flex-shrink-0">
-                        <div className="text-white font-bold">{horaOrdinal(b.id)} hora</div>
-                        <div className="text-gray-500 text-[10px]">{b.inicio} – {b.fin}</div>
+                        <div className="text-strong font-bold">{horaOrdinal(b.id)} hora</div>
+                        <div className="text-muted text-[10px]">{b.inicio} – {b.fin}</div>
                       </div>
                       <div className="flex-1">
                         <div className="font-semibold" style={{ color: colorGrado(gradoStr) }}>{gradoStr}</div>
@@ -551,12 +551,12 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
       {(director || aulaGrupo) && (
         <div className="flex flex-wrap gap-3 text-xs">
           {director && (
-            <span className="px-3 py-1.5 rounded-full bg-white/6 border border-white/10">
+            <span className="px-3 py-1.5 rounded-full bg-elevated border border-line">
               Director: <span style={{ color: director.color }} className="font-semibold">{director.nombre}</span>
             </span>
           )}
           {aulaGrupo && (
-            <span className="px-3 py-1.5 rounded-full bg-white/6 border border-white/10">
+            <span className="px-3 py-1.5 rounded-full bg-elevated border border-line">
               Aula fija: <span style={{ color: COLORES_AULA[aulaGrupo] }} className="font-semibold">{aulaGrupo}</span>
             </span>
           )}
@@ -571,13 +571,13 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
       <AnimatePresence mode="wait">
         {vistaDetalle === 'semana' ? (
           <motion.div key="semana" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
+            <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
               <table className="text-xs border-collapse" style={{ minWidth: 400 }}>
                 <thead>
-                  <tr className="border-b border-white/8">
-                    <th className="text-gray-500 px-3 py-2.5 text-left font-medium w-28">Hora</th>
+                  <tr className="border-b border-line">
+                    <th className="text-muted px-3 py-2.5 text-left font-medium w-28">Hora</th>
                     {DIAS.map(dia => (
-                      <th key={dia} className="text-center px-2 py-2.5 text-gray-300 font-semibold min-w-[90px]">
+                      <th key={dia} className="text-center px-2 py-2.5 text-soft font-semibold min-w-[90px]">
                         {DIAS_LABEL[dia].slice(0, 2)}
                       </th>
                     ))}
@@ -587,8 +587,8 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
                   {bloques.map(b => (
                     <tr key={b.id} className="border-b border-white/5">
                       <td className="px-3" style={{ height: CELL_H }}>
-                        <div className="font-bold text-white">{horaOrdinal(b.id)} hora</div>
-                        <div className="text-gray-600 text-[10px]">{b.inicio} – {b.fin}</div>
+                        <div className="font-bold text-strong">{horaOrdinal(b.id)} hora</div>
+                        <div className="text-muted text-[10px]">{b.inicio} – {b.fin}</div>
                       </td>
                       {DIAS.map(dia => {
                         const esCI = dia === 'martes' && b.id === 6 && jornadaTab === 'manana';
@@ -596,8 +596,8 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
                         const entrada = entradas.find(e => e.dia === dia && e.bloque === b.id);
                         if (!entrada) return (
                           <td key={dia} className="p-1" style={{ height: CELL_H }}>
-                            <div className="h-full rounded-lg border border-dashed border-white/6 flex items-center justify-center">
-                              <span className="text-gray-700 text-[10px]">—</span>
+                            <div className="h-full rounded-lg border border-dashed border-line flex items-center justify-center">
+                              <span className="text-muted opacity-70 text-[10px]">—</span>
                             </div>
                           </td>
                         );
@@ -612,7 +612,7 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
                                 {docente?.nombreCorto ?? entrada.docente}
                               </span>
                               {entrada.aula && (
-                                <span className="text-[9px] text-gray-600 truncate w-full text-center">{entrada.aula}</span>
+                                <span className="text-[9px] text-muted truncate w-full text-center">{entrada.aula}</span>
                               )}
                             </div>
                           </td>
@@ -634,8 +634,8 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
                   className={cn(
                     'flex-1 py-2 rounded-xl text-xs font-medium transition-all border',
                     diaSeleccionado === dia
-                      ? 'bg-white/12 text-white border-white/20'
-                      : 'text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/6'
+                      ? 'bg-hover text-strong border-line-strong'
+                      : 'text-muted border-transparent hover:text-soft hover:bg-elevated'
                   )}
                 >
                   {DIAS_CORTO[dia]}
@@ -657,12 +657,12 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
                 const entrada = entradas.find(e => e.dia === diaSeleccionado && e.bloque === b.id);
                 const docente = entrada ? USUARIOS.find(u => u.id === entrada.docente) : null;
                 if (!entrada) return (
-                  <div key={b.id} className="flex items-center gap-3 rounded-xl border border-dashed border-white/8 p-3 opacity-40">
+                  <div key={b.id} className="flex items-center gap-3 rounded-xl border border-dashed border-line p-3 opacity-40">
                     <div className="w-24 flex-shrink-0">
-                      <div className="text-gray-500 font-bold">{horaOrdinal(b.id)} hora</div>
-                      <div className="text-gray-700 text-[10px]">{b.inicio} – {b.fin}</div>
+                      <div className="text-muted font-bold">{horaOrdinal(b.id)} hora</div>
+                      <div className="text-muted opacity-70 text-[10px]">{b.inicio} – {b.fin}</div>
                     </div>
-                    <span className="text-gray-600">Sin clase</span>
+                    <span className="text-muted">Sin clase</span>
                   </div>
                 );
                 return (
@@ -672,8 +672,8 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
                     style={{ borderColor: docente?.color ?? '#fff', borderWidth: 1, backgroundColor: `${docente?.color ?? '#aaa'}18` }}
                   >
                     <div className="w-24 flex-shrink-0">
-                      <div className="text-white font-bold">{horaOrdinal(b.id)} hora</div>
-                      <div className="text-gray-500 text-[10px]">{b.inicio} – {b.fin}</div>
+                      <div className="text-strong font-bold">{horaOrdinal(b.id)} hora</div>
+                      <div className="text-muted text-[10px]">{b.inicio} – {b.fin}</div>
                     </div>
                     <div className="flex-1">
                       <div className="font-semibold" style={{ color: docente?.color ?? '#aaa' }}>
@@ -726,23 +726,23 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
             className={cn(
               'flex-1 py-2 rounded-xl text-xs font-medium transition-all border',
               diaSeleccionado === dia
-                ? 'bg-white/12 text-white border-white/20'
-                : 'text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/6'
+                ? 'bg-hover text-strong border-line-strong'
+                : 'text-muted border-transparent hover:text-soft hover:bg-elevated'
             )}
           >
             {DIAS_CORTO[dia]}
           </button>
         ))}
       </div>
-      <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
+      <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
         <table className="text-xs border-collapse w-full">
           <thead>
-            <tr className="border-b border-white/8">
-              <th className="sticky left-0 bg-gray-950/98 z-10 text-left px-3 py-2.5 text-gray-500 font-medium w-28">Docente</th>
+            <tr className="border-b border-line">
+              <th className="sticky left-0 bg-card z-10 text-left px-3 py-2.5 text-muted font-medium w-28">Docente</th>
               {bloques.map(b => (
                 <th key={b.id} className="text-center px-1 py-2.5 min-w-[72px]">
-                  <div className="text-gray-300 font-semibold text-xs">{horaOrdinal(b.id)}</div>
-                  <div className="text-gray-600 text-[9px]">{b.inicio}</div>
+                  <div className="text-soft font-semibold text-xs">{horaOrdinal(b.id)}</div>
+                  <div className="text-muted text-[9px]">{b.inicio}</div>
                 </th>
               ))}
             </tr>
@@ -751,14 +751,14 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
             {docentes.map((docente, ri) => {
               const esTardeHoy = docenteEnTarde(docente.id, diaSeleccionado) && jornadaTab === 'manana';
               return (
-                <tr key={docente.id} className={cn('border-b border-white/5', ri % 2 !== 0 ? 'bg-white/[0.015]' : '')}>
+                <tr key={docente.id} className={cn('border-b border-line', ri % 2 !== 0 ? 'bg-elevated/40' : '')}>
                   <td
-                    className="sticky left-0 bg-gray-950/95 z-10 px-3 cursor-pointer group hover:bg-gray-900/80 transition-colors"
+                    className="sticky left-0 bg-card z-10 px-3 cursor-pointer group hover:bg-gray-900/80 transition-colors"
                     style={{ height: CELL_H }}
                     onClick={() => onSelect(docente.id)}
                   >
                     <div className="font-bold text-[11px]" style={{ color: docente.color }}>{docente.nombreCorto}</div>
-                    <div className="text-[9px] text-gray-700 group-hover:text-gray-500 mt-0.5">ver →</div>
+                    <div className="text-[9px] text-muted opacity-70 group-hover:text-muted mt-0.5">ver →</div>
                   </td>
                   {bloques.map(b => {
                     const esCI    = diaSeleccionado === 'martes' && b.id === 6 && jornadaTab === 'manana';
@@ -788,8 +788,8 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
                             <span className="text-[9px] leading-none" style={{ color: colorGrado(gradoStr ?? '') }}>{gradoStr}</span>
                           </div>
                         ) : (
-                          <div className="h-full rounded border border-dashed border-white/6 flex items-center justify-center">
-                            <span className="text-gray-800 text-[9px]">—</span>
+                          <div className="h-full rounded border border-dashed border-line flex items-center justify-center">
+                            <span className="text-muted opacity-50 text-[9px]">—</span>
                           </div>
                         )}
                       </td>
@@ -806,26 +806,26 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
 
   // ── Vista semana: tabla completa (30 columnas) ────────────────────────────
   return (
-    <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
+    <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
       <table className="text-xs border-collapse" style={{ minWidth: 860 }}>
         <thead>
           <tr>
-            <th className="sticky left-0 bg-gray-950/98 z-20 w-24 border-b border-white/8" />
+            <th className="sticky left-0 bg-card z-20 w-24 border-b border-line" />
             {DIAS.map((dia, di) => (
               <th
                 key={dia}
                 colSpan={bloques.length}
                 className={cn(
-                  'text-center py-2.5 font-semibold text-sm border-b border-white/8 text-gray-300',
-                  di > 0 ? 'border-l border-white/10' : ''
+                  'text-center py-2.5 font-semibold text-sm border-b border-line text-soft',
+                  di > 0 ? 'border-l-[3px] border-line-strong' : ''
                 )}
               >
                 {DIAS_LABEL[dia]}
               </th>
             ))}
           </tr>
-          <tr className="border-b border-white/6">
-            <th className="sticky left-0 bg-gray-950/98 z-20 px-3 py-1 text-[9px] text-gray-600 font-normal text-left">
+          <tr className="border-b border-line">
+            <th className="sticky left-0 bg-card z-20 px-3 py-1 text-[9px] text-muted font-normal text-left">
               Docente
             </th>
             {DIAS.map((dia, di) =>
@@ -834,10 +834,10 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
                   key={`${dia}-${b.id}`}
                   className={cn(
                     'text-center py-1 font-normal min-w-[42px]',
-                    bi === 0 && di > 0 ? 'border-l border-white/10' : ''
+                    bi === 0 && di > 0 ? 'border-l-[3px] border-line-strong' : ''
                   )}
                 >
-                  <span className="text-gray-500 text-[9px]">{horaOrdinal(b.id)}</span>
+                  <span className="text-muted text-[9px]">{horaOrdinal(b.id)}</span>
                 </th>
               ))
             )}
@@ -845,16 +845,16 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
         </thead>
         <tbody>
           {docentes.map((docente, ri) => (
-            <tr key={docente.id} className={cn('border-b border-white/5', ri % 2 !== 0 ? 'bg-white/[0.015]' : '')}>
+            <tr key={docente.id} className={cn('border-b border-line', ri % 2 !== 0 ? 'bg-elevated/40' : '')}>
               <td
-                className="sticky left-0 bg-gray-950/95 z-10 px-3 cursor-pointer group hover:bg-gray-900/80 transition-colors"
+                className="sticky left-0 bg-card z-10 px-3 cursor-pointer group hover:bg-gray-900/80 transition-colors"
                 style={{ height: CELL_H }}
                 onClick={() => onSelect(docente.id)}
               >
                 <div className="font-bold text-[11px] leading-tight" style={{ color: docente.color }}>
                   {docente.nombreCorto}
                 </div>
-                <div className="text-[9px] text-gray-700 group-hover:text-gray-500 transition-colors mt-0.5">
+                <div className="text-[9px] text-muted opacity-70 group-hover:text-muted transition-colors mt-0.5">
                   ver →
                 </div>
               </td>
@@ -875,7 +875,7 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
                   return (
                     <td
                       key={`${dia}-${b.id}`}
-                      className={cn('p-0.5', bi === 0 && di > 0 ? 'border-l border-white/8' : '')}
+                      className={cn('p-0.5', bi === 0 && di > 0 ? 'border-l-[3px] border-line-strong' : '')}
                       style={{ height: CELL_H }}
                     >
                       {esTardeHoy ? (
@@ -909,8 +909,8 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
                           </span>
                         </div>
                       ) : (
-                        <div className="h-full rounded border border-dashed border-white/6 flex items-center justify-center">
-                          <span className="text-gray-800 text-[9px]">—</span>
+                        <div className="h-full rounded border border-dashed border-line flex items-center justify-center">
+                          <span className="text-muted opacity-50 text-[9px]">—</span>
                         </div>
                       )}
                     </td>
@@ -954,23 +954,23 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
             className={cn(
               'flex-1 py-2 rounded-xl text-xs font-medium transition-all border',
               diaSeleccionado === dia
-                ? 'bg-white/12 text-white border-white/20'
-                : 'text-gray-500 border-transparent hover:text-gray-300 hover:bg-white/6'
+                ? 'bg-hover text-strong border-line-strong'
+                : 'text-muted border-transparent hover:text-soft hover:bg-elevated'
             )}
           >
             {DIAS_CORTO[dia]}
           </button>
         ))}
       </div>
-      <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
+      <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
         <table className="text-xs border-collapse w-full">
           <thead>
-            <tr className="border-b border-white/8">
-              <th className="sticky left-0 bg-gray-950/98 z-10 text-left px-3 py-2.5 text-gray-500 font-medium w-28">Grupo</th>
+            <tr className="border-b border-line">
+              <th className="sticky left-0 bg-card z-10 text-left px-3 py-2.5 text-muted font-medium w-28">Grupo</th>
               {bloques.map(b => (
                 <th key={b.id} className="text-center px-1 py-2.5 min-w-[72px]">
-                  <div className="text-gray-300 font-semibold text-xs">{horaOrdinal(b.id)}</div>
-                  <div className="text-gray-600 text-[9px]">{b.inicio}</div>
+                  <div className="text-soft font-semibold text-xs">{horaOrdinal(b.id)}</div>
+                  <div className="text-muted text-[9px]">{b.inicio}</div>
                 </th>
               ))}
             </tr>
@@ -982,9 +982,9 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
               const gColor = colorGrado(grado);
               const esCI   = diaSeleccionado === 'martes' && jornadaTab === 'manana';
               return (
-                <tr key={grado} className={cn('border-b border-white/5', ri % 2 !== 0 ? 'bg-white/[0.015]' : '')}>
+                <tr key={grado} className={cn('border-b border-line', ri % 2 !== 0 ? 'bg-elevated/40' : '')}>
                   <td
-                    className="sticky left-0 bg-gray-950/95 z-10 px-3 cursor-pointer group hover:bg-gray-900/80 transition-colors"
+                    className="sticky left-0 bg-card z-10 px-3 cursor-pointer group hover:bg-gray-900/80 transition-colors"
                     style={{ height: CELL_H }}
                     onClick={() => onSelect(grado)}
                   >
@@ -1012,11 +1012,11 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
                             style={{ borderWidth: 1, borderColor: docente.color, backgroundColor: `${docente.color}15` }}
                           >
                             <span className="text-[10px] font-bold leading-none" style={{ color: docente.color }}>{docente.nombreCorto.split(' ')[0]}</span>
-                            <span className="text-[9px] leading-none text-gray-500">{abrevAula(entrada.aula)}</span>
+                            <span className="text-[9px] leading-none text-muted">{abrevAula(entrada.aula)}</span>
                           </div>
                         ) : (
-                          <div className="h-full rounded border border-dashed border-white/6 flex items-center justify-center">
-                            <span className="text-gray-800 text-[9px]">—</span>
+                          <div className="h-full rounded border border-dashed border-line flex items-center justify-center">
+                            <span className="text-muted opacity-50 text-[9px]">—</span>
                           </div>
                         )}
                       </td>
@@ -1033,26 +1033,26 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
 
   // ── Vista semana: tabla completa ──────────────────────────────────────────
   return (
-    <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
+    <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
       <table className="text-xs border-collapse" style={{ minWidth: 860 }}>
         <thead>
           <tr>
-            <th className="sticky left-0 bg-gray-950/98 z-20 w-28 border-b border-white/8" />
+            <th className="sticky left-0 bg-card z-20 w-28 border-b border-line" />
             {DIAS.map((dia, di) => (
               <th
                 key={dia}
                 colSpan={bloques.length}
                 className={cn(
-                  'text-center py-2.5 font-semibold text-sm border-b border-white/8 text-gray-300',
-                  di > 0 ? 'border-l border-white/10' : ''
+                  'text-center py-2.5 font-semibold text-sm border-b border-line text-soft',
+                  di > 0 ? 'border-l-[3px] border-line-strong' : ''
                 )}
               >
                 {DIAS_LABEL[dia]}
               </th>
             ))}
           </tr>
-          <tr className="border-b border-white/6">
-            <th className="sticky left-0 bg-gray-950/98 z-20 px-3 py-1 text-[9px] text-gray-600 font-normal text-left">
+          <tr className="border-b border-line">
+            <th className="sticky left-0 bg-card z-20 px-3 py-1 text-[9px] text-muted font-normal text-left">
               Grupo
             </th>
             {DIAS.map((dia, di) =>
@@ -1061,10 +1061,10 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
                   key={`${dia}-${b.id}`}
                   className={cn(
                     'text-center py-1 font-normal min-w-[42px]',
-                    bi === 0 && di > 0 ? 'border-l border-white/10' : ''
+                    bi === 0 && di > 0 ? 'border-l-[3px] border-line-strong' : ''
                   )}
                 >
-                  <span className="text-gray-500 text-[9px]">{horaOrdinal(b.id)}</span>
+                  <span className="text-muted text-[9px]">{horaOrdinal(b.id)}</span>
                 </th>
               ))
             )}
@@ -1077,9 +1077,9 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
             const gColor = colorGrado(grado);
 
             return (
-              <tr key={grado} className={cn('border-b border-white/5', ri % 2 !== 0 ? 'bg-white/[0.015]' : '')}>
+              <tr key={grado} className={cn('border-b border-line', ri % 2 !== 0 ? 'bg-elevated/40' : '')}>
                 <td
-                  className="sticky left-0 bg-gray-950/95 z-10 px-3 cursor-pointer group hover:bg-gray-900/80 transition-colors"
+                  className="sticky left-0 bg-card z-10 px-3 cursor-pointer group hover:bg-gray-900/80 transition-colors"
                   style={{ height: CELL_H }}
                   onClick={() => onSelect(grado)}
                 >
@@ -1106,7 +1106,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
                     return (
                       <td
                         key={`${dia}-${b.id}`}
-                        className={cn('p-0.5', bi === 0 && di > 0 ? 'border-l border-white/8' : '')}
+                        className={cn('p-0.5', bi === 0 && di > 0 ? 'border-l-[3px] border-line-strong' : '')}
                         style={{ height: CELL_H }}
                       >
                         {esCI ? (
@@ -1128,13 +1128,13 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
                             >
                               {docente.nombreCorto.split(' ')[0]}
                             </span>
-                            <span className="text-[8px] leading-none text-gray-500 w-full text-center truncate">
+                            <span className="text-[8px] leading-none text-muted w-full text-center truncate">
                               {abrevAula(entrada.aula)}
                             </span>
                           </div>
                         ) : (
-                          <div className="h-full rounded border border-dashed border-white/6 flex items-center justify-center">
-                            <span className="text-gray-800 text-[9px]">—</span>
+                          <div className="h-full rounded border border-dashed border-line flex items-center justify-center">
+                            <span className="text-muted opacity-50 text-[9px]">—</span>
                           </div>
                         )}
                       </td>
@@ -1156,7 +1156,7 @@ export default function VistaHorario() {
   const { jornada, rol, userId, horariosModificados, jornadasReducidas } = useAppStore();
   const defaultJornada: 'manana' | 'tarde' = jornada === 'tarde' ? 'tarde' : 'manana';
 
-  const [modo, setModo]               = useState<Modo>('aulas');
+  const [modo, setModo]               = useState<Modo>('docente');
   const [jornadaTab, setJornadaTab]   = useState<'manana' | 'tarde'>(defaultJornada);
   const [docenteSel, setDocenteSel]   = useState(rol === 'docente' ? (userId ?? '') : '');
   const [grupoSel, setGrupoSel]       = useState('');
@@ -1237,10 +1237,10 @@ export default function VistaHorario() {
                 <button
                   key={m.id}
                   onClick={() => setVerDetalleMod(m)}
-                  className="text-left px-3 py-2 rounded-xl bg-white/6 hover:bg-white/12 border border-white/8 transition flex-1 min-w-[220px]"
+                  className="text-left px-3 py-2 rounded-xl bg-elevated hover:bg-hover border border-line transition flex-1 min-w-[220px]"
                 >
-                  <div className="text-xs font-semibold text-white">{formatearFechaLegible(m.fecha)}</div>
-                  <div className="text-[11px] text-gray-400 mt-0.5">
+                  <div className="text-xs font-semibold text-strong">{formatearFechaLegible(m.fecha)}</div>
+                  <div className="text-[11px] text-soft mt-0.5">
                     Jornada {m.jornada === 'manana' ? 'mañana' : 'tarde'} · {ausentes} {ausentes === 1 ? 'ausente' : 'ausentes'}
                     {docNombres && `: ${docNombres}`}
                   </div>
@@ -1264,10 +1264,10 @@ export default function VistaHorario() {
               <button
                 key={j.id}
                 onClick={() => setVerDetalleJr(j)}
-                className="text-left px-3 py-2 rounded-xl bg-white/6 hover:bg-white/12 border border-white/8 transition flex-1 min-w-[220px]"
+                className="text-left px-3 py-2 rounded-xl bg-elevated hover:bg-hover border border-line transition flex-1 min-w-[220px]"
               >
-                <div className="text-xs font-semibold text-white">{formatearFechaLegible(j.fecha)}</div>
-                <div className="text-[11px] text-gray-400 mt-0.5">
+                <div className="text-xs font-semibold text-strong">{formatearFechaLegible(j.fecha)}</div>
+                <div className="text-[11px] text-soft mt-0.5">
                   Jornada {j.jornada === 'manana' ? 'mañana' : 'tarde'} · termina {j.horaFin} · {j.motivo}
                 </div>
                 <div className="text-[10px] text-amber-300 mt-1">Ver bloques →</div>
@@ -1279,27 +1279,27 @@ export default function VistaHorario() {
 
       {/* Barra de controles: modo · jornada · semana/día — todo en una línea */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex gap-1 p-1 rounded-xl bg-white/4 border border-white/8">
-          {(['aulas', 'docente', 'grupo'] as Modo[]).map(m => (
+        <div className="flex gap-1 p-1 rounded-xl bg-elevated border border-line">
+          {(['docente', 'grupo', 'aulas'] as Modo[]).map(m => (
             <TabButton key={m} active={modo === m} onClick={() => setModo(m)} color="modo">
               {MODO_LABELS[m]}
             </TabButton>
           ))}
         </div>
 
-        {puedeVerAmbas && <div className="h-5 w-px bg-white/20 flex-shrink-0" />}
+        {puedeVerAmbas && <div className="h-5 w-px bg-elevated/400 flex-shrink-0" />}
 
         {puedeVerAmbas && (
-          <div className="flex gap-1 p-1 rounded-xl bg-white/4 border border-white/8">
+          <div className="flex gap-1 p-1 rounded-xl bg-elevated border border-line">
             <TabButton active={jornadaTab === 'manana'} onClick={() => setJornadaTab('manana')} color="jornada">Mañana</TabButton>
             <TabButton active={jornadaTab === 'tarde'}  onClick={() => setJornadaTab('tarde')}  color="jornada">Tarde</TabButton>
           </div>
         )}
 
-        {enOverview && <div className="h-5 w-px bg-white/20 flex-shrink-0" />}
+        {enOverview && <div className="h-5 w-px bg-elevated/400 flex-shrink-0" />}
 
         {enOverview && (
-          <div className="flex gap-1 p-1 rounded-xl bg-white/4 border border-white/8">
+          <div className="flex gap-1 p-1 rounded-xl bg-elevated border border-line">
             <TabButton active={vistaOverview === 'semana'} onClick={() => setVistaOverview('semana')} color="overview">Semana</TabButton>
             <TabButton active={vistaOverview === 'dia'}    onClick={() => setVistaOverview('dia')}    color="overview">Día</TabButton>
           </div>
@@ -1309,14 +1309,14 @@ export default function VistaHorario() {
           <>
             <button
               onClick={() => setWizardAbierto(true)}
-              className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition shadow-lg shadow-blue-900/30"
+              className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-strong text-sm font-semibold transition shadow-lg shadow-blue-900/30"
               title="Crear modificación temporal del horario"
             >
               <span className="text-base leading-none">✎</span> Editar
             </button>
             <button
               onClick={() => setAcortarAbierto(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition shadow-lg shadow-amber-900/30"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-strong text-sm font-semibold transition shadow-lg shadow-amber-900/30"
               title="Acortar la jornada por acto cívico o reunión"
             >
               <span className="text-base leading-none">⏱</span> Acortar
@@ -1350,7 +1350,7 @@ export default function VistaHorario() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setDocenteSel('')}
-                    className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition px-3 py-1.5 rounded-xl bg-white/6 border border-white/10 flex-shrink-0"
+                    className="flex items-center gap-2 text-sm text-soft hover:text-strong transition px-3 py-1.5 rounded-xl bg-elevated border border-line flex-shrink-0"
                   >
                     ← Todos los docentes
                   </button>
@@ -1380,7 +1380,7 @@ export default function VistaHorario() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setGrupoSel('')}
-                    className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition px-3 py-1.5 rounded-xl bg-white/6 border border-white/10 flex-shrink-0"
+                    className="flex items-center gap-2 text-sm text-soft hover:text-strong transition px-3 py-1.5 rounded-xl bg-elevated border border-line flex-shrink-0"
                   >
                     ← Todos los grupos
                   </button>
@@ -1391,7 +1391,7 @@ export default function VistaHorario() {
                     return (
                       <span className="font-semibold text-sm" style={{ color: colorGrado(grupoSel) }}>
                         {grupoSel}
-                        {dir && <span className="font-normal text-gray-500 ml-2 text-xs">Director: {dir.nombre}</span>}
+                        {dir && <span className="font-normal text-muted ml-2 text-xs">Director: {dir.nombre}</span>}
                       </span>
                     );
                   })()}
@@ -1447,39 +1447,39 @@ export default function VistaHorario() {
             <motion.div
               initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-              className="w-full max-w-md bg-gray-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              className="w-full max-w-md bg-gray-950 border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col"
               onClick={e => e.stopPropagation()}
             >
-              <div className="px-6 pt-5 pb-4 border-b border-white/8 flex items-center justify-between">
+              <div className="px-6 pt-5 pb-4 border-b border-line flex items-center justify-between">
                 <div>
-                  <h2 className="text-white font-semibold text-base flex items-center gap-2">
+                  <h2 className="text-strong font-semibold text-base flex items-center gap-2">
                     <span className="text-amber-400">⏱</span> Jornada acortada
                   </h2>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-muted mt-0.5">
                     {formatearFechaLegible(verDetalleJr.fecha)} · {verDetalleJr.jornada === 'manana' ? 'mañana' : 'tarde'} · termina {verDetalleJr.horaFin}
                   </p>
                 </div>
                 <button
                   onClick={() => setVerDetalleJr(null)}
-                  className="text-gray-500 hover:text-white text-lg leading-none p-1"
+                  className="text-muted hover:text-strong text-lg leading-none p-1"
                   aria-label="Cerrar"
                 >✕</button>
               </div>
               <div className="px-6 py-5 space-y-3">
                 <div className="text-xs text-amber-300">Motivo: {verDetalleJr.motivo}</div>
-                <div className="bg-white/4 border border-white/10 rounded-2xl p-4">
+                <div className="bg-elevated border border-line rounded-2xl p-4">
                   <table className="w-full text-sm">
                     <tbody>
                       {verDetalleJr.bloques.map(b => (
-                        <tr key={b.id} className="border-b border-white/6 last:border-b-0">
-                          <td className="py-2 text-gray-400 w-24 text-sm">{b.id}.ª hora</td>
-                          <td className="py-2 font-semibold text-white tabular-nums">{b.inicio} – {b.fin}</td>
+                        <tr key={b.id} className="border-b border-line last:border-b-0">
+                          <td className="py-2 text-soft w-24 text-sm">{b.id}.ª hora</td>
+                          <td className="py-2 font-semibold text-strong tabular-nums">{b.inicio} – {b.fin}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <div className="text-[11px] text-gray-600 italic">Descansos: 20 min después de 2.ª · 10 min después de 4.ª</div>
+                <div className="text-[11px] text-muted italic">Descansos: 20 min después de 2.ª · 10 min después de 4.ª</div>
               </div>
             </motion.div>
           </motion.div>
