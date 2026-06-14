@@ -244,13 +244,16 @@ export const COLORES_AULA: Record<string, string> = {
 
 // ── Colores por grado ──────────────────────────────────────────────────────────
 
+// Los valores devueltos son referencias a CSS custom properties definidas en
+// index.css. Cada token tiene un par claro/oscuro que cambia con html.dark,
+// garantizando contraste WCAG AA en ambos modos.
 export const COLORES_GRADO: Record<string, string> = {
-  '9':  '#c4b5fd',
-  '10': '#fde68a',
-  '11': '#6ee7b7',
-  '6':  '#fca5a5',
-  '7':  '#93c5fd',
-  '8':  '#fed7aa',
+  '9':  'var(--color-grado-9)',
+  '10': 'var(--color-grado-10)',
+  '11': 'var(--color-grado-11)',
+  '6':  'var(--color-grado-6)',
+  '7':  'var(--color-grado-7)',
+  '8':  'var(--color-grado-8)',
 };
 
 export function colorGrado(grado: string): string {
@@ -260,7 +263,7 @@ export function colorGrado(grado: string): string {
   if (grado.startsWith('6'))  return COLORES_GRADO['6'];
   if (grado.startsWith('7'))  return COLORES_GRADO['7'];
   if (grado.startsWith('8'))  return COLORES_GRADO['8'];
-  return '#ffffff';
+  return 'var(--color-strong)';
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

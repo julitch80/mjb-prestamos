@@ -45,6 +45,14 @@
   --color-purple: #7c3aed;
   --color-purple-soft: #ede9fe;
   --color-purple-soft-fg: #4c1d95;
+
+  /* Colores por grado — pareja claro/oscuro */
+  --color-grado-11: #047857;  /* verde esmeralda */
+  --color-grado-10: #a16207;  /* ámbar oscuro */
+  --color-grado-9:  #6d28d9;  /* púrpura */
+  --color-grado-8:  #c2410c;  /* naranja oscuro */
+  --color-grado-7:  #1d4ed8;  /* azul */
+  --color-grado-6:  #b91c1c;  /* rojo oscuro */
 }
 
 @layer base {
@@ -82,6 +90,18 @@
     --color-info: #60a5fa;
     --color-info-soft: #1e3a8a40;
     --color-info-soft-fg: #93c5fd;
+
+    --color-purple: #a78bfa;
+    --color-purple-soft: #4c1d9540;
+    --color-purple-soft-fg: #c4b5fd;
+
+    /* Colores por grado en modo oscuro — tonos claros sobre fondo oscuro */
+    --color-grado-11: #6ee7b7;  /* verde esmeralda claro */
+    --color-grado-10: #fde68a;  /* dorado */
+    --color-grado-9:  #c4b5fd;  /* lavanda */
+    --color-grado-8:  #fed7aa;  /* naranja suave */
+    --color-grado-7:  #93c5fd;  /* celeste */
+    --color-grado-6:  #fca5a5;  /* rosa claro */
   }
 
   html {
