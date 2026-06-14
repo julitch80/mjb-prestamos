@@ -3,12 +3,12 @@ import { useAppStore } from '../data/store';
 import { marcarLeida, marcarTodasLeidas } from '../data/api';
 
 const TIPO_CONFIG = {
-  rectoria:    { label: 'Rectoría',    bg: 'bg-yellow-900/40',  border: 'border-yellow-700', icon: '👑' },
-  coordinador: { label: 'Coordinador', bg: 'bg-red-900/40',     border: 'border-red-700',    icon: '📋' },
-  intercambio: { label: 'Intercambio', bg: 'bg-blue-900/40',    border: 'border-blue-700',   icon: '🔄' },
-  aprobada:    { label: 'Aprobada',    bg: 'bg-green-900/40',   border: 'border-green-700',  icon: '✅' },
-  rechazada:   { label: 'Rechazada',   bg: 'bg-red-900/40',     border: 'border-red-700',    icon: '❌' },
-  cancelada:   { label: 'Cancelada',   bg: 'bg-elevated/40',    border: 'border-gray-700',   icon: '🚫' },
+  rectoria:    { label: 'Rectoría',    bg: 'bg-warning-soft',  border: 'border-yellow-700', icon: '👑' },
+  coordinador: { label: 'Coordinador', bg: 'bg-danger-soft',     border: 'border-red-700',    icon: '📋' },
+  intercambio: { label: 'Intercambio', bg: 'bg-info-soft',    border: 'border-blue-700',   icon: '🔄' },
+  aprobada:    { label: 'Aprobada',    bg: 'bg-success-soft',   border: 'border-green-700',  icon: '✅' },
+  rechazada:   { label: 'Rechazada',   bg: 'bg-danger-soft',     border: 'border-red-700',    icon: '❌' },
+  cancelada:   { label: 'Cancelada',   bg: 'bg-elevated/40',    border: 'border-line',   icon: '🚫' },
 } as const;
 
 export default function BannerNotificaciones() {
@@ -45,7 +45,7 @@ export default function BannerNotificaciones() {
               : 'Notificaciones'}
           </span>
           {noLeidas.length > 0 && (
-            <span className="ml-1 bg-red-500 text-strong text-xs rounded-full px-1.5 py-0.5">
+            <span className="ml-1 bg-danger text-strong text-xs rounded-full px-1.5 py-0.5">
               {noLeidas.length}
             </span>
           )}
@@ -58,7 +58,7 @@ export default function BannerNotificaciones() {
               <div className="flex justify-end">
                 <button
                   onClick={handleMarcarTodas}
-                  className="text-xs text-blue-400 hover:text-blue-300 transition"
+                  className="text-xs text-info hover:text-info-soft-fg transition"
                 >
                   Marcar todas como leídas
                 </button>

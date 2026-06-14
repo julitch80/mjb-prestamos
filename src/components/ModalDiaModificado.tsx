@@ -78,7 +78,7 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
       {modificacion && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-6"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/45 dark:bg-black/75 backdrop-blur-sm p-3 sm:p-6"
           onClick={onClose}
         >
           <motion.div
@@ -103,9 +103,9 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
 
             <div className="px-6 py-3 border-b border-line flex flex-wrap items-center gap-3 text-[11px]">
               <span className="text-muted">Convenciones:</span>
-              <span className="px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-200 border border-blue-700/40">movida</span>
-              <span className="px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-200 border border-amber-700/40">taller</span>
-              <span className="px-2 py-0.5 rounded-full bg-red-900/30 text-red-300 border border-red-800/40 line-through">cancelada</span>
+              <span className="px-2 py-0.5 rounded-full bg-info-soft text-info-soft-fg border border-info">movida</span>
+              <span className="px-2 py-0.5 rounded-full bg-warning-soft text-warning-soft-fg border border-warning">taller</span>
+              <span className="px-2 py-0.5 rounded-full bg-danger-soft text-danger-soft-fg border border-danger line-through">cancelada</span>
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-4">
@@ -159,8 +159,8 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
                                     >
                                       {celda.esTaller ? (
                                         <>
-                                          <span className="text-[10px] font-bold text-amber-300">Taller</span>
-                                          <span className="text-[9px] text-amber-200/80">
+                                          <span className="text-[10px] font-bold text-warning-soft-fg">Taller</span>
+                                          <span className="text-[9px] text-warning-soft-fg/80">
                                             {supervisor ? `con ${supervisor.nombreCorto}` : `por ${doc?.nombreCorto ?? celda.docente}`}
                                           </span>
                                           <span className="text-[9px] text-muted">{abrevAula(celda.aula)}</span>
@@ -170,7 +170,7 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
                                           <span className="text-[10px] font-bold" style={{ color: doc?.color }}>{doc?.nombreCorto ?? celda.docente}</span>
                                           <span className="text-[9px]" style={{ color: COLORES_AULA[celda.aula] ?? '#94a3b8' }}>{abrevAula(celda.aula)}</span>
                                           {celda.esModificada && celda.bloqueOriginal && (
-                                            <span className="text-[8px] text-blue-300 font-medium">
+                                            <span className="text-[8px] text-info-soft-fg font-medium">
                                               ← desde {celda.bloqueOriginal}.ª
                                             </span>
                                           )}
@@ -184,9 +184,9 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
                                 const doc = USUARIOS.find(u => u.id === ausente.docente);
                                 return (
                                   <td key={b.id} className="p-1.5" style={{ height: 64 }}>
-                                    <div className="h-full rounded-lg border border-dashed border-red-800/40 bg-red-950/15 flex flex-col items-center justify-center gap-0.5 px-1">
-                                      <span className="text-[10px] font-bold line-through text-red-400/80">{doc?.nombreCorto ?? ausente.docente}</span>
-                                      <span className="text-[9px] text-red-300/60">cancelada</span>
+                                    <div className="h-full rounded-lg border border-dashed border-danger bg-danger-soft/50 flex flex-col items-center justify-center gap-0.5 px-1">
+                                      <span className="text-[10px] font-bold line-through text-danger/80">{doc?.nombreCorto ?? ausente.docente}</span>
+                                      <span className="text-[9px] text-danger-soft-fg/60">cancelada</span>
                                     </div>
                                   </td>
                                 );

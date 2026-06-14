@@ -95,7 +95,7 @@ function CeldaDocente({ docenteId, aula }: { docenteId?: string; aula?: string }
 
 function CeldaCI() {
   return (
-    <div className="h-full rounded-lg border border-yellow-700/50 bg-yellow-900/25 flex items-center justify-center">
+    <div className="h-full rounded-lg border border-yellow-700/50 bg-warning-soft flex items-center justify-center">
       <span className="text-[10px] text-yellow-400 font-bold">⭐CI</span>
     </div>
   );
@@ -326,10 +326,10 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
                       return (
                         <th key={dia} className={cn(
                           'text-center px-2 py-2.5 font-semibold min-w-[90px]',
-                          esTarde ? 'text-yellow-500' : 'text-soft'
+                          esTarde ? 'text-warning' : 'text-soft'
                         )}>
                           {DIAS_LABEL[dia].slice(0, 2)}
-                          {esTarde && <span className="ml-1 text-yellow-600 text-[9px]">T</span>}
+                          {esTarde && <span className="ml-1 text-warning text-[9px]">T</span>}
                         </th>
                       );
                     })}
@@ -350,8 +350,8 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
                           const esTardeHoy = docenteEnTarde(docenteId, dia);
                           if (esTardeHoy && jornadaTab === 'manana') return (
                             <td key={dia} className="p-1" style={{ height: CELL_H }}>
-                              <div className="h-full rounded-lg bg-yellow-900/15 border border-yellow-900/30 flex items-center justify-center">
-                                <span className="text-yellow-700 text-[10px]">Tarde</span>
+                              <div className="h-full rounded-lg bg-warning-soft border border-warning flex items-center justify-center">
+                                <span className="text-warning-soft-fg text-[10px]">Tarde</span>
                               </div>
                             </td>
                           );
@@ -390,7 +390,7 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
                     const descanso = descansos.find(d => d.despuesDe === b.id);
                     if (descanso) {
                       rows.push(
-                        <tr key={`desc-${b.id}`} className="bg-gray-900/30">
+                        <tr key={`desc-${b.id}`} className="bg-elevated/40">
                           <td className="px-3 py-1.5">
                             <div className="text-muted opacity-70 text-[10px]">Descanso</div>
                             <div className="text-muted opacity-50 text-[9px]">{descanso.inicio} – {descanso.fin} ({descanso.duracion} min)</div>
@@ -438,7 +438,7 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
                     )}
                   >
                     {DIAS_CORTO[dia]}
-                    {esTarde && <span className="block text-[9px] text-yellow-700">T</span>}
+                    {esTarde && <span className="block text-[9px] text-warning-soft-fg">T</span>}
                   </button>
                 );
               })}
@@ -452,22 +452,22 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
 
               if (esTardeHoy && jornadaTab === 'manana') {
                 items.push(
-                  <div key={b.id} className="flex items-center gap-3 rounded-xl bg-yellow-900/15 border border-yellow-900/30 p-3">
+                  <div key={b.id} className="flex items-center gap-3 rounded-xl bg-warning-soft border border-warning p-3">
                     <div className="w-24 flex-shrink-0">
-                      <div className="text-yellow-500 font-bold">{horaOrdinal(b.id)} hora</div>
-                      <div className="text-yellow-800 text-[10px]">{b.inicio} – {b.fin}</div>
+                      <div className="text-warning font-bold">{horaOrdinal(b.id)} hora</div>
+                      <div className="text-warning-soft-fg text-[10px]">{b.inicio} – {b.fin}</div>
                     </div>
-                    <span className="text-yellow-700 text-sm">Jornada tarde</span>
+                    <span className="text-warning-soft-fg text-sm">Jornada tarde</span>
                   </div>
                 );
               } else if (esCI) {
                 items.push(
-                  <div key={b.id} className="flex items-center gap-3 rounded-xl bg-yellow-900/25 border border-yellow-700/40 p-3">
+                  <div key={b.id} className="flex items-center gap-3 rounded-xl bg-warning-soft border border-warning p-3">
                     <div className="w-24 flex-shrink-0">
                       <div className="text-yellow-400 font-bold">{horaOrdinal(b.id)} hora</div>
-                      <div className="text-yellow-700 text-[10px]">{b.inicio} – {b.fin}</div>
+                      <div className="text-warning-soft-fg text-[10px]">{b.inicio} – {b.fin}</div>
                     </div>
-                    <span className="text-yellow-300 font-semibold">⭐ Centro de Interés</span>
+                    <span className="text-warning-soft-fg font-semibold">⭐ Centro de Interés</span>
                   </div>
                 );
               } else {
@@ -646,12 +646,12 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
               {bloques.map(b => {
                 const esCI = diaSeleccionado === 'martes' && b.id === 6 && jornadaTab === 'manana';
                 if (esCI) return (
-                  <div key={b.id} className="flex items-center gap-3 rounded-xl bg-yellow-900/25 border border-yellow-700/40 p-3">
+                  <div key={b.id} className="flex items-center gap-3 rounded-xl bg-warning-soft border border-warning p-3">
                     <div className="w-24 flex-shrink-0">
                       <div className="text-yellow-400 font-bold">{horaOrdinal(b.id)} hora</div>
-                      <div className="text-yellow-700 text-[10px]">{b.inicio} – {b.fin}</div>
+                      <div className="text-warning-soft-fg text-[10px]">{b.inicio} – {b.fin}</div>
                     </div>
-                    <span className="text-yellow-300 font-semibold">⭐ Centro de Interés</span>
+                    <span className="text-warning-soft-fg font-semibold">⭐ Centro de Interés</span>
                   </div>
                 );
                 const entrada = entradas.find(e => e.dia === diaSeleccionado && e.bloque === b.id);
@@ -772,12 +772,12 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
                     return (
                       <td key={b.id} className="p-1" style={{ height: CELL_H }}>
                         {esTardeHoy ? (
-                          <div className="h-full rounded border border-yellow-900/30 bg-yellow-900/10 flex items-center justify-center">
-                            <span className="text-yellow-800 text-[9px]">T</span>
+                          <div className="h-full rounded border border-warning bg-warning-soft/60 flex items-center justify-center">
+                            <span className="text-warning-soft-fg text-[9px]">T</span>
                           </div>
                         ) : esCI ? (
-                          <div className="h-full rounded border border-yellow-700/40 bg-yellow-900/20 flex items-center justify-center">
-                            <span className="text-yellow-500 text-[9px] font-bold">★CI</span>
+                          <div className="h-full rounded border border-warning bg-warning-soft flex items-center justify-center">
+                            <span className="text-warning text-[9px] font-bold">★CI</span>
                           </div>
                         ) : entrada ? (
                           <div
@@ -879,12 +879,12 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
                       style={{ height: CELL_H }}
                     >
                       {esTardeHoy ? (
-                        <div className="h-full rounded border border-yellow-900/30 bg-yellow-900/10 flex items-center justify-center">
-                          <span className="text-yellow-800 text-[9px]">T</span>
+                        <div className="h-full rounded border border-warning bg-warning-soft/60 flex items-center justify-center">
+                          <span className="text-warning-soft-fg text-[9px]">T</span>
                         </div>
                       ) : esCI ? (
-                        <div className="h-full rounded border border-yellow-700/40 bg-yellow-900/20 flex items-center justify-center">
-                          <span className="text-yellow-500 text-[9px] font-bold">★CI</span>
+                        <div className="h-full rounded border border-warning bg-warning-soft flex items-center justify-center">
+                          <span className="text-warning text-[9px] font-bold">★CI</span>
                         </div>
                       ) : entrada ? (
                         <div
@@ -1003,8 +1003,8 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
                     return (
                       <td key={b.id} className="p-1" style={{ height: CELL_H }}>
                         {esCIcelda ? (
-                          <div className="h-full rounded border border-yellow-700/40 bg-yellow-900/20 flex items-center justify-center">
-                            <span className="text-yellow-500 text-[9px] font-bold">★CI</span>
+                          <div className="h-full rounded border border-warning bg-warning-soft flex items-center justify-center">
+                            <span className="text-warning text-[9px] font-bold">★CI</span>
                           </div>
                         ) : entrada && docente ? (
                           <div
@@ -1110,8 +1110,8 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
                         style={{ height: CELL_H }}
                       >
                         {esCI ? (
-                          <div className="h-full rounded border border-yellow-700/40 bg-yellow-900/20 flex items-center justify-center">
-                            <span className="text-yellow-500 text-[9px] font-bold">★CI</span>
+                          <div className="h-full rounded border border-warning bg-warning-soft flex items-center justify-center">
+                            <span className="text-warning text-[9px] font-bold">★CI</span>
                           </div>
                         ) : entrada && docente ? (
                           <div
@@ -1224,8 +1224,8 @@ export default function VistaHorario() {
     <div className="space-y-4">
       {/* Banner de modificaciones próximas — visible para todos */}
       {proximasMods.length > 0 && (
-        <div className="rounded-2xl border border-blue-700/40 bg-blue-950/30 p-3 space-y-2">
-          <div className="flex items-center gap-2 text-xs font-semibold text-blue-200">
+        <div className="rounded-2xl border border-info bg-info-soft p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-info-soft-fg">
             <span className="text-base">📌</span>
             {proximasMods.length === 1 ? 'Hay 1 modificación de horario' : `Hay ${proximasMods.length} modificaciones de horario`}
           </div>
@@ -1244,7 +1244,7 @@ export default function VistaHorario() {
                     Jornada {m.jornada === 'manana' ? 'mañana' : 'tarde'} · {ausentes} {ausentes === 1 ? 'ausente' : 'ausentes'}
                     {docNombres && `: ${docNombres}`}
                   </div>
-                  <div className="text-[10px] text-blue-300 mt-1">Ver detalle →</div>
+                  <div className="text-[10px] text-info-soft-fg mt-1">Ver detalle →</div>
                 </button>
               );
             })}
@@ -1254,8 +1254,8 @@ export default function VistaHorario() {
 
       {/* Banner de jornadas reducidas próximas — visible para todos */}
       {proximasJr.length > 0 && (
-        <div className="rounded-2xl border border-amber-700/40 bg-amber-950/30 p-3 space-y-2">
-          <div className="flex items-center gap-2 text-xs font-semibold text-amber-200">
+        <div className="rounded-2xl border border-warning bg-warning-soft p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-warning-soft-fg">
             <span className="text-base">⏱</span>
             {proximasJr.length === 1 ? 'Hay 1 jornada acortada' : `Hay ${proximasJr.length} jornadas acortadas`}
           </div>
@@ -1270,7 +1270,7 @@ export default function VistaHorario() {
                 <div className="text-[11px] text-soft mt-0.5">
                   Jornada {j.jornada === 'manana' ? 'mañana' : 'tarde'} · termina {j.horaFin} · {j.motivo}
                 </div>
-                <div className="text-[10px] text-amber-300 mt-1">Ver bloques →</div>
+                <div className="text-[10px] text-warning-soft-fg mt-1">Ver bloques →</div>
               </button>
             ))}
           </div>
@@ -1309,14 +1309,14 @@ export default function VistaHorario() {
           <>
             <button
               onClick={() => setWizardAbierto(true)}
-              className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-strong text-sm font-semibold transition shadow-lg shadow-blue-900/30"
+              className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent hover:bg-accent/85 text-strong text-sm font-semibold transition shadow-lg shadow-accent/30"
               title="Crear modificación temporal del horario"
             >
               <span className="text-base leading-none">✎</span> Editar
             </button>
             <button
               onClick={() => setAcortarAbierto(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-strong text-sm font-semibold transition shadow-lg shadow-amber-900/30"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-warning hover:bg-warning/85 text-strong text-sm font-semibold transition shadow-lg shadow-warning/30"
               title="Acortar la jornada por acto cívico o reunión"
             >
               <span className="text-base leading-none">⏱</span> Acortar
@@ -1441,7 +1441,7 @@ export default function VistaHorario() {
         {verDetalleJr && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-6"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/45 dark:bg-black/75 backdrop-blur-sm p-3 sm:p-6"
             onClick={() => setVerDetalleJr(null)}
           >
             <motion.div
@@ -1453,7 +1453,7 @@ export default function VistaHorario() {
               <div className="px-6 pt-5 pb-4 border-b border-line flex items-center justify-between">
                 <div>
                   <h2 className="text-strong font-semibold text-base flex items-center gap-2">
-                    <span className="text-amber-400">⏱</span> Jornada acortada
+                    <span className="text-warning">⏱</span> Jornada acortada
                   </h2>
                   <p className="text-xs text-muted mt-0.5">
                     {formatearFechaLegible(verDetalleJr.fecha)} · {verDetalleJr.jornada === 'manana' ? 'mañana' : 'tarde'} · termina {verDetalleJr.horaFin}
@@ -1466,7 +1466,7 @@ export default function VistaHorario() {
                 >✕</button>
               </div>
               <div className="px-6 py-5 space-y-3">
-                <div className="text-xs text-amber-300">Motivo: {verDetalleJr.motivo}</div>
+                <div className="text-xs text-warning-soft-fg">Motivo: {verDetalleJr.motivo}</div>
                 <div className="bg-elevated border border-line rounded-2xl p-4">
                   <table className="w-full text-sm">
                     <tbody>

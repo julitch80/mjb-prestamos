@@ -63,7 +63,7 @@ export default function PopupRectora({ recursoIdInicial, fechaInicial, bloqueIdI
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 dark:bg-black/75 p-4">
       <div className="w-full max-w-sm bg-card rounded-2xl p-6 border border-yellow-900/50 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-strong font-semibold flex items-center gap-2">
@@ -79,7 +79,7 @@ export default function PopupRectora({ recursoIdInicial, fechaInicial, bloqueIdI
               value={recursoId}
               onChange={e => setRecursoId(e.target.value)}
               required
-              className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
+              className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-line focus:outline-none focus:border-yellow-500"
             >
               <option value="">Seleccionar...</option>
               {recursosDisponibles.map(r => (
@@ -96,7 +96,7 @@ export default function PopupRectora({ recursoIdInicial, fechaInicial, bloqueIdI
                 value={fecha}
                 onChange={e => setFecha(e.target.value)}
                 required
-                className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
+                className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-line focus:outline-none focus:border-yellow-500"
               />
             </div>
             <div>
@@ -105,7 +105,7 @@ export default function PopupRectora({ recursoIdInicial, fechaInicial, bloqueIdI
                 value={bloqueId}
                 onChange={e => setBloqueId(Number(e.target.value))}
                 required
-                className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
+                className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-line focus:outline-none focus:border-yellow-500"
               >
                 {[1,2,3,4,5,6].map(b => (
                   <option key={b} value={b}>Bloque {b}</option>
@@ -120,7 +120,7 @@ export default function PopupRectora({ recursoIdInicial, fechaInicial, bloqueIdI
               value={motivo}
               onChange={e => setMotivo(e.target.value)}
               required
-              className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
+              className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-line focus:outline-none focus:border-yellow-500"
             >
               <option value="">Seleccionar...</option>
               {MOTIVOS_RECTORA.map(m => (
@@ -136,11 +136,11 @@ export default function PopupRectora({ recursoIdInicial, fechaInicial, bloqueIdI
               value={motivoPersonalizado}
               onChange={e => setMotivoPersonalizado(e.target.value)}
               required
-              className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
+              className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-line focus:outline-none focus:border-yellow-500"
             />
           )}
 
-          {error && <p className="text-red-400 text-xs">{error}</p>}
+          {error && <p className="text-danger text-xs">{error}</p>}
 
           <div className="flex gap-3 pt-2">
             <button

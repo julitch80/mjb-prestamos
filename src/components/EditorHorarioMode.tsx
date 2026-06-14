@@ -166,14 +166,14 @@ function FichaArrastrable({
         <>
           <button
             onClick={(e) => { e.stopPropagation(); onMarcarTaller(); }}
-            className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-amber-600 hover:bg-amber-500 text-strong text-[9px] font-bold leading-none flex items-center justify-center shadow"
+            className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-warning hover:bg-warning/85 text-strong text-[9px] font-bold leading-none flex items-center justify-center shadow"
             title="Queda con actividad/taller"
           >
             T
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onEliminar(); }}
-            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-600 hover:bg-red-500 text-strong text-[10px] font-bold leading-none flex items-center justify-center shadow"
+            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-danger hover:bg-danger/85 text-strong text-[10px] font-bold leading-none flex items-center justify-center shadow"
             title="Eliminar"
           >
             ×
@@ -191,7 +191,7 @@ function FichaArrastrable({
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onEliminar(); }}
-            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-600 hover:bg-red-500 text-strong text-[10px] font-bold leading-none flex items-center justify-center shadow"
+            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-danger hover:bg-danger/85 text-strong text-[10px] font-bold leading-none flex items-center justify-center shadow"
             title="Eliminar"
           >
             ×
@@ -203,7 +203,7 @@ function FichaArrastrable({
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
               onChange={(e) => onCambiarSupervisor(e.target.value || undefined)}
-              className="absolute -bottom-1.5 left-1 right-1 text-[8px] bg-card text-amber-200 border border-amber-700/40 rounded px-1 py-0.5"
+              className="absolute -bottom-1.5 left-1 right-1 text-[8px] bg-card text-warning-soft-fg border border-warning rounded px-1 py-0.5"
               title={`${docentesLibres.length} docente(s) libre(s) a esta hora`}
             >
               <option value="">Asignar apoyo…</option>
@@ -234,7 +234,7 @@ function CeldaDroppable({
         ref={setNodeRef}
         className={cn(
           'h-full rounded-lg transition-colors',
-          isOver && !deshabilitada ? 'bg-blue-500/30 ring-2 ring-blue-400' : '',
+          isOver && !deshabilitada ? 'bg-accent/30 ring-2 ring-accent' : '',
           deshabilitada ? 'opacity-30' : ''
         )}
       >
@@ -261,7 +261,7 @@ function PendientesDroppable({
         fichas.length > 0
           ? 'border-orange-500/50 bg-orange-950/30'
           : 'border-line bg-elevated/50',
-        isOver && 'ring-2 ring-blue-400 bg-blue-950/30'
+        isOver && 'ring-2 ring-accent bg-info-soft'
       )}
     >
       <div className="flex items-center justify-between mb-2">
@@ -592,16 +592,16 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <div className="space-y-3">
         {/* Banner superior */}
-        <div className="rounded-2xl border border-blue-700/40 bg-blue-950/40 p-4 space-y-3">
+        <div className="rounded-2xl border border-info bg-info-soft p-4 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-strong text-sm font-semibold flex items-center gap-2">
-                <span className="text-blue-400">✎</span> Editando horario
+                <span className="text-info">✎</span> Editando horario
               </div>
-              <div className="text-blue-200 text-xs mt-1">
+              <div className="text-info-soft-fg text-xs mt-1">
                 {formatearFechaLegible(borrador.fecha)} · Jornada {borrador.jornada === 'manana' ? 'mañana' : 'tarde'}
               </div>
-              <div className="text-blue-300/70 text-[11px] mt-1">
+              <div className="text-info-soft-fg/70 text-[11px] mt-1">
                 Arrastra las pastillas dentro de la misma fila para reorganizar el día.
                 Las clases del docente ausente aparecen tachadas — puedes eliminarlas con ✕.
               </div>
@@ -620,7 +620,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                   'px-4 py-2 rounded-xl text-strong text-xs font-semibold transition shadow-lg',
                   pendientes.length > 0
                     ? 'bg-gray-700 cursor-not-allowed shadow-none'
-                    : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/30'
+                    : 'bg-accent hover:bg-accent/85 shadow-accent/30'
                 )}
                 title={pendientes.length > 0 ? 'Reubica los pendientes antes de guardar' : 'Guardar cambios'}
               >
@@ -630,12 +630,12 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
           </div>
 
           {borrador.apoyos.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-1 border-t border-blue-800/30">
-              <span className="text-[10px] text-blue-300/70 pt-1">Apoyos disponibles:</span>
+            <div className="flex flex-wrap gap-1.5 pt-1 border-t border-info">
+              <span className="text-[10px] text-info-soft-fg/70 pt-1">Apoyos disponibles:</span>
               {borrador.apoyos.map(a => (
                 <span
                   key={a.id}
-                  className="text-[10px] px-2 py-1 rounded-full bg-green-900/40 border border-green-700/40 text-green-200"
+                  className="text-[10px] px-2 py-1 rounded-full bg-success-soft border border-success text-success-soft-fg"
                   title={a.bloques.map(b => `${horaOrdinal(b)} hora`).join(', ')}
                 >
                   {TIPO_APOYO_LABEL[a.tipo]}: {a.nombre} ({a.bloques.length} {a.bloques.length === 1 ? 'hora' : 'horas'})
@@ -674,7 +674,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
             className={cn(
               'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition',
               propuestas.length > 0
-                ? 'bg-purple-950/50 text-purple-200 border-purple-600/50 hover:bg-purple-900/50'
+                ? 'bg-purple-soft text-purple-soft-fg border-purple hover:bg-purple-soft'
                 : 'bg-elevated text-muted border-line cursor-not-allowed'
             )}
             disabled={propuestas.length === 0}
@@ -685,7 +685,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
             <span className="text-sm leading-none">✨</span>
             Alternativas
             {propuestas.length > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-500/40 text-[10px] font-bold text-strong">
+              <span className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple/30 text-[10px] font-bold text-strong">
                 {propuestas.length}
               </span>
             )}
@@ -698,7 +698,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition',
               verTodoElHorario
                 ? 'bg-white/10 text-gray-200 border-line-strong'
-                : 'bg-blue-950/40 text-blue-200 border-blue-700/40'
+                : 'bg-info-soft text-info-soft-fg border-info'
             )}
             title={verTodoElHorario
               ? 'Mostrando todo el horario del día. Clic para ver solo los afectados.'
@@ -709,7 +709,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
           </button>
 
           {hayAusenteSinResolver && (
-            <div className="text-[11px] text-red-300 bg-red-900/30 border border-red-700/40 rounded-lg px-2.5 py-1">
+            <div className="text-[11px] text-danger-soft-fg bg-danger-soft border border-danger rounded-lg px-2.5 py-1">
               Quedan clases del ausente sin resolver
             </div>
           )}
@@ -793,7 +793,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
           <div className="text-[11px] text-muted">
             <button
               onClick={() => setFichas(crearFichasIniciales(borrador, horarioBase as any))}
-              className="text-blue-400 hover:text-blue-300 underline"
+              className="text-info hover:text-info-soft-fg underline"
             >
               Restablecer al horario base
             </button>
@@ -808,14 +808,14 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md z-40 bg-red-950/95 backdrop-blur border border-red-700/60 rounded-2xl px-4 py-3 text-red-100 text-sm shadow-2xl"
+            className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md z-40 bg-red-950/95 backdrop-blur border border-danger rounded-2xl px-4 py-3 text-danger-soft-fg text-sm shadow-2xl"
           >
             <div className="flex items-start gap-3">
               <span className="text-base leading-none mt-0.5">⛔</span>
               <div className="flex-1">{errorMovimiento}</div>
               <button
                 onClick={() => setErrorMovimiento(null)}
-                className="text-red-300 hover:text-strong text-sm leading-none p-0.5"
+                className="text-danger-soft-fg hover:text-strong text-sm leading-none p-0.5"
                 aria-label="Cerrar"
               >✕</button>
             </div>
@@ -828,7 +828,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
         {resumenDifusion && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-6"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/45 dark:bg-black/75 backdrop-blur-sm p-3 sm:p-6"
           >
             <motion.div
               initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
@@ -837,7 +837,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
             >
               <div className="px-6 pt-5 pb-4 border-b border-line">
                 <h2 className="text-strong font-semibold text-base flex items-center gap-2">
-                  <span className="text-green-400">✓</span> Cambios guardados — Listo para difundir
+                  <span className="text-success">✓</span> Cambios guardados — Listo para difundir
                 </h2>
                 <p className="text-xs text-muted mt-0.5">
                   Copia el resumen y envíalo por correo, WhatsApp o pégalo en la página web.
@@ -855,8 +855,8 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                         className={cn(
                           'px-3 py-1.5 rounded-lg text-xs font-medium transition',
                           copiado === 'html'
-                            ? 'bg-green-600 text-strong'
-                            : 'bg-blue-600 hover:bg-blue-500 text-strong'
+                            ? 'bg-success text-strong'
+                            : 'bg-accent hover:bg-accent/85 text-strong'
                         )}
                       >
                         {copiado === 'html' ? '✓ Copiado' : 'Copiar HTML (correo / web)'}
@@ -866,8 +866,8 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                         className={cn(
                           'px-3 py-1.5 rounded-lg text-xs font-medium transition',
                           copiado === 'texto'
-                            ? 'bg-green-600 text-strong'
-                            : 'bg-green-700 hover:bg-green-600 text-strong'
+                            ? 'bg-success text-strong'
+                            : 'bg-success hover:bg-success/85 text-strong'
                         )}
                       >
                         {copiado === 'texto' ? '✓ Copiado' : 'Copiar texto (WhatsApp)'}
@@ -899,8 +899,8 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                         className={cn(
                           'px-3 py-1.5 rounded-lg text-xs font-medium transition',
                           copiado === 'correos'
-                            ? 'bg-green-600 text-strong'
-                            : 'bg-purple-600 hover:bg-purple-500 text-strong'
+                            ? 'bg-success text-strong'
+                            : 'bg-purple hover:bg-purple/85 text-strong'
                         )}
                       >
                         {copiado === 'correos' ? '✓ Copiado' : 'Copiar correos (+ Blandón, Uriel)'}
@@ -912,9 +912,9 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                           <span className="font-semibold text-gray-200 flex-1">{d.nombre}</span>
                           <span className={cn(
                             'px-2 py-0.5 rounded-full text-[10px] font-medium',
-                            d.motivo === 'ausente' ? 'bg-red-900/40 text-red-200' :
-                            d.motivo === 'clase movida' ? 'bg-blue-900/40 text-blue-200' :
-                            'bg-amber-900/40 text-amber-200'
+                            d.motivo === 'ausente' ? 'bg-danger-soft text-danger-soft-fg' :
+                            d.motivo === 'clase movida' ? 'bg-info-soft text-info-soft-fg' :
+                            'bg-warning-soft text-warning-soft-fg'
                           )}>
                             {d.motivo}
                           </span>
@@ -934,7 +934,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               <div className="px-6 py-4 border-t border-line bg-card/80 flex justify-end gap-3">
                 <button
                   onClick={() => { setResumenDifusion(null); onSalir(); }}
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-strong text-sm font-semibold transition"
+                  className="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent/85 text-strong text-sm font-semibold transition"
                 >
                   Cerrar y volver al horario
                 </button>
@@ -949,7 +949,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
         {asistenteAbierto && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-6"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/45 dark:bg-black/75 backdrop-blur-sm p-3 sm:p-6"
             onClick={() => setAsistenteAbierto(false)}
           >
             <motion.div
@@ -961,7 +961,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               <div className="px-6 pt-5 pb-4 border-b border-line flex items-center justify-between">
                 <div>
                   <h2 className="text-strong font-semibold text-base flex items-center gap-2">
-                    <span className="text-purple-400">✨</span> Alternativas del sistema
+                    <span className="text-purple">✨</span> Alternativas del sistema
                   </h2>
                   <p className="text-xs text-muted mt-0.5">
                     Propuestas automáticas para resolver las ausencias declaradas.
@@ -994,7 +994,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                       : borrador.jornada === 'manana'
                         ? 'Última opción. Se prioriza entrada tardía sobre salida temprana en la jornada de la mañana.'
                         : 'Última opción. Se prioriza salida temprana sobre entrada tardía en la jornada de la tarde.';
-                  const colorNivel = nivel === 1 ? 'text-green-300' : nivel === 2 ? 'text-purple-300' : 'text-amber-300';
+                  const colorNivel = nivel === 1 ? 'text-success-soft-fg' : nivel === 2 ? 'text-purple-soft-fg' : 'text-warning-soft-fg';
                   return (
                     <div key={nivel} className="space-y-3">
                       <div className="flex items-baseline justify-between gap-3 pb-1 border-b border-line">
@@ -1004,18 +1004,18 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                       <p className="text-[11px] text-muted -mt-1">{subtitulo}</p>
                       <div className="space-y-2">
                         {grupo.map(p => {
-                          const colorBg = p.tipo === 'compactar' ? 'bg-green-950/40 border-green-700/40'
-                            : p.tipo === 'apoyo_taller' ? 'bg-purple-950/40 border-purple-700/40'
-                            : p.tipo === 'entrada_tardia' ? 'bg-blue-950/40 border-blue-700/40'
-                            : 'bg-amber-950/40 border-amber-700/40';
-                          const colorTexto = p.tipo === 'compactar' ? 'text-green-200'
-                            : p.tipo === 'apoyo_taller' ? 'text-purple-200'
-                            : p.tipo === 'entrada_tardia' ? 'text-blue-200'
-                            : 'text-amber-200';
-                          const colorBtn = p.tipo === 'compactar' ? 'bg-green-600 hover:bg-green-500'
-                            : p.tipo === 'apoyo_taller' ? 'bg-purple-600 hover:bg-purple-500'
-                            : p.tipo === 'entrada_tardia' ? 'bg-blue-600 hover:bg-blue-500'
-                            : 'bg-amber-600 hover:bg-amber-500';
+                          const colorBg = p.tipo === 'compactar' ? 'bg-success-soft border-success'
+                            : p.tipo === 'apoyo_taller' ? 'bg-purple-soft border-purple'
+                            : p.tipo === 'entrada_tardia' ? 'bg-info-soft border-info'
+                            : 'bg-warning-soft border-warning';
+                          const colorTexto = p.tipo === 'compactar' ? 'text-success-soft-fg'
+                            : p.tipo === 'apoyo_taller' ? 'text-purple-soft-fg'
+                            : p.tipo === 'entrada_tardia' ? 'text-info-soft-fg'
+                            : 'text-warning-soft-fg';
+                          const colorBtn = p.tipo === 'compactar' ? 'bg-success hover:bg-success/85'
+                            : p.tipo === 'apoyo_taller' ? 'bg-purple hover:bg-purple/85'
+                            : p.tipo === 'entrada_tardia' ? 'bg-accent hover:bg-accent/85'
+                            : 'bg-warning hover:bg-warning/85';
                           return (
                             <div key={p.id} className={cn('rounded-2xl border p-4', colorBg)}>
                               <div className="flex items-start justify-between gap-3">
@@ -1052,7 +1052,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
         {confirmDescartar && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 dark:bg-black/75 backdrop-blur-sm p-4"
             onClick={() => setConfirmDescartar(false)}
           >
             <motion.div
@@ -1073,7 +1073,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                 </button>
                 <button
                   onClick={() => { setConfirmDescartar(false); descartar(); }}
-                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-strong text-sm font-semibold transition"
+                  className="px-4 py-2 rounded-xl bg-danger hover:bg-danger/85 text-strong text-sm font-semibold transition"
                 >
                   Descartar
                 </button>

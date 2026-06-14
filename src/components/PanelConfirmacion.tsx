@@ -92,7 +92,7 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/45 dark:bg-black/75 backdrop-blur-sm p-4">
       <div className="w-full max-w-md bg-card rounded-2xl border border-line shadow-2xl overflow-hidden">
 
         {/* Header */}
@@ -130,7 +130,7 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
               value={proposito}
               onChange={e => setProposito(e.target.value)}
               required
-              className="w-full bg-elevated text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-blue-500 transition"
+              className="w-full bg-elevated text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-accent transition"
             >
               <option value="">Seleccionar...</option>
               {PROPOSITOS.map(p => (
@@ -150,13 +150,13 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
                   className={cn(
                     'flex items-center gap-2 px-3 py-2 rounded-xl border text-xs text-left transition-all',
                     equiposSel.includes(eq)
-                      ? 'bg-blue-600/20 border-blue-500/60 text-blue-300'
+                      ? 'bg-info-soft border-info text-info-soft-fg'
                       : 'bg-elevated border-line text-soft hover:border-line-strong hover:text-soft'
                   )}
                 >
                   <span className={cn(
                     'w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center text-[9px]',
-                    equiposSel.includes(eq) ? 'bg-blue-500 border-blue-500 text-strong' : 'border-gray-600'
+                    equiposSel.includes(eq) ? 'bg-accent border-accent text-accent-fg' : 'border-line'
                   )}>
                     {equiposSel.includes(eq) && '✓'}
                   </span>
@@ -169,13 +169,13 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
                 className={cn(
                   'flex items-center gap-2 px-3 py-2 rounded-xl border text-xs text-left transition-all',
                   equiposSel.includes('__otro__')
-                    ? 'bg-blue-600/20 border-blue-500/60 text-blue-300'
+                    ? 'bg-info-soft border-info text-info-soft-fg'
                     : 'bg-elevated border-line text-soft hover:border-line-strong hover:text-soft'
                 )}
               >
                 <span className={cn(
                   'w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center text-[9px]',
-                  equiposSel.includes('__otro__') ? 'bg-blue-500 border-blue-500 text-strong' : 'border-gray-600'
+                  equiposSel.includes('__otro__') ? 'bg-accent border-accent text-accent-fg' : 'border-line'
                 )}>
                   {equiposSel.includes('__otro__') && '✓'}
                 </span>
@@ -188,13 +188,13 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
                 placeholder="Especifica el equipo..."
                 value={otroEquipo}
                 onChange={e => setOtroEquipo(e.target.value)}
-                className="mt-2 w-full bg-elevated text-strong rounded-xl px-3 py-2 text-sm border border-line focus:outline-none focus:border-blue-500 transition"
+                className="mt-2 w-full bg-elevated text-strong rounded-xl px-3 py-2 text-sm border border-line focus:outline-none focus:border-accent transition"
               />
             )}
           </div>
 
           {error && (
-            <p className="text-red-400 text-xs bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">
+            <p className="text-danger text-xs bg-danger-soft border border-danger rounded-lg px-3 py-2">
               {error}
             </p>
           )}
@@ -210,7 +210,7 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
             <button
               type="submit"
               disabled={cargando || !proposito}
-              className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-strong font-semibold text-sm transition"
+              className="flex-1 py-3 rounded-xl bg-accent hover:bg-accent/85 disabled:opacity-40 text-strong font-semibold text-sm transition"
             >
               {cargando ? 'Enviando...' : 'Solicitar'}
             </button>

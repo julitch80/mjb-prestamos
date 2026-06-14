@@ -103,7 +103,7 @@ export default function LoginScreen() {
 
       {/* Fondo con gradiente animado — sutil en claro, intenso en oscuro */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-blue-400/15 dark:bg-blue-900/20 blur-[120px]" />
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-info/15 dark:bg-blue-900/20 blur-[120px]" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-green-400/10 dark:bg-green-900/15 blur-[120px]" />
         <div className="absolute top-[40%] left-[60%] w-[300px] h-[300px] rounded-full bg-red-400/8 dark:bg-red-900/10 blur-[80px]" />
       </div>
@@ -128,8 +128,8 @@ export default function LoginScreen() {
               </button>
 
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
-                  <Mail size={18} className="text-blue-400" />
+                <div className="w-10 h-10 rounded-xl bg-accent/20 border border-accent/30 flex items-center justify-center">
+                  <Mail size={18} className="text-info" />
                 </div>
                 <div>
                   <h2 className="text-strong font-semibold">Recuperar PIN</h2>
@@ -141,7 +141,7 @@ export default function LoginScreen() {
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="rounded-xl bg-green-600/15 border border-green-500/30 p-4 text-sm text-green-300"
+                  className="rounded-xl bg-success/15 border border-green-500/30 p-4 text-sm text-success-soft-fg"
                 >
                   {mensajeRecup}
                 </motion.div>
@@ -180,7 +180,7 @@ export default function LoginScreen() {
               className="flex flex-col items-center mb-8"
             >
               <div className="relative">
-                <div className="absolute inset-0 rounded-full bg-blue-500/20 blur-2xl scale-150" />
+                <div className="absolute inset-0 rounded-full bg-accent/20 blur-2xl scale-150" />
                 <img
                   src="/mjb-prestamos/mjb_escudo.png"
                   alt="Escudo MJB"
@@ -316,7 +316,7 @@ export default function LoginScreen() {
                             initial={{ opacity: 0, y: -4 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0 }}
-                            className="text-red-400 text-xs text-center"
+                            className="text-danger text-xs text-center"
                           >
                             {error}
                           </motion.p>

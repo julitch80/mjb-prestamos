@@ -92,7 +92,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
       {open && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-6"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/45 dark:bg-black/75 backdrop-blur-sm p-3 sm:p-6"
           onClick={reset}
         >
           <motion.div
@@ -104,7 +104,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
             <div className="px-6 pt-5 pb-4 border-b border-line flex items-center justify-between">
               <div>
                 <h2 className="text-strong font-semibold text-base flex items-center gap-2">
-                  <span className="text-amber-400">⏱</span> Acortar jornada del día
+                  <span className="text-warning">⏱</span> Acortar jornada del día
                 </h2>
                 <p className="text-xs text-muted mt-0.5">
                   Recalcula las clases manteniendo descansos institucionales (20+10 min).
@@ -123,16 +123,16 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                       value={fecha}
                       min={fechaHoyLocal()}
                       onChange={e => setFecha(e.target.value)}
-                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-amber-500"
+                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-warning"
                     />
                     <div className="text-xs text-muted mt-1">{formatearFechaLegible(fecha)}</div>
                     {!esDiaLectivo && (
-                      <div className="mt-2 text-xs text-yellow-300 bg-yellow-900/20 border border-yellow-700/40 rounded-lg px-3 py-2">
+                      <div className="mt-2 text-xs text-warning-soft-fg bg-warning-soft border border-warning rounded-lg px-3 py-2">
                         ⚠ No es un día lectivo. Elige una fecha entre lunes y viernes.
                       </div>
                     )}
                     {yaExiste && esDiaLectivo && (
-                      <div className="mt-2 text-xs text-red-300 bg-red-900/20 border border-red-700/40 rounded-lg px-3 py-2">
+                      <div className="mt-2 text-xs text-danger-soft-fg bg-danger-soft border border-danger rounded-lg px-3 py-2">
                         Ya hay una jornada acortada guardada para esta fecha y jornada.
                       </div>
                     )}
@@ -144,7 +144,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                       type="time"
                       value={horaFin}
                       onChange={e => setHoraFin(e.target.value)}
-                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-amber-500"
+                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-warning"
                     />
                     <div className="text-xs text-muted mt-1">
                       Normal: {jornada === 'manana' ? '12:00' : '18:15'}
@@ -156,7 +156,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                     <select
                       value={motivo}
                       onChange={e => setMotivo(e.target.value)}
-                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-amber-500"
+                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-warning"
                     >
                       {MOTIVOS.map(m => <option key={m}>{m}</option>)}
                     </select>
@@ -166,20 +166,20 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                         placeholder="Especifica el motivo…"
                         value={motivoOtro}
                         onChange={e => setMotivoOtro(e.target.value)}
-                        className="mt-2 w-full bg-card text-strong rounded-xl px-3 py-2 text-sm border border-line focus:outline-none focus:border-amber-500"
+                        className="mt-2 w-full bg-card text-strong rounded-xl px-3 py-2 text-sm border border-line focus:outline-none focus:border-warning"
                       />
                     )}
                   </div>
 
                   {/* Vista previa */}
                   {error && (
-                    <div className="bg-red-900/20 border border-red-700/40 rounded-xl px-3 py-2 text-xs text-red-300">
+                    <div className="bg-danger-soft border border-danger rounded-xl px-3 py-2 text-xs text-danger-soft-fg">
                       {error}
                     </div>
                   )}
                   {bloques && (
                     <div className="bg-elevated border border-line rounded-2xl p-4">
-                      <div className="text-xs font-semibold text-amber-300 mb-2">Vista previa de bloques</div>
+                      <div className="text-xs font-semibold text-warning-soft-fg mb-2">Vista previa de bloques</div>
                       <table className="w-full text-xs">
                         <tbody>
                           {bloques.map(b => (
@@ -206,11 +206,11 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                 </>
               ) : (
                 <>
-                  <div className="bg-green-950/30 border border-green-700/40 rounded-2xl p-4 text-sm text-green-200">
+                  <div className="bg-success-soft border border-success rounded-2xl p-4 text-sm text-success-soft-fg">
                     ✓ Jornada acortada guardada para {formatearFechaLegible(guardado.fecha)}.
                   </div>
                   <div className="bg-elevated border border-line rounded-2xl p-4">
-                    <div className="text-xs font-semibold text-amber-300 mb-2">Bloques recalculados</div>
+                    <div className="text-xs font-semibold text-warning-soft-fg mb-2">Bloques recalculados</div>
                     <table className="w-full text-xs">
                       <tbody>
                         {guardado.bloques.map(b => (
@@ -224,7 +224,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                   </div>
                   <button
                     onClick={copiarResumen}
-                    className="w-full px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-strong text-sm font-semibold transition"
+                    className="w-full px-4 py-2.5 rounded-xl bg-accent hover:bg-accent/85 text-strong text-sm font-semibold transition"
                   >
                     Copiar resumen para difundir
                   </button>
@@ -243,7 +243,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                     disabled={!puedeGuardar}
                     className={cn(
                       'px-5 py-2.5 rounded-xl text-strong text-sm font-semibold transition',
-                      puedeGuardar ? 'bg-amber-600 hover:bg-amber-500' : 'bg-gray-700 cursor-not-allowed'
+                      puedeGuardar ? 'bg-warning hover:bg-warning/85' : 'bg-gray-700 cursor-not-allowed'
                     )}
                   >
                     Guardar jornada acortada
@@ -252,7 +252,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
               ) : (
                 <button
                   onClick={reset}
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-strong text-sm font-semibold transition"
+                  className="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent/85 text-strong text-sm font-semibold transition"
                 >
                   Cerrar
                 </button>

@@ -187,7 +187,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-6"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/45 dark:bg-black/75 backdrop-blur-sm p-3 sm:p-6"
           onClick={resetAndClose}
         >
           <motion.div
@@ -220,7 +220,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                   key={p}
                   className={cn(
                     'h-1 flex-1 rounded-full transition-all',
-                    p < paso ? 'bg-blue-500' : p === paso ? 'bg-blue-400' : 'bg-hover'
+                    p < paso ? 'bg-accent' : p === paso ? 'bg-blue-400' : 'bg-hover'
                   )}
                 />
               ))}
@@ -240,14 +240,14 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                       value={fecha}
                       min={fechaHoyLocal()}
                       onChange={e => setFecha(e.target.value)}
-                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-blue-500 transition"
+                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-accent transition"
                     />
                     <div className="bg-elevated border border-line rounded-xl px-4 py-3">
                       <div className="text-xs text-muted">Fecha seleccionada</div>
                       <div className="text-strong text-sm font-medium mt-0.5">{formatearFechaLegible(fecha)}</div>
                     </div>
                     {!esDiaLectivo && (
-                      <div className="bg-yellow-900/20 border border-yellow-700/40 rounded-xl px-4 py-3 text-xs text-yellow-300">
+                      <div className="bg-warning-soft border border-warning rounded-xl px-4 py-3 text-xs text-warning-soft-fg">
                         ⚠ El {NOMBRE_DIA[dia]} no es un día lectivo. Elige una fecha entre lunes y viernes.
                       </div>
                     )}
@@ -265,7 +265,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                       placeholder="Buscar docente..."
                       value={buscar}
                       onChange={e => setBuscar(e.target.value)}
-                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-blue-500 transition"
+                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-accent transition"
                     />
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
                       {docentesFiltrados.map(d => {
@@ -285,7 +285,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                           >
                             <span className={cn(
                               'w-4 h-4 rounded border-2 flex items-center justify-center text-[10px] flex-shrink-0',
-                              activo ? '' : 'border-gray-600'
+                              activo ? '' : 'border-line'
                             )} style={{ borderColor: activo ? d.color : undefined, backgroundColor: activo ? d.color : undefined }}>
                               {activo && <span className="text-gray-950">✓</span>}
                             </span>
@@ -331,7 +331,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                                     [id]: seleccionDoc.length === todos.length ? [] : todos,
                                   }));
                                 }}
-                                className="text-[11px] text-blue-400 hover:text-blue-300 transition"
+                                className="text-[11px] text-info hover:text-info-soft-fg transition"
                               >
                                 {seleccionDoc.length === bloquesDelDia.length ? 'Quitar todos' : 'Marcar todos'}
                               </button>
@@ -353,13 +353,13 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                                       className={cn(
                                         'flex items-start gap-2 p-2.5 rounded-xl border text-left transition-all',
                                         activo
-                                          ? 'bg-red-900/25 border-red-700/50 text-red-200'
+                                          ? 'bg-danger-soft border-danger text-danger-soft-fg'
                                           : 'bg-elevated/60 border-line text-soft hover:border-line-strong'
                                       )}
                                     >
                                       <span className={cn(
                                         'w-4 h-4 rounded border-2 flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5',
-                                        activo ? 'bg-red-500 border-red-500 text-strong' : 'border-gray-600'
+                                        activo ? 'bg-danger border-red-500 text-strong' : 'border-line'
                                       )}>
                                         {activo && '✓'}
                                       </span>
@@ -404,7 +404,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                               <select
                                 value={ap.tipo}
                                 onChange={e => actualizarApoyo(ap.id, { tipo: e.target.value as TipoApoyo })}
-                                className="bg-card text-strong text-xs rounded-lg px-2 py-2 border border-line focus:outline-none focus:border-blue-500"
+                                className="bg-card text-strong text-xs rounded-lg px-2 py-2 border border-line focus:outline-none focus:border-accent"
                               >
                                 {(Object.keys(TIPO_APOYO_LABEL) as TipoApoyo[]).map(t => (
                                   <option key={t} value={t}>{TIPO_APOYO_LABEL[t]}</option>
@@ -415,12 +415,12 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                                 placeholder="Nombre o descripción"
                                 value={ap.nombre}
                                 onChange={e => actualizarApoyo(ap.id, { nombre: e.target.value })}
-                                className="bg-card text-strong text-xs rounded-lg px-2 py-2 border border-line focus:outline-none focus:border-blue-500"
+                                className="bg-card text-strong text-xs rounded-lg px-2 py-2 border border-line focus:outline-none focus:border-accent"
                               />
                             </div>
                             <button
                               onClick={() => quitarApoyo(ap.id)}
-                              className="text-red-400 hover:text-red-300 text-sm leading-none px-2"
+                              className="text-danger hover:text-danger-soft-fg text-sm leading-none px-2"
                               aria-label="Quitar apoyo"
                             >🗑</button>
                           </div>
@@ -436,7 +436,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                                     className={cn(
                                       'px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition',
                                       activo
-                                        ? 'bg-green-900/30 border-green-600/50 text-green-200'
+                                        ? 'bg-success-soft border-success text-success-soft-fg'
                                         : 'bg-elevated/60 border-line text-muted hover:border-line-strong'
                                     )}
                                   >
@@ -472,7 +472,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
               <button
                 onClick={() => paso < 4 ? setPaso((paso + 1) as Paso) : finalizar()}
                 disabled={!puedeAvanzar}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-strong font-semibold text-sm transition"
+                className="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent/85 disabled:opacity-40 disabled:cursor-not-allowed text-strong font-semibold text-sm transition"
               >
                 {paso < 4 ? 'Continuar →' : 'Crear borrador'}
               </button>

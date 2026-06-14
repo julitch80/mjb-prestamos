@@ -4,9 +4,9 @@ import { getReservas } from '../data/api';
 import type { Reserva } from '../data/api';
 
 const ESTADO_CONFIG = {
-  pendiente: { label: 'Pendiente', color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
-  aprobada:  { label: 'Aprobada',  color: 'text-green-400',  bg: 'bg-green-900/30' },
-  rechazada: { label: 'Rechazada', color: 'text-red-400',    bg: 'bg-red-900/30' },
+  pendiente: { label: 'Pendiente', color: 'text-yellow-400', bg: 'bg-warning-soft' },
+  aprobada:  { label: 'Aprobada',  color: 'text-success',  bg: 'bg-success-soft' },
+  rechazada: { label: 'Rechazada', color: 'text-danger',    bg: 'bg-danger-soft' },
   cancelada: { label: 'Cancelada', color: 'text-soft',   bg: 'bg-elevated/30' },
 } as const;
 

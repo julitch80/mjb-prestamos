@@ -54,13 +54,13 @@ export default function PanelAdmin() {
             onClick={() => setPestaña(p.id)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
               pestaña === p.id
-                ? 'bg-blue-600 text-strong'
+                ? 'bg-accent text-strong'
                 : 'bg-elevated text-soft hover:text-strong hover:bg-gray-700'
             }`}
           >
             {p.label}
             {p.badge !== undefined && p.badge > 0 && (
-              <span className="bg-red-500 text-strong text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+              <span className="bg-danger text-strong text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
                 {p.badge}
               </span>
             )}
@@ -135,8 +135,8 @@ export default function PanelAdmin() {
 
 const ESTADO_CONFIG = {
   pendiente: { label: 'Pendiente', color: 'text-yellow-400' },
-  aprobada:  { label: 'Aprobada',  color: 'text-green-400' },
-  rechazada: { label: 'Rechazada', color: 'text-red-400' },
+  aprobada:  { label: 'Aprobada',  color: 'text-success' },
+  rechazada: { label: 'Rechazada', color: 'text-danger' },
   cancelada: { label: 'Cancelada', color: 'text-soft' },
 } as const;
 
@@ -163,13 +163,13 @@ function ReservaCard({
         <div className="flex gap-2 mt-3">
           <button
             onClick={() => onDecision(reserva, 'rechazada')}
-            className="flex-1 py-2 rounded-lg bg-red-900/40 hover:bg-red-800/60 text-red-300 text-sm transition"
+            className="flex-1 py-2 rounded-lg bg-danger-soft hover:bg-red-800/60 text-danger-soft-fg text-sm transition"
           >
             Rechazar
           </button>
           <button
             onClick={() => onDecision(reserva, 'aprobada')}
-            className="flex-1 py-2 rounded-lg bg-green-900/40 hover:bg-green-800/60 text-green-300 text-sm transition"
+            className="flex-1 py-2 rounded-lg bg-success-soft hover:bg-green-800/60 text-success-soft-fg text-sm transition"
           >
             Aprobar
           </button>

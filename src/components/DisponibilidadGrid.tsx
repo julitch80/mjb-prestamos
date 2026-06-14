@@ -45,11 +45,11 @@ function getEstado(
 }
 
 const ESTADO_ESTILOS: Record<CeldaEstado, string> = {
-  libre:    'bg-green-900/30 border-green-700/50 cursor-pointer hover:bg-green-700/50',
-  clase:    'bg-gray-800/50 border-gray-600/30 cursor-default',
-  ocupado:  'bg-red-900/30 border-red-700/50 cursor-not-allowed',
-  propio:   'bg-blue-900/40 border-blue-500/60 cursor-pointer hover:bg-blue-800/50',
-  rectoria: 'bg-yellow-900/40 border-yellow-600/60 cursor-default',
+  libre:    'bg-success-soft border-success cursor-pointer hover:bg-success/25',
+  clase:    'bg-elevated/60 border-line cursor-default',
+  ocupado:  'bg-danger-soft border-danger cursor-not-allowed',
+  propio:   'bg-info-soft border-accent cursor-pointer hover:bg-info/15',
+  rectoria: 'bg-warning-soft border-warning cursor-default',
 };
 
 const ESTADO_ICONO: Record<CeldaEstado, string> = {
@@ -129,12 +129,12 @@ function GridRecursos({
                 className={cn(
                   'text-center py-2.5 font-semibold border-b border-line',
                   fi > 0 ? 'border-l-[3px] border-line-strong' : '',
-                  f === hoy ? 'text-blue-400' : 'text-soft',
+                  f === hoy ? 'text-info' : 'text-soft',
                   fi >= 5 ? 'text-muted' : '' // sábado/domingo más tenue
                 )}
               >
                 <div>{DIAS_NOMBRES[fi]}</div>
-                <div className={cn('text-[10px] font-normal', f === hoy ? 'text-blue-500' : 'text-muted')}>
+                <div className={cn('text-[10px] font-normal', f === hoy ? 'text-info' : 'text-muted')}>
                   {formatFecha(f)}
                 </div>
               </th>
@@ -186,7 +186,7 @@ function GridRecursos({
                     >
                       <div className={cn(
                         'h-8 rounded border flex items-center justify-center text-[10px] font-medium transition-all',
-                        bloqueado ? 'bg-gray-900/30 border-gray-800/30 cursor-not-allowed opacity-40' : ESTADO_ESTILOS[estado]
+                        bloqueado ? 'bg-elevated/40 border-line cursor-not-allowed opacity-40' : ESTADO_ESTILOS[estado]
                       )}>
                         {!bloqueado && ESTADO_ICONO[estado]}
                       </div>
@@ -270,7 +270,7 @@ export default function DisponibilidadGrid() {
             <span className="text-muted font-normal ml-1.5">{anio}</span>
           </div>
           {semanaOffset === 0 && (
-            <div className="text-blue-400 text-xs mt-0.5">Esta semana</div>
+            <div className="text-info text-xs mt-0.5">Esta semana</div>
           )}
           {semanaOffset !== 0 && (
             <div className="text-muted text-xs mt-0.5">

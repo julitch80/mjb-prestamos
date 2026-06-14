@@ -41,6 +41,10 @@
   --color-info: #1d4ed8;
   --color-info-soft: #dbeafe;
   --color-info-soft-fg: #1e3a8a;
+
+  --color-purple: #7c3aed;
+  --color-purple-soft: #ede9fe;
+  --color-purple-soft-fg: #4c1d95;
 }
 
 @layer base {
