@@ -56,10 +56,10 @@ export default function App() {
   const usuario  = USUARIOS.find(u => u.id === userId);
 
   return (
-    <div className={cn('min-h-screen flex flex-col bg-gray-950 text-white')}>
+    <div className={cn('min-h-screen flex flex-col')}>
 
       {/* ── Header ───────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 border-b border-white/8 bg-gray-950/80 backdrop-blur-xl shadow-lg shadow-black/20">
+      <header className="sticky top-0 z-40 border-b border-line bg-card/85 backdrop-blur-xl shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
 
           {/* Logo */}
@@ -68,15 +68,14 @@ export default function App() {
               src="/mjb-prestamos/mjb_escudo.png"
               alt="MJB"
               className="w-8 h-8 object-contain"
-              style={{ mixBlendMode: 'lighten' }}
             />
-            <span className="text-sm font-semibold text-white/80 hidden md:block tracking-wide">
+            <span className="text-sm font-semibold text-strong hidden md:block tracking-wide">
               Manuel J. Betancur
             </span>
           </div>
 
           {/* Divisor */}
-          <div className="w-px h-5 bg-white/10 hidden md:block flex-shrink-0" />
+          <div className="w-px h-5 bg-line hidden md:block flex-shrink-0" />
 
           {/* Nav */}
           <nav className="flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none">
@@ -87,15 +86,15 @@ export default function App() {
                 className={cn(
                   'relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-1.5',
                   vistaActual === item.id
-                    ? 'text-white'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/6'
+                    ? 'text-strong'
+                    : 'text-muted hover:text-strong hover:bg-elevated'
                 )}
               >
                 {/* Indicador activo */}
                 {vistaActual === item.id && (
                   <motion.span
                     layoutId="nav-active"
-                    className="absolute inset-0 rounded-lg bg-white/10 border border-white/15"
+                    className="absolute inset-0 rounded-lg bg-elevated border border-line-strong"
                     transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   />
                 )}
@@ -103,7 +102,7 @@ export default function App() {
 
                 {/* Badge notificaciones */}
                 {item.id === 'disponibilidad' && notifNoLeidas > 0 && (
-                  <span className="relative z-10 min-w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                  <span className="relative z-10 min-w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
                     {notifNoLeidas}
                   </span>
                 )}
@@ -116,12 +115,12 @@ export default function App() {
 
             {/* Pastilla usuario */}
             <div
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border border-white/10"
-              style={{ backgroundColor: ROL_COLOR[rol ?? 'docente'], color: usuario?.color ?? '#fff' }}
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border border-line"
+              style={{ backgroundColor: ROL_COLOR[rol ?? 'docente'], color: usuario?.color ?? 'var(--color-strong)' }}
             >
               <span
                 className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                style={{ backgroundColor: usuario?.color ?? '#fff' }}
+                style={{ backgroundColor: usuario?.color ?? 'var(--color-strong)' }}
               />
               {nombre?.split(' ')[0]}
             </div>
@@ -130,18 +129,18 @@ export default function App() {
             {rol === 'docente' && notifNoLeidas > 0 && (
               <button
                 onClick={() => setVistaActual('disponibilidad' as typeof vistaActual)}
-                className="relative p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/8 transition"
+                className="relative p-2 rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
                 title="Notificaciones"
               >
                 <Bell size={16} />
-                <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full" />
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-danger rounded-full" />
               </button>
             )}
 
             {/* Toggle tema */}
             <button
               onClick={toggleTema}
-              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/8 transition"
+              className="p-2 rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
               title="Cambiar tema"
             >
               <AnimatePresence mode="wait" initial={false}>
@@ -161,7 +160,7 @@ export default function App() {
             {/* Logout */}
             <button
               onClick={cerrarSesion}
-              className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition"
+              className="p-2 rounded-lg text-muted hover:text-danger hover:bg-danger-soft transition"
               title="Cerrar sesión"
             >
               <LogOut size={16} />

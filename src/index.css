@@ -1,10 +1,105 @@
 @import "tailwindcss";
 
+/* ────────────────────────────────────────────────────────────────────────────
+   Sistema de tokens — modo claro por defecto, modo oscuro vía .dark en <html>
+   ──────────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* Superficies */
+  --color-app: #f7f8fa;          /* fondo principal de la app */
+  --color-card: #ffffff;         /* tarjetas, paneles */
+  --color-elevated: #eef1f6;     /* inputs, pastillas tenues */
+  --color-hover: #e4e8ef;        /* hover sobre superficies */
+
+  /* Texto (mínimo WCAG AA 4.5:1 sobre la superficie correspondiente) */
+  --color-strong: #0e1525;       /* títulos y datos clave   — AAA */
+  --color-soft: #374151;         /* cuerpo, labels          — AA  */
+  --color-muted: #5b6678;        /* subtítulos, hints       — AA  */
+
+  /* Bordes */
+  --color-line: #d8dde6;         /* divisores sutiles */
+  --color-line-strong: #b3bac8;  /* recuadros activos */
+
+  /* Acento e intención semántica */
+  --color-accent: #2563eb;
+  --color-accent-fg: #ffffff;
+  --color-accent-soft: #dbeafe;
+  --color-accent-soft-fg: #1e3a8a;
+
+  --color-success: #15803d;
+  --color-success-soft: #dcfce7;
+  --color-success-soft-fg: #14532d;
+
+  --color-warning: #b45309;
+  --color-warning-soft: #fef3c7;
+  --color-warning-soft-fg: #78350f;
+
+  --color-danger: #b91c1c;
+  --color-danger-soft: #fee2e2;
+  --color-danger-soft-fg: #7f1d1d;
+
+  --color-info: #1d4ed8;
+  --color-info-soft: #dbeafe;
+  --color-info-soft-fg: #1e3a8a;
+}
+
+@layer base {
+  /* Modo oscuro: sobrescribir los tokens */
+  .dark {
+    --color-app: #0a0e1a;
+    --color-card: #141a2a;
+    --color-elevated: #1e2538;
+    --color-hover: #29314a;
+
+    --color-strong: #f5f7fb;
+    --color-soft: #cfd5e3;
+    --color-muted: #94a0b6;
+
+    --color-line: #252b3d;
+    --color-line-strong: #3a425a;
+
+    --color-accent: #3b82f6;
+    --color-accent-fg: #ffffff;
+    --color-accent-soft: #1e3a8a40;
+    --color-accent-soft-fg: #93c5fd;
+
+    --color-success: #22c55e;
+    --color-success-soft: #14532d40;
+    --color-success-soft-fg: #86efac;
+
+    --color-warning: #f59e0b;
+    --color-warning-soft: #78350f40;
+    --color-warning-soft-fg: #fcd34d;
+
+    --color-danger: #ef4444;
+    --color-danger-soft: #7f1d1d40;
+    --color-danger-soft-fg: #fca5a5;
+
+    --color-info: #60a5fa;
+    --color-info-soft: #1e3a8a40;
+    --color-info-soft-fg: #93c5fd;
+  }
+
+  html {
+    color-scheme: light dark;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--color-app);
+    color: var(--color-soft);
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: dark light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -13,13 +108,4 @@
 
 * {
   box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  min-height: 100vh;
-}
-
-#root {
-  min-height: 100vh;
 }
