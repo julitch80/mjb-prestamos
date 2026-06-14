@@ -99,13 +99,13 @@ export default function LoginScreen() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-950 px-4 relative overflow-hidden">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-app px-4 relative overflow-hidden">
 
-      {/* Fondo con gradiente animado */}
+      {/* Fondo con gradiente animado — sutil en claro, intenso en oscuro */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-blue-900/20 blur-[120px]" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-green-900/15 blur-[120px]" />
-        <div className="absolute top-[40%] left-[60%] w-[300px] h-[300px] rounded-full bg-red-900/10 blur-[80px]" />
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-blue-400/15 dark:bg-blue-900/20 blur-[120px]" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-green-400/10 dark:bg-green-900/15 blur-[120px]" />
+        <div className="absolute top-[40%] left-[60%] w-[300px] h-[300px] rounded-full bg-red-400/8 dark:bg-red-900/10 blur-[80px]" />
       </div>
 
       <AnimatePresence mode="wait">
@@ -119,10 +119,10 @@ export default function LoginScreen() {
             transition={{ duration: 0.3 }}
             className="w-full max-w-sm relative z-10"
           >
-            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl p-8">
+            <div className="rounded-2xl border border-line bg-card backdrop-blur-xl shadow-2xl p-8">
               <button
                 onClick={() => { setModoRecup(false); setMensajeRecup(''); }}
-                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition mb-6"
+                className="flex items-center gap-1.5 text-xs text-muted hover:text-soft transition mb-6"
               >
                 <ArrowLeft size={14} /> Volver al inicio de sesión
               </button>
@@ -132,8 +132,8 @@ export default function LoginScreen() {
                   <Mail size={18} className="text-blue-400" />
                 </div>
                 <div>
-                  <h2 className="text-white font-semibold">Recuperar PIN</h2>
-                  <p className="text-xs text-gray-500">Te enviaremos un PIN temporal</p>
+                  <h2 className="text-strong font-semibold">Recuperar PIN</h2>
+                  <p className="text-xs text-muted">Te enviaremos un PIN temporal</p>
                 </div>
               </div>
 
@@ -188,14 +188,14 @@ export default function LoginScreen() {
                   style={{ mixBlendMode: 'lighten' }}
                 />
               </div>
-              <h1 className="mt-4 text-xl font-bold text-white tracking-wide text-center">
+              <h1 className="mt-4 text-xl font-bold text-strong tracking-wide text-center">
                 I.E. Manuel J. Betancur
               </h1>
-              <p className="text-sm text-gray-500 mt-1">Sistema de préstamo de recursos</p>
+              <p className="text-sm text-muted mt-1">Sistema de préstamo de recursos</p>
             </motion.div>
 
             {/* Card principal */}
-            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl overflow-hidden">
+            <div className="rounded-2xl border border-line bg-card backdrop-blur-xl shadow-2xl overflow-hidden">
               <AnimatePresence mode="wait">
                 {!usuarioSeleccionado ? (
                   /* Paso 1: buscar usuario */
@@ -207,12 +207,12 @@ export default function LoginScreen() {
                     transition={{ duration: 0.25 }}
                     className="p-6"
                   >
-                    <p className="text-xs text-gray-500 uppercase tracking-widest mb-3 font-medium">
+                    <p className="text-xs text-muted uppercase tracking-widest mb-3 font-medium">
                       ¿Quién eres?
                     </p>
 
                     <div className="relative">
-                      <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                      <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
                       <Input
                         type="text"
                         placeholder="Escribe tu nombre..."
@@ -229,7 +229,7 @@ export default function LoginScreen() {
                           initial={{ opacity: 0, y: -8 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -8 }}
-                          className="mt-2 rounded-xl border border-white/10 bg-gray-900/80 backdrop-blur overflow-hidden divide-y divide-white/5"
+                          className="mt-2 rounded-xl border border-line bg-card/80 backdrop-blur overflow-hidden divide-y divide-line"
                         >
                           {usuariosFiltrados.map((u, i) => (
                             <motion.li
@@ -240,17 +240,17 @@ export default function LoginScreen() {
                             >
                               <button
                                 onClick={() => seleccionarUsuario(u.id)}
-                                className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-white/8 transition-colors group"
+                                className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-elevated transition-colors group"
                               >
                                 <span
                                   className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                                   style={{ backgroundColor: u.color }}
                                 />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm text-white font-medium truncate">{u.nombre}</p>
-                                  <p className="text-xs text-gray-500">{ROL_LABEL[u.rol]}</p>
+                                  <p className="text-sm text-strong font-medium truncate">{u.nombre}</p>
+                                  <p className="text-xs text-muted">{ROL_LABEL[u.rol]}</p>
                                 </div>
-                                <ChevronRight size={14} className="text-gray-600 group-hover:text-gray-400 transition flex-shrink-0" />
+                                <ChevronRight size={14} className="text-muted group-hover:text-soft transition flex-shrink-0" />
                               </button>
                             </motion.li>
                           ))}
@@ -260,7 +260,7 @@ export default function LoginScreen() {
                         <motion.p
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="mt-3 text-xs text-gray-600 text-center"
+                          className="mt-3 text-xs text-muted text-center"
                         >
                           No se encontró ningún usuario
                         </motion.p>
@@ -278,18 +278,18 @@ export default function LoginScreen() {
                     className="p-6"
                   >
                     {/* Usuario seleccionado */}
-                    <div className="flex items-center gap-3 mb-6 p-3 rounded-xl bg-white/5 border border-white/8">
+                    <div className="flex items-center gap-3 mb-6 p-3 rounded-xl bg-card border border-line">
                       <span
                         className="w-3 h-3 rounded-full flex-shrink-0"
                         style={{ backgroundColor: usuarioActual?.color }}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white font-medium truncate">{usuarioActual?.nombre}</p>
-                        <p className="text-xs text-gray-500">{ROL_LABEL[usuarioActual?.rol ?? '']}</p>
+                        <p className="text-sm text-strong font-medium truncate">{usuarioActual?.nombre}</p>
+                        <p className="text-xs text-muted">{ROL_LABEL[usuarioActual?.rol ?? '']}</p>
                       </div>
                       <button
                         onClick={() => { setUsuarioSel(null); setPin(''); setError(''); }}
-                        className="text-xs text-gray-500 hover:text-gray-300 transition flex-shrink-0"
+                        className="text-xs text-muted hover:text-soft transition flex-shrink-0"
                       >
                         Cambiar
                       </button>
@@ -297,7 +297,7 @@ export default function LoginScreen() {
 
                     <form onSubmit={handleLogin} className="space-y-4">
                       <div className="relative">
-                        <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                        <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
                         <Input
                           ref={pinRef}
                           type="password"
@@ -345,7 +345,7 @@ export default function LoginScreen() {
               <div className="px-6 pb-5 text-center">
                 <button
                   onClick={() => setModoRecup(true)}
-                  className="text-xs text-gray-600 hover:text-gray-400 transition"
+                  className="text-xs text-muted hover:text-soft transition"
                 >
                   ¿Olvidaste tu PIN?
                 </button>
