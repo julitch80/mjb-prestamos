@@ -84,25 +84,25 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
           <motion.div
             initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-            className="w-full max-w-2xl bg-gray-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+            className="w-full max-w-2xl bg-card border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
             onClick={e => e.stopPropagation()}
           >
-            <div className="px-6 pt-5 pb-4 border-b border-white/8 flex items-center justify-between">
+            <div className="px-6 pt-5 pb-4 border-b border-line flex items-center justify-between">
               <div>
-                <h2 className="text-white font-semibold text-base">Horario modificado del día</h2>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <h2 className="text-strong font-semibold text-base">Horario modificado del día</h2>
+                <p className="text-xs text-muted mt-0.5">
                   {formatearFechaLegible(modificacion.fecha)} · Jornada {modificacion.jornada === 'manana' ? 'mañana' : 'tarde'}
                 </p>
               </div>
               <button
                 onClick={onClose}
-                className="text-gray-500 hover:text-white transition text-lg leading-none p-1"
+                className="text-muted hover:text-strong transition text-lg leading-none p-1"
                 aria-label="Cerrar"
               >✕</button>
             </div>
 
-            <div className="px-6 py-3 border-b border-white/6 flex flex-wrap items-center gap-3 text-[11px]">
-              <span className="text-gray-500">Convenciones:</span>
+            <div className="px-6 py-3 border-b border-line flex flex-wrap items-center gap-3 text-[11px]">
+              <span className="text-muted">Convenciones:</span>
               <span className="px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-200 border border-blue-700/40">movida</span>
               <span className="px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-200 border border-amber-700/40">taller</span>
               <span className="px-2 py-0.5 rounded-full bg-red-900/30 text-red-300 border border-red-800/40 line-through">cancelada</span>
@@ -113,21 +113,21 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
                 const dirId = directores[grupo];
                 const dir = USUARIOS.find(u => u.id === dirId);
                 return (
-                  <div key={grupo} className="rounded-2xl border border-white/10 bg-white/3 overflow-hidden">
-                    <div className="px-4 py-2.5 border-b border-white/8 flex items-center justify-between">
+                  <div key={grupo} className="rounded-2xl border border-line bg-elevated/60 overflow-hidden">
+                    <div className="px-4 py-2.5 border-b border-line flex items-center justify-between">
                       <div className="flex items-baseline gap-2">
                         <span className="font-bold text-base" style={{ color: colorGrado(grupo) }}>{grupo}</span>
-                        {dir && <span className="text-xs text-gray-500">Director: {dir.nombreCorto}</span>}
+                        {dir && <span className="text-xs text-muted">Director: {dir.nombreCorto}</span>}
                       </div>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
-                          <tr className="border-b border-white/6">
+                          <tr className="border-b border-line">
                             {bloques.map(b => (
                               <th key={b.id} className="px-2 py-2 text-center font-normal min-w-[80px]">
-                                <div className="text-gray-300 font-semibold">{horaOrdinal(b.id)}</div>
-                                <div className="text-[9px] text-gray-600">{b.inicio}</div>
+                                <div className="text-soft font-semibold">{horaOrdinal(b.id)}</div>
+                                <div className="text-[9px] text-muted">{b.inicio}</div>
                               </th>
                             ))}
                           </tr>
@@ -163,7 +163,7 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
                                           <span className="text-[9px] text-amber-200/80">
                                             {supervisor ? `con ${supervisor.nombreCorto}` : `por ${doc?.nombreCorto ?? celda.docente}`}
                                           </span>
-                                          <span className="text-[9px] text-gray-500">{abrevAula(celda.aula)}</span>
+                                          <span className="text-[9px] text-muted">{abrevAula(celda.aula)}</span>
                                         </>
                                       ) : (
                                         <>
@@ -193,8 +193,8 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
                               }
                               return (
                                 <td key={b.id} className="p-1.5" style={{ height: 64 }}>
-                                  <div className="h-full rounded-lg border border-dashed border-white/8 flex items-center justify-center">
-                                    <span className="text-gray-700 text-[10px]">—</span>
+                                  <div className="h-full rounded-lg border border-dashed border-line flex items-center justify-center">
+                                    <span className="text-muted opacity-70 text-[10px]">—</span>
                                   </div>
                                 </td>
                               );
@@ -208,7 +208,7 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
               })}
             </div>
 
-            <div className="px-6 py-3 border-t border-white/8 text-[11px] text-gray-500 bg-gray-950/80">
+            <div className="px-6 py-3 border-t border-line text-[11px] text-muted bg-card/80">
               {grupos.length > 0
                 ? `Solo se muestran los grupos afectados (${grupos.length}). El resto del horario sigue como siempre.`
                 : 'No hay grupos afectados visibles.'}

@@ -166,14 +166,14 @@ function FichaArrastrable({
         <>
           <button
             onClick={(e) => { e.stopPropagation(); onMarcarTaller(); }}
-            className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-bold leading-none flex items-center justify-center shadow"
+            className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-amber-600 hover:bg-amber-500 text-strong text-[9px] font-bold leading-none flex items-center justify-center shadow"
             title="Queda con actividad/taller"
           >
             T
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onEliminar(); }}
-            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold leading-none flex items-center justify-center shadow"
+            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-600 hover:bg-red-500 text-strong text-[10px] font-bold leading-none flex items-center justify-center shadow"
             title="Eliminar"
           >
             ×
@@ -184,14 +184,14 @@ function FichaArrastrable({
         <>
           <button
             onClick={(e) => { e.stopPropagation(); onQuitarTaller(); }}
-            className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-gray-600 hover:bg-gray-500 text-white text-[9px] font-bold leading-none flex items-center justify-center shadow"
+            className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-gray-600 hover:bg-gray-500 text-strong text-[9px] font-bold leading-none flex items-center justify-center shadow"
             title="Quitar taller"
           >
             ↩
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onEliminar(); }}
-            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold leading-none flex items-center justify-center shadow"
+            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-600 hover:bg-red-500 text-strong text-[10px] font-bold leading-none flex items-center justify-center shadow"
             title="Eliminar"
           >
             ×
@@ -203,7 +203,7 @@ function FichaArrastrable({
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
               onChange={(e) => onCambiarSupervisor(e.target.value || undefined)}
-              className="absolute -bottom-1.5 left-1 right-1 text-[8px] bg-gray-900/95 text-amber-200 border border-amber-700/40 rounded px-1 py-0.5"
+              className="absolute -bottom-1.5 left-1 right-1 text-[8px] bg-card text-amber-200 border border-amber-700/40 rounded px-1 py-0.5"
               title={`${docentesLibres.length} docente(s) libre(s) a esta hora`}
             >
               <option value="">Asignar apoyo…</option>
@@ -260,7 +260,7 @@ function PendientesDroppable({
         'rounded-2xl border p-3 transition-colors',
         fichas.length > 0
           ? 'border-orange-500/50 bg-orange-950/30'
-          : 'border-white/10 bg-white/3',
+          : 'border-line bg-elevated/50',
         isOver && 'ring-2 ring-blue-400 bg-blue-950/30'
       )}
     >
@@ -275,7 +275,7 @@ function PendientesDroppable({
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {fichas.length === 0 ? (
-          <div className="text-[11px] text-gray-600 italic py-2 px-1">
+          <div className="text-[11px] text-muted italic py-2 px-1">
             Las pastillas que entren en conflicto al moverlas aparecerán aquí.
           </div>
         ) : (
@@ -595,7 +595,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
         <div className="rounded-2xl border border-blue-700/40 bg-blue-950/40 p-4 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-white text-sm font-semibold flex items-center gap-2">
+              <div className="text-strong text-sm font-semibold flex items-center gap-2">
                 <span className="text-blue-400">✎</span> Editando horario
               </div>
               <div className="text-blue-200 text-xs mt-1">
@@ -609,7 +609,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={() => setConfirmDescartar(true)}
-                className="px-3 py-2 rounded-xl bg-white/6 hover:bg-white/12 text-gray-300 text-xs transition"
+                className="px-3 py-2 rounded-xl bg-elevated hover:bg-hover text-soft text-xs transition"
               >
                 Descartar
               </button>
@@ -617,7 +617,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                 onClick={guardar}
                 disabled={pendientes.length > 0}
                 className={cn(
-                  'px-4 py-2 rounded-xl text-white text-xs font-semibold transition shadow-lg',
+                  'px-4 py-2 rounded-xl text-strong text-xs font-semibold transition shadow-lg',
                   pendientes.length > 0
                     ? 'bg-gray-700 cursor-not-allowed shadow-none'
                     : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/30'
@@ -647,12 +647,12 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
 
         {/* Selector modo edición */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex gap-1 p-1 rounded-xl bg-white/4 border border-white/8">
+          <div className="flex gap-1 p-1 rounded-xl bg-elevated border border-line">
             <button
               onClick={() => setModo('grupo')}
               className={cn(
                 'px-4 py-2 rounded-xl text-sm font-medium transition',
-                modo === 'grupo' ? 'bg-white/12 text-white border border-white/15' : 'text-gray-500 hover:text-gray-300'
+                modo === 'grupo' ? 'bg-hover text-strong border border-line-strong' : 'text-muted hover:text-soft'
               )}
             >
               Por grupo
@@ -661,7 +661,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               onClick={() => setModo('docente')}
               className={cn(
                 'px-4 py-2 rounded-xl text-sm font-medium transition',
-                modo === 'docente' ? 'bg-white/12 text-white border border-white/15' : 'text-gray-500 hover:text-gray-300'
+                modo === 'docente' ? 'bg-hover text-strong border border-line-strong' : 'text-muted hover:text-soft'
               )}
             >
               Por docente
@@ -675,7 +675,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition',
               propuestas.length > 0
                 ? 'bg-purple-950/50 text-purple-200 border-purple-600/50 hover:bg-purple-900/50'
-                : 'bg-white/4 text-gray-500 border-white/10 cursor-not-allowed'
+                : 'bg-elevated text-muted border-line cursor-not-allowed'
             )}
             disabled={propuestas.length === 0}
             title={propuestas.length === 0
@@ -685,7 +685,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
             <span className="text-sm leading-none">✨</span>
             Alternativas
             {propuestas.length > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-500/40 text-[10px] font-bold text-white">
+              <span className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-500/40 text-[10px] font-bold text-strong">
                 {propuestas.length}
               </span>
             )}
@@ -697,7 +697,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
             className={cn(
               'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition',
               verTodoElHorario
-                ? 'bg-white/10 text-gray-200 border-white/15'
+                ? 'bg-white/10 text-gray-200 border-line-strong'
                 : 'bg-blue-950/40 text-blue-200 border-blue-700/40'
             )}
             title={verTodoElHorario
@@ -719,30 +719,30 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
         <PendientesDroppable fichas={pendientes} modo={modo} onEliminar={eliminarFicha} />
 
         {/* Tabla editable */}
-        <div className="overflow-x-auto rounded-2xl border border-white/8 bg-white/2">
+        <div className="overflow-x-auto rounded-2xl border border-line bg-white/2">
           <table className="text-xs border-collapse w-full" style={{ minWidth: 600 }}>
             <thead>
-              <tr className="border-b border-white/8">
-                <th className="sticky left-0 bg-gray-950/98 z-10 text-left px-3 py-2.5 text-gray-500 font-medium w-28">
+              <tr className="border-b border-line">
+                <th className="sticky left-0 bg-card z-10 text-left px-3 py-2.5 text-muted font-medium w-28">
                   {modo === 'docente' ? 'Docente' : 'Grupo'}
                 </th>
                 {bloques.map(b => (
                   <th key={b.id} className="text-center px-1 py-2.5 min-w-[80px]">
-                    <div className="text-gray-300 font-semibold text-xs">{horaOrdinal(b.id)}</div>
-                    <div className="text-gray-600 text-[9px]">{b.inicio}</div>
+                    <div className="text-soft font-semibold text-xs">{horaOrdinal(b.id)}</div>
+                    <div className="text-muted text-[9px]">{b.inicio}</div>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filas.map((f, ri) => (
-                <tr key={f.id} className={cn('border-b border-white/5', ri % 2 !== 0 ? 'bg-white/[0.015]' : '')}>
+                <tr key={f.id} className={cn('border-b border-white/5', ri % 2 !== 0 ? 'bg-elevated/30' : '')}>
                   <td
-                    className="sticky left-0 bg-gray-950/95 z-10 px-3"
+                    className="sticky left-0 bg-card z-10 px-3"
                     style={{ height: 56 }}
                   >
                     <div className="font-bold text-[11px]" style={{ color: f.color }}>{f.nombre}</div>
-                    {f.sub && <div className="text-[9px] text-gray-600 mt-0.5">{f.sub}</div>}
+                    {f.sub && <div className="text-[9px] text-muted mt-0.5">{f.sub}</div>}
                   </td>
                   {bloques.map(b => {
                     const ficha = fichasColocadasPorCelda[`${f.id}__${b.id}`];
@@ -768,8 +768,8 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                             onCambiarSupervisor={(supId) => cambiarSupervisor(ficha.id, supId)}
                           />
                         ) : (
-                          <div className="h-full rounded-lg border border-dashed border-white/8 flex items-center justify-center">
-                            <span className="text-gray-800 text-[10px]">—</span>
+                          <div className="h-full rounded-lg border border-dashed border-line flex items-center justify-center">
+                            <span className="text-muted opacity-60 text-[10px]">—</span>
                           </div>
                         )}
                       </CeldaDroppable>
@@ -778,7 +778,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                 </tr>
               ))}
               {filas.length === 0 && (
-                <tr><td colSpan={bloques.length + 1} className="text-center py-8 text-gray-600 text-sm">
+                <tr><td colSpan={bloques.length + 1} className="text-center py-8 text-muted text-sm">
                   {!verTodoElHorario && (gruposAfectados.size > 0 || docentesAfectados.size > 0)
                     ? `Sin ${modo === 'docente' ? 'docentes' : 'grupos'} afectados visibles. Activa “Ver todo el horario” para mostrar el resto.`
                     : `No hay ${modo === 'docente' ? 'docentes' : 'grupos'} con clases este ${dia}.`}
@@ -790,7 +790,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
 
         {/* Reset */}
         {fichas.some(f => f.ubicacion.tipo === 'pendiente' || (f.ubicacion.tipo === 'colocada' && f.ubicacion.bloque !== f.origen.bloque) || f.ubicacion.tipo === 'eliminada') && (
-          <div className="text-[11px] text-gray-500">
+          <div className="text-[11px] text-muted">
             <button
               onClick={() => setFichas(crearFichasIniciales(borrador, horarioBase as any))}
               className="text-blue-400 hover:text-blue-300 underline"
@@ -815,7 +815,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               <div className="flex-1">{errorMovimiento}</div>
               <button
                 onClick={() => setErrorMovimiento(null)}
-                className="text-red-300 hover:text-white text-sm leading-none p-0.5"
+                className="text-red-300 hover:text-strong text-sm leading-none p-0.5"
                 aria-label="Cerrar"
               >✕</button>
             </div>
@@ -833,13 +833,13 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
             <motion.div
               initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-              className="w-full max-w-2xl bg-gray-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+              className="w-full max-w-2xl bg-card border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
             >
-              <div className="px-6 pt-5 pb-4 border-b border-white/8">
-                <h2 className="text-white font-semibold text-base flex items-center gap-2">
+              <div className="px-6 pt-5 pb-4 border-b border-line">
+                <h2 className="text-strong font-semibold text-base flex items-center gap-2">
                   <span className="text-green-400">✓</span> Cambios guardados — Listo para difundir
                 </h2>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-xs text-muted mt-0.5">
                   Copia el resumen y envíalo por correo, WhatsApp o pégalo en la página web.
                 </p>
               </div>
@@ -848,15 +848,15 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                 {/* Vista previa del HTML */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-semibold text-gray-300">Vista previa</h3>
+                    <h3 className="text-sm font-semibold text-soft">Vista previa</h3>
                     <div className="flex gap-2">
                       <button
                         onClick={() => copiarPortapapeles(resumenDifusion.html, 'html')}
                         className={cn(
                           'px-3 py-1.5 rounded-lg text-xs font-medium transition',
                           copiado === 'html'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-blue-600 hover:bg-blue-500 text-white'
+                            ? 'bg-green-600 text-strong'
+                            : 'bg-blue-600 hover:bg-blue-500 text-strong'
                         )}
                       >
                         {copiado === 'html' ? '✓ Copiado' : 'Copiar HTML (correo / web)'}
@@ -866,8 +866,8 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                         className={cn(
                           'px-3 py-1.5 rounded-lg text-xs font-medium transition',
                           copiado === 'texto'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-green-700 hover:bg-green-600 text-white'
+                            ? 'bg-green-600 text-strong'
+                            : 'bg-green-700 hover:bg-green-600 text-strong'
                         )}
                       >
                         {copiado === 'texto' ? '✓ Copiado' : 'Copiar texto (WhatsApp)'}
@@ -884,7 +884,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                 {resumenDifusion.docentesAfectados.length > 0 && (
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-semibold text-gray-300">
+                      <h3 className="text-sm font-semibold text-soft">
                         Docentes afectados ({resumenDifusion.docentesAfectados.length})
                       </h3>
                       <button
@@ -899,14 +899,14 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                         className={cn(
                           'px-3 py-1.5 rounded-lg text-xs font-medium transition',
                           copiado === 'correos'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-purple-600 hover:bg-purple-500 text-white'
+                            ? 'bg-green-600 text-strong'
+                            : 'bg-purple-600 hover:bg-purple-500 text-strong'
                         )}
                       >
                         {copiado === 'correos' ? '✓ Copiado' : 'Copiar correos (+ Blandón, Uriel)'}
                       </button>
                     </div>
-                    <div className="bg-white/4 border border-white/8 rounded-xl divide-y divide-white/8">
+                    <div className="bg-elevated border border-line rounded-xl divide-y divide-white/8">
                       {resumenDifusion.docentesAfectados.map(d => (
                         <div key={d.id} className="flex items-center gap-3 px-3 py-2 text-xs">
                           <span className="font-semibold text-gray-200 flex-1">{d.nombre}</span>
@@ -919,22 +919,22 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                             {d.motivo}
                           </span>
                           {d.correo && (
-                            <span className="text-gray-500 truncate max-w-[200px]">{d.correo}</span>
+                            <span className="text-muted truncate max-w-[200px]">{d.correo}</span>
                           )}
                         </div>
                       ))}
                     </div>
-                    <p className="text-[10px] text-gray-600 mt-1.5 italic">
+                    <p className="text-[10px] text-muted mt-1.5 italic">
                       El correo de difusión incluye automáticamente a Juan Carlos Blandón y Uriel López.
                     </p>
                   </div>
                 )}
               </div>
 
-              <div className="px-6 py-4 border-t border-white/8 bg-gray-950/80 flex justify-end gap-3">
+              <div className="px-6 py-4 border-t border-line bg-card/80 flex justify-end gap-3">
                 <button
                   onClick={() => { setResumenDifusion(null); onSalir(); }}
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition"
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-strong text-sm font-semibold transition"
                 >
                   Cerrar y volver al horario
                 </button>
@@ -955,28 +955,28 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
             <motion.div
               initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-              className="w-full max-w-xl bg-gray-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+              className="w-full max-w-xl bg-card border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
               onClick={e => e.stopPropagation()}
             >
-              <div className="px-6 pt-5 pb-4 border-b border-white/8 flex items-center justify-between">
+              <div className="px-6 pt-5 pb-4 border-b border-line flex items-center justify-between">
                 <div>
-                  <h2 className="text-white font-semibold text-base flex items-center gap-2">
+                  <h2 className="text-strong font-semibold text-base flex items-center gap-2">
                     <span className="text-purple-400">✨</span> Alternativas del sistema
                   </h2>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-muted mt-0.5">
                     Propuestas automáticas para resolver las ausencias declaradas.
                   </p>
                 </div>
                 <button
                   onClick={() => setAsistenteAbierto(false)}
-                  className="text-gray-500 hover:text-white transition text-lg leading-none p-1"
+                  className="text-muted hover:text-strong transition text-lg leading-none p-1"
                   aria-label="Cerrar"
                 >✕</button>
               </div>
 
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
                 {propuestas.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500 text-sm">
+                  <div className="text-center py-8 text-muted text-sm">
                     Sin propuestas automáticas para este caso. Sigue editando manualmente.
                   </div>
                 ) : ([1, 2, 3] as NivelPropuesta[]).map(nivel => {
@@ -997,11 +997,11 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                   const colorNivel = nivel === 1 ? 'text-green-300' : nivel === 2 ? 'text-purple-300' : 'text-amber-300';
                   return (
                     <div key={nivel} className="space-y-3">
-                      <div className="flex items-baseline justify-between gap-3 pb-1 border-b border-white/8">
+                      <div className="flex items-baseline justify-between gap-3 pb-1 border-b border-line">
                         <h3 className={cn('text-sm font-semibold', colorNivel)}>{tituloNivel}</h3>
-                        <span className="text-[11px] text-gray-500">{grupo.length} opci{grupo.length === 1 ? 'ón' : 'ones'}</span>
+                        <span className="text-[11px] text-muted">{grupo.length} opci{grupo.length === 1 ? 'ón' : 'ones'}</span>
                       </div>
-                      <p className="text-[11px] text-gray-500 -mt-1">{subtitulo}</p>
+                      <p className="text-[11px] text-muted -mt-1">{subtitulo}</p>
                       <div className="space-y-2">
                         {grupo.map(p => {
                           const colorBg = p.tipo === 'compactar' ? 'bg-green-950/40 border-green-700/40'
@@ -1021,11 +1021,11 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className={cn('font-semibold text-sm', colorTexto)}>{p.titulo}</div>
-                                  <div className="text-xs text-gray-300 mt-1">{p.descripcion}</div>
+                                  <div className="text-xs text-soft mt-1">{p.descripcion}</div>
                                 </div>
                                 <button
                                   onClick={() => aplicarPropuesta(p)}
-                                  className={cn('px-3 py-2 rounded-xl text-white text-xs font-semibold transition flex-shrink-0', colorBtn)}
+                                  className={cn('px-3 py-2 rounded-xl text-strong text-xs font-semibold transition flex-shrink-0', colorBtn)}
                                 >
                                   Aplicar
                                 </button>
@@ -1039,7 +1039,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                 })}
               </div>
 
-              <div className="px-6 py-3 border-t border-white/8 bg-gray-950/80 text-[11px] text-gray-500">
+              <div className="px-6 py-3 border-t border-line bg-card/80 text-[11px] text-muted">
                 Las propuestas se ordenan por nivel de prioridad. Puedes aplicar más de una y combinar con ediciones manuales.
               </div>
             </motion.div>
@@ -1057,23 +1057,23 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
           >
             <motion.div
               initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-              className="w-full max-w-sm bg-gray-950 border border-white/10 rounded-2xl p-5 space-y-4"
+              className="w-full max-w-sm bg-card border border-line rounded-2xl p-5 space-y-4"
               onClick={e => e.stopPropagation()}
             >
-              <h3 className="text-white font-semibold">¿Descartar el borrador?</h3>
-              <p className="text-gray-400 text-sm">
+              <h3 className="text-strong font-semibold">¿Descartar el borrador?</h3>
+              <p className="text-soft text-sm">
                 Se perderán todos los cambios y se borrará el borrador. Esta acción no se puede deshacer.
               </p>
               <div className="flex gap-2 justify-end">
                 <button
                   onClick={() => setConfirmDescartar(false)}
-                  className="px-3 py-2 rounded-xl bg-white/6 hover:bg-white/12 text-gray-300 text-sm transition"
+                  className="px-3 py-2 rounded-xl bg-elevated hover:bg-hover text-soft text-sm transition"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={() => { setConfirmDescartar(false); descartar(); }}
-                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition"
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-strong text-sm font-semibold transition"
                 >
                   Descartar
                 </button>

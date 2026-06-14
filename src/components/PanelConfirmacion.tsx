@@ -93,44 +93,44 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-gray-900/95 rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+      <div className="w-full max-w-md bg-card rounded-2xl border border-line shadow-2xl overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/8">
-          <h3 className="text-white font-semibold">Solicitar reserva</h3>
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-line">
+          <h3 className="text-strong font-semibold">Solicitar reserva</h3>
           <button
             onClick={onCerrar}
-            className="text-gray-500 hover:text-white transition text-lg leading-none"
+            className="text-muted hover:text-strong transition text-lg leading-none"
           >
             ✕
           </button>
         </div>
 
         {/* Resumen */}
-        <div className="px-6 py-4 bg-white/3 border-b border-white/6 text-sm space-y-2">
+        <div className="px-6 py-4 bg-elevated/60 border-b border-line text-sm space-y-2">
           <div className="flex justify-between">
-            <span className="text-gray-500">Espacio</span>
-            <span className="text-white font-semibold">{recurso?.nombre}</span>
+            <span className="text-muted">Espacio</span>
+            <span className="text-strong font-semibold">{recurso?.nombre}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Fecha</span>
-            <span className="text-white">{fechaLegible}</span>
+            <span className="text-muted">Fecha</span>
+            <span className="text-strong">{fechaLegible}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">{horaOrdinal(bloqueId)} hora</span>
-            <span className="text-white">{bloque?.inicio} – {bloque?.fin}</span>
+            <span className="text-muted">{horaOrdinal(bloqueId)} hora</span>
+            <span className="text-strong">{bloque?.inicio} – {bloque?.fin}</span>
           </div>
         </div>
 
         {/* Formulario */}
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1.5">Propósito *</label>
+            <label className="block text-sm text-soft mb-1.5">Propósito *</label>
             <select
               value={proposito}
               onChange={e => setProposito(e.target.value)}
               required
-              className="w-full bg-gray-800 text-white rounded-xl px-3 py-2.5 text-sm border border-white/10 focus:outline-none focus:border-blue-500 transition"
+              className="w-full bg-elevated text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-blue-500 transition"
             >
               <option value="">Seleccionar...</option>
               {PROPOSITOS.map(p => (
@@ -140,7 +140,7 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1.5">Equipos adicionales</label>
+            <label className="block text-sm text-soft mb-1.5">Equipos adicionales</label>
             <div className="grid grid-cols-2 gap-1.5">
               {EQUIPOS_LISTA.map(eq => (
                 <button
@@ -151,12 +151,12 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
                     'flex items-center gap-2 px-3 py-2 rounded-xl border text-xs text-left transition-all',
                     equiposSel.includes(eq)
                       ? 'bg-blue-600/20 border-blue-500/60 text-blue-300'
-                      : 'bg-white/4 border-white/10 text-gray-400 hover:border-white/20 hover:text-gray-300'
+                      : 'bg-elevated border-line text-soft hover:border-line-strong hover:text-soft'
                   )}
                 >
                   <span className={cn(
                     'w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center text-[9px]',
-                    equiposSel.includes(eq) ? 'bg-blue-500 border-blue-500 text-white' : 'border-gray-600'
+                    equiposSel.includes(eq) ? 'bg-blue-500 border-blue-500 text-strong' : 'border-gray-600'
                   )}>
                     {equiposSel.includes(eq) && '✓'}
                   </span>
@@ -170,12 +170,12 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
                   'flex items-center gap-2 px-3 py-2 rounded-xl border text-xs text-left transition-all',
                   equiposSel.includes('__otro__')
                     ? 'bg-blue-600/20 border-blue-500/60 text-blue-300'
-                    : 'bg-white/4 border-white/10 text-gray-400 hover:border-white/20 hover:text-gray-300'
+                    : 'bg-elevated border-line text-soft hover:border-line-strong hover:text-soft'
                 )}
               >
                 <span className={cn(
                   'w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center text-[9px]',
-                  equiposSel.includes('__otro__') ? 'bg-blue-500 border-blue-500 text-white' : 'border-gray-600'
+                  equiposSel.includes('__otro__') ? 'bg-blue-500 border-blue-500 text-strong' : 'border-gray-600'
                 )}>
                   {equiposSel.includes('__otro__') && '✓'}
                 </span>
@@ -188,7 +188,7 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
                 placeholder="Especifica el equipo..."
                 value={otroEquipo}
                 onChange={e => setOtroEquipo(e.target.value)}
-                className="mt-2 w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-white/10 focus:outline-none focus:border-blue-500 transition"
+                className="mt-2 w-full bg-elevated text-strong rounded-xl px-3 py-2 text-sm border border-line focus:outline-none focus:border-blue-500 transition"
               />
             )}
           </div>
@@ -203,14 +203,14 @@ export default function PanelConfirmacion({ recursoId, fecha, bloqueId, onCerrar
             <button
               type="button"
               onClick={onCerrar}
-              className="flex-1 py-3 rounded-xl bg-white/6 text-gray-300 hover:bg-white/10 text-sm transition font-medium"
+              className="flex-1 py-3 rounded-xl bg-elevated text-soft hover:bg-hover text-sm transition font-medium"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={cargando || !proposito}
-              className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-semibold text-sm transition"
+              className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-strong font-semibold text-sm transition"
             >
               {cargando ? 'Enviando...' : 'Solicitar'}
             </button>

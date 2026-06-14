@@ -64,22 +64,22 @@ export default function PopupRectora({ recursoIdInicial, fechaInicial, bloqueIdI
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-sm bg-gray-900 rounded-2xl p-6 border border-yellow-900/50 shadow-2xl">
+      <div className="w-full max-w-sm bg-card rounded-2xl p-6 border border-yellow-900/50 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-white font-semibold flex items-center gap-2">
+          <h3 className="text-strong font-semibold flex items-center gap-2">
             <span className="text-yellow-400">👑</span> Asignación directa
           </h3>
-          <button onClick={onCerrar} className="text-gray-500 hover:text-white text-xl transition">✕</button>
+          <button onClick={onCerrar} className="text-muted hover:text-strong text-xl transition">✕</button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Espacio</label>
+            <label className="block text-xs text-soft mb-1">Espacio</label>
             <select
               value={recursoId}
               onChange={e => setRecursoId(e.target.value)}
               required
-              className="w-full bg-gray-800 text-white rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
+              className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
             >
               <option value="">Seleccionar...</option>
               {recursosDisponibles.map(r => (
@@ -90,22 +90,22 @@ export default function PopupRectora({ recursoIdInicial, fechaInicial, bloqueIdI
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Fecha</label>
+              <label className="block text-xs text-soft mb-1">Fecha</label>
               <input
                 type="date"
                 value={fecha}
                 onChange={e => setFecha(e.target.value)}
                 required
-                className="w-full bg-gray-800 text-white rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
+                className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Bloque</label>
+              <label className="block text-xs text-soft mb-1">Bloque</label>
               <select
                 value={bloqueId}
                 onChange={e => setBloqueId(Number(e.target.value))}
                 required
-                className="w-full bg-gray-800 text-white rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
+                className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
               >
                 {[1,2,3,4,5,6].map(b => (
                   <option key={b} value={b}>Bloque {b}</option>
@@ -115,12 +115,12 @@ export default function PopupRectora({ recursoIdInicial, fechaInicial, bloqueIdI
           </div>
 
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Motivo</label>
+            <label className="block text-xs text-soft mb-1">Motivo</label>
             <select
               value={motivo}
               onChange={e => setMotivo(e.target.value)}
               required
-              className="w-full bg-gray-800 text-white rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
+              className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
             >
               <option value="">Seleccionar...</option>
               {MOTIVOS_RECTORA.map(m => (
@@ -136,7 +136,7 @@ export default function PopupRectora({ recursoIdInicial, fechaInicial, bloqueIdI
               value={motivoPersonalizado}
               onChange={e => setMotivoPersonalizado(e.target.value)}
               required
-              className="w-full bg-gray-800 text-white rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
+              className="w-full bg-elevated text-strong rounded-lg px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-yellow-500"
             />
           )}
 
@@ -146,14 +146,14 @@ export default function PopupRectora({ recursoIdInicial, fechaInicial, bloqueIdI
             <button
               type="button"
               onClick={onCerrar}
-              className="flex-1 py-2.5 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 text-sm transition"
+              className="flex-1 py-2.5 rounded-lg bg-elevated text-soft hover:bg-gray-700 text-sm transition"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={cargando}
-              className="flex-1 py-2.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 text-white font-medium text-sm transition"
+              className="flex-1 py-2.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 text-strong font-medium text-sm transition"
             >
               {cargando ? 'Asignando...' : 'Asignar'}
             </button>

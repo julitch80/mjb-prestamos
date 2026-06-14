@@ -54,13 +54,13 @@ export default function PanelAdmin() {
             onClick={() => setPestaña(p.id)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
               pestaña === p.id
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                ? 'bg-blue-600 text-strong'
+                : 'bg-elevated text-soft hover:text-strong hover:bg-gray-700'
             }`}
           >
             {p.label}
             {p.badge !== undefined && p.badge > 0 && (
-              <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+              <span className="bg-red-500 text-strong text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
                 {p.badge}
               </span>
             )}
@@ -68,13 +68,13 @@ export default function PanelAdmin() {
         ))}
       </div>
 
-      {cargando && <div className="text-center py-8 text-gray-400">Cargando...</div>}
+      {cargando && <div className="text-center py-8 text-soft">Cargando...</div>}
 
       {/* Pendientes */}
       {pestaña === 'pendientes' && !cargando && (
         <div className="space-y-3">
           {pendientes.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No hay solicitudes pendientes.</div>
+            <div className="text-center py-12 text-muted">No hay solicitudes pendientes.</div>
           ) : (
             pendientes.map(r => (
               <ReservaCard key={r.id} reserva={r} onDecision={handleDecision} />
@@ -87,7 +87,7 @@ export default function PanelAdmin() {
       {pestaña === 'hoy' && !cargando && (
         <div className="space-y-3">
           {deHoy.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">Sin reservas aprobadas para hoy.</div>
+            <div className="text-center py-12 text-muted">Sin reservas aprobadas para hoy.</div>
           ) : (
             deHoy.map(r => (
               <ReservaCard key={r.id} reserva={r} />
@@ -100,7 +100,7 @@ export default function PanelAdmin() {
       {pestaña === 'historial' && !cargando && (
         <div className="space-y-3">
           {reservasJornada.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">Sin historial.</div>
+            <div className="text-center py-12 text-muted">Sin historial.</div>
           ) : (
             reservasJornada.map(r => (
               <ReservaCard key={r.id} reserva={r} />
@@ -114,13 +114,13 @@ export default function PanelAdmin() {
 
       {/* Configuración */}
       {pestaña === 'config' && (
-        <div className="bg-gray-900 rounded-xl p-6 space-y-4 max-w-sm">
-          <h3 className="text-white font-semibold">Configuración</h3>
+        <div className="bg-card rounded-xl p-6 space-y-4 max-w-sm">
+          <h3 className="text-strong font-semibold">Configuración</h3>
           <div className="flex items-center justify-between">
-            <span className="text-gray-300 text-sm">Tema de la interfaz</span>
+            <span className="text-soft text-sm">Tema de la interfaz</span>
             <button
               onClick={toggleTema}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 text-sm transition"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-elevated text-soft hover:bg-gray-700 text-sm transition"
             >
               {temaOscuro ? '🌙 Oscuro' : '☀️ Claro'}
             </button>
@@ -137,7 +137,7 @@ const ESTADO_CONFIG = {
   pendiente: { label: 'Pendiente', color: 'text-yellow-400' },
   aprobada:  { label: 'Aprobada',  color: 'text-green-400' },
   rechazada: { label: 'Rechazada', color: 'text-red-400' },
-  cancelada: { label: 'Cancelada', color: 'text-gray-400' },
+  cancelada: { label: 'Cancelada', color: 'text-soft' },
 } as const;
 
 function ReservaCard({
@@ -149,13 +149,13 @@ function ReservaCard({
 }) {
   const cfg = ESTADO_CONFIG[reserva.estado];
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+    <div className="bg-card border border-gray-800 rounded-xl p-4">
       <div className="flex items-start justify-between gap-3 mb-2">
         <div>
-          <p className="text-white font-medium">{reserva.recurso}</p>
-          <p className="text-sm text-gray-400">{reserva.fecha} · Bloque {reserva.bloque}</p>
-          <p className="text-sm text-gray-400">{reserva.proposito}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Solicitante: {reserva.solicitante}</p>
+          <p className="text-strong font-medium">{reserva.recurso}</p>
+          <p className="text-sm text-soft">{reserva.fecha} · Bloque {reserva.bloque}</p>
+          <p className="text-sm text-soft">{reserva.proposito}</p>
+          <p className="text-xs text-muted mt-0.5">Solicitante: {reserva.solicitante}</p>
         </div>
         <span className={`text-xs font-medium flex-shrink-0 ${cfg.color}`}>{cfg.label}</span>
       </div>

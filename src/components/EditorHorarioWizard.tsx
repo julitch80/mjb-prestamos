@@ -195,32 +195,32 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 30, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-            className="w-full max-w-2xl bg-gray-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+            className="w-full max-w-2xl bg-card border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="px-6 pt-5 pb-4 border-b border-white/8 flex items-center justify-between">
+            <div className="px-6 pt-5 pb-4 border-b border-line flex items-center justify-between">
               <div>
-                <h2 className="text-white font-semibold text-base">Editar horario del día</h2>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <h2 className="text-strong font-semibold text-base">Editar horario del día</h2>
+                <p className="text-xs text-muted mt-0.5">
                   Jornada {jornada === 'manana' ? 'mañana' : 'tarde'} · Paso {paso} de 4
                 </p>
               </div>
               <button
                 onClick={resetAndClose}
-                className="text-gray-500 hover:text-white transition text-lg leading-none p-1"
+                className="text-muted hover:text-strong transition text-lg leading-none p-1"
                 aria-label="Cerrar"
               >✕</button>
             </div>
 
             {/* Stepper visual */}
-            <div className="px-6 py-3 border-b border-white/6 flex gap-1.5">
+            <div className="px-6 py-3 border-b border-line flex gap-1.5">
               {[1, 2, 3, 4].map(p => (
                 <div
                   key={p}
                   className={cn(
                     'h-1 flex-1 rounded-full transition-all',
-                    p < paso ? 'bg-blue-500' : p === paso ? 'bg-blue-400' : 'bg-white/8'
+                    p < paso ? 'bg-blue-500' : p === paso ? 'bg-blue-400' : 'bg-hover'
                   )}
                 />
               ))}
@@ -232,19 +232,19 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                 {paso === 1 && (
                   <motion.div key="p1" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="space-y-4">
                     <div>
-                      <h3 className="text-white text-sm font-semibold mb-1">¿Para qué fecha es la modificación?</h3>
-                      <p className="text-xs text-gray-500">El horario base vuelve automáticamente al día siguiente.</p>
+                      <h3 className="text-strong text-sm font-semibold mb-1">¿Para qué fecha es la modificación?</h3>
+                      <p className="text-xs text-muted">El horario base vuelve automáticamente al día siguiente.</p>
                     </div>
                     <input
                       type="date"
                       value={fecha}
                       min={fechaHoyLocal()}
                       onChange={e => setFecha(e.target.value)}
-                      className="w-full bg-gray-900 text-white rounded-xl px-3 py-2.5 text-sm border border-white/10 focus:outline-none focus:border-blue-500 transition"
+                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-blue-500 transition"
                     />
-                    <div className="bg-white/4 border border-white/8 rounded-xl px-4 py-3">
-                      <div className="text-xs text-gray-500">Fecha seleccionada</div>
-                      <div className="text-white text-sm font-medium mt-0.5">{formatearFechaLegible(fecha)}</div>
+                    <div className="bg-elevated border border-line rounded-xl px-4 py-3">
+                      <div className="text-xs text-muted">Fecha seleccionada</div>
+                      <div className="text-strong text-sm font-medium mt-0.5">{formatearFechaLegible(fecha)}</div>
                     </div>
                     {!esDiaLectivo && (
                       <div className="bg-yellow-900/20 border border-yellow-700/40 rounded-xl px-4 py-3 text-xs text-yellow-300">
@@ -257,15 +257,15 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                 {paso === 2 && (
                   <motion.div key="p2" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="space-y-4">
                     <div>
-                      <h3 className="text-white text-sm font-semibold mb-1">¿Qué docentes no estarán?</h3>
-                      <p className="text-xs text-gray-500">Selecciona uno o varios. Puedes buscar por nombre.</p>
+                      <h3 className="text-strong text-sm font-semibold mb-1">¿Qué docentes no estarán?</h3>
+                      <p className="text-xs text-muted">Selecciona uno o varios. Puedes buscar por nombre.</p>
                     </div>
                     <input
                       type="text"
                       placeholder="Buscar docente..."
                       value={buscar}
                       onChange={e => setBuscar(e.target.value)}
-                      className="w-full bg-gray-900 text-white rounded-xl px-3 py-2.5 text-sm border border-white/10 focus:outline-none focus:border-blue-500 transition"
+                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-blue-500 transition"
                     />
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
                       {docentesFiltrados.map(d => {
@@ -276,7 +276,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                             onClick={() => toggleDocente(d.id)}
                             className={cn(
                               'flex items-center gap-2 p-2.5 rounded-xl border text-left transition-all',
-                              activo ? 'border-current' : 'border-white/8 hover:border-white/20'
+                              activo ? 'border-current' : 'border-line hover:border-line-strong'
                             )}
                             style={{
                               color: activo ? d.color : '#cbd5e1',
@@ -295,8 +295,8 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                       })}
                     </div>
                     {seleccionados.length > 0 && (
-                      <div className="text-xs text-gray-400">
-                        Seleccionados: <span className="text-white font-semibold">{seleccionados.length}</span>
+                      <div className="text-xs text-soft">
+                        Seleccionados: <span className="text-strong font-semibold">{seleccionados.length}</span>
                       </div>
                     )}
                   </motion.div>
@@ -305,8 +305,8 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                 {paso === 3 && (
                   <motion.div key="p3" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="space-y-4">
                     <div>
-                      <h3 className="text-white text-sm font-semibold mb-1">¿Qué bloques se ven afectados?</h3>
-                      <p className="text-xs text-gray-500">
+                      <h3 className="text-strong text-sm font-semibold mb-1">¿Qué bloques se ven afectados?</h3>
+                      <p className="text-xs text-muted">
                         Por defecto se marcan todos los bloques que el docente tenía el {NOMBRE_DIA[dia]}.
                         Quita el chulito si solo falta una parte del día.
                       </p>
@@ -320,7 +320,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                           .sort((a, b) => a.bloque - b.bloque);
                         const seleccionDoc = bloquesPorDocente[id] ?? [];
                         return (
-                          <div key={id} className="bg-white/4 border border-white/8 rounded-2xl p-4">
+                          <div key={id} className="bg-elevated border border-line rounded-2xl p-4">
                             <div className="flex items-center justify-between mb-3">
                               <div className="font-semibold text-sm" style={{ color: doc.color }}>{doc.nombre}</div>
                               <button
@@ -337,7 +337,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                               </button>
                             </div>
                             {bloquesDelDia.length === 0 ? (
-                              <div className="text-xs text-gray-500 italic py-2">
+                              <div className="text-xs text-muted italic py-2">
                                 No tiene clases registradas el {NOMBRE_DIA[dia]} en esta jornada.
                               </div>
                             ) : (
@@ -354,12 +354,12 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                                         'flex items-start gap-2 p-2.5 rounded-xl border text-left transition-all',
                                         activo
                                           ? 'bg-red-900/25 border-red-700/50 text-red-200'
-                                          : 'bg-white/3 border-white/8 text-gray-400 hover:border-white/20'
+                                          : 'bg-elevated/60 border-line text-soft hover:border-line-strong'
                                       )}
                                     >
                                       <span className={cn(
                                         'w-4 h-4 rounded border-2 flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5',
-                                        activo ? 'bg-red-500 border-red-500 text-white' : 'border-gray-600'
+                                        activo ? 'bg-red-500 border-red-500 text-strong' : 'border-gray-600'
                                       )}>
                                         {activo && '✓'}
                                       </span>
@@ -383,28 +383,28 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                 {paso === 4 && (
                   <motion.div key="p4" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} className="space-y-4">
                     <div>
-                      <h3 className="text-white text-sm font-semibold mb-1">¿Hay apoyos disponibles?</h3>
-                      <p className="text-xs text-gray-500">
+                      <h3 className="text-strong text-sm font-semibold mb-1">¿Hay apoyos disponibles?</h3>
+                      <p className="text-xs text-muted">
                         Opcional. Registra apoyos (PTA, UAI, docente de apoyo) o talleres
                         para usarlos al reorganizar. Puedes saltar este paso.
                       </p>
                     </div>
 
                     {apoyos.length === 0 && (
-                      <div className="text-center py-6 text-gray-600 text-sm border border-dashed border-white/10 rounded-2xl">
+                      <div className="text-center py-6 text-muted text-sm border border-dashed border-line rounded-2xl">
                         Sin apoyos registrados
                       </div>
                     )}
 
                     <div className="space-y-3">
                       {apoyos.map(ap => (
-                        <div key={ap.id} className="bg-white/4 border border-white/8 rounded-2xl p-4 space-y-3">
+                        <div key={ap.id} className="bg-elevated border border-line rounded-2xl p-4 space-y-3">
                           <div className="flex items-start gap-2">
                             <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <select
                                 value={ap.tipo}
                                 onChange={e => actualizarApoyo(ap.id, { tipo: e.target.value as TipoApoyo })}
-                                className="bg-gray-900 text-white text-xs rounded-lg px-2 py-2 border border-white/10 focus:outline-none focus:border-blue-500"
+                                className="bg-card text-strong text-xs rounded-lg px-2 py-2 border border-line focus:outline-none focus:border-blue-500"
                               >
                                 {(Object.keys(TIPO_APOYO_LABEL) as TipoApoyo[]).map(t => (
                                   <option key={t} value={t}>{TIPO_APOYO_LABEL[t]}</option>
@@ -415,7 +415,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                                 placeholder="Nombre o descripción"
                                 value={ap.nombre}
                                 onChange={e => actualizarApoyo(ap.id, { nombre: e.target.value })}
-                                className="bg-gray-900 text-white text-xs rounded-lg px-2 py-2 border border-white/10 focus:outline-none focus:border-blue-500"
+                                className="bg-card text-strong text-xs rounded-lg px-2 py-2 border border-line focus:outline-none focus:border-blue-500"
                               />
                             </div>
                             <button
@@ -425,7 +425,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                             >🗑</button>
                           </div>
                           <div>
-                            <div className="text-[10px] text-gray-500 mb-1.5">Disponible en:</div>
+                            <div className="text-[10px] text-muted mb-1.5">Disponible en:</div>
                             <div className="flex flex-wrap gap-1.5">
                               {bloques.map(b => {
                                 const activo = ap.bloques.includes(b.id);
@@ -437,7 +437,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                                       'px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition',
                                       activo
                                         ? 'bg-green-900/30 border-green-600/50 text-green-200'
-                                        : 'bg-white/3 border-white/10 text-gray-500 hover:border-white/20'
+                                        : 'bg-elevated/60 border-line text-muted hover:border-line-strong'
                                     )}
                                   >
                                     {horaOrdinal(b.id)}
@@ -452,7 +452,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
 
                     <button
                       onClick={agregarApoyo}
-                      className="w-full py-2.5 rounded-xl border border-dashed border-white/15 text-gray-400 hover:text-white hover:border-white/30 text-sm transition"
+                      className="w-full py-2.5 rounded-xl border border-dashed border-line-strong text-soft hover:text-strong hover:border-white/30 text-sm transition"
                     >
                       + Agregar apoyo
                     </button>
@@ -462,17 +462,17 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
             </div>
 
             {/* Footer con botones */}
-            <div className="px-6 py-4 border-t border-white/8 flex items-center justify-between gap-3 bg-gray-950/80">
+            <div className="px-6 py-4 border-t border-line flex items-center justify-between gap-3 bg-card/80">
               <button
                 onClick={() => paso > 1 ? setPaso((paso - 1) as Paso) : resetAndClose()}
-                className="px-4 py-2.5 rounded-xl bg-white/6 text-gray-300 hover:bg-white/10 text-sm transition font-medium"
+                className="px-4 py-2.5 rounded-xl bg-elevated text-soft hover:bg-hover text-sm transition font-medium"
               >
                 {paso === 1 ? 'Cancelar' : '← Atrás'}
               </button>
               <button
                 onClick={() => paso < 4 ? setPaso((paso + 1) as Paso) : finalizar()}
                 disabled={!puedeAvanzar}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition"
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-strong font-semibold text-sm transition"
               >
                 {paso < 4 ? 'Continuar →' : 'Crear borrador'}
               </button>

@@ -23,10 +23,10 @@ export default function PanelRectora() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-white">Panel Rectoría</h2>
+        <h2 className="text-lg font-semibold text-strong">Panel Rectoría</h2>
         <button
           onClick={() => setPopupAbierto(true)}
-          className="px-4 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-medium transition"
+          className="px-4 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-strong text-sm font-medium transition"
         >
           + Asignación directa
         </button>
@@ -34,23 +34,23 @@ export default function PanelRectora() {
 
       {/* Historial de asignaciones */}
       {cargando ? (
-        <div className="text-center py-12 text-gray-400">Cargando...</div>
+        <div className="text-center py-12 text-soft">Cargando...</div>
       ) : reservas.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">Sin asignaciones registradas.</div>
+        <div className="text-center py-12 text-muted">Sin asignaciones registradas.</div>
       ) : (
         <div className="space-y-3">
           {reservas.map((r: Reserva) => (
-            <div key={r.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+            <div key={r.id} className="bg-card border border-gray-800 rounded-xl p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-white font-medium">{r.recurso}</p>
-                  <p className="text-sm text-gray-400">{r.fecha} · Bloque {r.bloque}</p>
-                  <p className="text-sm text-gray-400">{r.proposito}</p>
-                  {r.motivo && <p className="text-xs text-gray-500 mt-1">{r.motivo}</p>}
+                  <p className="text-strong font-medium">{r.recurso}</p>
+                  <p className="text-sm text-soft">{r.fecha} · Bloque {r.bloque}</p>
+                  <p className="text-sm text-soft">{r.proposito}</p>
+                  {r.motivo && <p className="text-xs text-muted mt-1">{r.motivo}</p>}
                 </div>
                 <span className="text-xs text-yellow-400 font-medium">Directa</span>
               </div>
-              <p className="text-xs text-gray-600 mt-2">{r.timestamp}</p>
+              <p className="text-xs text-muted mt-2">{r.timestamp}</p>
             </div>
           ))}
         </div>
