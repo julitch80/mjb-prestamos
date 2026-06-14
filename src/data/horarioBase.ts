@@ -1909,7 +1909,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 1,
     "docente": "adolfo",
     "grado": "10.4",
-    "aula": "Patio",
+    "aula": "Aula 7",
     "jornada": "manana"
   },
   {
@@ -1917,7 +1917,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 2,
     "docente": "adolfo",
     "grado": "10.4",
-    "aula": "Patio",
+    "aula": "Aula 7",
     "jornada": "manana"
   },
   {
@@ -1925,7 +1925,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 3,
     "docente": "adolfo",
     "grado": "10.3",
-    "aula": "Patio",
+    "aula": "Aula 3",
     "jornada": "manana"
   },
   {
@@ -1933,7 +1933,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 4,
     "docente": "adolfo",
     "grado": "10.3",
-    "aula": "Patio",
+    "aula": "Aula 3",
     "jornada": "manana"
   },
   {
@@ -1941,7 +1941,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 5,
     "docente": "adolfo",
     "grado": "9.2",
-    "aula": "Patio",
+    "aula": "Aula 10",
     "jornada": "manana"
   },
   {
@@ -1949,7 +1949,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 6,
     "docente": "adolfo",
     "grado": "9.2",
-    "aula": "Patio",
+    "aula": "Aula 10",
     "jornada": "manana"
   },
   {
@@ -1957,7 +1957,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 1,
     "docente": "adolfo",
     "grado": "11.1",
-    "aula": "Patio",
+    "aula": "Aula 1",
     "jornada": "manana"
   },
   {
@@ -1973,7 +1973,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 4,
     "docente": "adolfo",
     "grado": "10.2",
-    "aula": "Patio",
+    "aula": "Aula 1",
     "jornada": "manana"
   },
   {
@@ -1997,7 +1997,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 3,
     "docente": "adolfo",
     "grado": "9.3",
-    "aula": "Patio",
+    "aula": "Aula 1",
     "jornada": "manana"
   },
   {
@@ -2005,7 +2005,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 4,
     "docente": "adolfo",
     "grado": "9.3",
-    "aula": "Patio",
+    "aula": "Aula 1",
     "jornada": "manana"
   },
   {
@@ -2013,7 +2013,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 3,
     "docente": "adolfo",
     "grado": "11.2",
-    "aula": "Patio",
+    "aula": "Aula 9",
     "jornada": "manana"
   },
   {
@@ -2021,7 +2021,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 4,
     "docente": "adolfo",
     "grado": "11.2",
-    "aula": "Patio",
+    "aula": "Aula 9",
     "jornada": "manana"
   },
   {
@@ -2029,7 +2029,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 5,
     "docente": "adolfo",
     "grado": "9.1",
-    "aula": "Patio",
+    "aula": "Aula 7",
     "jornada": "manana"
   },
   {
@@ -2037,7 +2037,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 6,
     "docente": "adolfo",
     "grado": "9.1",
-    "aula": "Patio",
+    "aula": "Aula 7",
     "jornada": "manana"
   },
   {
@@ -2045,7 +2045,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 1,
     "docente": "adolfo",
     "grado": "11.3",
-    "aula": "Patio",
+    "aula": "Aula 1",
     "jornada": "manana"
   },
   {
@@ -2061,7 +2061,7 @@ export const horarioBase: EntradaHorario[] = [
     "bloque": 5,
     "docente": "adolfo",
     "grado": "10.1",
-    "aula": "Patio",
+    "aula": "Aula 10",
     "jornada": "manana"
   },
   {
