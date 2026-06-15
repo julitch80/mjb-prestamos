@@ -14,6 +14,8 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
 import { useAppStore } from '../data/store';
+import { enviarCorreoMasivo } from '../data/api';
+import type { ResultadoCorreoMasivo } from '../data/api';
 import {
   USUARIOS,
   BLOQUES_MANANA,
@@ -319,6 +321,8 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   const [publicacionPendiente, setPublicacionPendiente] = useState<PublicacionPendiente | null>(null);
   const [revisarPublicacionAbierta, setRevisarPublicacionAbierta] = useState(false);
   const [copiado, setCopiado] = useState<'html' | 'texto' | 'correos' | null>(null);
+  const [enviandoCorreo, setEnviandoCorreo] = useState(false);
+  const [resultadoCorreo, setResultadoCorreo] = useState<ResultadoCorreoMasivo | null>(null);
 
   // Auto-dismiss del toast de error tras 5 segundos
   useEffect(() => {
@@ -568,6 +572,25 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
       );
       agregarPublicacionPendiente(pub);
       setPublicacionPendiente(pub);
+    }
+  }
+
+  async function enviarCorreoAhora() {
+    if (!resumenDifusion) return;
+    setEnviandoCorreo(true);
+    setResultadoCorreo(null);
+    const destinatarios = resumenDifusion.docentesAfectados
+      .map(d => d.correo)
+      .filter((c): c is string => !!c && c.includes('@'));
+    const cc = ['juancarlosbv@iemanueljbetancur.edu.co', 'uriel.lopez@iemanueljbetancur.edu.co'];
+    const asunto = `[MJB] Modificación de horario — ${formatearFechaLegible(borrador.fecha)}`;
+    try {
+      const res = await enviarCorreoMasivo(destinatarios, asunto, resumenDifusion.html, cc);
+      setResultadoCorreo(res);
+    } catch {
+      setResultadoCorreo({ ok: false, error: 'Error de red. Verifica tu conexión.' });
+    } finally {
+      setEnviandoCorreo(false);
     }
   }
 
@@ -896,6 +919,65 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                     dangerouslySetInnerHTML={{ __html: resumenDifusion.html }}
                   />
                 </div>
+
+                {/* Envío automático de correos */}
+                {resumenDifusion.docentesAfectados.length > 0 && (
+                  <div className="rounded-xl border border-info bg-info-soft p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="text-xs text-info-soft-fg">
+                        <strong>📧 Envío automático de correos</strong>
+                        <div className="opacity-80 mt-0.5">
+                          Manda este resumen por correo a los <strong>{resumenDifusion.docentesAfectados.filter(d => d.correo && d.correo.includes('@')).length} docentes afectados</strong> con copia a Juan Carlos Blandón y Uriel López.
+                        </div>
+                      </div>
+                      <button
+                        onClick={enviarCorreoAhora}
+                        disabled={enviandoCorreo || resultadoCorreo?.ok === true}
+                        className={cn(
+                          'px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-2 flex-shrink-0',
+                          resultadoCorreo?.ok === true
+                            ? 'bg-success text-white cursor-default'
+                            : enviandoCorreo
+                              ? 'bg-info/60 text-white cursor-not-allowed'
+                              : 'bg-info hover:bg-info/85 text-white'
+                        )}
+                      >
+                        {enviandoCorreo ? (
+                          <>
+                            <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Enviando…
+                          </>
+                        ) : resultadoCorreo?.ok === true ? (
+                          <>✓ Enviado</>
+                        ) : (
+                          <>Enviar correo a todos →</>
+                        )}
+                      </button>
+                    </div>
+
+                    {resultadoCorreo && (
+                      <div className={cn(
+                        'text-[11px] rounded-lg border px-2 py-1.5',
+                        resultadoCorreo.ok
+                          ? 'bg-success-soft border-success text-success-soft-fg'
+                          : 'bg-danger-soft border-danger text-danger-soft-fg'
+                      )}>
+                        {resultadoCorreo.ok ? (
+                          <>
+                            ✓ {resultadoCorreo.enviados ?? 0} de {resultadoCorreo.total ?? 0} correos enviados correctamente.
+                            {resultadoCorreo.fallidos && resultadoCorreo.fallidos.length > 0 && (
+                              <div className="mt-1 opacity-80">
+                                No se pudo enviar a: {resultadoCorreo.fallidos.map(f => f.correo).join(', ')}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>⛔ {resultadoCorreo.error ?? 'No se pudo enviar.'}</>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Docentes afectados */}
                 {resumenDifusion.docentesAfectados.length > 0 && (

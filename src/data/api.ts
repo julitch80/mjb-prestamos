@@ -116,16 +116,26 @@ export async function marcarTodasLeidas(userId: string): Promise<{ ok: boolean }
 
 // ── Envío de correo ────────────────────────────────────────────────────────────
 
-export async function enviarCorreo(
+export interface ResultadoCorreoMasivo {
+  ok: boolean;
+  enviados?: number;
+  total?: number;
+  fallidos?: Array<{ correo: string; error: string }>;
+  error?: string;
+}
+
+export async function enviarCorreoMasivo(
   destinatarios: string[],
   asunto: string,
-  htmlBody: string
-): Promise<{ ok: boolean; error?: string }> {
-  return fetchJsonp({
-    action: 'enviarCorreo',
+  html: string,
+  cc?: string[],
+): Promise<ResultadoCorreoMasivo> {
+  return fetchJsonp<ResultadoCorreoMasivo>({
+    accion: 'enviarCorreoMasivo',
     destinatarios: destinatarios.join(','),
     asunto,
-    htmlBody,
+    html,
+    cc: cc ? cc.join(',') : '',
   });
 }
 

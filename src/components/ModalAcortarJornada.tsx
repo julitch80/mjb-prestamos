@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../data/store';
-import { horaOrdinal } from '../data/maestros';
+import { getDocentes, horaOrdinal } from '../data/maestros';
+import { enviarCorreoMasivo } from '../data/api';
+import type { ResultadoCorreoMasivo } from '../data/api';
 import {
   fechaHoyLocal,
   formatearFechaLegible,
@@ -32,6 +34,8 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
   const [guardado, setGuardado] = useState<JornadaReducida | null>(null);
   const [publicacionPendiente, setPublicacionPendiente] = useState<PublicacionPendiente | null>(null);
   const [revisarPublicacionAbierta, setRevisarPublicacionAbierta] = useState(false);
+  const [enviandoCorreo, setEnviandoCorreo] = useState(false);
+  const [resultadoCorreo, setResultadoCorreo] = useState<ResultadoCorreoMasivo | null>(null);
 
   const dia = diaDeSemana(fecha);
   const esDiaLectivo = dia !== 'sabado' && dia !== 'domingo';
@@ -71,6 +75,46 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
     const pub = generarPublicacionDeJornadaReducida(jr, userId);
     agregarPublicacionPendiente(pub);
     setPublicacionPendiente(pub);
+  }
+
+  function htmlJornadaReducidaPara(jr: JornadaReducida): string {
+    const filas = jr.bloques.map(b =>
+      `<tr><td style="padding:6px 8px;border:1px solid #fcd34d">${b.id}.ª hora</td><td style="padding:6px 8px;border:1px solid #fcd34d">${b.inicio} – ${b.fin}</td></tr>`
+    ).join('');
+    return `
+      <div style="font-family:Arial,sans-serif;max-width:600px;color:#1f2937">
+        <h2 style="margin:0 0 4px 0;color:#b45309">I.E. Manuel J. Betancur — Jornada acortada</h2>
+        <p style="margin:0 0 16px 0;color:#475569"><strong>${formatearFechaLegible(jr.fecha)}</strong> · Jornada ${jr.jornada === 'manana' ? 'mañana' : 'tarde'}</p>
+        <p style="margin:0 0 4px 0"><strong>Motivo:</strong> ${jr.motivo}</p>
+        <p style="margin:0 0 16px 0"><strong>Hora de salida:</strong> ${jr.horaFin}</p>
+        <h3 style="margin:8px 0 6px 0">Bloques del día</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="background:#fef3c7"><th style="padding:6px 8px;border:1px solid #fcd34d;text-align:left">Hora</th><th style="padding:6px 8px;border:1px solid #fcd34d;text-align:left">Horario</th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
+        <p style="margin-top:20px;font-size:11px;color:#94a3b8">Generado por MJB Préstamos</p>
+      </div>
+    `;
+  }
+
+  async function enviarCorreoAhora() {
+    if (!guardado) return;
+    setEnviandoCorreo(true);
+    setResultadoCorreo(null);
+    const destinatarios = getDocentes(guardado.jornada)
+      .map(d => d.correo)
+      .filter(c => !!c && c.includes('@'));
+    const cc = ['juancarlosbv@iemanueljbetancur.edu.co', 'uriel.lopez@iemanueljbetancur.edu.co'];
+    const asunto = `[MJB] Jornada acortada — ${formatearFechaLegible(guardado.fecha)}`;
+    const html = htmlJornadaReducidaPara(guardado);
+    try {
+      const res = await enviarCorreoMasivo(destinatarios, asunto, html, cc);
+      setResultadoCorreo(res);
+    } catch {
+      setResultadoCorreo({ ok: false, error: 'Error de red. Verifica tu conexión.' });
+    } finally {
+      setEnviandoCorreo(false);
+    }
   }
 
   function copiarResumen() {
@@ -238,6 +282,52 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                   >
                     Copiar resumen para difundir
                   </button>
+
+                  <button
+                    onClick={enviarCorreoAhora}
+                    disabled={enviandoCorreo || resultadoCorreo?.ok === true}
+                    className={cn(
+                      'w-full px-4 py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2',
+                      resultadoCorreo?.ok === true
+                        ? 'bg-success text-white cursor-default'
+                        : enviandoCorreo
+                          ? 'bg-info/60 text-white cursor-not-allowed'
+                          : 'bg-info hover:bg-info/85 text-white'
+                    )}
+                  >
+                    {enviandoCorreo ? (
+                      <>
+                        <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Enviando correos…
+                      </>
+                    ) : resultadoCorreo?.ok === true ? (
+                      <>✓ Correos enviados</>
+                    ) : (
+                      <>📧 Enviar correo a todos los docentes de la jornada</>
+                    )}
+                  </button>
+
+                  {resultadoCorreo && (
+                    <div className={cn(
+                      'text-[11px] rounded-lg border px-3 py-2',
+                      resultadoCorreo.ok
+                        ? 'bg-success-soft border-success text-success-soft-fg'
+                        : 'bg-danger-soft border-danger text-danger-soft-fg'
+                    )}>
+                      {resultadoCorreo.ok ? (
+                        <>
+                          ✓ {resultadoCorreo.enviados ?? 0} de {resultadoCorreo.total ?? 0} correos enviados correctamente.
+                          {resultadoCorreo.fallidos && resultadoCorreo.fallidos.length > 0 && (
+                            <div className="mt-1 opacity-80">
+                              No se pudo enviar a: {resultadoCorreo.fallidos.map(f => f.correo).join(', ')}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>⛔ {resultadoCorreo.error ?? 'No se pudo enviar.'}</>
+                      )}
+                    </div>
+                  )}
 
                   {publicacionPendiente && (
                     <button
