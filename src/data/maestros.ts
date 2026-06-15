@@ -274,6 +274,55 @@ export function horaOrdinal(id: number): string {
   return ORDINALES[id - 1] ?? `${id}.ª`;
 }
 
+// Orden de los espacios con nombre (sin número). Auditorio siempre al final.
+const PRIORIDAD_ESPACIO: Record<string, number> = {
+  'Lab. Ciencias': 1,
+  'Sala Informática': 2,
+  'Sala Info.': 2,
+  'Patio': 3,
+  'Auditorio': 9,
+};
+
+/** Número del aula si es "Aula N" (mañana) o "AN" (tarde); null si es espacio con nombre. */
+function numeroAula(aula: string): number | null {
+  const m = aula.match(/^(?:Aula\s*|A)(\d+)$/i);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+/**
+ * Comparador de aulas para ordenamiento natural:
+ * Aula 1, 2, 3, ..., 9, 10 (numérico), luego los espacios con nombre
+ * (Lab. Ciencias, Sala Informática, Patio) y el Auditorio al final.
+ */
+export function compararAulas(a: string, b: string): number {
+  const na = numeroAula(a);
+  const nb = numeroAula(b);
+  if (na !== null && nb !== null) return na - nb;      // ambas numeradas
+  if (na !== null) return -1;                           // numeradas antes que con nombre
+  if (nb !== null) return 1;
+  const pa = PRIORIDAD_ESPACIO[a] ?? 50;
+  const pb = PRIORIDAD_ESPACIO[b] ?? 50;
+  if (pa !== pb) return pa - pb;
+  return a.localeCompare(b);
+}
+
+/** Extrae [grado, sección] de un código de grupo ('9.1', '10.2', '6º1', '8º4'). */
+function clavGrado(grupo: string): [number, number] {
+  const m = grupo.match(/^(\d+)\D+(\d+)/);
+  if (!m) return [999, 999];
+  return [parseInt(m[1], 10), parseInt(m[2], 10)];
+}
+
+/**
+ * Comparador de grupos para ordenamiento numérico ascendente:
+ * 6º1, 6º2, 7º1, ... (tarde) / 9.1, 9.2, 10.1, 10.2, 11.1, ... (mañana).
+ */
+export function compararGrupos(a: string, b: string): number {
+  const [ga, sa] = clavGrado(a);
+  const [gb, sb] = clavGrado(b);
+  return ga - gb || sa - sb;
+}
+
 export function esJornadaTarde(grado: string): boolean {
   return grado.includes('º');
 }

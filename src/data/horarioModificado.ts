@@ -1,3 +1,5 @@
+import { compararGrupos } from './maestros';
+
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
 export interface AusenciaDocente {
@@ -650,7 +652,7 @@ export function generarResumenDifusion(
   textoPartes.push('');
 
   // Por cada grupo afectado, listar el horario resultante
-  Array.from(gruposAfectados).sort().forEach(grupo => {
+  Array.from(gruposAfectados).sort(compararGrupos).forEach(grupo => {
     const colocadas = (fichasPorGrupo[grupo] ?? [])
       .filter(f => f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller')
       .sort((a, b) => {

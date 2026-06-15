@@ -16,6 +16,8 @@ import {
   horaOrdinal,
   getDocentes,
   MIXTOS_TARDE,
+  compararAulas,
+  compararGrupos,
 } from '../data/maestros';
 import { horarioBase } from '../data/horarioBase';
 import { cn } from '@/lib/utils';
@@ -138,7 +140,7 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
 
   const aulasSet = new Set<string>();
   entradas.forEach(e => { if (e.aula) aulasSet.add(e.aula); });
-  const aulas = Array.from(aulasSet).sort();
+  const aulas = Array.from(aulasSet).sort(compararAulas);
 
   if (aulas.length === 0) return (
     <div className="text-center py-16 text-muted text-sm">Sin datos de aulas para esta jornada.</div>
@@ -943,7 +945,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
     horarioBase
       .filter(e => e.jornada === jornadaTab)
       .map(e => e.grado.includes('/') ? e.grado.split('/')[0] : e.grado)
-  )).sort();
+  )).sort(compararGrupos);
   const CELL_H = 46;
 
   // ── Vista día ─────────────────────────────────────────────────────────────

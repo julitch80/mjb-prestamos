@@ -8,6 +8,7 @@ import {
   COLORES_AULA,
   colorGrado,
   horaOrdinal,
+  compararGrupos,
 } from '../data/maestros';
 import { horarioBase } from '../data/horarioBase';
 import {
@@ -54,7 +55,7 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
   // Grupos afectados (los que tuvieron al menos una modificación)
   const gruposAfectados = new Set<string>();
   modificacion.modificaciones.forEach(mod => gruposAfectados.add(mod.grupo));
-  const todosGrupos = Array.from(new Set(entradas.map(e => e.grado))).sort();
+  const todosGrupos = Array.from(new Set(entradas.map(e => e.grado))).sort(compararGrupos);
   const grupos = todosGrupos.filter(g => gruposAfectados.has(g));
   const finalGrupos = grupos.length > 0 ? grupos : todosGrupos.slice(0, 3);
 

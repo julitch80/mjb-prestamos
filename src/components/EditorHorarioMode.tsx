@@ -26,6 +26,7 @@ import {
   colorGrado,
   horaOrdinal,
   getDocentes,
+  compararGrupos,
 } from '../data/maestros';
 import { horarioBase } from '../data/horarioBase';
 import {
@@ -373,7 +374,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     // grupo
     const grupos = Array.from(new Set(fichas.map(f => f.origen.grupo)))
       .filter(g => verTodoElHorario || gruposAfectados.has(g))
-      .sort();
+      .sort(compararGrupos);
     return grupos.map(g => {
       const dir = USUARIOS.find(u => u.id === directores[g]);
       return {
