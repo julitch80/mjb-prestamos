@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sun, Moon, LogOut, Bell } from 'lucide-react';
+import { Sun, Moon, LogOut, Bell, BellRing } from 'lucide-react';
 import { useAppStore } from './data/store';
 import { useTheme } from './hooks/useTheme';
+import { useNotificacionesSistema } from './hooks/useNotificacionesSistema';
 import LoginScreen from './components/LoginScreen';
 import PanelAdmin from './components/PanelAdmin';
 import PanelRectora from './components/PanelRectora';
@@ -33,6 +34,7 @@ const ROL_COLOR: Record<string, string> = {
 
 export default function App() {
   const { temaOscuro, toggleTema } = useTheme();
+  const { permiso, solicitarPermiso, soportado } = useNotificacionesSistema();
   const { userId, nombre, rol, cerrarSesion, vistaActual, setVistaActual, setNotificaciones } =
     useAppStore();
 
@@ -134,6 +136,18 @@ export default function App() {
               >
                 <Bell size={16} />
                 <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-danger rounded-full" />
+              </button>
+            )}
+
+            {/* Activar avisos del sistema (solo si aún no se ha decidido) */}
+            {soportado && permiso === 'default' && (
+              <button
+                onClick={solicitarPermiso}
+                className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-info hover:bg-info-soft transition text-xs font-medium"
+                title="Recibe un aviso del sistema cuando llegue una notificación nueva"
+              >
+                <BellRing size={15} />
+                <span className="hidden sm:inline">Activar avisos</span>
               </button>
             )}
 
