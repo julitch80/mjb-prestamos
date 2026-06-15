@@ -146,8 +146,9 @@ export async function publicarAviso(
   html: string,
   autor: string,
 ): Promise<PublicacionResultado> {
+  // El backend (Code.gs) lee el parámetro como `accion` (con tilde), no `action`.
   return fetchJsonp<PublicacionResultado>({
-    action: 'publicarAviso',
+    accion: 'publicarAviso',
     fecha,
     jornada,
     tipo,
