@@ -677,7 +677,7 @@ export function generarResumenDifusion(
       const docente = usuarios.find(u => u.id === f.origen.docente)?.nombreCorto ?? f.origen.docente;
       const hora = horas[bloque - 1] ?? '';
       const esTaller = f.ubicacion.tipo === 'taller';
-      const supId = esTaller ? f.ubicacion.supervisorId : undefined;
+      const supId = f.ubicacion.tipo === 'taller' ? f.ubicacion.supervisorId : undefined;
       const supervisor = supId ? usuarios.find(u => u.id === supId)?.nombreCorto : undefined;
       const docTexto = esTaller
         ? `Taller dejado por ${docente}${supervisor ? ` · supervisa ${supervisor}` : ''}`
@@ -702,7 +702,7 @@ export function generarResumenDifusion(
       const docente = usuarios.find(u => u.id === f.origen.docente)?.nombreCorto ?? f.origen.docente;
       const hora = horas[bloque - 1] ?? '';
       const esTaller = f.ubicacion.tipo === 'taller';
-      const supId = esTaller ? f.ubicacion.supervisorId : undefined;
+      const supId = f.ubicacion.tipo === 'taller' ? f.ubicacion.supervisorId : undefined;
       const supervisor = supId ? usuarios.find(u => u.id === supId)?.nombreCorto : undefined;
       const marca = esTaller ? ' 🟡' : (bloque !== f.origen.bloque ? ' 🔵' : '');
       const docTexto = esTaller
@@ -749,8 +749,9 @@ export function generarResumenDifusion(
 
   // (3) supervisores de taller
   fichas.forEach(f => {
-    if (f.ubicacion.tipo === 'taller' && f.ubicacion.supervisorId) {
-      const u = usuarios.find(x => x.id === f.ubicacion.supervisorId);
+    const supId = f.ubicacion.tipo === 'taller' ? f.ubicacion.supervisorId : undefined;
+    if (supId) {
+      const u = usuarios.find(x => x.id === supId);
       if (u && !docentesAfectadosMap.has(u.id)) {
         docentesAfectadosMap.set(u.id, {
           id: u.id, nombre: u.nombre, nombreCorto: u.nombreCorto, correo: u.correo,
@@ -900,26 +901,6 @@ function buscarCompactacionCascada(
     }
   });
   return movimientos.length > 0 ? movimientos : null;
-}
-
-function encontrarHuecosDocente(
-  fichas: FichaEditor[],
-  docenteId: string,
-  bloquesActuales: number[],
-): number[] {
-  const ocupados = new Set<number>();
-  fichas.forEach(f => {
-    if (f.origen.docente !== docenteId) return;
-    if (f.ubicacion.tipo !== 'colocada' && f.ubicacion.tipo !== 'taller') return;
-    const b = f.ubicacion.tipo === 'colocada' ? f.ubicacion.bloque : f.ubicacion.bloque;
-    if (!bloquesActuales.includes(b)) ocupados.add(b);
-  });
-  // El docente trabaja en bloques 1..6
-  const huecos: number[] = [];
-  for (let b = 1; b <= 6; b++) {
-    if (!ocupados.has(b) && !bloquesActuales.includes(b)) huecos.push(b);
-  }
-  return huecos;
 }
 
 export function fichasAModificaciones(fichas: FichaEditor[]): ModificacionBloque[] {

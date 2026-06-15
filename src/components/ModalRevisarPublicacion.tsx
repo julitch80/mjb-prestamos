@@ -4,7 +4,6 @@ import { useAppStore } from '../data/store';
 import { publicarAviso } from '../data/api';
 import { htmlEfectivo, URL_SITE_HORARIOS } from '../data/publicacion';
 import type { PublicacionPendiente } from '../data/publicacion';
-import { formatearFechaLegible } from '../data/horarioModificado';
 import { cn } from '@/lib/utils';
 
 interface Props {

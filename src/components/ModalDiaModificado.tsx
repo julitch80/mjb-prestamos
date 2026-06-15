@@ -37,6 +37,10 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
     );
   }
 
+  // Capturamos en una const no-nula para que el narrowing alcance a las
+  // funciones anidadas (las declaraciones hoisted pierden el narrowing del guard).
+  const mod = modificacion;
+
   const bloques = modificacion.jornada === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
   const directores = modificacion.jornada === 'manana' ? DIRECTORES_MANANA : DIRECTORES_TARDE;
 
@@ -62,11 +66,11 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
     // ¿Originalmente había clase con un docente ausente que fue cancelada?
     const dia = entradas[0]?.dia ?? '';
     const original = (horarioBase as any[]).find(e =>
-      e.dia === dia && e.bloque === bloque && e.jornada === modificacion.jornada &&
+      e.dia === dia && e.bloque === bloque && e.jornada === mod.jornada &&
       (e.grado.includes('/') ? e.grado.split('/')[0] : e.grado) === grupo
     );
     if (!original) return null;
-    const ausencia = modificacion.ausencias.find(a => a.docenteId === original.docente);
+    const ausencia = mod.ausencias.find(a => a.docenteId === original.docente);
     const esAusente = ausencia?.bloques.includes(bloque) ?? false;
     return esAusente
       ? { docente: original.docente, aula: original.aula, cancelada: true }
