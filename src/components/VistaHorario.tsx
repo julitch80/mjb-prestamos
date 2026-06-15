@@ -23,8 +23,11 @@ import EditorHorarioWizard from './EditorHorarioWizard';
 import EditorHorarioMode from './EditorHorarioMode';
 import ModalDiaModificado from './ModalDiaModificado';
 import ModalAcortarJornada from './ModalAcortarJornada';
+import ModalRevisarPublicacion from './ModalRevisarPublicacion';
 import { modificacionesProximas, jornadasReducidasProximas, formatearFechaLegible } from '../data/horarioModificado';
 import type { HorarioModificado, JornadaReducida } from '../data/horarioModificado';
+import { publicacionesPendientesDeRevisar } from '../data/publicacion';
+import type { PublicacionPendiente } from '../data/publicacion';
 
 type Modo         = 'aulas' | 'docente' | 'grupo';
 type VistaDetalle = 'semana' | 'dia';
@@ -1153,7 +1156,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
 // ── Componente principal ─────────────────────────────────────────────────────
 
 export default function VistaHorario() {
-  const { jornada, rol, userId, horariosModificados, jornadasReducidas } = useAppStore();
+  const { jornada, rol, userId, horariosModificados, jornadasReducidas, publicacionesPendientes } = useAppStore();
   const defaultJornada: 'manana' | 'tarde' = jornada === 'tarde' ? 'tarde' : 'manana';
 
   const [modo, setModo]               = useState<Modo>('docente');
@@ -1169,10 +1172,16 @@ export default function VistaHorario() {
   const [verDetalleMod, setVerDetalleMod] = useState<HorarioModificado | null>(null);
   const [acortarAbierto, setAcortarAbierto] = useState(false);
   const [verDetalleJr, setVerDetalleJr] = useState<JornadaReducida | null>(null);
+  const [revisarPub, setRevisarPub] = useState<PublicacionPendiente | null>(null);
 
   // Modificaciones y jornadas reducidas próximas — visibles para todos
   const proximasMods = modificacionesProximas(horariosModificados);
   const proximasJr = jornadasReducidasProximas(jornadasReducidas);
+
+  // Publicaciones pendientes de revisar (solo coordinador, las suyas)
+  const pubsPendientes = rol === 'coordinador'
+    ? publicacionesPendientesDeRevisar(publicacionesPendientes).filter(p => p.autor === userId)
+    : [];
 
   // ¿Hay borrador activo del usuario para entrar al modo edición?
   // Cuando el wizard completa o el usuario decide retomar, este estado activa el editor.
@@ -1271,6 +1280,33 @@ export default function VistaHorario() {
                   Jornada {j.jornada === 'manana' ? 'mañana' : 'tarde'} · termina {j.horaFin} · {j.motivo}
                 </div>
                 <div className="text-[10px] text-warning-soft-fg mt-1">Ver bloques →</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Banner de publicaciones pendientes de revisar — solo coordinador */}
+      {pubsPendientes.length > 0 && (
+        <div className="rounded-2xl border border-info bg-info-soft p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-info-soft-fg">
+            <span className="text-base">📄</span>
+            {pubsPendientes.length === 1
+              ? 'Hay 1 publicación pendiente de revisar para la página del colegio'
+              : `Hay ${pubsPendientes.length} publicaciones pendientes de revisar para la página del colegio`}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {pubsPendientes.map(p => (
+              <button
+                key={p.id}
+                onClick={() => setRevisarPub(p)}
+                className="text-left px-3 py-2 rounded-xl bg-elevated hover:bg-hover border border-line transition flex-1 min-w-[220px]"
+              >
+                <div className="text-xs font-semibold text-strong">{p.titulo}</div>
+                <div className="text-[11px] text-muted mt-0.5">
+                  Jornada {p.jornada === 'manana' ? 'mañana' : 'tarde'} · creada {new Date(p.timestampCreacion).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}
+                </div>
+                <div className="text-[10px] text-info mt-1">Revisar y aprobar →</div>
               </button>
             ))}
           </div>
@@ -1425,6 +1461,12 @@ export default function VistaHorario() {
       <ModalDiaModificado
         modificacion={verDetalleMod}
         onClose={() => setVerDetalleMod(null)}
+      />
+
+      {/* Modal de revisión de publicación pendiente */}
+      <ModalRevisarPublicacion
+        publicacion={revisarPub}
+        onClose={() => setRevisarPub(null)}
       />
 
       {/* Modal acortar jornada */}

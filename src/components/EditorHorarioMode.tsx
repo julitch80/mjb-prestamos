@@ -45,6 +45,9 @@ import type {
   NivelPropuesta,
   ResumenDifusion,
 } from '../data/horarioModificado';
+import { generarPublicacionDeModificacion } from '../data/publicacion';
+import type { PublicacionPendiente } from '../data/publicacion';
+import ModalRevisarPublicacion from './ModalRevisarPublicacion';
 
 configurarResolverNombreDocente(id =>
   USUARIOS.find(u => u.id === id)?.nombreCorto ?? id
@@ -303,7 +306,7 @@ function PendientesDroppable({
 // ── Componente principal ─────────────────────────────────────────────────────
 
 export default function EditorHorarioMode({ borrador, onSalir }: Props) {
-  const { actualizarHorarioModificado, eliminarHorarioModificado } = useAppStore();
+  const { userId, actualizarHorarioModificado, eliminarHorarioModificado, agregarPublicacionPendiente } = useAppStore();
   const [modo, setModo] = useState<ModoEditor>('grupo');
   const [fichas, setFichas] = useState<FichaEditor[]>(() =>
     crearFichasIniciales(borrador, horarioBase as any)
@@ -313,6 +316,8 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   const [verTodoElHorario, setVerTodoElHorario] = useState(false);
   const [asistenteAbierto, setAsistenteAbierto] = useState(false);
   const [resumenDifusion, setResumenDifusion] = useState<ResumenDifusion | null>(null);
+  const [publicacionPendiente, setPublicacionPendiente] = useState<PublicacionPendiente | null>(null);
+  const [revisarPublicacionAbierta, setRevisarPublicacionAbierta] = useState(false);
   const [copiado, setCopiado] = useState<'html' | 'texto' | 'correos' | null>(null);
 
   // Auto-dismiss del toast de error tras 5 segundos
@@ -552,6 +557,18 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
       usuariosMinimos,
     );
     setResumenDifusion(resumen);
+
+    // Crear publicación pendiente para la web del colegio (requiere aprobación)
+    if (userId) {
+      const pub = generarPublicacionDeModificacion(
+        { ...borrador, modificaciones, estado: 'guardado' },
+        fichas,
+        usuariosMinimos,
+        userId,
+      );
+      agregarPublicacionPendiente(pub);
+      setPublicacionPendiente(pub);
+    }
   }
 
   async function copiarPortapapeles(texto: string, kind: 'html' | 'texto' | 'correos') {
@@ -934,11 +951,29 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               <div className="px-6 py-4 border-t border-line bg-card/80 flex justify-end gap-3">
                 <button
                   onClick={() => { setResumenDifusion(null); onSalir(); }}
-                  className="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent/85 text-strong text-sm font-semibold transition"
+                  className="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent/85 text-accent-fg text-sm font-semibold transition"
                 >
                   Cerrar y volver al horario
                 </button>
               </div>
+
+              {publicacionPendiente && (
+                <div className="px-6 py-3 border-t border-line bg-info-soft text-info-soft-fg text-xs flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📄</span>
+                    <span>
+                      Se generó una <strong>publicación pendiente</strong> para la página del colegio.
+                      Revísala antes de aprobarla.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setRevisarPublicacionAbierta(true)}
+                    className="px-3 py-1.5 rounded-xl bg-info hover:bg-info/85 text-white text-xs font-semibold transition flex-shrink-0"
+                  >
+                    Revisar publicación →
+                  </button>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
@@ -1082,6 +1117,12 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Modal de revisión / aprobación / publicación */}
+      <ModalRevisarPublicacion
+        publicacion={revisarPublicacionAbierta ? publicacionPendiente : null}
+        onClose={() => setRevisarPublicacionAbierta(false)}
+      />
     </DndContext>
   );
 }

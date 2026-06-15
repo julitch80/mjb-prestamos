@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Notificacion, Reserva } from './api';
 import type { HorarioModificado, JornadaReducida } from './horarioModificado';
+import type { PublicacionPendiente } from './publicacion';
 
 export type VistaActual =
   | 'disponibilidad'
@@ -38,6 +39,9 @@ interface AppState {
   // Jornadas reducidas (acortar día por acto cívico)
   jornadasReducidas: JornadaReducida[];
 
+  // Publicaciones para el Google Site del colegio (con aprobación del coord)
+  publicacionesPendientes: PublicacionPendiente[];
+
   // Acciones auth
   setUsuario: (userId: string, nombre: string, rol: string, jornada: string) => void;
   cerrarSesion: () => void;
@@ -66,6 +70,11 @@ interface AppState {
   // Acciones jornadas reducidas
   agregarJornadaReducida: (jr: JornadaReducida) => void;
   eliminarJornadaReducida: (id: string) => void;
+
+  // Acciones publicaciones pendientes
+  agregarPublicacionPendiente: (p: PublicacionPendiente) => void;
+  actualizarPublicacionPendiente: (id: string, cambios: Partial<PublicacionPendiente>) => void;
+  eliminarPublicacionPendiente: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -83,6 +92,7 @@ export const useAppStore = create<AppState>()(
       reservas: [],
       horariosModificados: [],
       jornadasReducidas: [],
+      publicacionesPendientes: [],
 
       // Auth
       setUsuario: (userId, nombre, rol, jornada) =>
@@ -156,6 +166,22 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           jornadasReducidas: s.jornadasReducidas.filter((j) => j.id !== id),
         })),
+
+      // Publicaciones pendientes
+      agregarPublicacionPendiente: (p) =>
+        set((s) => ({ publicacionesPendientes: [p, ...s.publicacionesPendientes] })),
+
+      actualizarPublicacionPendiente: (id, cambios) =>
+        set((s) => ({
+          publicacionesPendientes: s.publicacionesPendientes.map((p) =>
+            p.id === id ? { ...p, ...cambios } : p
+          ),
+        })),
+
+      eliminarPublicacionPendiente: (id) =>
+        set((s) => ({
+          publicacionesPendientes: s.publicacionesPendientes.filter((p) => p.id !== id),
+        })),
     }),
     {
       name: 'mjb-app-storage',
@@ -168,6 +194,7 @@ export const useAppStore = create<AppState>()(
         temaOscuro: s.temaOscuro,
         horariosModificados: s.horariosModificados,
         jornadasReducidas: s.jornadasReducidas,
+        publicacionesPendientes: s.publicacionesPendientes,
       }),
     }
   )

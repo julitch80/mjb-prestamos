@@ -128,3 +128,31 @@ export async function enviarCorreo(
     htmlBody,
   });
 }
+
+// ── Publicación en Google Site del colegio ─────────────────────────────────────
+
+export interface PublicacionResultado {
+  ok: boolean;
+  id?: string;
+  url?: string;     // URL pública donde quedó publicada
+  error?: string;
+}
+
+export async function publicarAviso(
+  fecha: string,
+  jornada: string,
+  tipo: string,
+  titulo: string,
+  html: string,
+  autor: string,
+): Promise<PublicacionResultado> {
+  return fetchJsonp<PublicacionResultado>({
+    action: 'publicarAviso',
+    fecha,
+    jornada,
+    tipo,
+    titulo,
+    html,
+    autor,
+  });
+}

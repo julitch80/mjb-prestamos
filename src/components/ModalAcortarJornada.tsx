@@ -10,6 +10,9 @@ import {
   diaDeSemana,
 } from '../data/horarioModificado';
 import type { JornadaReducida } from '../data/horarioModificado';
+import { generarPublicacionDeJornadaReducida } from '../data/publicacion';
+import type { PublicacionPendiente } from '../data/publicacion';
+import ModalRevisarPublicacion from './ModalRevisarPublicacion';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -21,12 +24,14 @@ interface Props {
 const MOTIVOS = ['Acto cívico', 'Reunión de docentes', 'Jornada pedagógica', 'Requerimiento institucional', 'Otro'];
 
 export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
-  const { userId, jornadasReducidas, agregarJornadaReducida } = useAppStore();
+  const { userId, jornadasReducidas, agregarJornadaReducida, agregarPublicacionPendiente } = useAppStore();
   const [fecha, setFecha] = useState(fechaHoyLocal());
   const [horaFin, setHoraFin] = useState(jornada === 'manana' ? '10:00' : '16:15');
   const [motivo, setMotivo] = useState(MOTIVOS[0]);
   const [motivoOtro, setMotivoOtro] = useState('');
   const [guardado, setGuardado] = useState<JornadaReducida | null>(null);
+  const [publicacionPendiente, setPublicacionPendiente] = useState<PublicacionPendiente | null>(null);
+  const [revisarPublicacionAbierta, setRevisarPublicacionAbierta] = useState(false);
 
   const dia = diaDeSemana(fecha);
   const esDiaLectivo = dia !== 'sabado' && dia !== 'domingo';
@@ -61,6 +66,11 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
     };
     agregarJornadaReducida(jr);
     setGuardado(jr);
+
+    // Crear publicación pendiente para la web del colegio
+    const pub = generarPublicacionDeJornadaReducida(jr, userId);
+    agregarPublicacionPendiente(pub);
+    setPublicacionPendiente(pub);
   }
 
   function copiarResumen() {
@@ -224,10 +234,19 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                   </div>
                   <button
                     onClick={copiarResumen}
-                    className="w-full px-4 py-2.5 rounded-xl bg-accent hover:bg-accent/85 text-strong text-sm font-semibold transition"
+                    className="w-full px-4 py-2.5 rounded-xl bg-accent hover:bg-accent/85 text-accent-fg text-sm font-semibold transition"
                   >
                     Copiar resumen para difundir
                   </button>
+
+                  {publicacionPendiente && (
+                    <button
+                      onClick={() => setRevisarPublicacionAbierta(true)}
+                      className="w-full px-4 py-2.5 rounded-xl bg-info hover:bg-info/85 text-white text-sm font-semibold transition flex items-center justify-center gap-2"
+                    >
+                      📄 Revisar publicación para la web del colegio
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -261,6 +280,12 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
           </motion.div>
         </motion.div>
       )}
+
+      {/* Modal de revisión / aprobación / publicación */}
+      <ModalRevisarPublicacion
+        publicacion={revisarPublicacionAbierta ? publicacionPendiente : null}
+        onClose={() => setRevisarPublicacionAbierta(false)}
+      />
     </AnimatePresence>
   );
 }
