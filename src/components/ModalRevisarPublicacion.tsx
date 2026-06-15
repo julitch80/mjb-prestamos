@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../data/store';
 import { publicarAviso } from '../data/api';
-import { htmlEfectivo } from '../data/publicacion';
+import { htmlEfectivo, URL_SITE_HORARIOS } from '../data/publicacion';
 import type { PublicacionPendiente } from '../data/publicacion';
 import { formatearFechaLegible } from '../data/horarioModificado';
 import { cn } from '@/lib/utils';
@@ -186,19 +186,31 @@ export default function ModalRevisarPublicacion({ publicacion, onClose }: Props)
               {/* Resultado de la publicación */}
               {resultado && (
                 <div className={cn(
-                  'mt-4 rounded-xl border px-3 py-2 text-xs',
+                  'mt-4 rounded-xl border px-3 py-2 text-xs space-y-1',
                   resultado.ok
                     ? 'bg-success-soft border-success text-success-soft-fg'
                     : 'bg-danger-soft border-danger text-danger-soft-fg'
                 )}>
-                  {resultado.ok ? '✓ ' : '⛔ '}{resultado.mensaje}
-                  {resultado.url && (
-                    <>
-                      {' '}
-                      <a href={resultado.url} target="_blank" rel="noopener noreferrer" className="underline">
-                        Ver en la web →
+                  <div>{resultado.ok ? '✓ ' : '⛔ '}{resultado.mensaje}</div>
+                  {resultado.ok && (
+                    <div className="flex flex-wrap gap-3 pt-1">
+                      <a
+                        href={URL_SITE_HORARIOS}
+                        target="_blank" rel="noopener noreferrer"
+                        className="underline font-semibold"
+                      >
+                        Ver en el sitio del colegio →
                       </a>
-                    </>
+                      {resultado.url && (
+                        <a
+                          href={resultado.url}
+                          target="_blank" rel="noopener noreferrer"
+                          className="underline opacity-80"
+                        >
+                          Abrir documento fuente
+                        </a>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

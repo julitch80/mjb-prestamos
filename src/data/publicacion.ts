@@ -5,6 +5,9 @@
 // revisarla, editarla y aprobar antes de que el sistema la publique en el
 // Google Site institucional vía Apps Script.
 
+/** URL pública del Google Site del colegio donde aparecen los avisos. */
+export const URL_SITE_HORARIOS = 'https://sites.google.com/iemanueljbetancur.edu.co/horarios';
+
 import {
   formatearFechaLegible,
   generarResumenDifusion,
