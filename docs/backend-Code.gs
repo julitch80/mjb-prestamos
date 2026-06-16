@@ -100,6 +100,16 @@ function actualizarFila(sheet, campoId, valorId, updates) {
   return false;
 }
 
+// Normaliza una fecha a 'YYYY-MM-DD' aunque Sheets la haya convertido a Date.
+function normalizarFecha(v) {
+  if (v instanceof Date) {
+    return Utilities.formatDate(v, 'America/Bogota', 'yyyy-MM-dd');
+  }
+  const s = String(v);
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : s;
+}
+
 // ── RESERVAS ─────────────────────────────────────────────────
 function getReservas() {
   const sheet = getSheet('Reservas', RESERVAS_HEADERS);
@@ -108,7 +118,7 @@ function getReservas() {
     return {
       id: String(r.id),
       recurso: String(r.recurso),
-      fecha: String(r.fecha),
+      fecha: normalizarFecha(r.fecha),
       bloque: Number(r.bloque),
       solicitante: String(r.solicitante),
       proposito: String(r.proposito),
