@@ -6,10 +6,7 @@ import { recuperarPin } from '../data/api';
 import { USUARIOS } from '../data/maestros';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-
-// MODO PRUEBA: valida PIN localmente sin llamar al backend.
-// Cambiar a false cuando el Apps Script esté listo.
-const MODO_LOCAL = true;
+import { MODO_LOCAL } from '../data/config';
 
 const normalizar = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');

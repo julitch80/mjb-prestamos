@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../data/store';
-import { getReservas, actualizarReserva } from '../data/api';
+import { getReservas, actualizarReserva, cambiarPin } from '../data/api';
 import type { Reserva } from '../data/api';
+import { MODO_LOCAL } from '../data/config';
 import VistaHorario from './VistaHorario';
 
 type Pestaña = 'pendientes' | 'hoy' | 'historial' | 'horario' | 'config';
 
 export default function PanelAdmin() {
-  const { reservas, setReservas, temaOscuro, toggleTema, actualizarReserva: actualizarStore } = useAppStore();
+  const { reservas, setReservas, temaOscuro, toggleTema, actualizarReserva: actualizarStore, userId } = useAppStore();
   const [pestaña, setPestaña] = useState<Pestaña>('pendientes');
   const [cargando, setCargando] = useState(false);
 
@@ -114,20 +115,139 @@ export default function PanelAdmin() {
 
       {/* Configuración */}
       {pestaña === 'config' && (
-        <div className="bg-card rounded-xl p-6 space-y-4 max-w-sm">
-          <h3 className="text-strong font-semibold">Configuración</h3>
-          <div className="flex items-center justify-between">
-            <span className="text-soft text-sm">Tema de la interfaz</span>
-            <button
-              onClick={toggleTema}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-elevated text-soft hover:bg-gray-700 text-sm transition"
-            >
-              {temaOscuro ? '🌙 Oscuro' : '☀️ Claro'}
-            </button>
+        <div className="space-y-4 max-w-sm">
+          <div className="bg-card rounded-xl p-6 space-y-4">
+            <h3 className="text-strong font-semibold">Configuración</h3>
+            <div className="flex items-center justify-between">
+              <span className="text-soft text-sm">Tema de la interfaz</span>
+              <button
+                onClick={toggleTema}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-elevated text-soft hover:bg-gray-700 text-sm transition"
+              >
+                {temaOscuro ? '🌙 Oscuro' : '☀️ Claro'}
+              </button>
+            </div>
           </div>
+
+          <CambioPin userId={userId} />
         </div>
       )}
     </div>
+  );
+}
+
+// ── Formulario de cambio de PIN ────────────────────────────────────────────────
+
+function CambioPin({ userId }: { userId: string | null }) {
+  const [pinActual, setPinActual] = useState('');
+  const [pinNuevo, setPinNuevo]   = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [cargando, setCargando]   = useState(false);
+  const [mensaje, setMensaje]     = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+
+  const soloDigitos = (s: string) => s.replace(/\D/g, '').slice(0, 6);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setMensaje(null);
+
+    if (!/^\d{4,6}$/.test(pinNuevo)) {
+      setMensaje({ tipo: 'error', texto: 'El PIN nuevo debe tener de 4 a 6 dígitos.' });
+      return;
+    }
+    if (pinNuevo !== pinConfirm) {
+      setMensaje({ tipo: 'error', texto: 'El PIN nuevo y su confirmación no coinciden.' });
+      return;
+    }
+    if (!userId) {
+      setMensaje({ tipo: 'error', texto: 'No se pudo identificar al usuario.' });
+      return;
+    }
+
+    setCargando(true);
+    try {
+      const res = await cambiarPin(userId, pinActual, pinNuevo);
+      if (res.ok) {
+        setMensaje({ tipo: 'ok', texto: 'PIN actualizado correctamente.' });
+        setPinActual(''); setPinNuevo(''); setPinConfirm('');
+      } else {
+        setMensaje({ tipo: 'error', texto: res.error ?? 'No se pudo cambiar el PIN.' });
+      }
+    } catch {
+      setMensaje({ tipo: 'error', texto: 'Error de comunicación con el servidor.' });
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-card rounded-xl p-6 space-y-3">
+      <div>
+        <h3 className="text-strong font-semibold">Cambiar PIN</h3>
+        <p className="text-muted text-xs mt-1">
+          Actualiza tu PIN de acceso de 4 a 6 dígitos.
+        </p>
+      </div>
+
+      {MODO_LOCAL && (
+        <div className="rounded-lg bg-info-soft text-info-soft-fg text-xs px-3 py-2 leading-snug">
+          El inicio de sesión está en modo de prueba (PIN general).
+          El cambio de PIN individual quedará activo cuando se habilite
+          el acceso con PIN personal.
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <input
+          type="password"
+          inputMode="numeric"
+          autoComplete="current-password"
+          placeholder="PIN actual"
+          value={pinActual}
+          onChange={e => setPinActual(soloDigitos(e.target.value))}
+          className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm tracking-widest placeholder:text-muted focus:outline-none focus:border-line-strong"
+        />
+        <input
+          type="password"
+          inputMode="numeric"
+          autoComplete="new-password"
+          placeholder="PIN nuevo (4-6 dígitos)"
+          value={pinNuevo}
+          onChange={e => setPinNuevo(soloDigitos(e.target.value))}
+          className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm tracking-widest placeholder:text-muted focus:outline-none focus:border-line-strong"
+        />
+        <input
+          type="password"
+          inputMode="numeric"
+          autoComplete="new-password"
+          placeholder="Confirmar PIN nuevo"
+          value={pinConfirm}
+          onChange={e => setPinConfirm(soloDigitos(e.target.value))}
+          className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm tracking-widest placeholder:text-muted focus:outline-none focus:border-line-strong"
+        />
+      </div>
+
+      {mensaje && (
+        <div
+          className={
+            'rounded-lg text-xs px-3 py-2 ' +
+            (mensaje.tipo === 'ok'
+              ? 'bg-success-soft text-success-soft-fg'
+              : 'bg-danger-soft text-danger-soft-fg')
+          }
+        >
+          {mensaje.texto}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={cargando || !pinNuevo || !pinConfirm}
+        className="w-full py-2 rounded-lg bg-info-soft text-info-soft-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {cargando ? 'Guardando…' : 'Cambiar PIN'}
+      </button>
+    </form>
   );
 }
 

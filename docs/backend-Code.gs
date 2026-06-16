@@ -35,6 +35,7 @@ function manejar(e) {
     switch (p.action) {
       case 'login':              resultado = login(p);              break;
       case 'recuperarPin':       resultado = recuperarPin(p);       break;
+      case 'cambiarPin':         resultado = cambiarPin(p);         break;
       case 'getReservas':        resultado = getReservas();         break;
       case 'crearReserva':       resultado = crearReserva(p);       break;
       case 'actualizarReserva':  resultado = actualizarReserva(p);  break;
@@ -235,6 +236,36 @@ function recuperarPin(p) {
     '<h2 style="color:#1a4a9a">PIN temporal</h2><p>Tu PIN temporal es:</p>' +
     '<div style="font-size:28px;font-weight:bold;letter-spacing:.2em;color:#1a4a9a">' + pinTemporal + '</div>' +
     '<p style="font-size:12px;color:#666">Úsalo una vez y cámbialo al entrar.</p>');
+  return { ok: true };
+}
+
+// Cambia el PIN de un usuario en la hoja Usuarios. Valida el PIN actual
+// contra el PIN guardado o el pinTemporal (recuperación). Limpia el
+// pinTemporal al confirmar.
+function cambiarPin(p) {
+  const userId    = String(p.userId || '');
+  const pinActual = String(p.pinActual || '');
+  const pinNuevo  = String(p.pinNuevo || '');
+  if (!userId)              return { ok: false, error: 'Falta el usuario' };
+  if (!/^\d{4,6}$/.test(pinNuevo)) return { ok: false, error: 'El PIN nuevo debe tener de 4 a 6 dígitos' };
+
+  const ss = getSS();
+  const sheet = ss.getSheetByName('Usuarios');
+  if (!sheet) return { ok: false, error: 'No hay hoja de usuarios configurada' };
+
+  const usuarios = hojaAObjetos(sheet);
+  const u = usuarios.filter(function(x) { return String(x.id) === userId; })[0];
+  if (!u) return { ok: false, error: 'Usuario no encontrado' };
+
+  const pinGuardado  = String(u.pin || '');
+  const pinTemporal  = String(u.pinTemporal || '');
+  const coincide = (pinActual && pinActual === pinGuardado) ||
+                   (pinTemporal && pinActual === pinTemporal);
+  if (pinGuardado && !coincide) {
+    return { ok: false, error: 'El PIN actual no es correcto' };
+  }
+
+  actualizarFila(sheet, 'id', userId, { pin: pinNuevo, pinTemporal: '' });
   return { ok: true };
 }
 

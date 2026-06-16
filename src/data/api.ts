@@ -46,6 +46,14 @@ export async function recuperarPin(correo: string): Promise<{ ok: boolean; error
   return fetchJsonp({ action: 'recuperarPin', correo });
 }
 
+export async function cambiarPin(
+  userId: string,
+  pinActual: string,
+  pinNuevo: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return fetchJsonp({ action: 'cambiarPin', userId, pinActual, pinNuevo });
+}
+
 // ── Reservas ───────────────────────────────────────────────────────────────────
 
 export interface Reserva {
