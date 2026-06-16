@@ -12,18 +12,19 @@ import DisponibilidadGrid from './components/DisponibilidadGrid';
 import VistaHorario from './components/VistaHorario';
 import MiHistorial from './components/MiHistorial';
 import BannerNotificaciones from './components/BannerNotificaciones';
+import NavDropdown from './components/NavDropdown';
 import { getNotificaciones } from './data/api';
 import { USUARIOS } from './data/maestros';
 import { cn } from './lib/utils';
 
-type NavItem = { id: string; label: string; roles: string[] };
+type NavItem = { id: string; label: string; descripcion: string; roles: string[] };
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'disponibilidad', label: 'Reservar',     roles: ['docente', 'coordinador'] },
-  { id: 'historial',      label: 'Mis reservas', roles: ['docente', 'coordinador', 'rectora'] },
-  { id: 'admin',          label: 'Panel',         roles: ['coordinador'] },
-  { id: 'rectora',        label: 'Asignación',    roles: ['rectora'] },
-  { id: 'horario',        label: 'Horario',       roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'disponibilidad', label: 'Reservar',     descripcion: 'Solicita un aula o recurso',        roles: ['docente', 'coordinador'] },
+  { id: 'historial',      label: 'Mis reservas', descripcion: 'Tus solicitudes y su estado',       roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'admin',          label: 'Panel',         descripcion: 'Pendientes, hoy y configuración',   roles: ['coordinador'] },
+  { id: 'rectora',        label: 'Asignación',    descripcion: 'Asigna espacios directamente',      roles: ['rectora'] },
+  { id: 'horario',        label: 'Horario',       descripcion: 'Por aulas, docente o grupo',        roles: ['docente', 'coordinador', 'rectora'] },
 ];
 
 const ROL_COLOR: Record<string, string> = {
@@ -79,38 +80,13 @@ export default function App() {
           {/* Divisor */}
           <div className="w-px h-5 bg-line hidden md:block flex-shrink-0" />
 
-          {/* Nav */}
-          <nav className="flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none">
-            {navItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => setVistaActual(item.id as typeof vistaActual)}
-                className={cn(
-                  'relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-1.5',
-                  vistaActual === item.id
-                    ? 'text-strong'
-                    : 'text-muted hover:text-strong hover:bg-elevated'
-                )}
-              >
-                {/* Indicador activo */}
-                {vistaActual === item.id && (
-                  <motion.span
-                    layoutId="nav-active"
-                    className="absolute inset-0 rounded-lg bg-elevated border border-line-strong"
-                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                  />
-                )}
-                <span className="relative z-10">{item.label}</span>
-
-                {/* Badge notificaciones */}
-                {item.id === 'disponibilidad' && notifNoLeidas > 0 && (
-                  <span className="relative z-10 min-w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                    {notifNoLeidas}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
+          {/* Nav — menú desplegable compacto */}
+          <NavDropdown
+            opciones={navItems.map(({ id, label, descripcion }) => ({ id, label, descripcion }))}
+            activa={vistaActual}
+            onSelect={id => setVistaActual(id as typeof vistaActual)}
+            badge={notifNoLeidas}
+          />
 
           {/* Acciones derecha */}
           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
