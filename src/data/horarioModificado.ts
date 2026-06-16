@@ -106,11 +106,16 @@ export interface JornadaReducida {
   fecha: string;
   jornada: 'manana' | 'tarde';
   autor: string;
+  horaInicio: string;    // hora de inicio de la jornada (HH:MM)
   horaFin: string;       // hora de fin de la jornada (HH:MM)
   motivo: string;        // ej. "Acto cívico", "Reunión de docentes"
   bloques: BloqueRecalculado[];
   timestamp: string;
 }
+
+/** Inicio normal de cada jornada. */
+export const INICIO_NORMAL = { manana: '06:00', tarde: '12:15' } as const;
+export const FIN_NORMAL = { manana: '12:00', tarde: '18:15' } as const;
 
 /** Convierte "HH:MM" a minutos desde medianoche. */
 function aMinutos(hhmm: string): number {
@@ -130,17 +135,21 @@ function aHhmm(mins: number): string {
  * (20 min después de la 2.ª y 10 min después de la 4.ª) y repartiendo
  * el tiempo restante equitativamente entre las clases.
  *
- * Mañana arranca 06:00 → fin normal 12:00 (clases de 55 min).
- * Tarde arranca 12:15 → fin normal 18:15.
+ * Acepta tanto la hora de inicio como la de fin. Si no se pasa inicio,
+ * usa el inicio normal de la jornada (06:00 mañana / 12:15 tarde).
  */
 export function recalcularBloquesAcortados(
   jornada: 'manana' | 'tarde',
   horaFin: string,
+  horaInicio?: string,
 ): BloqueRecalculado[] | { error: string } {
-  const inicioBase = jornada === 'manana' ? '06:00' : '12:15';
+  const inicioBase = horaInicio && horaInicio.trim() ? horaInicio : INICIO_NORMAL[jornada];
   const inicioMin = aMinutos(inicioBase);
   const finMin = aMinutos(horaFin);
   const totalMin = finMin - inicioMin;
+  if (totalMin <= 0) {
+    return { error: 'La hora de fin debe ser posterior a la hora de inicio.' };
+  }
   const descansos = 20 + 10; // 30 min total de descansos
   const minutosClases = totalMin - descansos;
   if (minutosClases < 60) {

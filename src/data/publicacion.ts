@@ -98,7 +98,7 @@ function generarHtmlJornadaReducida(jr: JornadaReducida): string {
   partes.push(`<h2 style="margin:0 0 4px 0;color:#b45309">I.E. Manuel J. Betancur — Jornada acortada</h2>`);
   partes.push(`<p style="margin:0 0 16px 0;color:#475569"><strong>${fechaLegible}</strong> · Jornada ${jornadaTxt}</p>`);
   partes.push(`<p style="margin:0 0 4px 0"><strong>Motivo:</strong> ${jr.motivo}</p>`);
-  partes.push(`<p style="margin:0 0 16px 0"><strong>Hora de salida:</strong> ${jr.horaFin}</p>`);
+  partes.push(`<p style="margin:0 0 16px 0"><strong>Horario:</strong> entrada ${jr.horaInicio} · salida ${jr.horaFin}</p>`);
   partes.push(`<h3 style="margin:8px 0 6px 0;color:#1f2937">Bloques del día</h3>`);
   partes.push(`<table style="width:100%;border-collapse:collapse;font-size:13px">`);
   partes.push(`<thead><tr style="background:#fef3c7">`);

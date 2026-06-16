@@ -10,6 +10,8 @@ import {
   recalcularBloquesAcortados,
   generarIdJornadaReducida,
   diaDeSemana,
+  INICIO_NORMAL,
+  FIN_NORMAL,
 } from '../data/horarioModificado';
 import type { JornadaReducida } from '../data/horarioModificado';
 import { generarPublicacionDeJornadaReducida } from '../data/publicacion';
@@ -28,6 +30,7 @@ const MOTIVOS = ['Acto cívico', 'Reunión de docentes', 'Jornada pedagógica', 
 export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
   const { userId, jornadasReducidas, agregarJornadaReducida, agregarPublicacionPendiente } = useAppStore();
   const [fecha, setFecha] = useState(fechaHoyLocal());
+  const [horaInicio, setHoraInicio] = useState<string>(INICIO_NORMAL[jornada]);
   const [horaFin, setHoraFin] = useState(jornada === 'manana' ? '10:00' : '16:15');
   const [motivo, setMotivo] = useState(MOTIVOS[0]);
   const [motivoOtro, setMotivoOtro] = useState('');
@@ -40,7 +43,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
   const dia = diaDeSemana(fecha);
   const esDiaLectivo = dia !== 'sabado' && dia !== 'domingo';
 
-  const calculo = useMemo(() => recalcularBloquesAcortados(jornada, horaFin), [jornada, horaFin]);
+  const calculo = useMemo(() => recalcularBloquesAcortados(jornada, horaFin, horaInicio), [jornada, horaFin, horaInicio]);
   const bloques = Array.isArray(calculo) ? calculo : null;
   const error = Array.isArray(calculo) ? null : calculo.error;
 
@@ -48,6 +51,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
 
   function reset() {
     setFecha(fechaHoyLocal());
+    setHoraInicio(INICIO_NORMAL[jornada]);
     setHoraFin(jornada === 'manana' ? '10:00' : '16:15');
     setMotivo(MOTIVOS[0]);
     setMotivoOtro('');
@@ -63,6 +67,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
       fecha,
       jornada,
       autor: userId,
+      horaInicio,
       horaFin,
       motivo: motivoFinal,
       bloques,
@@ -86,7 +91,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
         <h2 style="margin:0 0 4px 0;color:#b45309">I.E. Manuel J. Betancur — Jornada acortada</h2>
         <p style="margin:0 0 16px 0;color:#475569"><strong>${formatearFechaLegible(jr.fecha)}</strong> · Jornada ${jr.jornada === 'manana' ? 'mañana' : 'tarde'}</p>
         <p style="margin:0 0 4px 0"><strong>Motivo:</strong> ${jr.motivo}</p>
-        <p style="margin:0 0 16px 0"><strong>Hora de salida:</strong> ${jr.horaFin}</p>
+        <p style="margin:0 0 16px 0"><strong>Horario:</strong> entrada ${jr.horaInicio} · salida ${jr.horaFin}</p>
         <h3 style="margin:8px 0 6px 0">Bloques del día</h3>
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr style="background:#fef3c7"><th style="padding:6px 8px;border:1px solid #fcd34d;text-align:left">Hora</th><th style="padding:6px 8px;border:1px solid #fcd34d;text-align:left">Horario</th></tr></thead>
@@ -123,7 +128,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
       `*MJB — Jornada acortada*`,
       `${formatearFechaLegible(guardado.fecha)} · Jornada ${guardado.jornada === 'manana' ? 'mañana' : 'tarde'}`,
       `Motivo: ${guardado.motivo}`,
-      `Hora de salida: ${guardado.horaFin}`,
+      `Horario: entrada ${guardado.horaInicio} · salida ${guardado.horaFin}`,
       '',
       ...guardado.bloques.map(b => `${b.id}.ª hora: ${b.inicio} – ${b.fin}`),
       '',
@@ -192,16 +197,26 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-xs text-soft mb-1.5">Hora en que termina la jornada hoy</label>
-                    <input
-                      type="time"
-                      value={horaFin}
-                      onChange={e => setHoraFin(e.target.value)}
-                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-warning"
-                    />
-                    <div className="text-xs text-muted mt-1">
-                      Normal: {jornada === 'manana' ? '12:00' : '18:15'}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-soft mb-1.5">Hora de inicio</label>
+                      <input
+                        type="time"
+                        value={horaInicio}
+                        onChange={e => setHoraInicio(e.target.value)}
+                        className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-warning"
+                      />
+                      <div className="text-xs text-muted mt-1">Normal: {INICIO_NORMAL[jornada]}</div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-soft mb-1.5">Hora de fin</label>
+                      <input
+                        type="time"
+                        value={horaFin}
+                        onChange={e => setHoraFin(e.target.value)}
+                        className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-warning"
+                      />
+                      <div className="text-xs text-muted mt-1">Normal: {FIN_NORMAL[jornada]}</div>
                     </div>
                   </div>
 

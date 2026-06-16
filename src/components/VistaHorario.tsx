@@ -1279,7 +1279,7 @@ export default function VistaHorario() {
               >
                 <div className="text-xs font-semibold text-strong">{formatearFechaLegible(j.fecha)}</div>
                 <div className="text-[11px] text-soft mt-0.5">
-                  Jornada {j.jornada === 'manana' ? 'mañana' : 'tarde'} · termina {j.horaFin} · {j.motivo}
+                  Jornada {j.jornada === 'manana' ? 'mañana' : 'tarde'} · {j.horaInicio}–{j.horaFin} · {j.motivo}
                 </div>
                 <div className="text-[10px] text-warning-soft-fg mt-1">Ver bloques →</div>
               </button>
@@ -1500,7 +1500,7 @@ export default function VistaHorario() {
                     <span className="text-warning">⏱</span> Jornada acortada
                   </h2>
                   <p className="text-xs text-muted mt-0.5">
-                    {formatearFechaLegible(verDetalleJr.fecha)} · {verDetalleJr.jornada === 'manana' ? 'mañana' : 'tarde'} · termina {verDetalleJr.horaFin}
+                    {formatearFechaLegible(verDetalleJr.fecha)} · {verDetalleJr.jornada === 'manana' ? 'mañana' : 'tarde'} · {verDetalleJr.horaInicio}–{verDetalleJr.horaFin}
                   </p>
                 </div>
                 <button
