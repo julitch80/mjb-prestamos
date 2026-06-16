@@ -160,7 +160,7 @@ function actualizarReserva(p) {
   if (reserva) {
     var tipo = p.estado === 'aprobada' ? 'aprobada'
              : p.estado === 'rechazada' ? 'rechazada' : 'cancelada';
-    var msg = 'Tu reserva de ' + reserva.recurso + ' (' + reserva.fecha + ') fue ' + p.estado +
+    var msg = 'Tu reserva de ' + reserva.recurso + ' (' + normalizarFecha(reserva.fecha) + ') fue ' + p.estado +
               (p.motivo ? '. Motivo: ' + p.motivo : '.');
     crearNotificacion(String(reserva.solicitante), tipo, msg);
   }
