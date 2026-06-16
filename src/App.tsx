@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sun, Moon, LogOut, Bell, BellRing } from 'lucide-react';
@@ -13,6 +13,7 @@ import VistaHorario from './components/VistaHorario';
 import MiHistorial from './components/MiHistorial';
 import BannerNotificaciones from './components/BannerNotificaciones';
 import NavDropdown from './components/NavDropdown';
+import ModalSugerencia from './components/ModalSugerencia';
 import { getNotificaciones } from './data/api';
 import { USUARIOS } from './data/maestros';
 import { cn } from './lib/utils';
@@ -34,6 +35,7 @@ const ROL_COLOR: Record<string, string> = {
 };
 
 export default function App() {
+  const [sugerenciaAbierta, setSugerenciaAbierta] = useState(false);
   const { temaOscuro, toggleTema } = useTheme();
   const { permiso, solicitarPermiso, soportado } = useNotificacionesSistema();
   const { userId, nombre, rol, cerrarSesion, vistaActual, setVistaActual, setNotificaciones } =
@@ -180,6 +182,16 @@ export default function App() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+        <footer className="mt-auto py-4 text-center">
+          <button
+            onClick={() => setSugerenciaAbierta(true)}
+            className="text-xs text-muted hover:text-strong transition"
+          >
+            💡 Enviar sugerencia
+          </button>
+        </footer>
+        <ModalSugerencia open={sugerenciaAbierta} onClose={() => setSugerenciaAbierta(false)} />
     </div>
   );
 }

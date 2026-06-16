@@ -20,8 +20,9 @@ const CONFIG = {
 const DOC_AVISOS_ID = '1Z4ZPgkm5ognsKMwc8fizRTxIS2YWVyQFyzbkQ6QKEUk';
 
 // Esquemas de las hojas (se crean solas si no existen)
-const RESERVAS_HEADERS = ['id','recurso','fecha','bloque','solicitante','proposito','equipos','estado','motivo','timestamp'];
-const NOTIF_HEADERS    = ['id','destinatario','tipo','mensaje','leida','timestamp'];
+const RESERVAS_HEADERS    = ['id','recurso','fecha','bloque','solicitante','proposito','equipos','estado','motivo','timestamp'];
+const NOTIF_HEADERS       = ['id','destinatario','tipo','mensaje','leida','timestamp'];
+const SUGERENCIAS_HEADERS = ['id','autor','texto','timestamp'];
 
 // ── PUNTO DE ENTRADA (JSONP por GET) ─────────────────────────
 function doGet(e)  { return manejar(e); }
@@ -45,6 +46,7 @@ function manejar(e) {
       case 'enviarCorreo':       resultado = enviarCorreoAccion(p); break;
       case 'enviarCorreoMasivo': resultado = enviarCorreoMasivo(p); break;
       case 'publicarAviso':      resultado = publicarAviso(p);      break;
+      case 'crearSugerencia':    resultado = crearSugerencia(p);    break;
       default:
         resultado = { ok: false, error: 'Acción desconocida: ' + p.action };
     }
@@ -335,4 +337,14 @@ function publicarAviso(p) {
     doc.saveAndClose();
     return { ok: true, id: id, url: 'https://docs.google.com/document/d/' + DOC_AVISOS_ID };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+// ── Sugerencias ──────────────────────────────────────────────
+
+function crearSugerencia(p) {
+  const sheet = getSheet('Sugerencias', SUGERENCIAS_HEADERS);
+  const id = 'SUG-' + new Date().getTime();
+  const ts = new Date().toISOString();
+  sheet.appendRow([id, p.autor || 'anónimo', p.texto || '', ts]);
+  return { ok: true, id: id };
 }

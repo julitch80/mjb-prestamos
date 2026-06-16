@@ -147,6 +147,15 @@ export async function enviarCorreoMasivo(
   });
 }
 
+// ── Sugerencias ───────────────────────────────────────────────────────────────
+
+export async function crearSugerencia(
+  autor: string,
+  texto: string,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  return fetchJsonp({ action: 'crearSugerencia', autor, texto });
+}
+
 // ── Publicación en Google Site del colegio ─────────────────────────────────────
 
 export interface PublicacionResultado {
