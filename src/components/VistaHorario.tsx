@@ -248,8 +248,8 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
               ))}
             </div>
             {/* Tabla por aulas del día */}
-            <div className="rounded-2xl border border-line bg-elevated/40 overflow-hidden">
-              <table className="text-xs border-collapse w-full">
+            <div className="rounded-2xl border border-line bg-elevated/40 overflow-x-auto">
+              <table className="text-xs border-collapse" style={{ minWidth: 560 }}>
                 <thead>
                   <tr className="border-b border-line">
                     <th className="text-left text-muted px-3 py-2.5 font-medium w-28">Aula</th>
