@@ -1,3 +1,5 @@
+import { horarioBase } from './horarioBase';
+
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
 export type Rol       = 'rectora' | 'coordinador' | 'docente';
@@ -337,4 +339,59 @@ export function getDocentes(jornada?: Jornada): Usuario[] {
     if (!jornada) return true;
     return u.jornada === jornada || u.jornada === 'ambas';
   });
+}
+
+// ── Centro de Interés (CI) ───────────────────────────────────────────────────
+//
+// Mañana: martes 6.ª hora. Los docentes que lo supervisan se derivan del
+// horario base (entradas de martes B6 cuyo grado incluye "CI"). NO todos los
+// docentes de mañana tienen CI.
+//
+// Tarde: martes 1.ª hora (jornada independiente). Lista de docentes definida
+// explícitamente abajo. Edgar es el único que tiene CI en ambas jornadas.
+//
+// En la vista POR GRUPO/AULA la franja de CI aplica a todos los grupos de la
+// jornada; en la vista POR DOCENTE solo a quienes efectivamente lo supervisan.
+
+/** Bloque institucional del CI según la jornada. */
+export const BLOQUE_CI: Record<'manana' | 'tarde', number> = { manana: 6, tarde: 1 };
+
+/** Docentes con CI en la TARDE (martes 1.ª hora). */
+export const DOCENTES_CI_TARDE = new Set<string>([
+  'marina',       // Marina Zapata ("Luz Marina")
+  'carolina',     // Carolina Medina
+  'fredy_garcia', // Fredy García
+  'monica_rave',  // Mónica Rave
+  'marta',        // Marta Úsuga
+  'juan_pablo',   // Juan Pablo Bettin
+  'edgar',        // Edgar Pérez (también CI en la mañana)
+  'harol',        // Harol Gómez
+  'felipe',       // Felipe Piedrahita
+  'luis_angel',   // Luis Ángel Quiceno
+  'luis_javier',  // Luis Javier Rojas
+]);
+
+/** Docentes con CI en la MAÑANA (martes 6.ª hora), derivados del horario base. */
+export const DOCENTES_CI_MANANA = new Set<string>(
+  horarioBase
+    .filter(e => e.dia === 'martes' && e.bloque === 6 && e.jornada === 'manana' && e.grado.includes('CI'))
+    .map(e => e.docente),
+);
+
+/** ¿La franja (día/bloque/jornada) es Centro de Interés para todos los grupos? */
+export function esCIBloque(dia: string, bloque: number, jornada: 'manana' | 'tarde'): boolean {
+  return dia === 'martes' && bloque === BLOQUE_CI[jornada];
+}
+
+/** ¿Este docente tiene CI en esta franja? */
+export function esCIDocente(
+  docenteId: string,
+  dia: string,
+  bloque: number,
+  jornada: 'manana' | 'tarde',
+): boolean {
+  if (!esCIBloque(dia, bloque, jornada)) return false;
+  return jornada === 'manana'
+    ? DOCENTES_CI_MANANA.has(docenteId)
+    : DOCENTES_CI_TARDE.has(docenteId);
 }

@@ -143,7 +143,18 @@ Directores de grupo de la tarde: **NO DISPONIBLES AÚN** — pendiente de obtene
 
 ### Centros de Interés (CI)
 
-Martes B6 todos los grupos de mañana van a CI. No tienen aula asignada (los estudiantes van a su centro de interés específico). Se muestra en dorado con ⭐ en todas las vistas.
+Hay CI en ambas jornadas, en franjas distintas e independientes:
+
+- **Mañana:** martes **B6** (6.ª hora).
+- **Tarde:** martes **B1** (1.ª hora).
+
+Reglas de visualización (centralizadas en `maestros.ts`: `esCIBloque`, `esCIDocente`, `DOCENTES_CI_MANANA`, `DOCENTES_CI_TARDE`, `BLOQUE_CI`):
+
+- **Vista por grupo / por aulas:** la franja de CI aplica a **todos** los grupos de la jornada (sin aula asignada). Se muestra ★CI dorado.
+- **Vista por docente:** ★CI solo para los docentes que **efectivamente supervisan** CI. NO todos lo tienen.
+  - Mañana: se derivan del horario base (entradas martes B6 con grado que incluye `CI`). NO tienen CI: Gloria A., Johana, Claudia, Mónica C., Marta.
+  - Tarde (`DOCENTES_CI_TARDE`): Marina Zapata, Carolina, Fredy García, Mónica Rave, Marta, Juan Pablo, Edgar, Harol, Felipe, Luis Ángel, Luis Javier.
+- **Edgar** es el único con CI en ambas jornadas: martes B6 (su única hora de mañana) y martes B1 (tarde). El CI tiene prioridad sobre la marca "T" de jornada tarde en su celda de mañana.
 
 ---
 

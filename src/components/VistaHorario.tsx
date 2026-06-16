@@ -18,6 +18,8 @@ import {
   MIXTOS_TARDE,
   compararAulas,
   compararGrupos,
+  esCIBloque,
+  esCIDocente,
 } from '../data/maestros';
 import { horarioBase } from '../data/horarioBase';
 import { cn } from '@/lib/utils';
@@ -453,19 +455,9 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
             {bloques.flatMap(b => {
               const items: React.ReactNode[] = [];
               const esTardeHoy = docenteEnTarde(docenteId, diaSeleccionado);
-              const esCI = diaSeleccionado === 'martes' && b.id === 6;
+              const esCI = esCIDocente(docenteId, diaSeleccionado, b.id, jornadaTab);
 
-              if (esTardeHoy && jornadaTab === 'manana') {
-                items.push(
-                  <div key={b.id} className="flex items-center gap-3 rounded-xl bg-warning-soft border border-warning p-3">
-                    <div className="w-24 flex-shrink-0">
-                      <div className="text-warning font-bold">{horaOrdinal(b.id)} hora</div>
-                      <div className="text-warning-soft-fg text-[10px]">{b.inicio} – {b.fin}</div>
-                    </div>
-                    <span className="text-warning-soft-fg text-sm">Jornada tarde</span>
-                  </div>
-                );
-              } else if (esCI) {
+              if (esCI) {
                 items.push(
                   <div key={b.id} className="flex items-center gap-3 rounded-xl bg-warning-soft border border-warning p-3">
                     <div className="w-24 flex-shrink-0">
@@ -473,6 +465,16 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
                       <div className="text-warning-soft-fg text-[10px]">{b.inicio} – {b.fin}</div>
                     </div>
                     <span className="text-warning-soft-fg font-semibold">⭐ Centro de Interés</span>
+                  </div>
+                );
+              } else if (esTardeHoy && jornadaTab === 'manana') {
+                items.push(
+                  <div key={b.id} className="flex items-center gap-3 rounded-xl bg-warning-soft border border-warning p-3">
+                    <div className="w-24 flex-shrink-0">
+                      <div className="text-warning font-bold">{horaOrdinal(b.id)} hora</div>
+                      <div className="text-warning-soft-fg text-[10px]">{b.inicio} – {b.fin}</div>
+                    </div>
+                    <span className="text-warning-soft-fg text-sm">Jornada tarde</span>
                   </div>
                 );
               } else {
@@ -596,7 +598,7 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
                         <div className="text-muted text-[10px]">{b.inicio} – {b.fin}</div>
                       </td>
                       {DIAS.map(dia => {
-                        const esCI = dia === 'martes' && b.id === 6 && jornadaTab === 'manana';
+                        const esCI = esCIBloque(dia, b.id, jornadaTab);
                         if (esCI) return <td key={dia} className="p-1" style={{ height: CELL_H }}><CeldaCI /></td>;
                         const entrada = entradas.find(e => e.dia === dia && e.bloque === b.id);
                         if (!entrada) return (
@@ -649,7 +651,7 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
             </div>
             <div className="space-y-2">
               {bloques.map(b => {
-                const esCI = diaSeleccionado === 'martes' && b.id === 6 && jornadaTab === 'manana';
+                const esCI = esCIBloque(diaSeleccionado, b.id, jornadaTab);
                 if (esCI) return (
                   <div key={b.id} className="flex items-center gap-3 rounded-xl bg-warning-soft border border-warning p-3">
                     <div className="w-24 flex-shrink-0">
@@ -766,7 +768,7 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
                     <div className="text-[9px] text-muted opacity-70 group-hover:text-muted mt-0.5">ver →</div>
                   </td>
                   {bloques.map(b => {
-                    const esCI    = diaSeleccionado === 'martes' && b.id === 6 && jornadaTab === 'manana';
+                    const esCI    = esCIDocente(docente.id, diaSeleccionado, b.id, jornadaTab);
                     const entrada = (!esTardeHoy && !esCI)
                       ? horarioBase.find(e =>
                           e.docente === docente.id && e.dia === diaSeleccionado &&
@@ -776,13 +778,13 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
                     const gradoStr = entrada?.grado.includes('/') ? entrada.grado.split('/')[0] : entrada?.grado;
                     return (
                       <td key={b.id} className="p-1" style={{ height: CELL_H }}>
-                        {esTardeHoy ? (
-                          <div className="h-full rounded border border-warning bg-warning-soft/60 flex items-center justify-center">
-                            <span className="text-warning-soft-fg text-[9px]">T</span>
-                          </div>
-                        ) : esCI ? (
+                        {esCI ? (
                           <div className="h-full rounded border border-warning bg-warning-soft flex items-center justify-center">
                             <span className="text-warning text-[9px] font-bold">★CI</span>
+                          </div>
+                        ) : esTardeHoy ? (
+                          <div className="h-full rounded border border-warning bg-warning-soft/60 flex items-center justify-center">
+                            <span className="text-warning-soft-fg text-[9px]">T</span>
                           </div>
                         ) : entrada ? (
                           <div
@@ -866,7 +868,7 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
               {DIAS.map((dia, di) =>
                 bloques.map((b, bi) => {
                   const esTardeHoy = docenteEnTarde(docente.id, dia) && jornadaTab === 'manana';
-                  const esCI       = dia === 'martes' && b.id === 6 && jornadaTab === 'manana';
+                  const esCI       = esCIDocente(docente.id, dia, b.id, jornadaTab);
                   const entrada    = (!esTardeHoy && !esCI)
                     ? horarioBase.find(e =>
                         e.docente === docente.id && e.dia === dia &&
@@ -883,13 +885,13 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
                       className={cn('p-0.5', bi === 0 && di > 0 ? 'border-l-[3px] border-line-strong' : '')}
                       style={{ height: CELL_H }}
                     >
-                      {esTardeHoy ? (
-                        <div className="h-full rounded border border-warning bg-warning-soft/60 flex items-center justify-center">
-                          <span className="text-warning-soft-fg text-[9px]">T</span>
-                        </div>
-                      ) : esCI ? (
+                      {esCI ? (
                         <div className="h-full rounded border border-warning bg-warning-soft flex items-center justify-center">
                           <span className="text-warning text-[9px] font-bold">★CI</span>
+                        </div>
+                      ) : esTardeHoy ? (
+                        <div className="h-full rounded border border-warning bg-warning-soft/60 flex items-center justify-center">
+                          <span className="text-warning-soft-fg text-[9px]">T</span>
                         </div>
                       ) : entrada ? (
                         <div
@@ -985,7 +987,6 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
               const dirId  = directores[grado];
               const dir    = USUARIOS.find(u => u.id === dirId);
               const gColor = colorGrado(grado);
-              const esCI   = diaSeleccionado === 'martes' && jornadaTab === 'manana';
               return (
                 <tr key={grado} className={cn('border-b border-line', ri % 2 !== 0 ? 'bg-elevated/40' : '')}>
                   <td
@@ -997,7 +998,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
                     {dir && <div className="text-[9px] mt-0.5" style={{ color: dir.color }}>{dir.nombreCorto}</div>}
                   </td>
                   {bloques.map(b => {
-                    const esCIcelda = esCI && b.id === 6;
+                    const esCIcelda = esCIBloque(diaSeleccionado, b.id, jornadaTab);
                     const entrada = !esCIcelda
                       ? horarioBase.find(e => {
                           const g = e.grado.includes('/') ? e.grado.split('/')[0] : e.grado;
@@ -1099,7 +1100,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
                 </td>
                 {DIAS.map((dia, di) =>
                   bloques.map((b, bi) => {
-                    const esCI   = dia === 'martes' && b.id === 6 && jornadaTab === 'manana';
+                    const esCI   = esCIBloque(dia, b.id, jornadaTab);
                     const entrada = !esCI
                       ? horarioBase.find(e => {
                           const g = e.grado.includes('/') ? e.grado.split('/')[0] : e.grado;
