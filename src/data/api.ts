@@ -131,7 +131,7 @@ export async function enviarCorreoMasivo(
   cc?: string[],
 ): Promise<ResultadoCorreoMasivo> {
   return fetchJsonp<ResultadoCorreoMasivo>({
-    accion: 'enviarCorreoMasivo',
+    action: 'enviarCorreoMasivo',
     destinatarios: destinatarios.join(','),
     asunto,
     html,
@@ -156,9 +156,8 @@ export async function publicarAviso(
   html: string,
   autor: string,
 ): Promise<PublicacionResultado> {
-  // El backend (Code.gs) lee el parámetro como `accion` (con tilde), no `action`.
   return fetchJsonp<PublicacionResultado>({
-    accion: 'publicarAviso',
+    action: 'publicarAviso',
     fecha,
     jornada,
     tipo,
