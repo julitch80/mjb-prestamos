@@ -41,6 +41,8 @@ export default defineConfig({
       workbox: {
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,ico,svg,woff2}'],
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             // Caché de la app (network-first, fallback a caché)
@@ -49,16 +51,6 @@ export default defineConfig({
             options: {
               cacheName: 'mjb-app-cache',
               expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
-            },
-          },
-          {
-            // Caché del Apps Script (network-first, fallback silencioso)
-            urlPattern: /^https:\/\/script\.google\.com\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'mjb-api-cache',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 5 },
-              networkTimeoutSeconds: 5,
             },
           },
         ],
