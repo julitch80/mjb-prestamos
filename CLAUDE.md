@@ -106,10 +106,10 @@ prestamo-mjb/
 | 11°1 | Johana | Leidy Johana Cano Ruiz |
 | 11°2 | Julián | Julián David Medina Tamayo |
 | 11°3 | Claudia | Claudia Patricia Henao Bermúdez |
-| 10°1 | Carlos | Juan Carlos Blandón Vargas |
+| 10°1 | Carlos | Carlos Cárdenas |
 | 10°2 | Beatriz | Beatriz Elena Montoya Valdés |
 | 10°3 | Ledis | Ledis Laura Quintana Seguanes |
-| 10°4 | Adolfo | Adolfo Díaz |
+| 10°4 | Adolfo | Adolfo León Arango Arroyave |
 | 9°1 | Gloria A. | Gloria Estella Álvarez López |
 | 9°2 | Marta | Marta Úsuga |
 | 9°3 | Uriel | José Uriel López Arias |
@@ -136,10 +136,11 @@ Directores de grupo de la tarde: **NO DISPONIBLES AÚN** — pendiente de obtene
 | Docente | Días en TARDE | Días en MAÑANA |
 |---------|--------------|----------------|
 | Marta Úsuga | martes, jueves | lunes, miércoles, viernes |
-| Mónica C. (Córdoba) | lunes, miércoles | martes, jueves, viernes |
+| Mónica Tatiana Córdoba Zapata (`monica_c`) | lunes, miércoles | martes, jueves, viernes |
 | Juan C. (Blandón/Yoguis) | miércoles | lunes, martes, jueves, viernes |
 | Edgar | todos | solo martes B6 (CI) |
-| Mónica T. (Tatiana Córdoba) | — | martes, jueves, viernes |
+
+> Nota: hay **dos Mónicas** y son personas distintas: **Mónica Tatiana Córdoba Zapata** (`monica_c`, mixta mañana+tarde) y **Mónica Rave** (`monica_rave`, solo tarde). No confundir.
 
 ### Centros de Interés (CI)
 
@@ -373,17 +374,17 @@ El modo claro existe pero los elementos no se adaptan correctamente. Muchos tít
 | Claudia | Aula 6 |
 | Doris | Aula 7 |
 | Carlos | Aula 8 |
-| Margarita Bedoya | Aula 9 |
+| Margarita | Aula 9 |
 | Uriel | Aula 10 |
 | Julián | Lab. Ciencias |
 | Yoguis (Juan Carlos Blandón) | Sala Informática |
 
 Docentes rotativos mañana (aulas variables por día/bloque):
-- **Mónica T. Córdoba**: Mar B1-B2→Lab.Ciencias; Jue B3-B4→Aula6, B5-B6→Aula2; Vie B1-B2→Aula6, B3-B4→Aula3, B5-B6→Aula9
-- **Jorge Acevedo**: Lun B3-B5→Aula7; Mar B2-B3,B5-B6→Aula2; Mie B1-B2→Aula2, B3-B4→Aula5, B5-B6→Aula10; Jue B1-B4→Aula2; Vie B1-B4→Aula5
-- **Adolfo Díaz**: siempre en el Patio (Educación Física). No tiene salón. Patio NO aparece en la cuadrícula de reservas.
+- **Mónica Tatiana Córdoba** (`monica_c`): Mar B1-B2→Lab.Ciencias; Jue B3-B4→Aula6, B5-B6→Aula2; Vie B1-B2→Aula6, B3-B4→Aula3, B5-B6→Aula9
+- **Jorge Iván Acevedo Tabares** (`jorge`): Lun B3-B5→Aula7; Mar B2-B3,B5-B6→Aula2; Mie B1-B2→Aula2, B3-B4→Aula5, B5-B6→Aula10; Jue B1-B4→Aula2; Vie B1-B4→Aula5
+- **Adolfo León Arango Arroyave** (`adolfo`): siempre en el Patio (Educación Física). No tiene salón. Patio NO aparece en la cuadrícula de reservas.
 
-Nota: 'MARGARA' en código = Margarita Bedoya. 'LILIANA' en el docx original = 'Carlos' (id: `carlos`) — docente diferente a Yoguis.
+Nota: 'MARGARA' en código (`margara`) = Margarita María Montoya Olaya. 'LILIANA' en el docx original = Carlos Cárdenas (id: `carlos`) — docente diferente a Yoguis (Juan Carlos Blandón Vargas).
 
 ---
 
