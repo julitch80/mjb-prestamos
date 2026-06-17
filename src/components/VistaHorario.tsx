@@ -1216,7 +1216,8 @@ export default function VistaHorario() {
   const enOverview =
     modo === 'aulas' ||
     (modo === 'docente' && !docenteSel) ||
-    (modo === 'grupo'   && !grupoSel);
+    (modo === 'grupo'   && !grupoSel) ||
+    modo === 'acompanamiento';
 
   const MODO_LABELS: Record<Modo, string> = {
     aulas:          'Por aulas',
@@ -1321,7 +1322,7 @@ export default function VistaHorario() {
 
       {/* Barra de controles: modo · jornada · semana/día — todo en una línea */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex gap-1 p-1 rounded-xl bg-elevated border border-line">
+        <div className="flex flex-wrap gap-1 p-1 rounded-xl bg-elevated border border-line">
           {(['docente', 'grupo', 'aulas', 'acompanamiento'] as Modo[]).map(m => (
             <TabButton key={m} active={modo === m} onClick={() => setModo(m)} color="modo">
               {MODO_LABELS[m]}
@@ -1456,7 +1457,7 @@ export default function VistaHorario() {
                 <p className="text-center text-muted opacity-50 py-8 text-sm">
                   Aún no hay datos de acompañamiento para la jornada de la tarde.
                 </p>
-              ) : (
+              ) : vistaOverview === 'semana' ? (
                 <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
                   <table className="text-xs border-collapse w-full">
                     <thead>
@@ -1496,6 +1497,50 @@ export default function VistaHorario() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Selector de día */}
+                  <div className="flex gap-1">
+                    {DIAS.map(dia => (
+                      <button
+                        key={dia}
+                        onClick={() => setDiaOverview(dia)}
+                        className={cn(
+                          'flex-1 py-2 rounded-xl text-xs font-medium transition-all border',
+                          diaOverview === dia
+                            ? 'bg-hover text-strong border-line-strong'
+                            : 'text-muted border-transparent hover:text-soft hover:bg-elevated'
+                        )}
+                      >
+                        {DIAS_CORTO[dia]}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Banners por zona */}
+                  <div className="space-y-2">
+                    {ZONAS_ACOMPANAMIENTO.map(zona => {
+                      const entrada = ACOMPAÑAMIENTOS.find(
+                        a => a.lugar === zona && a.dia === diaOverview && a.jornada === 'manana'
+                      );
+                      const usuario = entrada ? USUARIOS.find(u => u.id === entrada.docente) : null;
+                      return (
+                        <div
+                          key={zona}
+                          className="flex items-center gap-3 rounded-xl bg-elevated border border-line p-3"
+                        >
+                          <span className="text-strong font-semibold text-sm flex-1">{zona}</span>
+                          {usuario ? (
+                            <span className="font-bold text-sm" style={{ color: usuario.color }}>
+                              {usuario.nombreCorto}
+                            </span>
+                          ) : (
+                            <span className="text-muted opacity-50 text-sm">—</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
