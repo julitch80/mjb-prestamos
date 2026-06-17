@@ -12,6 +12,7 @@ import {
   AULA_GRUPO_TARDE,
   COLORES_AULA,
   ACOMPAÑAMIENTOS,
+  ZONAS_ACOMPANAMIENTO,
   colorGrado,
   horaOrdinal,
   getDocentes,
@@ -33,7 +34,7 @@ import type { HorarioModificado, JornadaReducida } from '../data/horarioModifica
 import { publicacionesPendientesDeRevisar } from '../data/publicacion';
 import type { PublicacionPendiente } from '../data/publicacion';
 
-type Modo         = 'aulas' | 'docente' | 'grupo';
+type Modo         = 'aulas' | 'docente' | 'grupo' | 'acompanamiento';
 type VistaDetalle = 'semana' | 'dia';
 
 const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'] as const;
@@ -309,7 +310,8 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
   function getAcomp(dia: string, numDescanso: 1 | 2) {
     return ACOMPAÑAMIENTOS.find(a =>
       a.docente === docenteId && a.dia === dia &&
-      (a.descansos === 'ambos' || a.descansos === numDescanso)
+      (a.descansos === 'ambos' || a.descansos === numDescanso) &&
+      a.jornada === jornadaTab
     );
   }
 
@@ -1217,9 +1219,10 @@ export default function VistaHorario() {
     (modo === 'grupo'   && !grupoSel);
 
   const MODO_LABELS: Record<Modo, string> = {
-    aulas:   'Por aulas',
-    docente: 'Por docente',
-    grupo:   'Por grupo',
+    aulas:          'Por aulas',
+    docente:        'Por docente',
+    grupo:          'Por grupo',
+    acompanamiento: 'Acompañamiento',
   };
 
   // Si hay borrador activo, el editor toma el control de toda la vista
@@ -1319,7 +1322,7 @@ export default function VistaHorario() {
       {/* Barra de controles: modo · jornada · semana/día — todo en una línea */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex gap-1 p-1 rounded-xl bg-elevated border border-line">
-          {(['docente', 'grupo', 'aulas'] as Modo[]).map(m => (
+          {(['docente', 'grupo', 'aulas', 'acompanamiento'] as Modo[]).map(m => (
             <TabButton key={m} active={modo === m} onClick={() => setModo(m)} color="modo">
               {MODO_LABELS[m]}
             </TabButton>
@@ -1446,6 +1449,56 @@ export default function VistaHorario() {
                 onSetDia={setDiaOverview}
               />
             )
+          )}
+          {modo === 'acompanamiento' && (
+            <div className="space-y-4">
+              {jornadaTab === 'tarde' ? (
+                <p className="text-center text-muted opacity-50 py-8 text-sm">
+                  Aún no hay datos de acompañamiento para la jornada de la tarde.
+                </p>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
+                  <table className="text-xs border-collapse w-full">
+                    <thead>
+                      <tr className="border-b border-line">
+                        <th className="text-muted px-3 py-2.5 text-left font-medium w-36 sticky left-0 bg-elevated/80 z-10">Zona</th>
+                        {DIAS.map(dia => (
+                          <th key={dia} className="text-center px-2 py-2.5 font-semibold text-soft min-w-[90px]">
+                            {DIAS_LABEL[dia]}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ZONAS_ACOMPANAMIENTO.map((zona, i) => (
+                        <tr key={zona} className={cn('border-b border-line/50', i % 2 === 0 ? '' : 'bg-card/30')}>
+                          <td className="px-3 py-2 font-semibold text-strong sticky left-0 bg-elevated/80 z-10 whitespace-nowrap">
+                            {zona}
+                          </td>
+                          {DIAS.map(dia => {
+                            const entrada = ACOMPAÑAMIENTOS.find(
+                              a => a.lugar === zona && a.dia === dia && a.jornada === 'manana'
+                            );
+                            const usuario = entrada ? USUARIOS.find(u => u.id === entrada.docente) : null;
+                            return (
+                              <td key={dia} className="text-center px-2 py-2">
+                                {usuario ? (
+                                  <span className="font-bold" style={{ color: usuario.color }}>
+                                    {usuario.nombreCorto}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted opacity-50">—</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           )}
         </motion.div>
       </AnimatePresence>

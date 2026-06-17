@@ -37,6 +37,7 @@ export interface Acompanamiento {
   dia: string;
   descansos: 1 | 2 | 'ambos';
   lugar: string;
+  jornada: 'manana' | 'tarde';
 }
 
 // ── Usuarios ──────────────────────────────────────────────────────────────────
@@ -48,37 +49,41 @@ export const USUARIOS: Usuario[] = [
   { id: 'coord_tarde',  nombre: 'Juan Diego Salazar Rendón',      nombreCorto: 'Juan Diego', rol: 'coordinador', jornada: 'tarde',  correo: 'juan.salazar@iemanueljbetancur.edu.co',   pin: '11111', color: '#f08080' },
 
   // Docentes mañana — paleta arcoíris de 15 colores equidistantes (~24° entre sí)
-  { id: 'johana',    nombre: 'Leidy Johana Cano Ruiz',          nombreCorto: 'Johana',     rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#ef4444' }, // red-500
-  { id: 'beatriz',   nombre: 'Beatriz Elena Montoya Valdés',    nombreCorto: 'Beatriz',    rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#f97316' }, // orange-500
-  { id: 'adolfo',    nombre: 'Adolfo León Arango Arroyave',     nombreCorto: 'Adolfo',     rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#eab308' }, // yellow-500
-  { id: 'gloria_a',  nombre: 'Gloria Estella Álvarez López',    nombreCorto: 'Gloria A.',  rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#84cc16' }, // lime-500
-  { id: 'doris',     nombre: 'Doris Castrillón Álvarez',        nombreCorto: 'Doris',      rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#22c55e' }, // green-500
-  { id: 'marta',     nombre: 'Marta Úsuga',                     nombreCorto: 'Marta',      rol: 'docente', jornada: 'ambas',  correo: '', pin: '', color: '#10b981' }, // emerald-500
-  { id: 'julian',    nombre: 'Julián David Medina Tamayo',      nombreCorto: 'Julián',     rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#14b8a6' }, // teal-500
-  { id: 'carlos',    nombre: 'Carlos Cárdenas',                 nombreCorto: 'Carlos',     rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#0ea5e9' }, // sky-500
-  { id: 'yoguis',    nombre: 'Juan Carlos Blandón Vargas',      nombreCorto: 'Yoguis',     rol: 'docente', jornada: 'ambas',  correo: 'juancarlosbv@iemanueljbetancur.edu.co', pin: '', color: '#3b82f6' }, // blue-500
-  { id: 'jorge',     nombre: 'Jorge Iván Acevedo Tabares',      nombreCorto: 'Jorge',      rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#6366f1' }, // indigo-500
-  { id: 'ledis',     nombre: 'Ledis Laura Quintana Seguanes',   nombreCorto: 'Ledis',      rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#8b5cf6' }, // violet-500
-  { id: 'uriel',     nombre: 'José Uriel López Arias',          nombreCorto: 'Uriel',      rol: 'docente', jornada: 'manana', correo: 'uriel.lopez@iemanueljbetancur.edu.co', pin: '', color: '#a855f7' }, // purple-500
-  { id: 'claudia',   nombre: 'Claudia Patricia Henao Bermúdez', nombreCorto: 'Claudia',    rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#d946ef' }, // fuchsia-500
-  { id: 'margara',   nombre: 'Margarita María Montoya Olaya',   nombreCorto: 'Margarita',  rol: 'docente', jornada: 'manana', correo: '', pin: '', color: '#ec4899' }, // pink-500
-  { id: 'monica_c',  nombre: 'Mónica Tatiana Córdoba Zapata',   nombreCorto: 'Mónica C.',  rol: 'docente', jornada: 'ambas',  correo: '', pin: '', color: '#f43f5e' }, // rose-500
+  { id: 'johana',    nombre: 'Leidy Johana Cano Ruiz',          nombreCorto: 'Johana',     rol: 'docente', jornada: 'manana', correo: 'johana.cano@iemanueljbetancur.edu.co',     pin: '', color: '#ef4444' }, // red-500
+  { id: 'beatriz',   nombre: 'Beatriz Elena Montoya Valdés',    nombreCorto: 'Beatriz',    rol: 'docente', jornada: 'manana', correo: 'beatriz.montoya@iemanueljbetancur.edu.co', pin: '', color: '#f97316' }, // orange-500
+  { id: 'adolfo',    nombre: 'Adolfo León Arango Arroyave',     nombreCorto: 'Adolfo',     rol: 'docente', jornada: 'manana', correo: 'adolfo.arango@iemanueljbetancur.edu.co',   pin: '', color: '#eab308' }, // yellow-500
+  { id: 'gloria_a',  nombre: 'Gloria Estella Álvarez López',    nombreCorto: 'Gloria A.',  rol: 'docente', jornada: 'manana', correo: 'gloria.alvarez@iemanueljbetancur.edu.co',  pin: '', color: '#84cc16' }, // lime-500
+  { id: 'doris',     nombre: 'Doris Castrillón Álvarez',        nombreCorto: 'Doris',      rol: 'docente', jornada: 'manana', correo: 'doris.castrillon@iemanueljbetancur.edu.co', pin: '', color: '#22c55e' }, // green-500
+  { id: 'marta',     nombre: 'Marta Úsuga',                     nombreCorto: 'Marta',      rol: 'docente', jornada: 'ambas',  correo: 'martha.usuga@iemanueljbetancur.edu.co',    pin: '', color: '#10b981' }, // emerald-500
+  { id: 'julian',    nombre: 'Julián David Medina Tamayo',      nombreCorto: 'Julián',     rol: 'docente', jornada: 'manana', correo: 'julian.medina@iemanueljbetancur.edu.co',   pin: '', color: '#14b8a6' }, // teal-500
+  { id: 'carlos',    nombre: 'Carlos Cárdenas',                 nombreCorto: 'Carlos',     rol: 'docente', jornada: 'manana', correo: 'carlos.cardenas@iemanueljbetancur.edu.co', pin: '', color: '#0ea5e9' }, // sky-500
+  { id: 'yoguis',    nombre: 'Juan Carlos Blandón Vargas',      nombreCorto: 'Yoguis',     rol: 'docente', jornada: 'ambas',  correo: 'juancarlosbv@iemanueljbetancur.edu.co',    pin: '', color: '#3b82f6' }, // blue-500
+  { id: 'jorge',     nombre: 'Jorge Iván Acevedo Tabares',      nombreCorto: 'Jorge',      rol: 'docente', jornada: 'manana', correo: 'jorge.acevedo@iemanueljbetancur.edu.co',   pin: '', color: '#6366f1' }, // indigo-500
+  { id: 'ledis',     nombre: 'Ledis Laura Quintana Seguanes',   nombreCorto: 'Ledis',      rol: 'docente', jornada: 'manana', correo: 'ledis.quintana@iemanueljbetancur.edu.co',  pin: '', color: '#8b5cf6' }, // violet-500
+  { id: 'uriel',     nombre: 'José Uriel López Arias',          nombreCorto: 'Uriel',      rol: 'docente', jornada: 'manana', correo: 'uriel.lopez@iemanueljbetancur.edu.co',     pin: '', color: '#a855f7' }, // purple-500
+  { id: 'claudia',   nombre: 'Claudia Patricia Henao Bermúdez', nombreCorto: 'Claudia',    rol: 'docente', jornada: 'manana', correo: 'claudia.henao@iemanueljbetancur.edu.co',   pin: '', color: '#d946ef' }, // fuchsia-500
+  { id: 'margara',   nombre: 'Margarita María Montoya Olaya',   nombreCorto: 'Margarita',  rol: 'docente', jornada: 'manana', correo: 'margarita.montoya@iemanueljbetancur.edu.co', pin: '', color: '#ec4899' }, // pink-500
+  { id: 'monica_c',  nombre: 'Mónica Tatiana Córdoba Zapata',   nombreCorto: 'Mónica C.',  rol: 'docente', jornada: 'ambas',  correo: 'monica.cordoba@iemanueljbetancur.edu.co',  pin: '', color: '#f43f5e' }, // rose-500
 
   // Docentes tarde — paleta independiente
-  { id: 'edgar',       nombre: 'Edgar Pérez',       nombreCorto: 'Edgar',       rol: 'docente', jornada: 'ambas', correo: '', pin: '', color: '#94a3b8' }, // slate
-  { id: 'carolina',    nombre: 'Carolina Medina',   nombreCorto: 'Carolina',    rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#f97316' }, // orange-dark
-  { id: 'monica_rave', nombre: 'Mónica Rave',        nombreCorto: 'Mónica R.',   rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#f472b6' }, // pink
-  { id: 'fredy_g',     nombre: 'Fredy Gutiérrez',   nombreCorto: 'Fredy G.',    rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#4ade80' }, // green
-  { id: 'fredy_garcia',nombre: 'Fredy García',      nombreCorto: 'Fredy García',rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#bef264' }, // lime-light
-  { id: 'luis_javier', nombre: 'Luis Javier Rojas', nombreCorto: 'Luis Javier', rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#2dd4bf' }, // teal
-  { id: 'marina',      nombre: 'Marina Zapata',     nombreCorto: 'Marina',      rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#fb7185' }, // rose
-  { id: 'luis_angel',  nombre: 'Luis Ángel Quiceno',nombreCorto: 'Luis Ángel',  rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#a78bfa' }, // violet
-  { id: 'juan_pablo',  nombre: 'Juan Pablo Bettin', nombreCorto: 'Juan Pablo',  rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#facc15' }, // yellow
-  { id: 'hugo',        nombre: 'Hugo Yepes',        nombreCorto: 'Hugo',        rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#fca5a5' }, // red-light
-  { id: 'felipe',      nombre: 'Felipe Piedrahita', nombreCorto: 'Felipe',      rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#fdba74' }, // peach
-  { id: 'valentina',   nombre: 'Valentina Jaramillo',nombreCorto: 'Valentina',  rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#67e8f9' }, // cyan-light
-  { id: 'yanet',       nombre: 'Yanet Moscote',     nombreCorto: 'Yanet',       rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#86efac' }, // green-light
-  { id: 'harol',       nombre: 'Harol Gómez',       nombreCorto: 'Harol',       rol: 'docente', jornada: 'tarde', correo: '', pin: '', color: '#e879f9' }, // fuchsia
+  { id: 'edgar',       nombre: 'Edgar Alexis Pérez Jaramillo',     nombreCorto: 'Edgar',       rol: 'docente', jornada: 'ambas', correo: 'edgar.perez@iemanueljbetancur.edu.co',    pin: '', color: '#94a3b8' }, // slate
+  { id: 'carolina',    nombre: 'Carolina Medina',                   nombreCorto: 'Carolina',    rol: 'docente', jornada: 'tarde', correo: 'carolina.medina@iemanueljbetancur.edu.co', pin: '', color: '#f97316' }, // orange-dark
+  { id: 'monica_rave', nombre: 'Mónica Alexandra Rave Velásquez',   nombreCorto: 'Mónica R.',   rol: 'docente', jornada: 'tarde', correo: 'monica.rave@iemanueljbetancur.edu.co',    pin: '', color: '#f472b6' }, // pink
+  { id: 'fredy_g',     nombre: 'Fredy Gutiérrez',                   nombreCorto: 'Fredy G.',    rol: 'docente', jornada: 'tarde', correo: 'fredy.gutierrez@iemanueljbetancur.edu.co', pin: '', color: '#4ade80' }, // green
+  { id: 'fredy_garcia',nombre: 'John Fredy García Arrubla',         nombreCorto: 'Fredy García',rol: 'docente', jornada: 'tarde', correo: 'john.garcia@iemanueljbetancur.edu.co',    pin: '', color: '#bef264' }, // lime-light
+  { id: 'luis_javier', nombre: 'Luis Javier Rojas',                 nombreCorto: 'Luis Javier', rol: 'docente', jornada: 'tarde', correo: 'luisjavierrojas@gmail.com',               pin: '', color: '#2dd4bf' }, // teal
+  { id: 'marina',      nombre: 'Luz Marina Zapata Vásquez',         nombreCorto: 'Marina',      rol: 'docente', jornada: 'tarde', correo: 'luz.zapata@iemanueljbetancur.edu.co',      pin: '', color: '#fb7185' }, // rose
+  { id: 'luis_angel',  nombre: 'Luis Ángel Quiceno',                nombreCorto: 'Luis Ángel',  rol: 'docente', jornada: 'tarde', correo: 'luis.quiceno@iemanueljbetancur.edu.co',   pin: '', color: '#a78bfa' }, // violet
+  { id: 'juan_pablo',  nombre: 'Juan Pablo Bettin Tapia',           nombreCorto: 'Juan Pablo',  rol: 'docente', jornada: 'tarde', correo: 'juan.bettin@iemanueljbetancur.edu.co',    pin: '', color: '#facc15' }, // yellow
+  { id: 'hugo',        nombre: 'Hugo Armando Yepes Franco',         nombreCorto: 'Hugo',        rol: 'docente', jornada: 'tarde', correo: 'hugo.yepes@iemanueljbetancur.edu.co',      pin: '', color: '#fca5a5' }, // red-light
+  { id: 'felipe',      nombre: 'Felipe Piedrahita Nieto',           nombreCorto: 'Felipe',      rol: 'docente', jornada: 'tarde', correo: 'felipe.piedrahita@iemanueljbetancur.edu.co', pin: '', color: '#fdba74' }, // peach
+  { id: 'valentina',   nombre: 'Valentina Jaramillo López',         nombreCorto: 'Valentina',   rol: 'docente', jornada: 'tarde', correo: 'valentina.jaramillo@iemanueljbetancur.edu.co', pin: '', color: '#67e8f9' }, // cyan-light
+  { id: 'yanet',       nombre: 'Yanet María Moscote Marulanda',     nombreCorto: 'Yanet',       rol: 'docente', jornada: 'tarde', correo: 'yanet.moscote@iemanueljbetancur.edu.co',   pin: '', color: '#86efac' }, // green-light
+  { id: 'harol',       nombre: 'Harol Gómez',                       nombreCorto: 'Harol',       rol: 'docente', jornada: 'tarde', correo: 'harol.gomez@iemanueljbetancur.edu.co',     pin: '', color: '#e879f9' }, // fuchsia
+
+  // Nuevos docentes
+  { id: 'yuri',       nombre: 'Yuri Catalina Gómez Gómez',        nombreCorto: 'Yuri',       rol: 'docente', jornada: 'ambas', correo: 'yuri.gomez@iemanueljbetancur.edu.co',       pin: '', color: '#c4b5fd' },
+  { id: 'alexander',  nombre: 'Jhon Alexander Sánchez Giraldo',   nombreCorto: 'Alexander',  rol: 'docente', jornada: 'ambas', correo: 'alexander.sanchez@iemanueljbetancur.edu.co', pin: '', color: '#fda4af' },
 ];
 
 // ── Recursos ──────────────────────────────────────────────────────────────────
@@ -183,10 +188,45 @@ export const MIXTOS_TARDE: Record<string, string[]> = {
 // Pendiente completar con datos de la jornada tarde
 
 export const ACOMPAÑAMIENTOS: Acompanamiento[] = [
-  // Julián — mañana
-  { docente: 'julian', dia: 'martes',  descansos: 'ambos', lugar: 'Patio central' },
-  { docente: 'julian', dia: 'viernes', descansos: 'ambos', lugar: 'Quioscos' },
+  // Tienda Escolar
+  { docente: 'johana',   dia: 'lunes',     descansos: 'ambos', lugar: 'Tienda Escolar',          jornada: 'manana' },
+  { docente: 'monica_c', dia: 'martes',    descansos: 'ambos', lugar: 'Tienda Escolar',          jornada: 'manana' },
+  { docente: 'gloria_a', dia: 'miercoles', descansos: 'ambos', lugar: 'Tienda Escolar',          jornada: 'manana' },
+  { docente: 'uriel',    dia: 'jueves',    descansos: 'ambos', lugar: 'Tienda Escolar',          jornada: 'manana' },
+  { docente: 'ledis',    dia: 'viernes',   descansos: 'ambos', lugar: 'Tienda Escolar',          jornada: 'manana' },
+  // Baños
+  { docente: 'claudia',  dia: 'lunes',     descansos: 'ambos', lugar: 'Baños',                   jornada: 'manana' },
+  { docente: 'yoguis',   dia: 'martes',    descansos: 'ambos', lugar: 'Baños',                   jornada: 'manana' },
+  { docente: 'ledis',    dia: 'miercoles', descansos: 'ambos', lugar: 'Baños',                   jornada: 'manana' },
+  { docente: 'claudia',  dia: 'jueves',    descansos: 'ambos', lugar: 'Baños',                   jornada: 'manana' },
+  { docente: 'beatriz',  dia: 'viernes',   descansos: 'ambos', lugar: 'Baños',                   jornada: 'manana' },
+  // Restaurante
+  { docente: 'doris',    dia: 'lunes',     descansos: 'ambos', lugar: 'Restaurante',             jornada: 'manana' },
+  { docente: 'gloria_a', dia: 'martes',    descansos: 'ambos', lugar: 'Restaurante',             jornada: 'manana' },
+  { docente: 'margara',  dia: 'miercoles', descansos: 'ambos', lugar: 'Restaurante',             jornada: 'manana' },
+  { docente: 'margara',  dia: 'jueves',    descansos: 'ambos', lugar: 'Restaurante',             jornada: 'manana' },
+  { docente: 'doris',    dia: 'viernes',   descansos: 'ambos', lugar: 'Restaurante',             jornada: 'manana' },
+  // Segundo Piso
+  { docente: 'uriel',    dia: 'lunes',     descansos: 'ambos', lugar: 'Segundo Piso',            jornada: 'manana' },
+  { docente: 'carlos',   dia: 'martes',    descansos: 'ambos', lugar: 'Segundo Piso',            jornada: 'manana' },
+  { docente: 'marta',    dia: 'miercoles', descansos: 'ambos', lugar: 'Segundo Piso',            jornada: 'manana' },
+  { docente: 'monica_c', dia: 'jueves',    descansos: 'ambos', lugar: 'Segundo Piso',            jornada: 'manana' },
+  { docente: 'marta',    dia: 'viernes',   descansos: 'ambos', lugar: 'Segundo Piso',            jornada: 'manana' },
+  // Kioscos
+  { docente: 'jorge',    dia: 'lunes',     descansos: 'ambos', lugar: 'Kioscos',                 jornada: 'manana' },
+  { docente: 'adolfo',   dia: 'martes',    descansos: 'ambos', lugar: 'Kioscos',                 jornada: 'manana' },
+  { docente: 'carlos',   dia: 'miercoles', descansos: 'ambos', lugar: 'Kioscos',                 jornada: 'manana' },
+  { docente: 'yoguis',   dia: 'jueves',    descansos: 'ambos', lugar: 'Kioscos',                 jornada: 'manana' },
+  { docente: 'julian',   dia: 'viernes',   descansos: 'ambos', lugar: 'Kioscos',                 jornada: 'manana' },
+  // Patio Central y Malla
+  { docente: 'beatriz',  dia: 'lunes',     descansos: 'ambos', lugar: 'Patio Central y Malla',   jornada: 'manana' },
+  { docente: 'julian',   dia: 'martes',    descansos: 'ambos', lugar: 'Patio Central y Malla',   jornada: 'manana' },
+  { docente: 'adolfo',   dia: 'miercoles', descansos: 'ambos', lugar: 'Patio Central y Malla',   jornada: 'manana' },
+  { docente: 'jorge',    dia: 'jueves',    descansos: 'ambos', lugar: 'Patio Central y Malla',   jornada: 'manana' },
+  { docente: 'uriel',    dia: 'viernes',   descansos: 'ambos', lugar: 'Patio Central y Malla',   jornada: 'manana' },
 ];
+
+export const ZONAS_ACOMPANAMIENTO = ['Tienda Escolar', 'Baños', 'Restaurante', 'Segundo Piso', 'Kioscos', 'Patio Central y Malla'];
 
 // ── Propósitos de reserva ─────────────────────────────────────────────────────
 
