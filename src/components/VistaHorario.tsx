@@ -364,7 +364,7 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
                               </div>
                             </td>
                           );
-                          if (dia === 'martes' && b.id === 6) return (
+                          if (esCIDocente(docenteId, dia, b.id, jornadaTab)) return (
                             <td key={dia} className="p-1" style={{ height: CELL_H }}><CeldaCI /></td>
                           );
                           const entrada = entradas.find(e => e.dia === dia && e.bloque === b.id);
