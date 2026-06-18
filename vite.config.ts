@@ -1,11 +1,15 @@
 import path from 'path'
+import { writeFileSync } from 'fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const BUILD_ID = Date.now().toString()
+
 export default defineConfig({
   base: '/mjb-prestamos/',
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   plugins: [
     react(),
     tailwindcss(),
@@ -45,6 +49,11 @@ export default defineConfig({
         clientsClaim: true,
         runtimeCaching: [
           {
+            // version.json: siempre desde la red, nunca cacheado (auto-limpiador)
+            urlPattern: /\/version\.json/i,
+            handler: 'NetworkOnly',
+          },
+          {
             // Caché de la app (network-first, fallback a caché)
             urlPattern: /^https:\/\/julitch80\.github\.io\/mjb-prestamos\/.*/i,
             handler: 'NetworkFirst',
@@ -56,6 +65,15 @@ export default defineConfig({
         ],
       },
     }),
+    {
+      name: 'emit-version-json',
+      closeBundle() {
+        writeFileSync(
+          path.resolve(__dirname, 'dist/version.json'),
+          JSON.stringify({ buildId: BUILD_ID })
+        );
+      },
+    },
   ],
   resolve: {
     alias: {

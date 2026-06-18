@@ -4,6 +4,9 @@ import * as Sentry from '@sentry/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import App from './App.tsx'
+import { initAutoUpdate } from './autoUpdate'
+
+initAutoUpdate()
 
 // Sentry — solo activo si hay DSN configurado (en producción)
 if (import.meta.env.VITE_SENTRY_DSN) {
