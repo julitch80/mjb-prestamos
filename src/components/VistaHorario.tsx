@@ -1524,8 +1524,8 @@ export default function VistaHorario() {
                       </button>
                     ))}
                   </div>
-                  {/* Banners por zona */}
-                  <div className="space-y-2">
+                  {/* Tarjetas por zona: lugar arriba, docente (pastilla) abajo */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {ZONAS_ACOMPANAMIENTO.map(zona => {
                       const entrada = ACOMPAÑAMIENTOS.find(
                         a => a.lugar === zona && a.dia === diaOverview && a.jornada === 'manana'
@@ -1534,9 +1534,9 @@ export default function VistaHorario() {
                       return (
                         <div
                           key={zona}
-                          className="flex items-center gap-3 rounded-xl bg-elevated border border-line p-3"
+                          className="flex flex-col items-center justify-center gap-2 text-center rounded-xl bg-elevated border border-line p-3"
                         >
-                          <span className="text-strong font-semibold text-sm flex-1">{zona}</span>
+                          <span className="text-strong font-semibold text-[13px] leading-tight">{zona}</span>
                           {usuario ? (
                             <span
                               className="rounded-lg px-3 py-1.5 text-sm font-bold leading-none"
