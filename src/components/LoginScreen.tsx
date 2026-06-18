@@ -7,6 +7,7 @@ import { USUARIOS } from '../data/maestros';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { MODO_LOCAL } from '../data/config';
+import ModalInstalar from './ModalInstalar';
 
 const normalizar = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -28,6 +29,7 @@ export default function LoginScreen() {
   const [modoRecup, setModoRecup]             = useState(false);
   const [correoRecup, setCorreoRecup]         = useState('');
   const [mensajeRecup, setMensajeRecup]       = useState('');
+  const [instalarOpen, setInstalarOpen]       = useState(false);
   const pinRef = useRef<HTMLInputElement>(null);
 
   const usuariosFiltrados = busqueda.length >= 2
@@ -339,18 +341,26 @@ export default function LoginScreen() {
               </AnimatePresence>
 
               {/* Footer */}
-              <div className="px-6 pb-5 text-center">
+              <div className="px-6 pb-5 text-center space-y-2">
                 <button
                   onClick={() => setModoRecup(true)}
-                  className="text-xs text-muted hover:text-soft transition"
+                  className="text-xs text-muted hover:text-soft transition block w-full"
                 >
                   ¿Olvidaste tu PIN?
+                </button>
+                <button
+                  onClick={() => setInstalarOpen(true)}
+                  className="text-xs text-muted hover:text-soft transition block w-full"
+                >
+                  📲 ¿Cómo instalar la app?
                 </button>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ModalInstalar open={instalarOpen} onClose={() => setInstalarOpen(false)} />
     </div>
   );
 }

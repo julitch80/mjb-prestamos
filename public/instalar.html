@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Instalar app MJB Préstamos</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #fff;
+      color: #1a1a1a;
+      padding: 2rem 1.5rem;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #111;
+      line-height: 1.3;
+    }
+    header p {
+      font-size: 0.95rem;
+      color: #6b7280;
+      margin-top: 0.4rem;
+    }
+    .qr-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 12px;
+      background: #f9fafb;
+    }
+    .qr-section img {
+      width: 260px;
+      height: 260px;
+      display: block;
+    }
+    .qr-section .qr-caption {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #111;
+      text-align: center;
+    }
+    .qr-section .qr-url {
+      font-size: 0.85rem;
+      color: #4b5563;
+      word-break: break-all;
+      text-align: center;
+    }
+    .columns {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .col {
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 1rem;
+      background: #fff;
+    }
+    .col h2 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .col ol {
+      padding-left: 1.1rem;
+      font-size: 0.8rem;
+      color: #374151;
+      line-height: 1.6;
+    }
+    .col ol li {
+      margin-bottom: 0.3rem;
+    }
+    .col .nota {
+      margin-top: 0.6rem;
+      font-size: 0.75rem;
+      color: #6b7280;
+      font-style: italic;
+    }
+    footer {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #9ca3af;
+      padding-top: 1rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    @media (max-width: 600px) {
+      .columns { grid-template-columns: 1fr; }
+    }
+    @media print {
+      body { padding: 1rem; }
+      .col, .qr-section { break-inside: avoid; }
+      a { color: #4b5563; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>I.E. Manuel J. Betancur</h1>
+    <p>Instalar la app MJB Préstamos</p>
+  </header>
+
+  <div class="qr-section">
+    <img src="qr-instalar.svg" alt="QR para abrir MJB Préstamos" />
+    <p class="qr-caption">Escanea con la cámara de tu celular</p>
+    <p class="qr-url">https://julitch80.github.io/mjb-prestamos/</p>
+  </div>
+
+  <div class="columns">
+    <div class="col">
+      <h2>🤖 Android</h2>
+      <ol>
+        <li>Abre la app en <strong>Chrome</strong>.</li>
+        <li>Toca el menú <strong>⋮</strong> (tres puntos arriba a la derecha).</li>
+        <li>Toca <strong>"Instalar app"</strong> o <strong>"Agregar a pantalla de inicio"</strong>.</li>
+        <li>Confirma tocando <strong>"Instalar"</strong>.</li>
+      </ol>
+    </div>
+
+    <div class="col">
+      <h2>🍎 iPhone / iPad</h2>
+      <ol>
+        <li>Abre la página en <strong>Safari</strong> (no Chrome).</li>
+        <li>Toca el botón <strong>Compartir</strong> (cuadro con flecha ⬆).</li>
+        <li>Desliza y toca <strong>"Agregar a inicio"</strong>.</li>
+        <li>Toca <strong>"Agregar"</strong> en la esquina superior derecha.</li>
+      </ol>
+      <p class="nota">Solo funciona desde Safari.</p>
+    </div>
+
+    <div class="col">
+      <h2>💻 Computador</h2>
+      <ol>
+        <li>Abre la app en <strong>Chrome</strong> o <strong>Edge</strong>.</li>
+        <li>Busca el ícono <strong>⊕</strong> en la barra de direcciones.</li>
+        <li>O abre el menú <strong>⋮</strong> y elige <strong>"Instalar MJB Préstamos"</strong>.</li>
+        <li>Confirma la instalación.</li>
+      </ol>
+    </div>
+  </div>
+
+  <footer>
+    Una vez abierta, agrégala a tu pantalla de inicio para tenerla como app y acceder sin internet.
+  </footer>
+
+</body>
+</html>
