@@ -1482,13 +1482,20 @@ export default function VistaHorario() {
                             );
                             const usuario = entrada ? USUARIOS.find(u => u.id === entrada.docente) : null;
                             return (
-                              <td key={dia} className="text-center px-2 py-2">
+                              <td key={dia} className="px-1.5 py-1">
                                 {usuario ? (
-                                  <span className="font-bold" style={{ color: usuario.color }}>
-                                    {usuario.nombreCorto}
-                                  </span>
+                                  <div
+                                    className="rounded-lg px-2 py-1.5 flex items-center justify-center"
+                                    style={{ borderWidth: 1, borderColor: usuario.color, backgroundColor: `${usuario.color}15` }}
+                                  >
+                                    <span className="text-[11px] font-bold leading-none text-center" style={{ color: usuario.color }}>
+                                      {usuario.nombreCorto}
+                                    </span>
+                                  </div>
                                 ) : (
-                                  <span className="text-muted opacity-50">—</span>
+                                  <div className="rounded-lg border border-dashed border-line flex items-center justify-center py-2">
+                                    <span className="text-muted opacity-50 text-[10px]">—</span>
+                                  </div>
                                 )}
                               </td>
                             );
@@ -1531,7 +1538,10 @@ export default function VistaHorario() {
                         >
                           <span className="text-strong font-semibold text-sm flex-1">{zona}</span>
                           {usuario ? (
-                            <span className="font-bold text-sm" style={{ color: usuario.color }}>
+                            <span
+                              className="rounded-lg px-3 py-1.5 text-sm font-bold leading-none"
+                              style={{ borderWidth: 1, borderColor: usuario.color, backgroundColor: `${usuario.color}15`, color: usuario.color }}
+                            >
                               {usuario.nombreCorto}
                             </span>
                           ) : (
