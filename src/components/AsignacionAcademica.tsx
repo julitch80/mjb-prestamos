@@ -26,7 +26,13 @@ function grupoQueDirige(docenteId: string): string | null {
 }
 
 function esGrupoTarde(grupo: string) {
-  return grupo.includes('º');
+  return grupo.includes('º') || grupo === 'CI tarde';
+}
+
+const COLOR_CI = '#eab308'; // dorado, como la estrella ★CI del horario
+
+function colorChipGrupo(grupo: string): string {
+  return grupo.startsWith('CI') ? COLOR_CI : colorGrado(grupo);
 }
 
 // ── Ficha expandida de un docente ─────────────────────────────────────────────
@@ -70,7 +76,7 @@ function FichaDocente({ docenteId }: { docenteId: string }) {
                   key={grupo}
                   className="px-2 py-1 rounded-lg bg-card border border-line text-[11px]"
                 >
-                  <span className="font-bold" style={{ color: colorGrado(grupo) }}>{grupo}</span>
+                  <span className="font-bold" style={{ color: colorChipGrupo(grupo) }}>{grupo}</span>
                   <span className="text-muted"> · {horas}h</span>
                 </span>
               ))}

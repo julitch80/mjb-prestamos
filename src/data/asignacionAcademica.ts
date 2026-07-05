@@ -7,6 +7,8 @@
 // Las horas de optativa/CI no se listan aquí: ya se muestran como ★CI en el horario.
 // Primaria: pendiente de datos (se agregará cuando Julián envíe las imágenes).
 
+import { DOCENTES_CI_MANANA, DOCENTES_CI_TARDE } from './maestros';
+
 export interface Asignatura {
   id: string;
   nombre: string;
@@ -31,6 +33,7 @@ export const ASIGNATURAS: Asignatura[] = [
   { id: 'tecnologia',     nombre: 'Tecnología e Informática', abrev: 'Tec' },
   { id: 'mt_software',    nombre: 'Media Técnica · Desarrollo de Software', abrev: 'MT Soft' },
   { id: 'mt_audiovisual', nombre: 'Media Técnica · Audiovisuales',          abrev: 'MT Audio' },
+  { id: 'ci',             nombre: 'Centro de Interés',                      abrev: '★CI' },
 ];
 
 export interface EntradaAsignacion {
@@ -46,7 +49,7 @@ export const DOCENTES_APOYO: Record<string, string> = {
   alexander: 'Docente de apoyo',
 };
 
-export const ASIGNACION_2026: EntradaAsignacion[] = [
+const ENTRADAS_BASE: EntradaAsignacion[] = [
   // ── Jornada mañana ──────────────────────────────────────────────────────────
   // Uriel — Matemáticas
   { docenteId: 'uriel', asignaturaId: 'matematicas', grupo: '9.1', horas: 5 },
@@ -315,6 +318,20 @@ export const ASIGNACION_2026: EntradaAsignacion[] = [
   { docenteId: 'harol', asignaturaId: 'religion',   grupo: '8º3', horas: 1 },
   { docenteId: 'harol', asignaturaId: 'religion',   grupo: '8º4', horas: 1 },
 ];
+
+// Centro de Interés (martes 6.ª mañana / martes 1.ª tarde): una hora para cada
+// docente que efectivamente lo supervisa. Se deriva de las listas de maestros.ts
+// para que nunca queden desincronizadas.
+const ENTRADAS_CI: EntradaAsignacion[] = [
+  ...[...DOCENTES_CI_MANANA].map(d => ({
+    docenteId: d, asignaturaId: 'ci', grupo: 'CI mañana', horas: 1,
+  })),
+  ...[...DOCENTES_CI_TARDE].map(d => ({
+    docenteId: d, asignaturaId: 'ci', grupo: 'CI tarde', horas: 1,
+  })),
+];
+
+export const ASIGNACION_2026: EntradaAsignacion[] = [...ENTRADAS_BASE, ...ENTRADAS_CI];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
