@@ -23,6 +23,8 @@ const DOC_AVISOS_ID = '1Z4ZPgkm5ognsKMwc8fizRTxIS2YWVyQFyzbkQ6QKEUk';
 const RESERVAS_HEADERS    = ['id','recurso','fecha','bloque','solicitante','proposito','equipos','estado','motivo','timestamp'];
 const NOTIF_HEADERS       = ['id','destinatario','tipo','mensaje','leida','timestamp'];
 const SUGERENCIAS_HEADERS = ['id','autor','texto','timestamp'];
+const TAREAS_HEADERS      = ['id','grupo','asignaturaId','docenteId','titulo','momentos','fechaAsignacion','fechaEntrega','estado','timestamp'];
+const CESIONES_HEADERS    = ['id','grupo','periodo','asignaturaOrigenId','asignaturaDestinoId','docenteOrigenId','momentos','timestamp'];
 
 // ── PUNTO DE ENTRADA (JSONP por GET) ─────────────────────────
 function doGet(e)  { return manejar(e); }
@@ -47,6 +49,10 @@ function manejar(e) {
       case 'enviarCorreoMasivo': resultado = enviarCorreoMasivo(p); break;
       case 'publicarAviso':      resultado = publicarAviso(p);      break;
       case 'crearSugerencia':    resultado = crearSugerencia(p);    break;
+      case 'getDatosTareas':     resultado = getDatosTareas(p);     break;
+      case 'crearTarea':         resultado = crearTarea(p);         break;
+      case 'cancelarTarea':      resultado = cancelarTarea(p);      break;
+      case 'crearCesion':        resultado = crearCesion(p);        break;
       default:
         resultado = { ok: false, error: 'Acción desconocida: ' + p.action };
     }
@@ -337,6 +343,82 @@ function publicarAviso(p) {
     doc.saveAndClose();
     return { ok: true, id: id, url: 'https://docs.google.com/document/d/' + DOC_AVISOS_ID };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+// ── TAREAS (módulo de momentos) ──────────────────────────────
+// Las reglas (topes, cupos, ventana) se validan en el frontend con el
+// motor de agenda; aquí solo se persiste y se listan los datos.
+
+function getDatosTareas(p) {
+  const tareas = hojaAObjetos(getSheet('Tareas', TAREAS_HEADERS))
+    .filter(function(t) { return !p.grupo || String(t.grupo) === String(p.grupo); })
+    .map(function(t) {
+      return {
+        id: String(t.id),
+        grupo: String(t.grupo),
+        asignaturaId: String(t.asignaturaId),
+        docenteId: String(t.docenteId),
+        titulo: String(t.titulo),
+        momentos: Number(t.momentos) || 1,
+        fechaAsignacion: normalizarFecha(t.fechaAsignacion),
+        fechaEntrega: normalizarFecha(t.fechaEntrega),
+        estado: String(t.estado),
+      };
+    });
+  const cesiones = hojaAObjetos(getSheet('Cesiones', CESIONES_HEADERS))
+    .filter(function(c) { return !p.grupo || String(c.grupo) === String(p.grupo); })
+    .map(function(c) {
+      return {
+        id: String(c.id),
+        grupo: String(c.grupo),
+        periodo: normalizarFecha(c.periodo),
+        asignaturaOrigenId: String(c.asignaturaOrigenId),
+        asignaturaDestinoId: String(c.asignaturaDestinoId),
+        docenteOrigenId: String(c.docenteOrigenId),
+        momentos: Number(c.momentos) || 1,
+      };
+    });
+  return { ok: true, tareas: tareas, cesiones: cesiones };
+}
+
+function crearTarea(p) {
+  if (!p.grupo || !p.asignaturaId || !p.docenteId || !p.titulo || !p.fechaEntrega) {
+    return { ok: false, error: 'Faltan datos de la tarea' };
+  }
+  const sheet = getSheet('Tareas', TAREAS_HEADERS);
+  const id = 'TAR-' + new Date().getTime();
+  sheet.appendRow([
+    id, p.grupo, p.asignaturaId, p.docenteId, p.titulo,
+    Number(p.momentos) || 1, p.fechaAsignacion || '', p.fechaEntrega,
+    'activa', new Date().toISOString(),
+  ]);
+  return { ok: true, id: id };
+}
+
+function cancelarTarea(p) {
+  const sheet = getSheet('Tareas', TAREAS_HEADERS);
+  // Solo el docente que la creó puede cancelarla (o un directivo desde el panel)
+  const tareas = hojaAObjetos(sheet);
+  const tarea = tareas.find(function(t) { return String(t.id) === String(p.id); });
+  if (!tarea) return { ok: false, error: 'Tarea no encontrada' };
+  if (p.docenteId && String(tarea.docenteId) !== String(p.docenteId) && p.esDirectivo !== '1') {
+    return { ok: false, error: 'Solo el docente que asignó la tarea puede cancelarla' };
+  }
+  actualizarFila(sheet, 'id', p.id, { estado: 'cancelada' });
+  return { ok: true };
+}
+
+function crearCesion(p) {
+  if (!p.grupo || !p.periodo || !p.asignaturaOrigenId || !p.asignaturaDestinoId) {
+    return { ok: false, error: 'Faltan datos de la cesión' };
+  }
+  const sheet = getSheet('Cesiones', CESIONES_HEADERS);
+  const id = 'CES-' + new Date().getTime();
+  sheet.appendRow([
+    id, p.grupo, p.periodo, p.asignaturaOrigenId, p.asignaturaDestinoId,
+    p.docenteOrigenId || '', Number(p.momentos) || 1, new Date().toISOString(),
+  ]);
+  return { ok: true, id: id };
 }
 
 // ── Sugerencias ──────────────────────────────────────────────

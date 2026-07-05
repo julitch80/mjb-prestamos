@@ -11,6 +11,7 @@ export type VistaActual =
   | 'rectora'
   | 'horario'
   | 'asignacion'
+  | 'tareas'
   | 'editor'
   | 'asistente';
 

@@ -123,7 +123,7 @@ export function cupoDisponible(
 
 // ── Validación completa de una tarea nueva ────────────────────────────────────
 
-function fechaLegible(f: FechaISO): string {
+export function fechaLegible(f: FechaISO): string {
   const DIAS: Record<string, string> = {
     lunes: 'lunes', martes: 'martes', miercoles: 'miércoles',
     jueves: 'jueves', viernes: 'viernes', sabado: 'sábado', domingo: 'domingo',

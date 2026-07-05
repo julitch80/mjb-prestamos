@@ -47,6 +47,10 @@ export function formatFecha(d: Date): FechaISO {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
+export function hoyISO(): FechaISO {
+  return formatFecha(new Date());
+}
+
 export function addDias(f: FechaISO, n: number): FechaISO {
   const d = parseFecha(f);
   d.setDate(d.getDate() + n);

@@ -147,6 +147,62 @@ export async function enviarCorreoMasivo(
   });
 }
 
+// ── Tareas (módulo de momentos) ────────────────────────────────────────────────
+
+import type { Tarea, Cesion } from './tareas/tipos';
+
+export interface DatosTareas {
+  ok: boolean;
+  tareas: Tarea[];
+  cesiones: Cesion[];
+  error?: string;
+}
+
+export async function getDatosTareas(grupo?: string): Promise<DatosTareas> {
+  const res = await fetchJsonp<DatosTareas>({
+    action: 'getDatosTareas',
+    ...(grupo ? { grupo } : {}),
+  });
+  return { ok: res.ok, tareas: res.tareas ?? [], cesiones: res.cesiones ?? [], error: res.error };
+}
+
+export async function crearTarea(
+  t: Omit<Tarea, 'id' | 'estado'>
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  return fetchJsonp({
+    action: 'crearTarea',
+    grupo: t.grupo,
+    asignaturaId: t.asignaturaId,
+    docenteId: t.docenteId,
+    titulo: t.titulo,
+    momentos: String(t.momentos),
+    fechaAsignacion: t.fechaAsignacion,
+    fechaEntrega: t.fechaEntrega,
+  });
+}
+
+export async function cancelarTarea(
+  id: string,
+  docenteId: string,
+  esDirectivo = false,
+): Promise<{ ok: boolean; error?: string }> {
+  return fetchJsonp({ action: 'cancelarTarea', id, docenteId, esDirectivo: esDirectivo ? '1' : '0' });
+}
+
+export async function crearCesion(
+  c: Omit<Cesion, 'id'>
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  return fetchJsonp({
+    action: 'crearCesion',
+    grupo: c.grupo,
+    periodo: c.periodo,
+    asignaturaOrigenId: c.asignaturaOrigenId,
+    asignaturaDestinoId: c.asignaturaDestinoId,
+    docenteOrigenId: c.docenteOrigenId,
+    momentos: String(c.momentos),
+  });
+}
+
 // ── Sugerencias ───────────────────────────────────────────────────────────────
 
 export async function crearSugerencia(

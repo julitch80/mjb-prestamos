@@ -11,6 +11,8 @@ import PanelRectora from './components/PanelRectora';
 import DisponibilidadGrid from './components/DisponibilidadGrid';
 import VistaHorario from './components/VistaHorario';
 import AsignacionAcademica from './components/AsignacionAcademica';
+import VistaTareas from './components/VistaTareas';
+import AgendaPublica from './components/AgendaPublica';
 import MiHistorial from './components/MiHistorial';
 import BannerNotificaciones from './components/BannerNotificaciones';
 import NavDropdown from './components/NavDropdown';
@@ -28,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'rectora',        label: 'Asignación',    descripcion: 'Asigna espacios directamente',      roles: ['rectora'] },
   { id: 'horario',        label: 'Horario',       descripcion: 'Por aulas, docente o grupo',        roles: ['docente', 'coordinador', 'rectora'] },
   { id: 'asignacion',     label: 'Asignación 2026', descripcion: 'Docentes y materias del año',     roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'tareas',         label: 'Tareas',          descripcion: 'Momentos de tarea por grupo',     roles: ['docente', 'coordinador', 'rectora'] },
 ];
 
 const ROL_COLOR: Record<string, string> = {
@@ -38,6 +41,7 @@ const ROL_COLOR: Record<string, string> = {
 
 export default function App() {
   const [sugerenciaAbierta, setSugerenciaAbierta] = useState(false);
+  const [hash, setHash] = useState(() => window.location.hash);
   const { temaOscuro, toggleTema } = useTheme();
   const { permiso, solicitarPermiso, soportado } = useNotificacionesSistema();
   const { userId, nombre, rol, cerrarSesion, vistaActual, setVistaActual, setNotificaciones } =
@@ -56,6 +60,16 @@ export default function App() {
   useEffect(() => {
     if (notifData) setNotificaciones(notifData);
   }, [notifData, setNotificaciones]);
+
+  useEffect(() => {
+    const fn = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', fn);
+    return () => window.removeEventListener('hashchange', fn);
+  }, []);
+
+  // ── Ruta pública: agenda de tareas por grupo (sin login) ──────────
+  const agendaMatch = hash.match(/^#\/agenda\/(.+)$/);
+  if (agendaMatch) return <AgendaPublica grupo={decodeURIComponent(agendaMatch[1])} />;
 
   if (!userId) return <LoginScreen />;
 
@@ -182,6 +196,7 @@ export default function App() {
             {vistaActual === 'rectora'        && rol === 'rectora'     && <PanelRectora />}
             {vistaActual === 'horario'        && <VistaHorario />}
             {vistaActual === 'asignacion'     && <AsignacionAcademica />}
+            {vistaActual === 'tareas'         && <VistaTareas />}
           </motion.div>
         </AnimatePresence>
       </main>
