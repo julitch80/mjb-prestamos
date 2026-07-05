@@ -10,6 +10,7 @@ import PanelAdmin from './components/PanelAdmin';
 import PanelRectora from './components/PanelRectora';
 import DisponibilidadGrid from './components/DisponibilidadGrid';
 import VistaHorario from './components/VistaHorario';
+import AsignacionAcademica from './components/AsignacionAcademica';
 import MiHistorial from './components/MiHistorial';
 import BannerNotificaciones from './components/BannerNotificaciones';
 import NavDropdown from './components/NavDropdown';
@@ -26,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'admin',          label: 'Panel',         descripcion: 'Pendientes, hoy y configuración',   roles: ['coordinador'] },
   { id: 'rectora',        label: 'Asignación',    descripcion: 'Asigna espacios directamente',      roles: ['rectora'] },
   { id: 'horario',        label: 'Horario',       descripcion: 'Por aulas, docente o grupo',        roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'asignacion',     label: 'Asignación 2026', descripcion: 'Docentes y materias del año',     roles: ['docente', 'coordinador', 'rectora'] },
 ];
 
 const ROL_COLOR: Record<string, string> = {
@@ -179,6 +181,7 @@ export default function App() {
             {vistaActual === 'admin'          && rol === 'coordinador' && <PanelAdmin />}
             {vistaActual === 'rectora'        && rol === 'rectora'     && <PanelRectora />}
             {vistaActual === 'horario'        && <VistaHorario />}
+            {vistaActual === 'asignacion'     && <AsignacionAcademica />}
           </motion.div>
         </AnimatePresence>
       </main>

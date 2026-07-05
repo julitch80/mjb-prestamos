@@ -165,8 +165,19 @@ export const DIRECTORES_MANANA: Record<string, string> = {
   '9.3':  'uriel',
 };
 
-// Directores de tarde: pendiente de obtener del usuario
-export const DIRECTORES_TARDE: Record<string, string> = {};
+// Directores de tarde — asignación académica 2026 (con reemplazos vigentes)
+export const DIRECTORES_TARDE: Record<string, string> = {
+  '6º1': 'luis_angel',
+  '6º2': 'fredy_garcia',
+  '6º3': 'carolina',
+  '7º1': 'yanet',
+  '7º2': 'luis_javier',
+  '7º3': 'harol',
+  '8º1': 'edgar',
+  '8º2': 'hugo',
+  '8º3': 'monica_rave',
+  '8º4': 'juan_pablo',
+};
 
 // Aulas tarde → grupo
 export const AULA_GRUPO_TARDE: Record<string, string> = {

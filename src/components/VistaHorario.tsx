@@ -23,6 +23,7 @@ import {
   esCIDocente,
 } from '../data/maestros';
 import { horarioBase } from '../data/horarioBase';
+import { abrevDeCelda, asignaturasDeCelda, ASIGNACION_2026, getAsignatura } from '../data/asignacionAcademica';
 import { cn } from '@/lib/utils';
 import EditorHorarioWizard from './EditorHorarioWizard';
 import EditorHorarioMode from './EditorHorarioMode';
@@ -315,8 +316,21 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
     );
   }
 
+  const materiasDocente = [...new Set(
+    ASIGNACION_2026.filter(e => e.docenteId === docenteId)
+      .map(e => getAsignatura(e.asignaturaId)?.nombre)
+      .filter(Boolean)
+  )];
+
   return (
     <div className="space-y-3">
+      {materiasDocente.length > 0 && (
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="px-3 py-1.5 rounded-full bg-elevated border border-line text-soft">
+            Asignación 2026: <span className="font-semibold text-strong">{materiasDocente.join(' · ')}</span>
+          </span>
+        </div>
+      )}
       <div className="flex gap-1">
         <TabButton active={vistaDetalle === 'semana'} onClick={() => setVistaDetalle('semana')} color="docente">Semana</TabButton>
         <TabButton active={vistaDetalle === 'dia'} onClick={() => setVistaDetalle('dia')} color="docente">Día</TabButton>
@@ -620,9 +634,10 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
                               <span className="text-[10px] font-bold truncate w-full text-center" style={{ color: docente?.color ?? '#aaa' }}>
                                 {docente?.nombreCorto ?? entrada.docente}
                               </span>
-                              {entrada.aula && (
-                                <span className="text-[9px] text-muted truncate w-full text-center">{entrada.aula}</span>
-                              )}
+                              <span className="text-[9px] text-muted truncate w-full text-center">
+                                {[abrevDeCelda(entrada.docente, grado), entrada.aula ? abrevAula(entrada.aula) : '']
+                                  .filter(Boolean).join(' · ')}
+                              </span>
                             </div>
                           </td>
                         );
@@ -687,6 +702,11 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
                     <div className="flex-1">
                       <div className="font-semibold" style={{ color: docente?.color ?? '#aaa' }}>
                         {docente?.nombreCorto ?? entrada.docente}
+                        {asignaturasDeCelda(entrada.docente, grado).length > 0 && (
+                          <span className="text-soft font-normal">
+                            {' · '}{asignaturasDeCelda(entrada.docente, grado).map(a => a.nombre).join(' / ')}
+                          </span>
+                        )}
                       </div>
                       {entrada.aula && <div className="text-xs mt-0.5" style={{ color: COLORES_AULA[entrada.aula] ?? '#aaa' }}>{entrada.aula}</div>}
                     </div>
@@ -1020,7 +1040,9 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
                             style={{ borderWidth: 1, borderColor: docente.color, backgroundColor: `${docente.color}15` }}
                           >
                             <span className="text-[10px] font-bold leading-none" style={{ color: docente.color }}>{docente.nombreCorto.split(' ')[0]}</span>
-                            <span className="text-[9px] leading-none text-muted">{abrevAula(entrada.aula)}</span>
+                            <span className="text-[9px] leading-none text-muted">
+                              {[abrevDeCelda(entrada.docente, grado), abrevAula(entrada.aula)].filter(Boolean).join('·')}
+                            </span>
                           </div>
                         ) : (
                           <div className="h-full rounded border border-dashed border-line flex items-center justify-center">
@@ -1137,7 +1159,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
                               {docente.nombreCorto.split(' ')[0]}
                             </span>
                             <span className="text-[8px] leading-none text-muted w-full text-center truncate">
-                              {abrevAula(entrada.aula)}
+                              {[abrevDeCelda(entrada.docente, grado), abrevAula(entrada.aula)].filter(Boolean).join('·')}
                             </span>
                           </div>
                         ) : (
