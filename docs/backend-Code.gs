@@ -381,6 +381,13 @@ function getDatosTareas(p) {
   return { ok: true, tareas: tareas, cesiones: cesiones };
 }
 
+// Sheets convierte textos como '9.1' en fechas/números al escribirlos.
+// Esta función fija la celda de grupo como TEXTO después del appendRow.
+function fijarGrupoComoTexto(sheet, colGrupo, valor) {
+  const fila = sheet.getLastRow();
+  sheet.getRange(fila, colGrupo).setNumberFormat('@').setValue(valor);
+}
+
 function crearTarea(p) {
   if (!p.grupo || !p.asignaturaId || !p.docenteId || !p.titulo || !p.fechaEntrega) {
     return { ok: false, error: 'Faltan datos de la tarea' };
@@ -392,6 +399,7 @@ function crearTarea(p) {
     Number(p.momentos) || 1, p.fechaAsignacion || '', p.fechaEntrega,
     'activa', new Date().toISOString(),
   ]);
+  fijarGrupoComoTexto(sheet, 2, p.grupo);
   return { ok: true, id: id };
 }
 
@@ -418,6 +426,7 @@ function crearCesion(p) {
     id, p.grupo, p.periodo, p.asignaturaOrigenId, p.asignaturaDestinoId,
     p.docenteOrigenId || '', Number(p.momentos) || 1, new Date().toISOString(),
   ]);
+  fijarGrupoComoTexto(sheet, 2, p.grupo);
   return { ok: true, id: id };
 }
 
