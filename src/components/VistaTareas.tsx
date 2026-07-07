@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { CalendarDays, CheckCircle2, ClipboardList, Gift, Loader2, QrCode, Trash2, X } from 'lucide-react';
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Gift, Loader2, QrCode, Trash2, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useAppStore } from '../data/store';
 import { getDatosTareas, crearTarea, cancelarTarea, crearCesion } from '../data/api';
@@ -9,11 +9,12 @@ import { USUARIOS, colorGrado } from '../data/maestros';
 import { getAsignatura, asignacionDeGrupo } from '../data/asignacionAcademica';
 import type { Tarea, Cesion, FechaISO } from '../data/tareas/tipos';
 import {
-  addDias, esDiaHabil, esDiaEjecutable, hoyISO,
+  addDias, esDiaHabil, esDiaEjecutable, hoyISO, parseFecha, formatFecha,
 } from '../data/tareas/calendario';
-import { CONFIG_NIVEL, nivelDeGrupo } from '../data/tareas/config';
+import { CONFIG_NIVEL, nivelDeGrupo, cupoDeAsignatura } from '../data/tareas/config';
 import {
-  planificarAgenda, ocupacionPorDia, validarTarea, ventanaValida, clavePeriodo, fechaLegible,
+  planificarAgenda, ocupacionPorDia, validarTarea, ventanaValida, cupoDisponible,
+  clavePeriodo, fechaLegible,
 } from '../data/tareas/motor';
 import { diasDeClase, gruposAsignables, todosLosGrupos, esGrupoDeTarde } from '../data/tareas/horario';
 import { cn } from '@/lib/utils';
@@ -21,6 +22,29 @@ import { cn } from '@/lib/utils';
 function diaCortoDe(f: FechaISO): string {
   const [y, m, d] = f.split('-').map(Number);
   return ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][new Date(y, m - 1, d).getDay()];
+}
+
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+// Semanas del mes (solo lunes a viernes) como matriz de fechas ISO o null.
+function gridMes(year: number, month: number): (FechaISO | null)[][] {
+  const weeks: (FechaISO | null)[][] = [];
+  let week: (FechaISO | null)[] = [null, null, null, null, null];
+  const ultimo = new Date(year, month + 1, 0).getDate();
+  for (let d = 1; d <= ultimo; d++) {
+    const date = new Date(year, month, d);
+    const dow = date.getDay();
+    if (dow === 0 || dow === 6) continue;
+    const col = dow - 1;
+    if (col === 0 && week.some(x => x !== null)) {
+      weeks.push(week);
+      week = [null, null, null, null, null];
+    }
+    week[col] = formatFecha(date);
+  }
+  if (week.some(x => x !== null)) weeks.push(week);
+  return weeks;
 }
 
 function urlAgendaPublica(grupo: string): string {
@@ -76,26 +100,52 @@ function PanelDocente({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesion[
     [hoy, contexto.diasClase],
   );
 
-  // Candidatas: próximos 15 días hábiles con su semáforo
-  const candidatas = useMemo(() => {
-    if (!grupo || !userId || !ventanaOk) return [];
-    const res: { fecha: FechaISO; estado: 'ok' | 'parcial' | 'lleno'; detalle: string }[] = [];
-    let f = hoy;
-    while (res.length < 15) {
-      f = addDias(f, 1);
-      if (!esDiaHabil(f)) continue;
-      const r = validarTarea({
-        id: '_previa', grupo, asignaturaId: asignaturaActiva, docenteId: userId,
-        titulo: titulo || '·', momentos, fechaAsignacion: hoy, fechaEntrega: f, estado: 'activa',
-      }, contexto);
-      if (r.ok) res.push({ fecha: f, estado: 'ok', detalle: '' });
-      else if (r.filtro === 'ventana') res.push({ fecha: f, estado: 'lleno', detalle: r.mensaje });
-      else if (r.alternativas?.maxMomentosParaFecha) {
-        res.push({ fecha: f, estado: 'parcial', detalle: `caben ${r.alternativas.maxMomentosParaFecha}` });
-      } else res.push({ fecha: f, estado: 'lleno', detalle: r.mensaje });
+  const tareaPrevia = useCallback((fecha: FechaISO): Tarea => ({
+    id: '_previa', grupo, asignaturaId: asignaturaActiva, docenteId: userId ?? '',
+    titulo: titulo || '·', momentos, fechaAsignacion: hoy, fechaEntrega: fecha, estado: 'activa',
+  }), [grupo, asignaturaActiva, userId, titulo, momentos, hoy]);
+
+  // Estado de un día para el calendario-semáforo
+  type EstadoDia = 'ok' | 'parcial' | 'lleno' | 'off';
+  const estadoDe = useCallback((fecha: FechaISO): EstadoDia => {
+    if (!grupo || !userId || !ventanaOk || fecha <= hoy || !esDiaHabil(fecha)) return 'off';
+    const r = validarTarea(tareaPrevia(fecha), contexto);
+    if (r.ok) return 'ok';
+    if (!r.ok && r.alternativas?.maxMomentosParaFecha) return 'parcial';
+    return 'lleno';
+  }, [grupo, userId, ventanaOk, hoy, contexto, tareaPrevia]);
+
+  // Mes visible en el calendario
+  const [mesVisible, setMesVisible] = useState(() => {
+    const d = parseFecha(hoy);
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+  const semanas = useMemo(() => gridMes(mesVisible.year, mesVisible.month), [mesVisible]);
+  const puedeRetroceder = mesVisible.year > parseFecha(hoy).getFullYear() ||
+    (mesVisible.year === parseFecha(hoy).getFullYear() && mesVisible.month > parseFecha(hoy).getMonth());
+
+  // Momentos disponibles de la asignatura en el período de la entrega (o el actual)
+  const etiquetaPeriodo = config.periodoCupo === 'quincena' ? 'quincena' : 'semana';
+  const cupoInfo = useMemo(() => {
+    if (!grupo || !asignaturaActiva) return null;
+    const periodo = clavePeriodo(grupo, fechaEntrega ?? hoy);
+    const base = cupoDeAsignatura(grupo, asignaturaActiva);
+    const disponible = cupoDisponible(contexto, grupo, asignaturaActiva, periodo);
+    const esActual = periodo === clavePeriodo(grupo, hoy);
+    return { base, disponible, esActual, periodo };
+  }, [grupo, asignaturaActiva, fechaEntrega, hoy, contexto]);
+
+  // Vista previa de cómo se repartirán los momentos entre hoy y la entrega
+  const distribucion = useMemo(() => {
+    if (!grupo || !fechaEntrega || !userId) return [];
+    const plan = planificarAgenda([...contexto.tareas, tareaPrevia(fechaEntrega)], grupo, hoy);
+    const res: { fecha: FechaISO; momentos: number }[] = [];
+    for (const [f, bloques] of Object.entries(plan.porDia)) {
+      const b = bloques.find(x => x.tareaId === '_previa');
+      if (b) res.push({ fecha: f, momentos: b.momentos });
     }
-    return res;
-  }, [grupo, userId, asignaturaActiva, momentos, titulo, contexto, hoy, ventanaOk]);
+    return res.sort((a, b) => a.fecha.localeCompare(b.fecha));
+  }, [grupo, fechaEntrega, userId, contexto, tareaPrevia, hoy]);
 
   const validacion = useMemo(() => {
     if (!grupo || !fechaEntrega || !userId) return null;
@@ -233,33 +283,95 @@ function PanelDocente({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesion[
           </div>
         )}
 
+        {/* Momentos disponibles del cupo */}
+        {ventanaOk && cupoInfo && (
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-line bg-elevated/40 px-3 py-2 text-xs">
+            <span className="text-muted">
+              {getAsignatura(asignaturaActiva)?.nombre} en{' '}
+              <span className="font-bold" style={{ color: colorGrado(grupo) }}>{grupo}</span>
+            </span>
+            <span className={cn('font-semibold', cupoInfo.disponible <= 0 ? 'text-danger' : 'text-success')}>
+              {cupoInfo.disponible} de {cupoInfo.base} momentos ·{' '}
+              {cupoInfo.esActual ? `esta ${etiquetaPeriodo}` : `${etiquetaPeriodo} del ${cupoInfo.periodo.slice(8)}/${cupoInfo.periodo.slice(5, 7)}`}
+            </span>
+          </div>
+        )}
+
         {/* Calendario-semáforo */}
         {ventanaOk && (
         <div>
-          <label className="text-[11px] text-muted block mb-1.5">
-            Fecha de entrega — verde: cabe · ámbar: caben menos momentos · rojo: no cabe
-          </label>
-          <div className="flex flex-wrap gap-1.5">
-            {candidatas.map(c => {
-              const activa = fechaEntrega === c.fecha;
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-[11px] text-muted">
+              Fecha de entrega — <span className="text-success">verde</span>: cabe ·{' '}
+              <span className="text-warning">ámbar</span>: caben menos ·{' '}
+              <span className="text-danger">rojo</span>: no cabe
+            </label>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => puedeRetroceder && setMesVisible(m => {
+                  const d = new Date(m.year, m.month - 1, 1);
+                  return { year: d.getFullYear(), month: d.getMonth() };
+                })}
+                disabled={!puedeRetroceder}
+                className="p-1 rounded-lg text-muted hover:text-strong hover:bg-elevated disabled:opacity-30 transition"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-xs font-semibold text-strong min-w-[110px] text-center capitalize">
+                {MESES[mesVisible.month]} {mesVisible.year}
+              </span>
+              <button
+                onClick={() => setMesVisible(m => {
+                  const d = new Date(m.year, m.month + 1, 1);
+                  return { year: d.getFullYear(), month: d.getMonth() };
+                })}
+                className="p-1 rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-5 gap-1">
+            {['Lun', 'Mar', 'Mié', 'Jue', 'Vie'].map(d => (
+              <div key={d} className="text-center text-[10px] text-muted pb-1">{d}</div>
+            ))}
+            {semanas.flatMap((semana, wi) => semana.map((fecha, di) => {
+              if (!fecha) return <div key={`${wi}-${di}`} />;
+              const estado = estadoDe(fecha);
+              const activa = fechaEntrega === fecha;
+              const bg = estado === 'ok' ? 'rgba(34,197,94,0.18)'
+                : estado === 'parcial' ? 'rgba(251,146,60,0.5)'
+                : estado === 'lleno' ? 'rgba(239,68,68,0.5)' : 'transparent';
+              const txt = estado === 'ok' ? 'text-success'
+                : estado === 'parcial' ? 'text-warning' : estado === 'lleno' ? 'text-danger' : 'text-muted opacity-40';
               return (
                 <button
-                  key={c.fecha}
-                  onClick={() => setFechaEntrega(c.fecha)}
-                  title={c.detalle}
+                  key={fecha}
+                  onClick={() => estado !== 'off' && setFechaEntrega(fecha)}
+                  disabled={estado === 'off'}
                   className={cn(
-                    'px-2.5 py-1.5 rounded-xl border text-center transition-all min-w-[52px]',
-                    activa ? 'border-line-strong bg-hover' : 'border-line hover:bg-elevated',
-                    c.estado === 'ok' ? 'text-success' : c.estado === 'parcial' ? 'text-warning' : 'text-danger opacity-70'
+                    'h-9 rounded-lg border text-sm font-bold transition-all',
+                    activa ? 'border-line-strong ring-1 ring-[var(--color-line-strong)]' : 'border-transparent',
+                    estado === 'off' ? 'cursor-not-allowed' : 'hover:border-line-strong',
+                    txt,
                   )}
+                  style={{ backgroundColor: bg }}
                 >
-                  <div className="text-[10px] leading-none opacity-80">{diaCortoDe(c.fecha)}</div>
-                  <div className="text-sm font-bold leading-tight">{c.fecha.slice(8)}</div>
+                  {Number(fecha.slice(8))}
                 </button>
               );
-            })}
+            }))}
           </div>
         </div>
+        )}
+
+        {/* Vista previa del reparto de momentos */}
+        {validacion?.ok && distribucion.length > 0 && (
+          <div className="rounded-xl border border-line bg-elevated/40 px-3 py-2 text-[11px] text-muted">
+            <span className="text-soft font-semibold">Se repartirá así:</span>{' '}
+            {distribucion.map(d => `${diaCortoDe(d.fecha)} ${Number(d.fecha.slice(8))} (${d.momentos})`).join(' · ')}
+            {' '}— entrega {fechaLegible(fechaEntrega!)}
+          </div>
         )}
 
         {validacion && !validacion.ok && (

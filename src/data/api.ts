@@ -1,25 +1,45 @@
 const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL as string;
 
-// JSONP fallback — necesario para evitar error CORS desde GitHub Pages
+// JSONP fallback — necesario para evitar error CORS desde GitHub Pages.
+// El nombre de callback es único (contador + timestamp) para evitar colisiones
+// cuando dos peticiones salen en el mismo milisegundo, y hay timeout para que
+// una petición que nunca responde (redes móviles flojas) no quede colgada.
+let _jsonpSeq = 0;
+
 function fetchJsonp<T>(params: Record<string, string>): Promise<T> {
   return new Promise((resolve, reject) => {
-    const cbName = `_mjb_${Date.now()}`;
+    const cbName = `_mjb_${Date.now()}_${++_jsonpSeq}`;
     const qs = new URLSearchParams({ ...params, callback: cbName }).toString();
     const script = document.createElement('script');
     script.src = `${APPS_SCRIPT_URL}?${qs}`;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any)[cbName] = (data: T) => {
+    let terminado = false;
+    const limpiar = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any)[cbName];
-      document.body.removeChild(script);
+      if (script.parentNode) script.parentNode.removeChild(script);
+      clearTimeout(temporizador);
+    };
+
+    const temporizador = setTimeout(() => {
+      if (terminado) return;
+      terminado = true;
+      limpiar();
+      reject(new Error('El servidor tardó demasiado en responder. Revisa tu conexión.'));
+    }, 20000);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any)[cbName] = (data: T) => {
+      if (terminado) return;
+      terminado = true;
+      limpiar();
       resolve(data);
     };
 
     script.onerror = () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (window as any)[cbName];
-      document.body.removeChild(script);
+      if (terminado) return;
+      terminado = true;
+      limpiar();
       reject(new Error('Error de red al conectar con el servidor'));
     };
 
