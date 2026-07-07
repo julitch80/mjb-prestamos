@@ -1,12 +1,13 @@
 // Motor de agenda del módulo de Tareas.
 //
-// Contabilidad acordada:
-//  - El cupo por asignatura se descuenta en el PERÍODO de la FECHA DE ENTREGA
-//    (semana para básica/media, quincena para media técnica).
-//  - La agenda se recalcula por asignación (evento) y reparte los momentos de
-//    ejecución entre los días hábiles, sin tocar días pasados ni el día en curso.
-//  - Planificación EDF (earliest deadline first): con reparto voraz desde el
-//    día más próximo, si la agenda es factible este orden siempre la encuentra.
+// Contabilidad acordada (jul 2026, decisión de Julián):
+//  - Los momentos de una tarea se REPARTEN a lo largo del lapso entre su
+//    asignación y su entrega, distribuidos (no amontonados al inicio).
+//  - El cupo por asignatura se cuenta por la SEMANA DE EJECUCIÓN: cada semana
+//    (quincena en media técnica) limita cuántos momentos de la asignatura se
+//    ejecutan en ella. Así una tarea larga cabe repartida en varias semanas.
+//  - La agenda se recalcula por asignación (evento), sin tocar días pasados
+//    ni el día en curso; se planifica desde mañana en adelante.
 
 import type {
   AgendaGrupo, Alternativas, BloqueAgenda, ContextoValidacion,
@@ -22,11 +23,12 @@ export function clavePeriodo(grupo: string, fecha: FechaISO): string {
   return periodo === 'quincena' ? claveQuincena(fecha) : claveSemana(fecha);
 }
 
-// ── Planificación de agenda (filtro de capacidad) ─────────────────────────────
+// ── Planificación de agenda ───────────────────────────────────────────────────
 
 /**
- * Reparte los momentos de las tareas activas del grupo en los días ejecutables,
- * de HOY+1 en adelante, respetando el tope diario. Orden EDF.
+ * Reparte los momentos de cada tarea de forma distribuida (uniforme) a lo largo
+ * de sus días ejecutables, respetando el tope diario compartido del grupo.
+ * Orden EDF (entrega más próxima primero). No toca días pasados ni el día en curso.
  */
 export function planificarAgenda(tareas: Tarea[], grupo: string, hoy: FechaISO): AgendaGrupo {
   const tope = CONFIG_NIVEL[nivelDeGrupo(grupo)].topeDiario;
@@ -43,25 +45,40 @@ export function planificarAgenda(tareas: Tarea[], grupo: string, hoy: FechaISO):
   const sinUbicar: BloqueAgenda[] = [];
 
   for (const t of activas) {
-    let restantes = t.momentos;
-    // La agenda del día en curso no se reorganiza: se planifica desde mañana,
-    // y nunca antes del día de asignación de la tarea.
-    let fecha = addDias(hoy, 1);
-    if (t.fechaAsignacion > fecha) fecha = t.fechaAsignacion;
+    // Días ejecutables en [max(hoy+1, asignación) .. entrega-1]
+    let inicio = addDias(hoy, 1);
+    if (t.fechaAsignacion > inicio) inicio = t.fechaAsignacion;
+    const dias: FechaISO[] = [];
+    for (let f = inicio; f < t.fechaEntrega; f = addDias(f, 1)) {
+      if (esDiaEjecutable(grupo, f)) dias.push(f);
+    }
 
-    while (restantes > 0 && fecha < t.fechaEntrega) {
-      if (esDiaEjecutable(grupo, fecha)) {
-        const libre = tope - (carga[fecha] ?? 0);
-        if (libre > 0) {
-          const usar = Math.min(libre, restantes);
-          carga[fecha] = (carga[fecha] ?? 0) + usar;
-          (porDia[fecha] ??= []).push({ tareaId: t.id, momentos: usar });
-          restantes -= usar;
+    const D = dias.length;
+    let colocados = 0;
+    if (D > 0) {
+      // Espaciado centrado: el momento k va al día ~((k+0.5)/M) del lapso, y si
+      // ese día ya está al tope, se busca el siguiente con cupo diario libre.
+      for (let k = 0; k < t.momentos; k++) {
+        const ideal = Math.floor(((k + 0.5) * D) / t.momentos);
+        for (let off = 0; off < D; off++) {
+          const dia = dias[(ideal + off) % D];
+          if ((carga[dia] ?? 0) < tope) {
+            carga[dia] = (carga[dia] ?? 0) + 1;
+            (porDia[dia] ??= []).push({ tareaId: t.id, momentos: 1 });
+            colocados++;
+            break;
+          }
         }
       }
-      fecha = addDias(fecha, 1);
     }
-    if (restantes > 0) sinUbicar.push({ tareaId: t.id, momentos: restantes });
+    if (colocados < t.momentos) sinUbicar.push({ tareaId: t.id, momentos: t.momentos - colocados });
+  }
+
+  // Consolidar momentos de la misma tarea en el mismo día.
+  for (const dia of Object.keys(porDia)) {
+    const agrup = new Map<string, number>();
+    for (const b of porDia[dia]) agrup.set(b.tareaId, (agrup.get(b.tareaId) ?? 0) + b.momentos);
+    porDia[dia] = [...agrup.entries()].map(([tareaId, momentos]) => ({ tareaId, momentos }));
   }
 
   return { porDia, sinUbicar };
@@ -93,23 +110,10 @@ export function ventanaValida(fechaAsignacion: FechaISO, diasClase: DiaSemana[])
   return false;
 }
 
-// ── Filtro 2: cupo por asignatura ─────────────────────────────────────────────
+// ── Filtro 2: cupo por semana de ejecución ────────────────────────────────────
 
-/** Momentos ya comprometidos por la asignatura en el período de una entrega. */
-export function momentosUsados(
-  tareas: Tarea[], grupo: string, asignaturaId: string, periodo: string
-): number {
-  return tareas
-    .filter(t =>
-      t.estado === 'activa' && t.grupo === grupo && t.asignaturaId === asignaturaId &&
-      clavePeriodo(grupo, t.fechaEntrega) === periodo
-    )
-    .reduce((s, t) => s + t.momentos, 0);
-}
-
-export function cupoDisponible(
-  ctx: ContextoValidacion, grupo: string, asignaturaId: string, periodo: string
-): number {
+/** Cupo base de la asignatura en un período (con cesiones, sin restar usados). */
+function cupoBase(ctx: ContextoValidacion, grupo: string, asignaturaId: string, periodo: string): number {
   const base = cupoDeAsignatura(grupo, asignaturaId, ctx.cuposOverride);
   const recibidos = ctx.cesiones
     .filter(c => c.grupo === grupo && c.periodo === periodo && c.asignaturaDestinoId === asignaturaId)
@@ -117,8 +121,42 @@ export function cupoDisponible(
   const cedidos = ctx.cesiones
     .filter(c => c.grupo === grupo && c.periodo === periodo && c.asignaturaOrigenId === asignaturaId)
     .reduce((s, c) => s + c.momentos, 0);
-  const usados = momentosUsados(ctx.tareas, grupo, asignaturaId, periodo);
-  return base + recibidos - cedidos - usados;
+  return base + recibidos - cedidos;
+}
+
+/** Momentos de la asignatura ejecutados por período, según la agenda planificada. */
+function momentosPorPeriodo(
+  tareas: Tarea[], grupo: string, asignaturaId: string, hoy: FechaISO
+): Record<string, number> {
+  const plan = planificarAgenda(tareas, grupo, hoy);
+  const asigDe = new Map(tareas.map(t => [t.id, t.asignaturaId]));
+  const res: Record<string, number> = {};
+  for (const [fecha, bloques] of Object.entries(plan.porDia)) {
+    const periodo = clavePeriodo(grupo, fecha);
+    for (const b of bloques) {
+      if (asigDe.get(b.tareaId) === asignaturaId) res[periodo] = (res[periodo] ?? 0) + b.momentos;
+    }
+  }
+  return res;
+}
+
+/** Momentos que aún puede ejecutar la asignatura en un período dado. */
+export function cupoDisponible(
+  ctx: ContextoValidacion, grupo: string, asignaturaId: string, periodo: string
+): number {
+  const usados = momentosPorPeriodo(ctx.tareas, grupo, asignaturaId, ctx.hoy)[periodo] ?? 0;
+  return cupoBase(ctx, grupo, asignaturaId, periodo) - usados;
+}
+
+/** Primer período de ejecución que excede el cupo de la asignatura, o null. */
+function periodoExcedido(
+  tareas: Tarea[], ctx: ContextoValidacion, grupo: string, asignaturaId: string
+): string | null {
+  const usados = momentosPorPeriodo(tareas, grupo, asignaturaId, ctx.hoy);
+  for (const [periodo, m] of Object.entries(usados)) {
+    if (m > cupoBase(ctx, grupo, asignaturaId, periodo)) return periodo;
+  }
+  return null;
 }
 
 // ── Validación completa de una tarea nueva ────────────────────────────────────
@@ -133,26 +171,29 @@ export function fechaLegible(f: FechaISO): string {
   return `${DIAS[diaSemana(f)]} ${d} de ${MESES[m - 1]}`;
 }
 
-/** ¿Cabe la tarea (con esta fecha y momentos) sin romper la capacidad? */
-function cabeEnAgenda(nueva: Tarea, ctx: ContextoValidacion): boolean {
-  const plan = planificarAgenda([...ctx.tareas, nueva], nueva.grupo, ctx.hoy);
-  return plan.sinUbicar.length === 0;
+/** ¿La tarea cabe (capacidad diaria) y respeta el cupo por semana de ejecución? */
+function esFactible(nueva: Tarea, ctx: ContextoValidacion): boolean {
+  const conNueva = [...ctx.tareas, nueva];
+  const plan = planificarAgenda(conNueva, nueva.grupo, ctx.hoy);
+  if (plan.sinUbicar.some(b => b.tareaId === nueva.id)) return false;
+  return periodoExcedido(conNueva, ctx, nueva.grupo, nueva.asignaturaId) === null;
 }
 
 function buscarAlternativas(nueva: Tarea, ctx: ContextoValidacion): Alternativas {
   const alt: Alternativas = {};
-  // Primera fecha de entrega viable (hasta 4 semanas adelante)
-  for (let i = 1; i <= 28; i++) {
+  // Primera fecha de entrega viable (hasta 8 semanas adelante): al alejar la
+  // entrega, los momentos se reparten en más semanas y caben dentro del cupo.
+  for (let i = 1; i <= 56; i++) {
     const fecha = addDias(nueva.fechaEntrega, i);
     if (!esDiaHabil(fecha)) continue;
-    if (cabeEnAgenda({ ...nueva, fechaEntrega: fecha }, ctx)) {
+    if (esFactible({ ...nueva, fechaEntrega: fecha }, ctx)) {
       alt.primeraEntregaViable = fecha;
       break;
     }
   }
   // Máximo de momentos que sí caben con la fecha pedida
   for (let m = nueva.momentos - 1; m >= 1; m--) {
-    if (cabeEnAgenda({ ...nueva, momentos: m }, ctx)) {
+    if (esFactible({ ...nueva, momentos: m }, ctx)) {
       alt.maxMomentosParaFecha = m;
       break;
     }
@@ -184,23 +225,25 @@ export function validarTarea(nueva: Tarea, ctx: ContextoValidacion): ResultadoVa
     };
   }
 
-  // 2. Cupo de la asignatura en el período de la entrega
-  const periodo = clavePeriodo(nueva.grupo, nueva.fechaEntrega);
-  const disponible = cupoDisponible(ctx, nueva.grupo, nueva.asignaturaId, periodo);
-  if (nueva.momentos > disponible) {
-    const etiqueta = config.periodoCupo === 'quincena' ? 'esta quincena' : 'esta semana';
-    return {
-      ok: false,
-      filtro: 'cupo',
-      mensaje: disponible <= 0
-        ? `La asignatura ya usó su cupo de momentos para ${etiqueta}. Puede pedir una cesión a otra asignatura o programar la entrega para el siguiente período.`
-        : `Solo quedan ${disponible} momento(s) de cupo para ${etiqueta}.`,
-      alternativas: disponible > 0 ? { maxMomentosParaFecha: disponible } : undefined,
-    };
+  const etiqueta = config.periodoCupo === 'quincena' ? 'quincena' : 'semana';
+  const conNueva = [...ctx.tareas, nueva];
+  const plan = planificarAgenda(conNueva, nueva.grupo, ctx.hoy);
+
+  // 2. Cupo de la asignatura por semana de ejecución
+  if (periodoExcedido(conNueva, ctx, nueva.grupo, nueva.asignaturaId) !== null) {
+    const alt = buscarAlternativas(nueva, ctx);
+    const partes = [`Se excede el cupo de momentos de la asignatura en alguna ${etiqueta}.`];
+    if (alt.primeraEntregaViable) {
+      partes.push(`Entregando el ${fechaLegible(alt.primeraEntregaViable)} se reparte en más ${etiqueta}s y sí cabe.`);
+    } else {
+      partes.push(`Puede pedir una cesión de momentos a otra asignatura.`);
+    }
+    if (alt.maxMomentosParaFecha) partes.push(`Con esta fecha caben ${alt.maxMomentosParaFecha} momento(s).`);
+    return { ok: false, filtro: 'cupo', mensaje: partes.join(' '), alternativas: alt };
   }
 
   // 3. Capacidad de la agenda del grupo (tope diario hasta la víspera de entrega)
-  if (!cabeEnAgenda(nueva, ctx)) {
+  if (plan.sinUbicar.some(b => b.tareaId === nueva.id)) {
     const alt = buscarAlternativas(nueva, ctx);
     const partes: string[] = ['No hay capacidad en la agenda del grupo para esa fecha.'];
     if (alt.primeraEntregaViable) partes.push(`Primera entrega viable: ${fechaLegible(alt.primeraEntregaViable)}.`);
