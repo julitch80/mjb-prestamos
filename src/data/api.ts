@@ -1,12 +1,31 @@
 const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL as string;
 
-// JSONP fallback — necesario para evitar error CORS desde GitHub Pages.
-// El nombre de callback es único (contador + timestamp) para evitar colisiones
-// cuando dos peticiones salen en el mismo milisegundo, y hay timeout para que
-// una petición que nunca responde (redes móviles flojas) no quede colgada.
+// Llamada al backend. Método principal: fetch() con CORS — el Apps Script
+// devuelve Access-Control-Allow-Origin: * en su respuesta, así que un GET
+// simple funciona sin preflight y de forma robusta en móviles. Si el fetch
+// falla (navegador viejo, red que bloquea CORS), cae al respaldo JSONP.
+//
+// Antes se usaba solo JSONP (inyección de <script>), que en algunos Chrome de
+// Android fallaba al seguir la redirección de Google y dejaba la app sin datos.
+async function callApi<T>(params: Record<string, string>): Promise<T> {
+  const url = `${APPS_SCRIPT_URL}?${new URLSearchParams(params).toString()}`;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 20000);
+    const res = await fetch(url, { method: 'GET', signal: ctrl.signal });
+    clearTimeout(t);
+    if (res.ok) return (await res.json()) as T;
+  } catch {
+    // Cae al respaldo JSONP
+  }
+  return jsonpFallback<T>(params);
+}
+
+// Respaldo JSONP — para navegadores donde el fetch con CORS no esté disponible.
+// Callback único (contador + timestamp) y timeout para no quedar colgado.
 let _jsonpSeq = 0;
 
-function fetchJsonp<T>(params: Record<string, string>): Promise<T> {
+function jsonpFallback<T>(params: Record<string, string>): Promise<T> {
   return new Promise((resolve, reject) => {
     const cbName = `_mjb_${Date.now()}_${++_jsonpSeq}`;
     const qs = new URLSearchParams({ ...params, callback: cbName }).toString();
@@ -59,11 +78,11 @@ export interface LoginResult {
 }
 
 export async function login(userId: string, pin: string): Promise<LoginResult> {
-  return fetchJsonp<LoginResult>({ action: 'login', userId, pin });
+  return callApi<LoginResult>({ action: 'login', userId, pin });
 }
 
 export async function recuperarPin(correo: string): Promise<{ ok: boolean; error?: string }> {
-  return fetchJsonp({ action: 'recuperarPin', correo });
+  return callApi({ action: 'recuperarPin', correo });
 }
 
 export async function cambiarPin(
@@ -71,7 +90,7 @@ export async function cambiarPin(
   pinActual: string,
   pinNuevo: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  return fetchJsonp({ action: 'cambiarPin', userId, pinActual, pinNuevo });
+  return callApi({ action: 'cambiarPin', userId, pinActual, pinNuevo });
 }
 
 // ── Reservas ───────────────────────────────────────────────────────────────────
@@ -90,14 +109,14 @@ export interface Reserva {
 }
 
 export async function getReservas(): Promise<Reserva[]> {
-  const res = await fetchJsonp<{ reservas: Reserva[] }>({ action: 'getReservas' });
+  const res = await callApi<{ reservas: Reserva[] }>({ action: 'getReservas' });
   return res.reservas ?? [];
 }
 
 export async function crearReserva(
   data: Omit<Reserva, 'id' | 'estado' | 'timestamp'>
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  return fetchJsonp({
+  return callApi({
     action: 'crearReserva',
     recurso: data.recurso,
     fecha: data.fecha,
@@ -113,7 +132,7 @@ export async function actualizarReserva(
   estado: 'aprobada' | 'rechazada' | 'cancelada',
   motivo?: string
 ): Promise<{ ok: boolean; error?: string }> {
-  return fetchJsonp({ action: 'actualizarReserva', id, estado, motivo: motivo ?? '' });
+  return callApi({ action: 'actualizarReserva', id, estado, motivo: motivo ?? '' });
 }
 
 // ── Notificaciones ─────────────────────────────────────────────────────────────
@@ -127,7 +146,7 @@ export interface Notificacion {
 }
 
 export async function getNotificaciones(userId: string): Promise<Notificacion[]> {
-  const res = await fetchJsonp<{ notificaciones: Notificacion[] }>({ action: 'getNotificaciones', userId });
+  const res = await callApi<{ notificaciones: Notificacion[] }>({ action: 'getNotificaciones', userId });
   return res.notificaciones ?? [];
 }
 
@@ -135,11 +154,11 @@ export async function marcarLeida(
   userId: string,
   notifId: string
 ): Promise<{ ok: boolean }> {
-  return fetchJsonp({ action: 'marcarLeida', userId, notifId });
+  return callApi({ action: 'marcarLeida', userId, notifId });
 }
 
 export async function marcarTodasLeidas(userId: string): Promise<{ ok: boolean }> {
-  return fetchJsonp({ action: 'marcarTodasLeidas', userId });
+  return callApi({ action: 'marcarTodasLeidas', userId });
 }
 
 // ── Envío de correo ────────────────────────────────────────────────────────────
@@ -158,7 +177,7 @@ export async function enviarCorreoMasivo(
   html: string,
   cc?: string[],
 ): Promise<ResultadoCorreoMasivo> {
-  return fetchJsonp<ResultadoCorreoMasivo>({
+  return callApi<ResultadoCorreoMasivo>({
     action: 'enviarCorreoMasivo',
     destinatarios: destinatarios.join(','),
     asunto,
@@ -179,7 +198,7 @@ export interface DatosTareas {
 }
 
 export async function getDatosTareas(grupo?: string): Promise<DatosTareas> {
-  const res = await fetchJsonp<DatosTareas>({
+  const res = await callApi<DatosTareas>({
     action: 'getDatosTareas',
     ...(grupo ? { grupo } : {}),
   });
@@ -189,7 +208,7 @@ export async function getDatosTareas(grupo?: string): Promise<DatosTareas> {
 export async function crearTarea(
   t: Omit<Tarea, 'id' | 'estado'>
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  return fetchJsonp({
+  return callApi({
     action: 'crearTarea',
     grupo: t.grupo,
     asignaturaId: t.asignaturaId,
@@ -206,13 +225,13 @@ export async function cancelarTarea(
   docenteId: string,
   esDirectivo = false,
 ): Promise<{ ok: boolean; error?: string }> {
-  return fetchJsonp({ action: 'cancelarTarea', id, docenteId, esDirectivo: esDirectivo ? '1' : '0' });
+  return callApi({ action: 'cancelarTarea', id, docenteId, esDirectivo: esDirectivo ? '1' : '0' });
 }
 
 export async function crearCesion(
   c: Omit<Cesion, 'id'>
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  return fetchJsonp({
+  return callApi({
     action: 'crearCesion',
     grupo: c.grupo,
     periodo: c.periodo,
@@ -229,7 +248,7 @@ export async function crearSugerencia(
   autor: string,
   texto: string,
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  return fetchJsonp({ action: 'crearSugerencia', autor, texto });
+  return callApi({ action: 'crearSugerencia', autor, texto });
 }
 
 // ── Publicación en Google Site del colegio ─────────────────────────────────────
@@ -249,7 +268,7 @@ export async function publicarAviso(
   html: string,
   autor: string,
 ): Promise<PublicacionResultado> {
-  return fetchJsonp<PublicacionResultado>({
+  return callApi<PublicacionResultado>({
     action: 'publicarAviso',
     fecha,
     jornada,
