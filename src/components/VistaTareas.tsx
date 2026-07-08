@@ -1044,6 +1044,15 @@ function PanelDirectivo({ tareas, cesiones, cuposOverride }: {
 
 // ── Editor de asignación de momentos (cupos por nivel) ────────────────────────
 
+// Color categórico por nivel — pares -soft/-soft-fg con contraste garantizado
+// en modo claro y oscuro.
+const COLOR_NIVEL: Record<string, { bg: string; fg: string }> = {
+  basica:   { bg: 'var(--color-accent-soft)',  fg: 'var(--color-accent-soft-fg)' },
+  media:    { bg: 'var(--color-purple-soft)',  fg: 'var(--color-purple-soft-fg)' },
+  mt:       { bg: 'var(--color-warning-soft)', fg: 'var(--color-warning-soft-fg)' },
+  primaria: { bg: 'var(--color-success-soft)', fg: 'var(--color-success-soft-fg)' },
+};
+
 function ModalCupos({ cuposOverride, onClose }: {
   cuposOverride: Record<string, number>; onClose: () => void;
 }) {
@@ -1104,15 +1113,17 @@ function ModalCupos({ cuposOverride, onClose }: {
             const config = CONFIG_NIVEL[nivel];
             const asigs = Object.keys(CUPOS_DEFAULT[nivel]);
             const periodo = config.periodoCupo === 'quincena' ? 'quincena' : 'semana';
+            const color = COLOR_NIVEL[nivel] ?? COLOR_NIVEL.basica;
             return (
-              <div key={nivel} className="rounded-xl border border-line bg-elevated/40 p-3">
-                <div className="flex items-baseline justify-between mb-2">
-                  <span className="font-semibold text-sm text-strong">{label}</span>
-                  <span className="text-[10px] text-muted">
+              <div key={nivel} className="rounded-xl border border-line overflow-hidden">
+                <div className="flex items-baseline justify-between px-3 py-2"
+                  style={{ background: color.bg, color: color.fg }}>
+                  <span className="font-semibold text-sm">{label}</span>
+                  <span className="text-[10px] opacity-80">
                     tope {config.topeDiario}/día · estudio {config.estudioMin} min · por {periodo}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 p-3 bg-elevated/40">
                   {asigs.map(asigId => {
                     const clave = `${nivel}:${asigId}`;
                     return (
