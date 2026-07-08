@@ -190,11 +190,18 @@ export async function enviarCorreoMasivo(
 
 import type { Tarea, Cesion, SolicitudCesion } from './tareas/tipos';
 
+export interface CupoNivel {
+  nivel: string;
+  asignaturaId: string;
+  momentos: number;
+}
+
 export interface DatosTareas {
   ok: boolean;
   tareas: Tarea[];
   cesiones: Cesion[];
   solicitudes: SolicitudCesion[];
+  cupos: CupoNivel[];
   error?: string;
 }
 
@@ -208,8 +215,15 @@ export async function getDatosTareas(grupo?: string): Promise<DatosTareas> {
     tareas: res.tareas ?? [],
     cesiones: res.cesiones ?? [],
     solicitudes: res.solicitudes ?? [],
+    cupos: res.cupos ?? [],
     error: res.error,
   };
+}
+
+export async function guardarCupos(
+  cupos: CupoNivel[],
+): Promise<{ ok: boolean; error?: string }> {
+  return callApi({ action: 'guardarCupos', cupos: JSON.stringify(cupos) });
 }
 
 export async function crearTarea(

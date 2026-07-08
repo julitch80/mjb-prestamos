@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Gift, HandCoins, Loader2, QrCode, Trash2, X } from 'lucide-react';
+import { CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Gift, HandCoins, Loader2, QrCode, Settings2, Trash2, X } from 'lucide-react';
 import AgendaGrupo from './AgendaGrupo';
 import { useAppStore } from '../data/store';
 import {
   getDatosTareas, crearTarea, cancelarTarea, crearCesion,
-  crearSolicitudCesion, responderSolicitudCesion,
+  crearSolicitudCesion, responderSolicitudCesion, guardarCupos,
 } from '../data/api';
 import { USUARIOS, colorGrado } from '../data/maestros';
 import { getAsignatura, asignacionDeGrupo } from '../data/asignacionAcademica';
@@ -14,7 +14,7 @@ import type { Tarea, Cesion, SolicitudCesion, FechaISO } from '../data/tareas/ti
 import {
   addDias, esDiaHabil, esDiaEjecutable, hoyISO, parseFecha, formatFecha,
 } from '../data/tareas/calendario';
-import { CONFIG_NIVEL, nivelDeGrupo, cupoDeAsignatura } from '../data/tareas/config';
+import { CONFIG_NIVEL, nivelDeGrupo, cupoDeAsignatura, CUPOS_DEFAULT, NIVELES_CUPO } from '../data/tareas/config';
 import {
   planificarAgenda, ocupacionPorDia, validarTarea, ventanaValida, cupoDisponible,
   clavePeriodo, fechaLegible,
@@ -85,8 +85,8 @@ function colorCarga(ocupados: number, tope: number): string {
 
 // ── Panel del docente ─────────────────────────────────────────────────────────
 
-function PanelDocente({ tareas, cesiones, solicitudes }: {
-  tareas: Tarea[]; cesiones: Cesion[]; solicitudes: SolicitudCesion[];
+function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
+  tareas: Tarea[]; cesiones: Cesion[]; solicitudes: SolicitudCesion[]; cuposOverride: Record<string, number>;
 }) {
   const { userId } = useAppStore();
   const qc = useQueryClient();
@@ -115,7 +115,8 @@ function PanelDocente({ tareas, cesiones, solicitudes }: {
     tareas: tareas.filter(t => t.grupo === grupo),
     cesiones: cesiones.filter(c => c.grupo === grupo),
     diasClase: userId ? diasDeClase(userId, grupo) : [],
-  }), [hoy, tareas, cesiones, grupo, userId]);
+    cuposOverride,
+  }), [hoy, tareas, cesiones, grupo, userId, cuposOverride]);
 
   const nivel = grupo ? nivelDeGrupo(grupo) : 'basica';
   const config = CONFIG_NIVEL[nivel];
@@ -836,7 +837,9 @@ function SeccionSolicitudes({ solicitudes }: { solicitudes: SolicitudCesion[] })
 
 // ── Panel del coordinador / rectora ───────────────────────────────────────────
 
-function PanelDirectivo({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesion[] }) {
+function PanelDirectivo({ tareas, cesiones, cuposOverride }: {
+  tareas: Tarea[]; cesiones: Cesion[]; cuposOverride: Record<string, number>;
+}) {
   const { userId, jornada } = useAppStore();
   const qc = useQueryClient();
   const hoy = hoyISO();
@@ -844,6 +847,7 @@ function PanelDirectivo({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesio
     jornada === 'tarde' ? 'tarde' : 'manana'
   );
   const [agendaGrupo, setAgendaGrupo] = useState<string | null>(null);
+  const [cuposAbierto, setCuposAbierto] = useState(false);
 
   const grupos = useMemo(() =>
     todosLosGrupos().filter(g => esGrupoDeTarde(g) === (filtroJornada === 'tarde')),
@@ -894,17 +898,25 @@ function PanelDirectivo({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesio
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <CalendarDays size={18} className="text-soft" />
         <h2 className="font-bold text-strong">Carga de tareas por grupo</h2>
-        <div className="flex gap-1 ml-auto">
-          {(['manana', 'tarde'] as const).map(j => (
-            <button key={j} onClick={() => setFiltroJornada(j)}
-              className={cn('px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-                filtroJornada === j ? 'bg-hover text-strong border-line-strong' : 'text-muted border-line hover:bg-elevated')}>
-              {j === 'manana' ? 'Mañana' : 'Tarde'}
-            </button>
-          ))}
+        <div className="flex gap-2 ml-auto items-center">
+          <button
+            onClick={() => setCuposAbierto(true)}
+            className="px-3 py-1.5 rounded-full text-xs font-medium border border-line text-soft hover:bg-elevated transition-all flex items-center gap-1.5"
+          >
+            <Settings2 size={13} /> Asignación de momentos
+          </button>
+          <div className="flex gap-1">
+            {(['manana', 'tarde'] as const).map(j => (
+              <button key={j} onClick={() => setFiltroJornada(j)}
+                className={cn('px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                  filtroJornada === j ? 'bg-hover text-strong border-line-strong' : 'text-muted border-line hover:bg-elevated')}>
+                {j === 'manana' ? 'Mañana' : 'Tarde'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1022,8 +1034,115 @@ function PanelDirectivo({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesio
         {agendaGrupo && (
           <ModalAgenda grupo={agendaGrupo} tareas={tareas} onClose={() => setAgendaGrupo(null)} />
         )}
+        {cuposAbierto && (
+          <ModalCupos cuposOverride={cuposOverride} onClose={() => setCuposAbierto(false)} />
+        )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// ── Editor de asignación de momentos (cupos por nivel) ────────────────────────
+
+function ModalCupos({ cuposOverride, onClose }: {
+  cuposOverride: Record<string, number>; onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [valores, setValores] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    for (const { nivel } of NIVELES_CUPO) {
+      for (const [asigId, def] of Object.entries(CUPOS_DEFAULT[nivel])) {
+        const clave = `${nivel}:${asigId}`;
+        init[clave] = clave in cuposOverride ? cuposOverride[clave] : def;
+      }
+    }
+    return init;
+  });
+  const [guardando, setGuardando] = useState(false);
+  const [hecho, setHecho] = useState(false);
+
+  function set(clave: string, v: number) {
+    setValores(p => ({ ...p, [clave]: Math.max(0, Math.min(6, v)) }));
+  }
+
+  async function guardar() {
+    setGuardando(true);
+    const lista = Object.entries(valores).map(([clave, momentos]) => {
+      const [nivel, asignaturaId] = clave.split(':');
+      return { nivel, asignaturaId, momentos };
+    });
+    const r = await guardarCupos(lista);
+    setGuardando(false);
+    if (r.ok) {
+      setHecho(true);
+      qc.invalidateQueries({ queryKey: ['datosTareas'] });
+      setTimeout(onClose, 1200);
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center overflow-y-auto p-4"
+      onClick={onClose}
+    >
+      <div className="rounded-2xl border border-line bg-card p-4 max-w-lg w-full my-8" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-2 mb-1">
+          <Settings2 size={18} className="text-soft" />
+          <h3 className="font-bold text-strong">Asignación de momentos</h3>
+          <button onClick={onClose} className="ml-auto p-1.5 rounded-lg text-muted hover:text-strong hover:bg-elevated">
+            <X size={16} />
+          </button>
+        </div>
+        <p className="text-[11px] text-muted mb-3">
+          Momentos por semana que cada asignatura puede dejar (por semana de ejecución;
+          en media técnica es por quincena). El tope diario del estudiante no cambia.
+        </p>
+
+        <div className="space-y-4">
+          {NIVELES_CUPO.map(({ nivel, label }) => {
+            const config = CONFIG_NIVEL[nivel];
+            const asigs = Object.keys(CUPOS_DEFAULT[nivel]);
+            const periodo = config.periodoCupo === 'quincena' ? 'quincena' : 'semana';
+            return (
+              <div key={nivel} className="rounded-xl border border-line bg-elevated/40 p-3">
+                <div className="flex items-baseline justify-between mb-2">
+                  <span className="font-semibold text-sm text-strong">{label}</span>
+                  <span className="text-[10px] text-muted">
+                    tope {config.topeDiario}/día · estudio {config.estudioMin} min · por {periodo}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {asigs.map(asigId => {
+                    const clave = `${nivel}:${asigId}`;
+                    return (
+                      <div key={clave} className="flex items-center justify-between gap-2 rounded-lg bg-card border border-line px-2.5 py-1.5">
+                        <span className="text-xs text-soft truncate">{getAsignatura(asigId)?.nombre ?? asigId}</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button onClick={() => set(clave, valores[clave] - 1)}
+                            className="w-6 h-6 rounded-md border border-line text-muted hover:bg-elevated text-sm leading-none">−</button>
+                          <span className="w-5 text-center text-sm font-bold text-strong">{valores[clave]}</span>
+                          <button onClick={() => set(clave, valores[clave] + 1)}
+                            className="w-6 h-6 rounded-md border border-line text-muted hover:bg-elevated text-sm leading-none">+</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-3 mt-4">
+          <button onClick={guardar} disabled={guardando || hecho}
+            className="px-4 py-2 rounded-xl text-sm font-semibold border border-line-strong bg-hover text-strong disabled:opacity-40">
+            {hecho ? 'Guardado ✓' : guardando ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+          <span className="text-[11px] text-muted">Aplica de inmediato a la validación de nuevas tareas.</span>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -1050,7 +1169,10 @@ export default function VistaTareas() {
     </div>
   );
 
+  const cuposOverride: Record<string, number> = {};
+  for (const c of data.cupos) cuposOverride[`${c.nivel}:${c.asignaturaId}`] = c.momentos;
+
   return esDirectivo
-    ? <PanelDirectivo tareas={data.tareas} cesiones={data.cesiones} />
-    : <PanelDocente tareas={data.tareas} cesiones={data.cesiones} solicitudes={data.solicitudes} />;
+    ? <PanelDirectivo tareas={data.tareas} cesiones={data.cesiones} cuposOverride={cuposOverride} />
+    : <PanelDocente tareas={data.tareas} cesiones={data.cesiones} solicitudes={data.solicitudes} cuposOverride={cuposOverride} />;
 }

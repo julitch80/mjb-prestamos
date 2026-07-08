@@ -26,6 +26,7 @@ const SUGERENCIAS_HEADERS = ['id','autor','texto','timestamp'];
 const TAREAS_HEADERS      = ['id','grupo','asignaturaId','docenteId','titulo','momentos','fechaAsignacion','fechaEntrega','estado','timestamp'];
 const CESIONES_HEADERS    = ['id','grupo','periodo','asignaturaOrigenId','asignaturaDestinoId','docenteOrigenId','momentos','timestamp'];
 const SOLICITUDES_HEADERS = ['id','grupo','periodo','asignaturaCedenteId','asignaturaDestinoId','docenteCedenteId','docenteSolicitanteId','momentos','estado','timestamp'];
+const CUPOS_HEADERS       = ['nivel','asignaturaId','momentos','timestamp'];
 
 // ── PUNTO DE ENTRADA (JSONP por GET) ─────────────────────────
 function doGet(e)  { return manejar(e); }
@@ -56,6 +57,7 @@ function manejar(e) {
       case 'crearCesion':        resultado = crearCesion(p);        break;
       case 'crearSolicitudCesion':   resultado = crearSolicitudCesion(p);   break;
       case 'responderSolicitudCesion': resultado = responderSolicitudCesion(p); break;
+      case 'guardarCupos':       resultado = guardarCupos(p);       break;
       default:
         resultado = { ok: false, error: 'Acción desconocida: ' + p.action };
     }
@@ -396,7 +398,25 @@ function getDatosTareas(p) {
         estado: String(s.estado),
       };
     });
-  return { ok: true, tareas: tareas, cesiones: cesiones, solicitudes: solicitudes };
+  var cupos = hojaAObjetos(getSheet('CuposTareas', CUPOS_HEADERS))
+    .map(function(c) {
+      return { nivel: String(c.nivel), asignaturaId: String(c.asignaturaId), momentos: Number(c.momentos) || 0 };
+    });
+  return { ok: true, tareas: tareas, cesiones: cesiones, solicitudes: solicitudes, cupos: cupos };
+}
+
+// Guarda la asignación de momentos por (nivel, asignatura). Reemplaza todo.
+function guardarCupos(p) {
+  var lista;
+  try { lista = JSON.parse(p.cupos || '[]'); } catch (e) { return { ok: false, error: 'Datos inválidos' }; }
+  var sheet = getSheet('CuposTareas', CUPOS_HEADERS);
+  var last = sheet.getLastRow();
+  if (last > 1) sheet.deleteRows(2, last - 1);
+  var ts = new Date().toISOString();
+  lista.forEach(function(c) {
+    sheet.appendRow([String(c.nivel), String(c.asignaturaId), Number(c.momentos) || 0, ts]);
+  });
+  return { ok: true, n: lista.length };
 }
 
 // Sheets convierte textos como '9.1' en fechas/números al escribirlos.

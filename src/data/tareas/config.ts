@@ -58,7 +58,23 @@ export const CUPOS_DEFAULT: Record<Nivel, Record<string, number>> = {
   mt:       CUPOS_MT,
 };
 
-export function cupoDeAsignatura(grupo: string, asignaturaId: string, override?: Record<string, number>): number {
-  if (override && asignaturaId in override) return override[asignaturaId];
-  return CUPOS_DEFAULT[nivelDeGrupo(grupo)][asignaturaId] ?? 0;
+// El override lo edita el coordinador; se guarda por (nivel, asignatura).
+// Clave del override: `${nivel}:${asignaturaId}`.
+export function claveCupo(nivel: Nivel, asignaturaId: string): string {
+  return `${nivel}:${asignaturaId}`;
 }
+
+export function cupoDeAsignatura(grupo: string, asignaturaId: string, override?: Record<string, number>): number {
+  const nivel = nivelDeGrupo(grupo);
+  const clave = claveCupo(nivel, asignaturaId);
+  if (override && clave in override) return override[clave];
+  return CUPOS_DEFAULT[nivel][asignaturaId] ?? 0;
+}
+
+// Niveles con cupos editables (para el panel del coordinador).
+export const NIVELES_CUPO: { nivel: Nivel; label: string }[] = [
+  { nivel: 'basica', label: 'Básica (6º–9°)' },
+  { nivel: 'media',  label: 'Media académica (10°–11°)' },
+  { nivel: 'mt',     label: 'Media técnica' },
+  { nivel: 'primaria', label: 'Primaria' },
+];
