@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import { CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Gift, HandCoins, Loader2, QrCode, Trash2, X } from 'lucide-react';
-import QRCode from 'qrcode';
+import AgendaGrupo from './AgendaGrupo';
 import { useAppStore } from '../data/store';
 import {
   getDatosTareas, crearTarea, cancelarTarea, crearCesion,
@@ -50,8 +50,27 @@ function gridMes(year: number, month: number): (FechaISO | null)[][] {
   return weeks;
 }
 
-function urlAgendaPublica(grupo: string): string {
-  return `${window.location.origin}${window.location.pathname}#/agenda/${encodeURIComponent(grupo)}`;
+// Modal reutilizable con la agenda del grupo (día + semana + QR).
+function ModalAgenda({ grupo, tareas, onClose }: { grupo: string; tareas: Tarea[]; onClose: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center overflow-y-auto p-4"
+      onClick={onClose}
+    >
+      <div
+        className="rounded-2xl border border-line bg-card p-4 max-w-md w-full my-8"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex justify-end -mt-1 -mr-1 mb-1">
+          <button onClick={onClose} className="p-1.5 rounded-lg text-muted hover:text-strong hover:bg-elevated">
+            <X size={16} />
+          </button>
+        </div>
+        <AgendaGrupo grupo={grupo} tareas={tareas} mostrarQR />
+      </div>
+    </motion.div>
+  );
 }
 
 // ── Celda de carga (semáforo compartido docente/coordinador) ──────────────────
@@ -85,6 +104,7 @@ function PanelDocente({ tareas, cesiones, solicitudes }: {
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
   const [mostrarCesion, setMostrarCesion] = useState(false);
   const [mostrarSolicitud, setMostrarSolicitud] = useState(false);
+  const [agendaAbierta, setAgendaAbierta] = useState(false);
 
   const asignaturaActiva = grupoInfo?.asignaturaIds.includes(asignaturaId)
     ? asignaturaId
@@ -204,9 +224,14 @@ function PanelDocente({ tareas, cesiones, solicitudes }: {
         <div className="flex items-center gap-2">
           <ClipboardList size={18} className="text-soft" />
           <h2 className="font-bold text-strong">Asignar tarea</h2>
-          <span className="text-[11px] text-muted ml-auto">
-            1 momento = {config.duracionMomentoMin} min
-          </span>
+          {grupo && (
+            <button
+              onClick={() => setAgendaAbierta(true)}
+              className="ml-auto px-3 py-1.5 rounded-full text-xs font-medium border border-line text-soft hover:bg-elevated transition-all flex items-center gap-1.5"
+            >
+              <CalendarDays size={13} /> Agenda de {grupo}
+            </button>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-3">
@@ -479,6 +504,12 @@ function PanelDocente({ tareas, cesiones, solicitudes }: {
           </div>
         ))}
       </section>
+
+      <AnimatePresence>
+        {agendaAbierta && grupo && (
+          <ModalAgenda grupo={grupo} tareas={tareas} onClose={() => setAgendaAbierta(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -812,8 +843,7 @@ function PanelDirectivo({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesio
   const [filtroJornada, setFiltroJornada] = useState<'manana' | 'tarde'>(
     jornada === 'tarde' ? 'tarde' : 'manana'
   );
-  const [qrGrupo, setQrGrupo] = useState<string | null>(null);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [agendaGrupo, setAgendaGrupo] = useState<string | null>(null);
 
   const grupos = useMemo(() =>
     todosLosGrupos().filter(g => esGrupoDeTarde(g) === (filtroJornada === 'tarde')),
@@ -848,11 +878,6 @@ function PanelDirectivo({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesio
     return res;
   }, [tareas]);
 
-  async function abrirQr(grupo: string) {
-    setQrGrupo(grupo);
-    const url = await QRCode.toDataURL(urlAgendaPublica(grupo), { width: 240, margin: 1 });
-    setQrDataUrl(url);
-  }
 
   const activas = tareas
     .filter(t => t.estado === 'activa' && t.fechaEntrega >= hoy && grupos.includes(t.grupo))
@@ -903,7 +928,12 @@ function PanelDirectivo({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesio
               const tope = CONFIG_NIVEL[nivelDeGrupo(g)].topeDiario;
               return (
                 <tr key={g} className={cn('border-b border-line', ri % 2 !== 0 ? 'bg-elevated/40' : '')}>
-                  <td className="px-3 py-1.5 font-bold" style={{ color: colorGrado(g) }}>{g}</td>
+                  <td className="px-3 py-1.5">
+                    <button onClick={() => setAgendaGrupo(g)} title={`Ver agenda de ${g}`}
+                      className="font-bold hover:underline" style={{ color: colorGrado(g) }}>
+                      {g}
+                    </button>
+                  </td>
                   {dias.map(f => {
                     const ejecutable = esDiaEjecutable(g, f);
                     const n = cargaPorGrupo[g]?.[f] ?? 0;
@@ -928,8 +958,8 @@ function PanelDirectivo({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesio
                   })}
                   <td className="text-center">
                     <button
-                      onClick={() => abrirQr(g)}
-                      title={`QR y enlace de la agenda de ${g}`}
+                      onClick={() => setAgendaGrupo(g)}
+                      title={`Agenda y QR de ${g}`}
                       className="p-1.5 rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
                     >
                       <QrCode size={14} />
@@ -987,42 +1017,10 @@ function PanelDirectivo({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesio
         </section>
       )}
 
-      {/* ── Modal QR ───────────────────────────────────────── */}
+      {/* ── Modal agenda del grupo ─────────────────────────── */}
       <AnimatePresence>
-        {qrGrupo && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
-            onClick={() => { setQrGrupo(null); setQrDataUrl(null); }}
-          >
-            <div
-              className="rounded-2xl border border-line bg-card p-5 max-w-xs w-full text-center space-y-3"
-              onClick={e => e.stopPropagation()}
-            >
-              <h3 className="font-bold text-strong">
-                Agenda pública de <span style={{ color: colorGrado(qrGrupo) }}>{qrGrupo}</span>
-              </h3>
-              {qrDataUrl && (
-                <img src={qrDataUrl} alt={`QR agenda ${qrGrupo}`} className="mx-auto rounded-xl bg-white p-2" />
-              )}
-              <p className="text-[11px] text-muted break-all">{urlAgendaPublica(qrGrupo)}</p>
-              <div className="flex gap-2 justify-center">
-                <button
-                  onClick={() => navigator.clipboard.writeText(urlAgendaPublica(qrGrupo))}
-                  className="px-3 py-1.5 rounded-xl text-xs border border-line text-soft hover:bg-elevated"
-                >
-                  Copiar enlace
-                </button>
-                <a
-                  href={urlAgendaPublica(qrGrupo)}
-                  target="_blank" rel="noreferrer"
-                  className="px-3 py-1.5 rounded-xl text-xs border border-line text-soft hover:bg-elevated"
-                >
-                  Abrir
-                </a>
-              </div>
-            </div>
-          </motion.div>
+        {agendaGrupo && (
+          <ModalAgenda grupo={agendaGrupo} tareas={tareas} onClose={() => setAgendaGrupo(null)} />
         )}
       </AnimatePresence>
     </div>
