@@ -22,11 +22,25 @@ export interface Tarea {
 export interface Cesion {
   id: string;
   grupo: string;
-  periodo: string;             // clave de período de la ENTREGA (ver clavePeriodo)
+  periodo: string;             // clave de período de EJECUCIÓN (ver clavePeriodo)
   asignaturaOrigenId: string;
   asignaturaDestinoId: string;
   docenteOrigenId: string;
   momentos: number;
+}
+
+// Solicitud de cesión: un docente pide a otro que le ceda momentos.
+// Al aceptarse se crea la Cesión correspondiente.
+export interface SolicitudCesion {
+  id: string;
+  grupo: string;
+  periodo: string;
+  asignaturaCedenteId: string;   // asignatura de la que se piden momentos (del cedente)
+  asignaturaDestinoId: string;   // asignatura del solicitante que los recibiría
+  docenteCedenteId: string;      // a quién se le pide (debe aprobar)
+  docenteSolicitanteId: string;  // quién pide
+  momentos: number;
+  estado: 'pendiente' | 'aceptada' | 'rechazada';
 }
 
 // Agenda calculada de un grupo: momentos por día.

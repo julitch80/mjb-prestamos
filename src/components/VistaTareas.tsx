@@ -1,13 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Gift, Loader2, QrCode, Trash2, X } from 'lucide-react';
+import { CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Gift, HandCoins, Loader2, QrCode, Trash2, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useAppStore } from '../data/store';
-import { getDatosTareas, crearTarea, cancelarTarea, crearCesion } from '../data/api';
+import {
+  getDatosTareas, crearTarea, cancelarTarea, crearCesion,
+  crearSolicitudCesion, responderSolicitudCesion,
+} from '../data/api';
 import { USUARIOS, colorGrado } from '../data/maestros';
 import { getAsignatura, asignacionDeGrupo } from '../data/asignacionAcademica';
-import type { Tarea, Cesion, FechaISO } from '../data/tareas/tipos';
+import type { Tarea, Cesion, SolicitudCesion, FechaISO } from '../data/tareas/tipos';
 import {
   addDias, esDiaHabil, esDiaEjecutable, hoyISO, parseFecha, formatFecha,
 } from '../data/tareas/calendario';
@@ -63,7 +66,9 @@ function colorCarga(ocupados: number, tope: number): string {
 
 // ── Panel del docente ─────────────────────────────────────────────────────────
 
-function PanelDocente({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesion[] }) {
+function PanelDocente({ tareas, cesiones, solicitudes }: {
+  tareas: Tarea[]; cesiones: Cesion[]; solicitudes: SolicitudCesion[];
+}) {
   const { userId } = useAppStore();
   const qc = useQueryClient();
   const hoy = hoyISO();
@@ -79,6 +84,7 @@ function PanelDocente({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesion[
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
   const [mostrarCesion, setMostrarCesion] = useState(false);
+  const [mostrarSolicitud, setMostrarSolicitud] = useState(false);
 
   const asignaturaActiva = grupoInfo?.asignaturaIds.includes(asignaturaId)
     ? asignaturaId
@@ -412,10 +418,16 @@ function PanelDocente({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesion[
             {guardando ? <Loader2 size={14} className="animate-spin inline" /> : 'Publicar tarea'}
           </button>
           <button
-            onClick={() => setMostrarCesion(v => !v)}
+            onClick={() => { setMostrarCesion(v => !v); setMostrarSolicitud(false); }}
             className="px-3 py-2 rounded-xl text-xs text-muted border border-line hover:bg-elevated transition-all flex items-center gap-1.5"
           >
             <Gift size={13} /> Ceder momentos
+          </button>
+          <button
+            onClick={() => { setMostrarSolicitud(v => !v); setMostrarCesion(false); }}
+            className="px-3 py-2 rounded-xl text-xs text-muted border border-line hover:bg-elevated transition-all flex items-center gap-1.5"
+          >
+            <HandCoins size={13} /> Solicitar momentos
           </button>
         </div>
 
@@ -428,8 +440,19 @@ function PanelDocente({ tareas, cesiones }: { tareas: Tarea[]; cesiones: Cesion[
               <FormCesion grupo={grupo} asignaturaOrigenId={asignaturaActiva} onCerrar={() => setMostrarCesion(false)} />
             </motion.div>
           )}
+          {mostrarSolicitud && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }} className="overflow-hidden"
+            >
+              <FormSolicitud misGrupos={misGrupos} onCerrar={() => setMostrarSolicitud(false)} />
+            </motion.div>
+          )}
         </AnimatePresence>
       </section>
+
+      {/* ── Solicitudes por responder (soy el cedente) ─────── */}
+      <SeccionSolicitudes solicitudes={solicitudes} />
 
       {/* ── Mis tareas ─────────────────────────────────────── */}
       <section className="space-y-2">
@@ -555,6 +578,227 @@ function FormCesion({ grupo, asignaturaOrigenId, onCerrar }: {
           {hecho ? 'Cesión registrada ✓' : enviando ? '…' : 'Ceder'}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Formulario de solicitud de cesión ─────────────────────────────────────────
+
+function FormSolicitud({ misGrupos, onCerrar }: {
+  misGrupos: { grupo: string; asignaturaIds: string[] }[]; onCerrar: () => void;
+}) {
+  const { userId } = useAppStore();
+  const qc = useQueryClient();
+  const hoy = hoyISO();
+
+  const [grupo, setGrupo] = useState(misGrupos[0]?.grupo ?? '');
+  const grupoInfo = misGrupos.find(g => g.grupo === grupo);
+  const misAsigs = grupoInfo?.asignaturaIds ?? [];
+  const [miAsignatura, setMiAsignatura] = useState(misAsigs[0] ?? '');
+  const miAsignaturaActiva = misAsigs.includes(miAsignatura) ? miAsignatura : misAsigs[0] ?? '';
+
+  const config = CONFIG_NIVEL[nivelDeGrupo(grupo)];
+  const etiqueta = config.periodoCupo === 'quincena' ? 'quincena' : 'semana';
+
+  // Asignaturas del grupo que puedo pedir (las que NO dicto yo), con su docente
+  const donantes = useMemo(() => {
+    return asignacionDeGrupo(grupo)
+      .filter(e => e.asignaturaId !== 'ci' && e.docenteId !== userId)
+      .reduce<{ asignaturaId: string; docenteId: string }[]>((acc, e) => {
+        if (!acc.some(a => a.asignaturaId === e.asignaturaId)) {
+          acc.push({ asignaturaId: e.asignaturaId, docenteId: e.docenteId });
+        }
+        return acc;
+      }, []);
+  }, [grupo, userId]);
+
+  const [donante, setDonante] = useState('');
+  const [momentos, setMomentos] = useState(1);
+  const [periodo, setPeriodo] = useState<'actual' | 'siguiente'>('actual');
+  const [enviando, setEnviando] = useState(false);
+  const [hecho, setHecho] = useState(false);
+
+  const donanteSel = donantes.find(d => d.asignaturaId === donante);
+  const docenteDonante = USUARIOS.find(u => u.id === donanteSel?.docenteId);
+
+  async function enviar() {
+    if (!donante || !donanteSel || !userId || !miAsignaturaActiva) return;
+    setEnviando(true);
+    const dias = config.periodoCupo === 'quincena' ? 14 : 7;
+    const fechaRef = periodo === 'actual' ? hoy : addDias(hoy, dias);
+    const nombreSolicitante = USUARIOS.find(u => u.id === userId)?.nombreCorto ?? 'Un docente';
+    const mensaje = `${nombreSolicitante} te pide ${momentos} momento(s) de ${getAsignatura(donanteSel.asignaturaId)?.nombre} en ${grupo} para ${getAsignatura(miAsignaturaActiva)?.nombre}.`;
+    const r = await crearSolicitudCesion({
+      grupo,
+      periodo: clavePeriodo(grupo, fechaRef),
+      asignaturaCedenteId: donanteSel.asignaturaId,
+      asignaturaDestinoId: miAsignaturaActiva,
+      docenteCedenteId: donanteSel.docenteId,
+      docenteSolicitanteId: userId,
+      momentos,
+    }, mensaje);
+    setEnviando(false);
+    if (r.ok) {
+      setHecho(true);
+      qc.invalidateQueries({ queryKey: ['datosTareas'] });
+      setTimeout(onCerrar, 1600);
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-line bg-elevated/40 p-3 space-y-3">
+      <p className="text-[11px] text-muted">
+        Pide a un compañero que te ceda momentos para tu asignatura en este grupo.
+        Le llegará un aviso y, si acepta, el cupo se te suma. Vence al terminar la {etiqueta}.
+      </p>
+      <div className="flex flex-wrap gap-2 items-end">
+        <div>
+          <label className="text-[11px] text-muted block mb-1">Grupo</label>
+          <select value={grupo} onChange={e => { setGrupo(e.target.value); setDonante(''); }}
+            className="px-3 py-2 rounded-xl bg-card border border-line text-sm text-strong">
+            {misGrupos.map(g => <option key={g.grupo} value={g.grupo}>{g.grupo}</option>)}
+          </select>
+        </div>
+        {misAsigs.length > 1 && (
+          <div>
+            <label className="text-[11px] text-muted block mb-1">Para mi asignatura</label>
+            <select value={miAsignaturaActiva} onChange={e => setMiAsignatura(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-card border border-line text-sm text-strong">
+              {misAsigs.map(id => <option key={id} value={id}>{getAsignatura(id)?.nombre ?? id}</option>)}
+            </select>
+          </div>
+        )}
+        <div>
+          <label className="text-[11px] text-muted block mb-1">Le pido a</label>
+          <select value={donante} onChange={e => setDonante(e.target.value)}
+            className="px-3 py-2 rounded-xl bg-card border border-line text-sm text-strong">
+            <option value="">Elegir asignatura…</option>
+            {donantes.map(d => {
+              const doc = USUARIOS.find(u => u.id === d.docenteId);
+              return (
+                <option key={d.asignaturaId} value={d.asignaturaId}>
+                  {getAsignatura(d.asignaturaId)?.nombre} · {doc?.nombreCorto ?? d.docenteId}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] text-muted block mb-1">Momentos</label>
+          <div className="flex gap-1">
+            {[1, 2].map(m => (
+              <button key={m} onClick={() => setMomentos(m)}
+                className={cn('w-8 h-8 rounded-lg text-sm font-bold border',
+                  momentos === m ? 'bg-hover text-strong border-line-strong' : 'border-line text-muted')}>
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className="text-[11px] text-muted block mb-1">Período</label>
+          <div className="flex gap-1">
+            {(['actual', 'siguiente'] as const).map(p => (
+              <button key={p} onClick={() => setPeriodo(p)}
+                className={cn('px-3 py-1.5 rounded-lg text-xs border',
+                  periodo === p ? 'bg-hover text-strong border-line-strong' : 'border-line text-muted')}>
+                {p === 'actual' ? `Esta ${etiqueta}` : `Próxima ${etiqueta}`}
+              </button>
+            ))}
+          </div>
+        </div>
+        <button onClick={enviar} disabled={!donante || enviando || hecho}
+          className="px-3 py-2 rounded-xl text-xs font-semibold border border-line-strong bg-hover text-strong disabled:opacity-40">
+          {hecho ? 'Solicitud enviada ✓' : enviando ? '…' : 'Enviar solicitud'}
+        </button>
+      </div>
+      {donante && docenteDonante && !hecho && (
+        <p className="text-[11px] text-muted">
+          Se enviará a <span className="font-semibold" style={{ color: docenteDonante.color }}>{docenteDonante.nombreCorto}</span>.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Solicitudes que debo responder (soy el cedente) + mis solicitudes ─────────
+
+function SeccionSolicitudes({ solicitudes }: { solicitudes: SolicitudCesion[] }) {
+  const { userId } = useAppStore();
+  const qc = useQueryClient();
+  const [procesando, setProcesando] = useState<string | null>(null);
+
+  const porResponder = solicitudes.filter(s => s.docenteCedenteId === userId && s.estado === 'pendiente');
+  const misEnviadas = solicitudes.filter(s => s.docenteSolicitanteId === userId && s.estado === 'pendiente');
+
+  async function responder(s: SolicitudCesion, respuesta: 'aceptar' | 'rechazar') {
+    if (!userId) return;
+    setProcesando(s.id);
+    const asigDestino = getAsignatura(s.asignaturaDestinoId)?.nombre;
+    const mensaje = respuesta === 'aceptar'
+      ? `Se aceptó tu solicitud: ${s.momentos} momento(s) para ${asigDestino} en ${s.grupo}.`
+      : `Se rechazó tu solicitud de momentos para ${asigDestino} en ${s.grupo}.`;
+    const r = await responderSolicitudCesion(s.id, respuesta, mensaje);
+    setProcesando(null);
+    if (r.ok) qc.invalidateQueries({ queryKey: ['datosTareas'] });
+  }
+
+  if (porResponder.length === 0 && misEnviadas.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      {porResponder.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="font-bold text-strong text-sm flex items-center gap-1.5">
+            <HandCoins size={15} /> Solicitudes por responder
+          </h3>
+          {porResponder.map(s => {
+            const solicitante = USUARIOS.find(u => u.id === s.docenteSolicitanteId);
+            return (
+              <div key={s.id} className="rounded-xl border border-warning bg-warning-soft/60 px-3 py-2.5 text-sm">
+                <div className="text-warning-soft-fg">
+                  <span className="font-semibold" style={{ color: solicitante?.color }}>{solicitante?.nombreCorto}</span>
+                  {' '}te pide <span className="font-semibold">{s.momentos} momento{s.momentos > 1 ? 's' : ''}</span> de{' '}
+                  {getAsignatura(s.asignaturaCedenteId)?.nombre} en{' '}
+                  <span className="font-bold" style={{ color: colorGrado(s.grupo) }}>{s.grupo}</span>
+                  {' '}para {getAsignatura(s.asignaturaDestinoId)?.nombre}.
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => responder(s, 'aceptar')}
+                    disabled={procesando === s.id}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-success text-success hover:bg-success-soft transition flex items-center gap-1 disabled:opacity-40"
+                  >
+                    <Check size={12} /> Conceder
+                  </button>
+                  <button
+                    onClick={() => responder(s, 'rechazar')}
+                    disabled={procesando === s.id}
+                    className="px-3 py-1.5 rounded-lg text-xs border border-line text-muted hover:bg-elevated transition flex items-center gap-1 disabled:opacity-40"
+                  >
+                    <X size={12} /> Rechazar
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      )}
+      {misEnviadas.length > 0 && (
+        <section className="space-y-1.5">
+          <h3 className="font-bold text-strong text-sm">Mis solicitudes enviadas</h3>
+          {misEnviadas.map(s => {
+            const cedente = USUARIOS.find(u => u.id === s.docenteCedenteId);
+            return (
+              <div key={s.id} className="text-[11px] text-muted rounded-xl border border-line bg-elevated/40 px-3 py-2">
+                Pediste {s.momentos} momento{s.momentos > 1 ? 's' : ''} de {getAsignatura(s.asignaturaCedenteId)?.nombre} a{' '}
+                <span className="font-semibold" style={{ color: cedente?.color }}>{cedente?.nombreCorto}</span>
+                {' '}· <span className="text-warning">pendiente</span>
+              </div>
+            );
+          })}
+        </section>
+      )}
     </div>
   );
 }
@@ -810,5 +1054,5 @@ export default function VistaTareas() {
 
   return esDirectivo
     ? <PanelDirectivo tareas={data.tareas} cesiones={data.cesiones} />
-    : <PanelDocente tareas={data.tareas} cesiones={data.cesiones} />;
+    : <PanelDocente tareas={data.tareas} cesiones={data.cesiones} solicitudes={data.solicitudes} />;
 }

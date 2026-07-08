@@ -188,12 +188,13 @@ export async function enviarCorreoMasivo(
 
 // ── Tareas (módulo de momentos) ────────────────────────────────────────────────
 
-import type { Tarea, Cesion } from './tareas/tipos';
+import type { Tarea, Cesion, SolicitudCesion } from './tareas/tipos';
 
 export interface DatosTareas {
   ok: boolean;
   tareas: Tarea[];
   cesiones: Cesion[];
+  solicitudes: SolicitudCesion[];
   error?: string;
 }
 
@@ -202,7 +203,13 @@ export async function getDatosTareas(grupo?: string): Promise<DatosTareas> {
     action: 'getDatosTareas',
     ...(grupo ? { grupo } : {}),
   });
-  return { ok: res.ok, tareas: res.tareas ?? [], cesiones: res.cesiones ?? [], error: res.error };
+  return {
+    ok: res.ok,
+    tareas: res.tareas ?? [],
+    cesiones: res.cesiones ?? [],
+    solicitudes: res.solicitudes ?? [],
+    error: res.error,
+  };
 }
 
 export async function crearTarea(
@@ -240,6 +247,31 @@ export async function crearCesion(
     docenteOrigenId: c.docenteOrigenId,
     momentos: String(c.momentos),
   });
+}
+
+export async function crearSolicitudCesion(
+  s: Omit<SolicitudCesion, 'id' | 'estado'>,
+  mensaje: string,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  return callApi({
+    action: 'crearSolicitudCesion',
+    grupo: s.grupo,
+    periodo: s.periodo,
+    asignaturaCedenteId: s.asignaturaCedenteId,
+    asignaturaDestinoId: s.asignaturaDestinoId,
+    docenteCedenteId: s.docenteCedenteId,
+    docenteSolicitanteId: s.docenteSolicitanteId,
+    momentos: String(s.momentos),
+    mensaje,
+  });
+}
+
+export async function responderSolicitudCesion(
+  id: string,
+  respuesta: 'aceptar' | 'rechazar',
+  mensaje: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return callApi({ action: 'responderSolicitudCesion', id, respuesta, mensaje });
 }
 
 // ── Sugerencias ───────────────────────────────────────────────────────────────

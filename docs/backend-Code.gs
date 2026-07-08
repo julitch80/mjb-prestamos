@@ -25,6 +25,7 @@ const NOTIF_HEADERS       = ['id','destinatario','tipo','mensaje','leida','times
 const SUGERENCIAS_HEADERS = ['id','autor','texto','timestamp'];
 const TAREAS_HEADERS      = ['id','grupo','asignaturaId','docenteId','titulo','momentos','fechaAsignacion','fechaEntrega','estado','timestamp'];
 const CESIONES_HEADERS    = ['id','grupo','periodo','asignaturaOrigenId','asignaturaDestinoId','docenteOrigenId','momentos','timestamp'];
+const SOLICITUDES_HEADERS = ['id','grupo','periodo','asignaturaCedenteId','asignaturaDestinoId','docenteCedenteId','docenteSolicitanteId','momentos','estado','timestamp'];
 
 // ── PUNTO DE ENTRADA (JSONP por GET) ─────────────────────────
 function doGet(e)  { return manejar(e); }
@@ -53,6 +54,8 @@ function manejar(e) {
       case 'crearTarea':         resultado = crearTarea(p);         break;
       case 'cancelarTarea':      resultado = cancelarTarea(p);      break;
       case 'crearCesion':        resultado = crearCesion(p);        break;
+      case 'crearSolicitudCesion':   resultado = crearSolicitudCesion(p);   break;
+      case 'responderSolicitudCesion': resultado = responderSolicitudCesion(p); break;
       default:
         resultado = { ok: false, error: 'Acción desconocida: ' + p.action };
     }
@@ -378,7 +381,22 @@ function getDatosTareas(p) {
         momentos: Number(c.momentos) || 1,
       };
     });
-  return { ok: true, tareas: tareas, cesiones: cesiones };
+  var solicitudes = hojaAObjetos(getSheet('SolicitudesCesion', SOLICITUDES_HEADERS))
+    .filter(function(s) { return String(s.estado) === 'pendiente'; })
+    .map(function(s) {
+      return {
+        id: String(s.id),
+        grupo: String(s.grupo),
+        periodo: normalizarFecha(s.periodo),
+        asignaturaCedenteId: String(s.asignaturaCedenteId),
+        asignaturaDestinoId: String(s.asignaturaDestinoId),
+        docenteCedenteId: String(s.docenteCedenteId),
+        docenteSolicitanteId: String(s.docenteSolicitanteId),
+        momentos: Number(s.momentos) || 1,
+        estado: String(s.estado),
+      };
+    });
+  return { ok: true, tareas: tareas, cesiones: cesiones, solicitudes: solicitudes };
 }
 
 // Sheets convierte textos como '9.1' en fechas/números al escribirlos.
@@ -428,6 +446,53 @@ function crearCesion(p) {
   ]);
   fijarGrupoComoTexto(sheet, 2, p.grupo);
   return { ok: true, id: id };
+}
+
+// Un docente pide a otro que le ceda momentos: crea la solicitud (pendiente)
+// y notifica al cedente para que la conceda o la rechace.
+function crearSolicitudCesion(p) {
+  if (!p.grupo || !p.periodo || !p.asignaturaCedenteId || !p.asignaturaDestinoId ||
+      !p.docenteCedenteId || !p.docenteSolicitanteId) {
+    return { ok: false, error: 'Faltan datos de la solicitud' };
+  }
+  const sheet = getSheet('SolicitudesCesion', SOLICITUDES_HEADERS);
+  const id = 'SOL-' + new Date().getTime();
+  sheet.appendRow([
+    id, p.grupo, p.periodo, p.asignaturaCedenteId, p.asignaturaDestinoId,
+    p.docenteCedenteId, p.docenteSolicitanteId, Number(p.momentos) || 1,
+    'pendiente', new Date().toISOString(),
+  ]);
+  fijarGrupoComoTexto(sheet, 2, p.grupo);
+  crearNotificacion(p.docenteCedenteId, 'intercambio',
+    p.mensaje || 'Tienes una solicitud de cesión de momentos por responder.');
+  return { ok: true, id: id };
+}
+
+// El cedente responde: al aceptar se crea la Cesión y se avisa al solicitante.
+function responderSolicitudCesion(p) {
+  const sheet = getSheet('SolicitudesCesion', SOLICITUDES_HEADERS);
+  const sol = hojaAObjetos(sheet).find(function(s) { return String(s.id) === String(p.id); });
+  if (!sol) return { ok: false, error: 'Solicitud no encontrada' };
+  if (String(sol.estado) !== 'pendiente') return { ok: false, error: 'La solicitud ya fue respondida' };
+
+  if (p.respuesta === 'aceptar') {
+    const ces = getSheet('Cesiones', CESIONES_HEADERS);
+    const cid = 'CES-' + new Date().getTime();
+    ces.appendRow([
+      cid, sol.grupo, normalizarFecha(sol.periodo), sol.asignaturaCedenteId,
+      sol.asignaturaDestinoId, sol.docenteCedenteId, Number(sol.momentos) || 1,
+      new Date().toISOString(),
+    ]);
+    fijarGrupoComoTexto(ces, 2, sol.grupo);
+    actualizarFila(sheet, 'id', p.id, { estado: 'aceptada' });
+    crearNotificacion(String(sol.docenteSolicitanteId), 'intercambio',
+      p.mensaje || 'Tu solicitud de cesión de momentos fue aceptada.');
+  } else {
+    actualizarFila(sheet, 'id', p.id, { estado: 'rechazada' });
+    crearNotificacion(String(sol.docenteSolicitanteId), 'intercambio',
+      p.mensaje || 'Tu solicitud de cesión de momentos fue rechazada.');
+  }
+  return { ok: true };
 }
 
 // ── Sugerencias ──────────────────────────────────────────────
