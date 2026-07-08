@@ -71,6 +71,18 @@ export function cupoDeAsignatura(grupo: string, asignaturaId: string, override?:
   return CUPOS_DEFAULT[nivel][asignaturaId] ?? 0;
 }
 
+// Máximo de momentos que se pueden repartir entre todas las asignaturas de un
+// nivel, por período. Es la capacidad de ejecución del período:
+//   básica/media: 4 momentos/día × 5 días = 20 por semana
+//   media técnica: 4 × 3 días (2 en contrajornada) × 2 semanas = 24 por quincena
+//   primaria: 3 momentos/día × 5 días = 15 por semana
+export const MAX_MOMENTOS_NIVEL: Record<Nivel, number> = {
+  basica: 20,
+  media: 20,
+  mt: 24,
+  primaria: 15,
+};
+
 // Niveles con cupos editables (para el panel del coordinador).
 export const NIVELES_CUPO: { nivel: Nivel; label: string }[] = [
   { nivel: 'basica', label: 'Básica (6º–9°)' },

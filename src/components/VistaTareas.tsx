@@ -14,7 +14,7 @@ import type { Tarea, Cesion, SolicitudCesion, FechaISO } from '../data/tareas/ti
 import {
   addDias, esDiaHabil, esDiaEjecutable, hoyISO, parseFecha, formatFecha,
 } from '../data/tareas/calendario';
-import { CONFIG_NIVEL, nivelDeGrupo, cupoDeAsignatura, CUPOS_DEFAULT, NIVELES_CUPO } from '../data/tareas/config';
+import { CONFIG_NIVEL, nivelDeGrupo, cupoDeAsignatura, CUPOS_DEFAULT, NIVELES_CUPO, MAX_MOMENTOS_NIVEL } from '../data/tareas/config';
 import {
   planificarAgenda, ocupacionPorDia, validarTarea, ventanaValida, cupoDisponible,
   clavePeriodo, fechaLegible,
@@ -1074,6 +1074,13 @@ function ModalCupos({ cuposOverride, onClose }: {
     setValores(p => ({ ...p, [clave]: Math.max(0, Math.min(6, v)) }));
   }
 
+  function totalNivel(nivel: string): number {
+    return Object.keys(CUPOS_DEFAULT[nivel as keyof typeof CUPOS_DEFAULT])
+      .reduce((s, id) => s + (valores[`${nivel}:${id}`] ?? 0), 0);
+  }
+
+  const hayExceso = NIVELES_CUPO.some(({ nivel }) => totalNivel(nivel) > MAX_MOMENTOS_NIVEL[nivel]);
+
   async function guardar() {
     setGuardando(true);
     const lista = Object.entries(valores).map(([clave, momentos]) => {
@@ -1114,6 +1121,9 @@ function ModalCupos({ cuposOverride, onClose }: {
             const asigs = Object.keys(CUPOS_DEFAULT[nivel]);
             const periodo = config.periodoCupo === 'quincena' ? 'quincena' : 'semana';
             const color = COLOR_NIVEL[nivel] ?? COLOR_NIVEL.basica;
+            const max = MAX_MOMENTOS_NIVEL[nivel];
+            const total = totalNivel(nivel);
+            const excede = total > max;
             return (
               <div key={nivel} className="rounded-xl border border-line overflow-hidden">
                 <div className="flex items-baseline justify-between px-3 py-2"
@@ -1140,13 +1150,28 @@ function ModalCupos({ cuposOverride, onClose }: {
                     );
                   })}
                 </div>
+                <div className={cn('flex items-center justify-between px-3 py-2 border-t border-line',
+                  excede ? 'bg-danger-soft' : 'bg-card')}>
+                  <span className={cn('text-xs font-semibold', excede ? 'text-danger' : 'text-soft')}>
+                    Momentos asignados: {total} de {max}
+                  </span>
+                  <span className={cn('text-[10px]', excede ? 'text-danger' : 'text-muted')}>
+                    {excede ? `Supera el máximo permitido (${max})` : `máximo ${max} por ${periodo}`}
+                  </span>
+                </div>
               </div>
             );
           })}
         </div>
 
+        {hayExceso && (
+          <p className="text-xs text-danger mt-3">
+            Hay niveles que superan su máximo de momentos. Ajusta los cupos para poder guardar.
+          </p>
+        )}
+
         <div className="flex items-center gap-3 mt-4">
-          <button onClick={guardar} disabled={guardando || hecho}
+          <button onClick={guardar} disabled={guardando || hecho || hayExceso}
             className="px-4 py-2 rounded-xl text-sm font-semibold border border-line-strong bg-hover text-strong disabled:opacity-40">
             {hecho ? 'Guardado ✓' : guardando ? 'Guardando…' : 'Guardar cambios'}
           </button>
