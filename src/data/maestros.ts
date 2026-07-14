@@ -326,6 +326,17 @@ export const MOMENTOS_TARDE: MomentoTarde[] = [
   },
 ];
 
+/** Momentos adicionales de la tarde en los que participa un docente, con los días asignados. */
+export function momentosDeDocente(docenteId: string): Array<{ id: string; titulo: string; dias: string[] }> {
+  return MOMENTOS_TARDE
+    .map(m => ({
+      id: m.id,
+      titulo: m.titulo,
+      dias: Object.keys(m.asignaciones).filter(d => m.asignaciones[d].includes(docenteId)),
+    }))
+    .filter(m => m.dias.length > 0);
+}
+
 export const ZONAS_ACOMPANAMIENTO = ['Tienda Escolar', 'Baños', 'Restaurante', 'Segundo Piso', 'Kioscos', 'Patio Central y Malla'];
 
 // ── Propósitos de reserva ─────────────────────────────────────────────────────

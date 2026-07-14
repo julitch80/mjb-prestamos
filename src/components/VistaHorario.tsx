@@ -15,6 +15,7 @@ import {
   ZONAS_ACOMPANAMIENTO,
   ZONAS_ACOMPANAMIENTO_TARDE,
   MOMENTOS_TARDE,
+  momentosDeDocente,
   colorGrado,
   horaOrdinal,
   getDocentes,
@@ -548,6 +549,30 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Otros acompañamientos de la tarde (portería, almuerzo, evacuación) */}
+      {jornadaTab === 'tarde' && momentosDeDocente(docenteId).length > 0 && (
+        <div className="space-y-2 pt-1">
+          <h4 className="text-muted opacity-60 text-xs font-semibold uppercase tracking-wide">
+            Otros acompañamientos
+          </h4>
+          {momentosDeDocente(docenteId).map(m => (
+            <div key={m.id} className="flex items-center gap-3 rounded-xl bg-elevated border border-line p-3">
+              <span className="text-strong font-medium text-sm flex-1">{m.titulo}</span>
+              <div className="flex flex-wrap gap-1.5 justify-end">
+                {m.dias.map(d => (
+                  <span
+                    key={d}
+                    className="rounded-lg px-2.5 py-1 text-[11px] font-bold bg-warning-soft text-warning-soft-fg border border-warning"
+                  >
+                    {DIAS_CORTO[d]}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
