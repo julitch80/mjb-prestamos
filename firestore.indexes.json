@@ -1,0 +1,9 @@
+{
+  "indexes": [
+    { "collectionGroup": "channels", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "type", "order": "ASCENDING" }, { "fieldPath": "allowedRoles", "arrayConfig": "CONTAINS" } ] },
+    { "collectionGroup": "channels", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "type", "order": "ASCENDING" }, { "fieldPath": "members", "arrayConfig": "CONTAINS" } ] }
+  ],
+  "fieldOverrides": []
+}

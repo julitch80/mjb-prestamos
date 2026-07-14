@@ -3,6 +3,15 @@ dist/
 .claude/
 .env.local
 .env.*.local
+.env
+
+# Firebase
+serviceAccountKey.json
+functions/node_modules
+functions/lib
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
 
 # Archivos temporales del parseo inicial
 _horario_manana.html

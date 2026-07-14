@@ -1,0 +1,108 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function callerEmail() {
+      return request.auth.token.email.lower();
+    }
+    function isInstitutional() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && callerEmail().matches('.*@iemanueljbetancur[.]edu[.]co');
+    }
+    function callerDoc() {
+      return get(/databases/$(database)/documents/users/$(callerEmail())).data;
+    }
+    function isActiveUser() {
+      return isInstitutional()
+        && exists(/databases/$(database)/documents/users/$(callerEmail()))
+        && callerDoc().active == true;
+    }
+    function isSuper() {
+      return isActiveUser() && callerDoc().role == 'superusuario';
+    }
+    function canAccessChannel(ch) {
+      return ch.type == 'general'
+        || (ch.type == 'rol'
+            && (callerDoc().role in ch.allowedRoles || callerDoc().role == 'superusuario'))
+        || (ch.type == 'directo' && callerEmail() in ch.members);
+    }
+
+    match /users/{email} {
+      allow read: if isActiveUser();
+      allow create: if isSuper()
+        && email == email.lower()
+        && email.matches('.*@iemanueljbetancur[.]edu[.]co')
+        && request.resource.data.email == email
+        && request.resource.data.role in ['docente', 'coordinador', 'superusuario']
+        && request.resource.data.active is bool
+        && request.resource.data.displayName is string;
+      allow update: if isSuper()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['displayName', 'role', 'active', 'replacedBy', 'replacedAt'])
+        && !(email == callerEmail()
+             && (request.resource.data.role != resource.data.role
+                 || request.resource.data.active != resource.data.active));
+      allow delete: if false;
+      match /readStates/{channelId} {
+        allow read, write: if isActiveUser() && callerEmail() == email;
+      }
+    }
+
+    match /channels/{channelId} {
+      allow read: if isActiveUser() && canAccessChannel(resource.data);
+      allow create: if isActiveUser() && (
+        (request.resource.data.type in ['general', 'rol'] && isSuper())
+        ||
+        (request.resource.data.type == 'directo'
+          && request.resource.data.members.size() == 2
+          && callerEmail() in request.resource.data.members
+          && exists(/databases/$(database)/documents/users/$(request.resource.data.members[0]))
+          && exists(/databases/$(database)/documents/users/$(request.resource.data.members[1]))
+          && request.resource.data.createdBy == callerEmail())
+      );
+      allow update: if isSuper()
+        && request.resource.data.type == resource.data.type
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['name', 'allowedRoles']);
+      allow delete: if false;
+      match /messages/{messageId} {
+        allow read: if isActiveUser()
+          && canAccessChannel(get(/databases/$(database)/documents/channels/$(channelId)).data);
+        allow create: if isActiveUser()
+          && canAccessChannel(get(/databases/$(database)/documents/channels/$(channelId)).data)
+          && request.resource.data.keys().hasOnly(
+               ['authorEmail', 'authorName', 'text', 'createdAt', 'deleted'])
+          && request.resource.data.authorEmail == callerEmail()
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 4000
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.deleted == false;
+        allow update: if isActiveUser() && (
+          (resource.data.authorEmail == callerEmail()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['text', 'editedAt', 'deleted']))
+          ||
+          (isSuper()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['deleted']))
+        );
+        allow delete: if false;
+      }
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isSuper();
+      allow write: if false;
+    }
+    match /config/{docId} {
+      allow read, write: if isSuper();
+      allow delete: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
