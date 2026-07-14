@@ -13,6 +13,8 @@ import {
   COLORES_AULA,
   ACOMPAÑAMIENTOS,
   ZONAS_ACOMPANAMIENTO,
+  ZONAS_ACOMPANAMIENTO_TARDE,
+  MOMENTOS_TARDE,
   colorGrado,
   horaOrdinal,
   getDocentes,
@@ -1473,13 +1475,11 @@ export default function VistaHorario() {
               />
             )
           )}
-          {modo === 'acompanamiento' && (
+          {modo === 'acompanamiento' && (() => {
+            const zonas = jornadaTab === 'tarde' ? ZONAS_ACOMPANAMIENTO_TARDE : ZONAS_ACOMPANAMIENTO;
+            return (
             <div className="space-y-4">
-              {jornadaTab === 'tarde' ? (
-                <p className="text-center text-muted opacity-50 py-8 text-sm">
-                  Aún no hay datos de acompañamiento para la jornada de la tarde.
-                </p>
-              ) : vistaOverview === 'semana' ? (
+              {vistaOverview === 'semana' ? (
                 <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
                   <table className="text-xs border-collapse w-full">
                     <thead>
@@ -1493,14 +1493,14 @@ export default function VistaHorario() {
                       </tr>
                     </thead>
                     <tbody>
-                      {ZONAS_ACOMPANAMIENTO.map((zona, i) => (
+                      {zonas.map((zona, i) => (
                         <tr key={zona} className={cn('border-b border-line/50', i % 2 === 0 ? '' : 'bg-card/30')}>
                           <td className="px-3 py-2 font-semibold text-strong sticky left-0 bg-elevated/80 z-10 whitespace-nowrap">
                             {zona}
                           </td>
                           {DIAS.map(dia => {
                             const entrada = ACOMPAÑAMIENTOS.find(
-                              a => a.lugar === zona && a.dia === dia && a.jornada === 'manana'
+                              a => a.lugar === zona && a.dia === dia && a.jornada === jornadaTab
                             );
                             const usuario = entrada ? USUARIOS.find(u => u.id === entrada.docente) : null;
                             return (
@@ -1548,9 +1548,9 @@ export default function VistaHorario() {
                   </div>
                   {/* Tarjetas por zona: lugar arriba, docente (pastilla) abajo */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {ZONAS_ACOMPANAMIENTO.map(zona => {
+                    {zonas.map(zona => {
                       const entrada = ACOMPAÑAMIENTOS.find(
-                        a => a.lugar === zona && a.dia === diaOverview && a.jornada === 'manana'
+                        a => a.lugar === zona && a.dia === diaOverview && a.jornada === jornadaTab
                       );
                       const usuario = entrada ? USUARIOS.find(u => u.id === entrada.docente) : null;
                       return (
@@ -1575,8 +1575,94 @@ export default function VistaHorario() {
                   </div>
                 </div>
               )}
+
+              {jornadaTab === 'tarde' && (
+                <div className="space-y-4 pt-2">
+                  <h4 className="text-muted opacity-60 text-xs font-semibold uppercase tracking-wide text-center">
+                    Otros acompañamientos (tarde)
+                  </h4>
+                  {MOMENTOS_TARDE.map(momento => (
+                    <div key={momento.id} className="space-y-2">
+                      <p className="text-soft text-xs font-semibold">{momento.titulo}</p>
+                      {vistaOverview === 'semana' ? (
+                        <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
+                          <table className="text-xs border-collapse w-full">
+                            <thead>
+                              <tr className="border-b border-line">
+                                {DIAS.map(dia => (
+                                  <th key={dia} className="text-center px-2 py-2 font-semibold text-soft min-w-[90px]">
+                                    {DIAS_LABEL[dia]}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                {DIAS.map(dia => {
+                                  const ids = momento.asignaciones[dia] ?? [];
+                                  const usuarios = ids
+                                    .map(id => USUARIOS.find(u => u.id === id))
+                                    .filter((u): u is NonNullable<typeof u> => !!u);
+                                  return (
+                                    <td key={dia} className="px-1.5 py-1.5">
+                                      {usuarios.length > 0 ? (
+                                        <div className="flex flex-col items-center gap-1">
+                                          {usuarios.map(usuario => (
+                                            <div
+                                              key={usuario.id}
+                                              className="rounded-lg px-2 py-1.5 flex items-center justify-center w-full"
+                                              style={{ borderWidth: 1, borderColor: usuario.color, backgroundColor: `${usuario.color}15` }}
+                                            >
+                                              <span className="text-[11px] font-bold leading-none text-center" style={{ color: usuario.color }}>
+                                                {usuario.nombreCorto}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div className="rounded-lg border border-dashed border-line flex items-center justify-center py-2">
+                                          <span className="text-muted opacity-50 text-[10px]">—</span>
+                                        </div>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center gap-2 text-center rounded-xl bg-elevated border border-line p-3">
+                          {(() => {
+                            const ids = momento.asignaciones[diaOverview] ?? [];
+                            const usuarios = ids
+                              .map(id => USUARIOS.find(u => u.id === id))
+                              .filter((u): u is NonNullable<typeof u> => !!u);
+                            return usuarios.length > 0 ? (
+                              <div className="flex flex-wrap items-center justify-center gap-1.5">
+                                {usuarios.map(usuario => (
+                                  <span
+                                    key={usuario.id}
+                                    className="rounded-lg px-3 py-1.5 text-sm font-bold leading-none"
+                                    style={{ borderWidth: 1, borderColor: usuario.color, backgroundColor: `${usuario.color}15`, color: usuario.color }}
+                                  >
+                                    {usuario.nombreCorto}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-muted opacity-50 text-sm">—</span>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
         </motion.div>
       </AnimatePresence>
 

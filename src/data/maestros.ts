@@ -235,6 +235,95 @@ export const ACOMPAÑAMIENTOS: Acompanamiento[] = [
   { docente: 'adolfo',   dia: 'miercoles', descansos: 'ambos', lugar: 'Patio Central y Malla',   jornada: 'manana' },
   { docente: 'jorge',    dia: 'jueves',    descansos: 'ambos', lugar: 'Patio Central y Malla',   jornada: 'manana' },
   { docente: 'uriel',    dia: 'viernes',   descansos: 'ambos', lugar: 'Patio Central y Malla',   jornada: 'manana' },
+
+  // ── Jornada tarde ──────────────────────────────────────────────────────────
+  // Tienda Escolar
+  { docente: 'harol',         dia: 'lunes',     descansos: 'ambos', lugar: 'Tienda Escolar',                       jornada: 'tarde' },
+  { docente: 'fredy_garcia',  dia: 'martes',    descansos: 'ambos', lugar: 'Tienda Escolar',                       jornada: 'tarde' },
+  { docente: 'yanet',         dia: 'miercoles', descansos: 'ambos', lugar: 'Tienda Escolar',                       jornada: 'tarde' },
+  { docente: 'juan_pablo',    dia: 'jueves',    descansos: 'ambos', lugar: 'Tienda Escolar',                       jornada: 'tarde' },
+  { docente: 'carolina',      dia: 'viernes',   descansos: 'ambos', lugar: 'Tienda Escolar',                       jornada: 'tarde' },
+  // Baños Mujeres y Hombres
+  { docente: 'felipe',        dia: 'lunes',     descansos: 'ambos', lugar: 'Baños Mujeres y Hombres',              jornada: 'tarde' },
+  { docente: 'felipe',        dia: 'martes',    descansos: 'ambos', lugar: 'Baños Mujeres y Hombres',              jornada: 'tarde' },
+  { docente: 'fredy_garcia',  dia: 'miercoles', descansos: 'ambos', lugar: 'Baños Mujeres y Hombres',              jornada: 'tarde' },
+  { docente: 'hugo',          dia: 'jueves',    descansos: 'ambos', lugar: 'Baños Mujeres y Hombres',              jornada: 'tarde' },
+  { docente: 'luis_angel',    dia: 'viernes',   descansos: 'ambos', lugar: 'Baños Mujeres y Hombres',              jornada: 'tarde' },
+  // Restaurante Escolar
+  { docente: 'marina',        dia: 'lunes',     descansos: 'ambos', lugar: 'Restaurante Escolar',                  jornada: 'tarde' },
+  { docente: 'fredy_g',       dia: 'martes',    descansos: 'ambos', lugar: 'Restaurante Escolar',                  jornada: 'tarde' },
+  { docente: 'luis_javier',   dia: 'miercoles', descansos: 'ambos', lugar: 'Restaurante Escolar',                  jornada: 'tarde' },
+  { docente: 'fredy_g',       dia: 'jueves',    descansos: 'ambos', lugar: 'Restaurante Escolar',                  jornada: 'tarde' },
+  { docente: 'hugo',          dia: 'viernes',   descansos: 'ambos', lugar: 'Restaurante Escolar',                  jornada: 'tarde' },
+  // Segundo Piso (corredor y accesos)
+  { docente: 'fredy_g',       dia: 'lunes',     descansos: 'ambos', lugar: 'Segundo Piso (corredor y accesos)',    jornada: 'tarde' },
+  { docente: 'marta',         dia: 'martes',    descansos: 'ambos', lugar: 'Segundo Piso (corredor y accesos)',    jornada: 'tarde' },
+  { docente: 'monica_c',      dia: 'miercoles', descansos: 'ambos', lugar: 'Segundo Piso (corredor y accesos)',    jornada: 'tarde' },
+  { docente: 'marina',        dia: 'jueves',    descansos: 'ambos', lugar: 'Segundo Piso (corredor y accesos)',    jornada: 'tarde' },
+  { docente: 'monica_rave',   dia: 'viernes',   descansos: 'ambos', lugar: 'Segundo Piso (corredor y accesos)',    jornada: 'tarde' },
+  // Kioscos
+  { docente: 'luis_javier',   dia: 'lunes',     descansos: 'ambos', lugar: 'Kioscos',                              jornada: 'tarde' },
+  { docente: 'yanet',         dia: 'martes',    descansos: 'ambos', lugar: 'Kioscos',                              jornada: 'tarde' },
+  { docente: 'carolina',      dia: 'miercoles', descansos: 'ambos', lugar: 'Kioscos',                              jornada: 'tarde' },
+  { docente: 'harol',         dia: 'jueves',    descansos: 'ambos', lugar: 'Kioscos',                              jornada: 'tarde' },
+  { docente: 'edgar',         dia: 'viernes',   descansos: 'ambos', lugar: 'Kioscos',                              jornada: 'tarde' },
+  // Patio Central y Zonas Comunes
+  { docente: 'edgar',         dia: 'lunes',     descansos: 'ambos', lugar: 'Patio Central y Zonas Comunes',        jornada: 'tarde' },
+  { docente: 'valentina',     dia: 'martes',    descansos: 'ambos', lugar: 'Patio Central y Zonas Comunes',        jornada: 'tarde' },
+  { docente: 'luis_angel',    dia: 'miercoles', descansos: 'ambos', lugar: 'Patio Central y Zonas Comunes',        jornada: 'tarde' },
+  { docente: 'monica_rave',   dia: 'jueves',    descansos: 'ambos', lugar: 'Patio Central y Zonas Comunes',        jornada: 'tarde' },
+  { docente: 'juan_pablo',    dia: 'viernes',   descansos: 'ambos', lugar: 'Patio Central y Zonas Comunes',        jornada: 'tarde' },
+];
+
+export const ZONAS_ACOMPANAMIENTO_TARDE = [
+  'Tienda Escolar',
+  'Baños Mujeres y Hombres',
+  'Restaurante Escolar',
+  'Segundo Piso (corredor y accesos)',
+  'Kioscos',
+  'Patio Central y Zonas Comunes',
+];
+
+export interface MomentoTarde {
+  id: string;
+  titulo: string;
+  asignaciones: Record<string, string[]>; // dia -> ids de docente
+}
+
+export const MOMENTOS_TARDE: MomentoTarde[] = [
+  {
+    id: 'porteria',
+    titulo: 'Portería (inicio de jornada)',
+    asignaciones: {
+      lunes: ['felipe'],
+      martes: ['yanet'],
+      miercoles: ['harol'],
+      jueves: ['hugo'],
+      viernes: ['carolina'],
+    },
+  },
+  {
+    id: 'almuerzo',
+    titulo: 'Restaurante escolar (almuerzo)',
+    asignaciones: {
+      lunes: ['marina'],
+      martes: ['fredy_g'],
+      miercoles: ['fredy_g'],
+      jueves: ['marina'],
+      viernes: ['marina'],
+    },
+  },
+  {
+    id: 'evacuacion',
+    titulo: 'Evacuación de estudiantes (fin de jornada)',
+    asignaciones: {
+      lunes: ['felipe', 'luis_javier'],
+      martes: ['valentina', 'monica_rave'],
+      miercoles: ['fredy_garcia', 'hugo'],
+      jueves: ['carolina', 'fredy_g'],
+      viernes: ['edgar', 'marina'],
+    },
+  },
 ];
 
 export const ZONAS_ACOMPANAMIENTO = ['Tienda Escolar', 'Baños', 'Restaurante', 'Segundo Piso', 'Kioscos', 'Patio Central y Malla'];
