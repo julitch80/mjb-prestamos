@@ -15,11 +15,14 @@ import VistaTareas from './components/VistaTareas';
 import AgendaPublica from './components/AgendaPublica';
 import MiHistorial from './components/MiHistorial';
 import PanelSuperusuario from './components/PanelSuperusuario';
+import Chat from './components/Chat';
 import BannerNotificaciones from './components/BannerNotificaciones';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
 import { getNotificaciones } from './data/api';
 import { USUARIOS } from './data/maestros';
+import { AUTH_MODE } from './data/authStore';
+import { useChatStore } from './data/chatStore';
 import { cn } from './lib/utils';
 
 type NavItem = { id: string; label: string; descripcion: string; roles: string[] };
@@ -32,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'horario',        label: 'Horario',       descripcion: 'Por aulas, docente o grupo',        roles: ['docente', 'coordinador', 'rectora'] },
   { id: 'asignacion',     label: 'Asignación 2026', descripcion: 'Docentes y materias del año',     roles: ['docente', 'coordinador', 'rectora'] },
   { id: 'tareas',         label: 'Tareas',          descripcion: 'Momentos de tarea por grupo',     roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'chat',           label: 'Chat',            descripcion: 'Mensajería interna',              roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',        roles: ['superusuario'] },
 ];
 
@@ -69,13 +73,23 @@ export default function App() {
     return () => window.removeEventListener('hashchange', fn);
   }, []);
 
+  // Chat interno — solo se inicia en modo google con sesión activa (no-op en pin).
+  useEffect(() => {
+    if (AUTH_MODE === 'google' && userId && rol) {
+      useChatStore.getState().initChat(rol);
+    }
+  }, [userId, rol]);
+
   // ── Ruta pública: agenda de tareas por grupo (sin login) ──────────
   const agendaMatch = hash.match(/^#\/agenda\/(.+)$/);
   if (agendaMatch) return <AgendaPublica grupo={decodeURIComponent(agendaMatch[1])} />;
 
   if (!userId) return <LoginScreen />;
 
-  const navItems = NAV_ITEMS.filter(item => item.roles.includes(rol ?? ''));
+  const navItems = NAV_ITEMS
+    .filter(item => item.roles.includes(rol ?? ''))
+    // El chat solo tiene sentido en modo google (Firebase). En modo pin se oculta.
+    .filter(item => item.id !== 'chat' || AUTH_MODE === 'google');
   const usuario  = USUARIOS.find(u => u.id === userId);
 
   return (
@@ -199,6 +213,7 @@ export default function App() {
             {vistaActual === 'horario'        && <VistaHorario />}
             {vistaActual === 'asignacion'     && <AsignacionAcademica />}
             {vistaActual === 'tareas'         && <VistaTareas />}
+            {vistaActual === 'chat'           && AUTH_MODE === 'google' && <Chat />}
             {vistaActual === 'admin_users'    && rol === 'superusuario' && <PanelSuperusuario />}
           </motion.div>
         </AnimatePresence>

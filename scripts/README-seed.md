@@ -46,6 +46,21 @@ El script sube los usuarios en lotes (batch) a `users/{email}` con
 Cuando termines, **borra `serviceAccountKey.json`** de tu máquina. No debe
 quedar en el disco de forma permanente ni mucho menos subirse a git.
 
+## Seed de canales del chat (Etapa 4)
+
+Para crear los canales base del chat interno (`channels/general` — "Sala de
+profesores", tipo `general`; y `channels/coordinacion` — "Coordinación", tipo
+`rol` con `allowedRoles: ['coordinador']`), usa el mismo
+`serviceAccountKey.json` y ejecuta:
+
+```bash
+node scripts/seed-channels.mjs
+```
+
+Es seguro volver a correrlo (usa `merge: true`, no duplica ni borra). Los
+canales directos (DM) y los canales creados desde el panel del superusuario no
+necesitan este script — se crean desde la propia app.
+
 ## Notas
 
 - Volver a correr el script con el mismo CSV es seguro (usa `merge: true`,

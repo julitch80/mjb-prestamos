@@ -1,4 +1,5 @@
 import { onCall } from 'firebase-functions/v2/https';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { beforeUserCreated, beforeUserSignedIn, HttpsError } from 'firebase-functions/v2/identity';
@@ -38,3 +39,18 @@ export const beforesignedin = beforeUserSignedIn({ region: 'us-central1' }, asyn
     throw new HttpsError('permission-denied', 'Cuenta desactivada en MJB Préstamos.');
   }
 });
+
+// ── Etapa 4: chat interno — metadatos del último mensaje por canal ──────────
+// Al crear un mensaje, actualiza el documento del canal con el resumen del
+// último mensaje para poder ordenar la lista de canales y mostrar preview.
+export const onMessageCreated = onDocumentCreated(
+  { document: 'channels/{channelId}/messages/{messageId}', region: 'us-central1' },
+  async (event) => {
+    const m = event.data?.data();
+    if (!m) return;
+    await db.doc(`channels/${event.params.channelId}`).update({
+      lastMessageAt: m.createdAt,
+      lastMessagePreview: String(m.text).slice(0, 80),
+      lastMessageBy: m.authorName ?? m.authorEmail,
+    });
+  });
