@@ -13,7 +13,8 @@ export type VistaActual =
   | 'asignacion'
   | 'tareas'
   | 'editor'
-  | 'asistente';
+  | 'asistente'
+  | 'admin_users';
 
 interface AppState {
   // Auth

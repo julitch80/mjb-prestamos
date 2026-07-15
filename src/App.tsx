@@ -14,6 +14,7 @@ import AsignacionAcademica from './components/AsignacionAcademica';
 import VistaTareas from './components/VistaTareas';
 import AgendaPublica from './components/AgendaPublica';
 import MiHistorial from './components/MiHistorial';
+import PanelSuperusuario from './components/PanelSuperusuario';
 import BannerNotificaciones from './components/BannerNotificaciones';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
@@ -31,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'horario',        label: 'Horario',       descripcion: 'Por aulas, docente o grupo',        roles: ['docente', 'coordinador', 'rectora'] },
   { id: 'asignacion',     label: 'Asignación 2026', descripcion: 'Docentes y materias del año',     roles: ['docente', 'coordinador', 'rectora'] },
   { id: 'tareas',         label: 'Tareas',          descripcion: 'Momentos de tarea por grupo',     roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',        roles: ['superusuario'] },
 ];
 
 const ROL_COLOR: Record<string, string> = {
@@ -197,6 +199,7 @@ export default function App() {
             {vistaActual === 'horario'        && <VistaHorario />}
             {vistaActual === 'asignacion'     && <AsignacionAcademica />}
             {vistaActual === 'tareas'         && <VistaTareas />}
+            {vistaActual === 'admin_users'    && rol === 'superusuario' && <PanelSuperusuario />}
           </motion.div>
         </AnimatePresence>
       </main>
