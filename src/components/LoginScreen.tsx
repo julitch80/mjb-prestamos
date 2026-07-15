@@ -7,6 +7,8 @@ import { USUARIOS } from '../data/maestros';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { MODO_LOCAL } from '../data/config';
+import { AUTH_MODE } from '../data/authStore';
+import { loginConGoogle } from '../lib/auth';
 import ModalInstalar from './ModalInstalar';
 
 const normalizar = (s: string) =>
@@ -30,7 +32,21 @@ export default function LoginScreen() {
   const [correoRecup, setCorreoRecup]         = useState('');
   const [mensajeRecup, setMensajeRecup]       = useState('');
   const [instalarOpen, setInstalarOpen]       = useState(false);
+  const [cargandoGoogle, setCargandoGoogle]   = useState(false);
   const pinRef = useRef<HTMLInputElement>(null);
+
+  async function handleLoginGoogle() {
+    setCargandoGoogle(true);
+    setError('');
+    try {
+      await loginConGoogle();
+      // El resto (cargar perfil, setUsuario) lo maneja authStore.ts vía onAuthStateChanged.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al iniciar sesión con Google.');
+    } finally {
+      setCargandoGoogle(false);
+    }
+  }
 
   const usuariosFiltrados = busqueda.length >= 2
     ? USUARIOS.filter(u =>
@@ -195,6 +211,40 @@ export default function LoginScreen() {
 
             {/* Card principal */}
             <div className="rounded-2xl border border-line bg-card backdrop-blur-xl shadow-2xl overflow-hidden">
+              {AUTH_MODE === 'google' ? (
+                /* ── Login con Google Workspace institucional ── */
+                <div className="p-6">
+                  <p className="text-xs text-muted uppercase tracking-widest mb-4 font-medium text-center">
+                    Inicia sesión con tu cuenta institucional
+                  </p>
+                  <Button
+                    type="button"
+                    disabled={cargandoGoogle}
+                    onClick={handleLoginGoogle}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {cargandoGoogle ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Conectando...
+                      </span>
+                    ) : 'Continuar con Google'}
+                  </Button>
+                  <AnimatePresence>
+                    {error && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="text-danger text-xs text-center mt-3"
+                      >
+                        {error}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ) : (
               <AnimatePresence mode="wait">
                 {!usuarioSeleccionado ? (
                   /* Paso 1: buscar usuario */
@@ -339,6 +389,7 @@ export default function LoginScreen() {
                   </motion.div>
                 )}
               </AnimatePresence>
+              )}
 
               {/* Footer */}
               <div className="px-6 pb-5 text-center space-y-2">

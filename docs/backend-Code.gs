@@ -14,6 +14,14 @@ const CONFIG = {
   COORD_TARDE:  'juan.salazar@iemanueljbetancur.edu.co',
   RECTORA:      'mjb@iemanueljbetancur.edu.co',
   NOMBRE_IE:    'I.E. Manuel J. Betancur',
+  // Etapa 2 (Firebase): API Key del proyecto Firebase (pestaña Configuración
+  // del proyecto en la consola). Solo se usa si el frontend envía `idToken`
+  // (modo VITE_AUTH_MODE=google). Reemplazar por la clave real cuando se
+  // active ese modo; con el placeholder, cualquier idToken recibido fallará
+  // la validación (fail-closed), pero mientras el frontend no lo envíe
+  // (modo pin, por defecto) esto no se usa.
+  FIREBASE_API_KEY: 'REEMPLAZAR_CON_LA_API_KEY_DEL_PROYECTO_FIREBASE',
+  FIREBASE_DOMAIN:  'iemanueljbetancur.edu.co',
 };
 
 // ID del Google Doc "Avisos vigentes MJB" embebido en el Google Site
@@ -32,11 +40,47 @@ const CUPOS_HEADERS       = ['nivel','asignaturaId','momentos','timestamp'];
 function doGet(e)  { return manejar(e); }
 function doPost(e) { return manejar(e); }
 
+// Etapa 2 (Firebase, opcional): valida un idToken de Firebase Auth contra el
+// endpoint público de Identity Toolkit (sin necesidad de librerías extra en
+// Apps Script). Devuelve el correo (en minúsculas) si es válido, verificado
+// y del dominio institucional; null en cualquier otro caso. NO se llama a
+// menos que el parámetro `idToken` venga en la petición — comportamiento
+// actual sin idToken queda intacto.
+function verifyFirebaseIdToken_(idToken) {
+  try {
+    const url = 'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + CONFIG.FIREBASE_API_KEY;
+    const res = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ idToken: idToken }),
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() !== 200) return null;
+    const data = JSON.parse(res.getContentText());
+    const user = data.users && data.users[0];
+    if (!user) return null;
+    const email = String(user.email || '').toLowerCase();
+    if (user.emailVerified !== true) return null;
+    if (!email.endsWith('@' + CONFIG.FIREBASE_DOMAIN)) return null;
+    return email;
+  } catch (err) {
+    return null;
+  }
+}
+
 function manejar(e) {
   const p = (e && e.parameter) ? e.parameter : {};
   const callback = p.callback;
   let resultado;
   try {
+    // Si viene idToken, se valida; comportamiento sin idToken no cambia.
+    if (p.idToken) {
+      const email = verifyFirebaseIdToken_(p.idToken);
+      if (!email) {
+        resultado = { ok: false, error: 'no-autorizado' };
+        return responder_(resultado, callback);
+      }
+    }
     switch (p.action) {
       case 'login':              resultado = login(p);              break;
       case 'recuperarPin':       resultado = recuperarPin(p);       break;
@@ -64,6 +108,10 @@ function manejar(e) {
   } catch (err) {
     resultado = { ok: false, error: String(err.message || err) };
   }
+  return responder_(resultado, callback);
+}
+
+function responder_(resultado, callback) {
   const json = JSON.stringify(resultado);
   if (callback) {
     return ContentService.createTextOutput(callback + '(' + json + ')')

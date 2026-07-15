@@ -100,7 +100,7 @@ export const useAppStore = create<AppState>()(
       setUsuario: (userId, nombre, rol, jornada) =>
         set({ userId, nombre, rol, jornada, vistaActual: 'disponibilidad' }),
 
-      cerrarSesion: () =>
+      cerrarSesion: () => {
         set({
           userId: null,
           nombre: null,
@@ -110,7 +110,15 @@ export const useAppStore = create<AppState>()(
           notifCargadas: false,
           reservas: [],
           vistaActual: 'disponibilidad',
-        }),
+        });
+        // En modo Google (Etapa 2) también cierra la sesión de Firebase Auth.
+        // Import dinámico para evitar ciclo store <-> authStore; no-op en modo pin.
+        if ((import.meta.env.VITE_AUTH_MODE as string) === 'google') {
+          import('../lib/auth').then(({ cerrarSesionGoogle }) => {
+            cerrarSesionGoogle().catch(() => {});
+          }).catch(() => {});
+        }
+      },
 
       // Navegación
       setVistaActual: (vista) => set({ vistaActual: vista }),

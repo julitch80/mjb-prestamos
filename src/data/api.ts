@@ -1,5 +1,22 @@
 const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL as string;
 
+// Etapa 2 (Firebase): en modo 'google' adjunta el idToken de Firebase Auth a
+// los parámetros de la petición, para que el backend (docs/backend-Code.gs)
+// pueda validarlo con verifyFirebaseIdToken_. En modo 'pin' (default) es un
+// no-op y los parámetros se devuelven sin cambios — no rompe nada existente.
+// Se aplicó como ejemplo en crearReserva; el resto de llamadas se migrará
+// cuando se active el modo google en producción.
+export async function conIdToken(params: Record<string, string>): Promise<Record<string, string>> {
+  if ((import.meta.env.VITE_AUTH_MODE as string) !== 'google') return params;
+  try {
+    const { getIdTokenActual } = await import('../lib/auth');
+    const idToken = await getIdTokenActual();
+    return idToken ? { ...params, idToken } : params;
+  } catch {
+    return params;
+  }
+}
+
 // Llamada al backend. Método principal: fetch() con CORS — el Apps Script
 // devuelve Access-Control-Allow-Origin: * en su respuesta, así que un GET
 // simple funciona sin preflight y de forma robusta en móviles. Si el fetch
@@ -116,7 +133,7 @@ export async function getReservas(): Promise<Reserva[]> {
 export async function crearReserva(
   data: Omit<Reserva, 'id' | 'estado' | 'timestamp'>
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  return callApi({
+  return callApi(await conIdToken({
     action: 'crearReserva',
     recurso: data.recurso,
     fecha: data.fecha,
@@ -124,7 +141,7 @@ export async function crearReserva(
     solicitante: data.solicitante,
     proposito: data.proposito,
     equipos: data.equipos ?? '',
-  });
+  }));
 }
 
 export async function actualizarReserva(

@@ -6,8 +6,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import App from './App.tsx'
 import { initAutoUpdate } from './autoUpdate'
+import { initAuthGoogle } from './data/authStore'
 
 initAutoUpdate()
+initAuthGoogle() // no-op en modo 'pin' (default) o sin Firebase configurado
 
 // Sentry — solo activo si hay DSN configurado (en producción)
 if (import.meta.env.VITE_SENTRY_DSN) {
