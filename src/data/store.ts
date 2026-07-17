@@ -18,7 +18,8 @@ export type VistaActual =
   | 'admin_users'
   | 'chat'
   | 'agenda'
-  | 'riesgo';
+  | 'riesgo'
+  | 'asistentes';
 
 interface AppState {
   // Auth

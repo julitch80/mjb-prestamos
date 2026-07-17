@@ -18,6 +18,7 @@ import PanelSuperusuario from './components/PanelSuperusuario';
 import Chat from './components/Chat';
 import AgendaSemanal from './components/AgendaSemanal';
 import GestionRiesgo from './components/GestionRiesgo';
+import Asistentes from './components/Asistentes';
 import BannerNotificaciones from './components/BannerNotificaciones';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
@@ -41,6 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'chat',           label: 'Chat',            descripcion: 'Mensajería interna',              roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'agenda',         label: 'Agenda',          descripcion: 'Agenda semanal institucional',    roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'riesgo',         label: 'Gestión del Riesgo', descripcion: 'Brigadas de emergencia y funciones', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'asistentes',     label: 'Asistentes',      descripcion: 'Chatbots de convivencia y evaluación', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',        roles: ['superusuario'] },
 ];
 
@@ -235,7 +237,7 @@ export default function App() {
             */}
             {(() => {
               const sede = SEDES.find(s => s.id === sedeActual);
-              const vistaTransversal = vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo';
+              const vistaTransversal = vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes';
               if (sede && !sede.configurada && !vistaTransversal) {
                 return (
                   <div className="max-w-lg mx-auto text-center py-16">
@@ -258,6 +260,7 @@ export default function App() {
                   {vistaActual === 'chat'           && AUTH_MODE === 'google' && <Chat />}
                   {vistaActual === 'agenda'         && <AgendaSemanal />}
                   {vistaActual === 'riesgo'         && <GestionRiesgo />}
+                  {vistaActual === 'asistentes'     && <Asistentes />}
                   {vistaActual === 'admin_users'    && rol === 'superusuario' && <PanelSuperusuario />}
                 </>
               );
