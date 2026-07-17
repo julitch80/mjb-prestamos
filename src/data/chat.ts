@@ -39,7 +39,7 @@ export type Canal = {
  * directivo). Los ids son deterministas: seg__{sede}[__{jornada}].
  */
 export function segmentosDe(sede: string, jornada: string, esDirectivoFlag: boolean): string[] {
-  const SEDES = ['central', 'gustavo_rojas', 'la_finquita'];
+  const SEDES = ['central', 'gustavo_rodas', 'la_finquita'];
   if (esDirectivoFlag) {
     const todos: string[] = [];
     for (const s of SEDES) {

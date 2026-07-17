@@ -3,7 +3,7 @@
 ## Objetivo
 
 Preparar la app para absorber, en el futuro, las dos sedes de primaria (Gustavo
-Rojas Pinilla y La Finquita) sin romper la Sede Central (bachillerato), que es
+Rodas Isaza y La Finquita) sin romper la Sede Central (bachillerato), que es
 la única funcional hoy. Fase A es solo cimientos: modelo de datos, direcciona-
 miento y un placeholder visual. No implementa la dinámica real de primaria.
 
@@ -11,7 +11,7 @@ miento y un placeholder visual. No implementa la dinámica real de primaria.
 
 `src/data/maestros.ts`:
 
-- `SedeId = 'central' | 'gustavo_rojas' | 'la_finquita'`
+- `SedeId = 'central' | 'gustavo_rodas' | 'la_finquita'`
 - `Sede { id, nombre, nivel: 'bachillerato' | 'primaria', jornadas, configurada }`
   — `configurada: true` solo en `central`. Las otras dos están marcadas
   `false` hasta que se defina y cargue su dinámica.
@@ -22,8 +22,7 @@ miento y un placeholder visual. No implementa la dinámica real de primaria.
   permiso de edición en cada sede, además de rectora y superusuario (que
   siempre pueden). Hoy:
   - `central`: `coord_manana`, `coord_tarde` (como siempre)
-  - `gustavo_rojas`: `coord_manana` — **pendiente de confirmar** si es
-    Janneth (`coord_manana`) o "Yaneth Ocampo", persona distinta.
+  - `gustavo_rodas`: `coord_manana` (Janneth Astrid Ocampo Carvajal).
   - `la_finquita`: `coord_tarde` — **pendiente de confirmar** si Juan Diego
     realmente cubre esta sede además de tarde en central.
 - `puedeEditarEnSede(userId, rol, sede)` — true para rectora/superusuario

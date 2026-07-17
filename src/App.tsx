@@ -16,6 +16,8 @@ import AgendaPublica from './components/AgendaPublica';
 import MiHistorial from './components/MiHistorial';
 import PanelSuperusuario from './components/PanelSuperusuario';
 import Chat from './components/Chat';
+import AgendaSemanal from './components/AgendaSemanal';
+import GestionRiesgo from './components/GestionRiesgo';
 import BannerNotificaciones from './components/BannerNotificaciones';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
@@ -37,6 +39,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'asignacion',     label: 'Asignación 2026', descripcion: 'Docentes y materias del año',     roles: ['docente', 'coordinador', 'rectora'] },
   { id: 'tareas',         label: 'Tareas',          descripcion: 'Momentos de tarea por grupo',     roles: ['docente', 'coordinador', 'rectora'] },
   { id: 'chat',           label: 'Chat',            descripcion: 'Mensajería interna',              roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'agenda',         label: 'Agenda',          descripcion: 'Agenda semanal institucional',    roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'riesgo',         label: 'Gestión del Riesgo', descripcion: 'Brigadas de emergencia y funciones', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',        roles: ['superusuario'] },
 ];
 
@@ -231,7 +235,7 @@ export default function App() {
             */}
             {(() => {
               const sede = SEDES.find(s => s.id === sedeActual);
-              const vistaTransversal = vistaActual === 'chat' || vistaActual === 'admin_users';
+              const vistaTransversal = vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo';
               if (sede && !sede.configurada && !vistaTransversal) {
                 return (
                   <div className="max-w-lg mx-auto text-center py-16">
@@ -252,6 +256,8 @@ export default function App() {
                   {vistaActual === 'asignacion'     && <AsignacionAcademica />}
                   {vistaActual === 'tareas'         && <VistaTareas />}
                   {vistaActual === 'chat'           && AUTH_MODE === 'google' && <Chat />}
+                  {vistaActual === 'agenda'         && <AgendaSemanal />}
+                  {vistaActual === 'riesgo'         && <GestionRiesgo />}
                   {vistaActual === 'admin_users'    && rol === 'superusuario' && <PanelSuperusuario />}
                 </>
               );

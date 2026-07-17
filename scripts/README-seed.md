@@ -45,7 +45,7 @@ docente completamente nuevo, ver nota en `docs/firebase-reemplazo-docente.md`).
 
 Fase A (arquitectura multi-sede): indica a qué sede pertenece el usuario.
 Valores válidos: `central` (Sede Central, bachillerato — la única activa hoy),
-`gustavo_rojas` (Gustavo Rojas Pinilla, primaria) o `la_finquita` (La
+`gustavo_rodas` (Gustavo Rodas Isaza, primaria) o `la_finquita` (La
 Finquita, primaria). Si se omite, se asume `central`. Ver
 `docs/sedes-arquitectura.md` para el modelo completo.
 
@@ -138,7 +138,7 @@ Crea (idempotente, `merge: true`):
 - `channels/coordinacion` y `channels/directivos` — tipo `rol`
   (`allowedRoles: ['coordinador','rectora']` en `directivos`).
 - 9 canales `segmento` (`seg__central`, `seg__central__manana`,
-  `seg__central__tarde`, y los equivalentes para `gustavo_rojas` y
+  `seg__central__tarde`, y los equivalentes para `gustavo_rodas` y
   `la_finquita`): membresía automática por `sede`/`jornada` del usuario, sin
   necesidad de agregar miembros manualmente. Los directivos
   (coordinador/rectora/superusuario) acceden a los 9.

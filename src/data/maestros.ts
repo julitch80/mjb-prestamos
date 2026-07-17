@@ -10,7 +10,7 @@ export type RecursoTipo = 'aula' | 'otro_espacio' | 'equipo';
 // 'central' es la sede de bachillerato, ya funcional, y es el default cuando
 // un usuario no tiene sede asignada. Las otras dos son de primaria y todavía
 // no tienen dinámica definida (configurada: false) — ver docs/sedes-arquitectura.md.
-export type SedeId = 'central' | 'gustavo_rojas' | 'la_finquita';
+export type SedeId = 'central' | 'gustavo_rodas' | 'la_finquita';
 
 export interface Sede {
   id: SedeId;
@@ -22,7 +22,7 @@ export interface Sede {
 
 export const SEDES: Sede[] = [
   { id: 'central',       nombre: 'Sede Central',            nivel: 'bachillerato', jornadas: ['manana', 'tarde'], configurada: true },
-  { id: 'gustavo_rojas', nombre: 'Gustavo Rojas Pinilla',    nivel: 'primaria',     jornadas: ['manana', 'tarde'], configurada: false },
+  { id: 'gustavo_rodas', nombre: 'Gustavo Rodas Isaza',      nivel: 'primaria',     jornadas: ['manana', 'tarde'], configurada: false },
   { id: 'la_finquita',   nombre: 'La Finquita',              nivel: 'primaria',     jornadas: ['manana', 'tarde'], configurada: false },
 ];
 
@@ -112,14 +112,12 @@ export const USUARIOS: Usuario[] = [
 //
 // Quién puede habilitar/editar procesos en cada sede (además de rectora y
 // superusuario). Confirmado por Julián (jul 2026): Janneth Astrid Ocampo
-// Carvajal (coord_manana) es autoridad de la sede Gustavo Rojas completa,
+// Carvajal (coord_manana) es autoridad de la sede Gustavo Rodas completa,
 // además de la jornada mañana de central; Juan Diego Salazar (coord_tarde)
 // es autoridad de La Finquita (mañana y tarde), además de la tarde de central.
-// TODO(nombre visible): confirmar si la sede se llama 'Gustavo Rojas Pinilla'
-// o 'Gustavo Rodas' — solo afecta al campo nombre en SEDES.
 export const AUTORIDAD_SEDE: Record<SedeId, string[]> = {
   central: ['coord_manana', 'coord_tarde'],
-  gustavo_rojas: ['coord_manana'],
+  gustavo_rodas: ['coord_manana'],
   la_finquita: ['coord_tarde'],
 };
 

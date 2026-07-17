@@ -7,7 +7,7 @@
 // El CSV debe tener encabezado: email,displayName,role
 // Opcionalmente una 4.ª columna: slotId (id interno del docente en la app,
 // ver src/data/maestros.ts — habilita el reemplazo instantáneo de docente).
-// Opcionalmente una 5.ª columna: sede (uno de: central, gustavo_rojas,
+// Opcionalmente una 5.ª columna: sede (uno de: central, gustavo_rodas,
 // la_finquita — Fase A, arquitectura multi-sede). Default: central.
 // Opcionalmente una 6.ª columna: jornada (uno de: manana, tarde, ambas —
 // usada para la segmentación automática del chat interno). Default: manana.
