@@ -5,11 +5,13 @@
 //   node scripts/seed-users.mjs docentes.csv
 //
 // El CSV debe tener encabezado: email,displayName,role
+// Opcionalmente una 4.ª columna: slotId (id interno del docente en la app,
+// ver src/data/maestros.ts — habilita el reemplazo instantáneo de docente).
 // Ejemplo:
-//   email,displayName,role
-//   julian.medina@iemanueljbetancur.edu.co,Julián David Medina Tamayo,superusuario
-//   janneth.ocampo@iemanueljbetancur.edu.co,Janneth Astrid Ocampo Carvajal,coordinador
-//   johana.cano@iemanueljbetancur.edu.co,Leidy Johana Cano Ruiz,docente
+//   email,displayName,role,slotId
+//   julian.medina@iemanueljbetancur.edu.co,Julián David Medina Tamayo,superusuario,julian
+//   janneth.ocampo@iemanueljbetancur.edu.co,Janneth Astrid Ocampo Carvajal,coordinador,
+//   johana.cano@iemanueljbetancur.edu.co,Leidy Johana Cano Ruiz,docente,johana
 
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -40,12 +42,14 @@ function parseCSV(texto) {
   const idxEmail = encabezado.indexOf('email');
   const idxNombre = encabezado.indexOf('displayName');
   const idxRole = encabezado.indexOf('role');
+  const idxSlot = encabezado.indexOf('slotId'); // opcional
   if (idxEmail === -1 || idxNombre === -1 || idxRole === -1) {
     throw new Error('El CSV debe tener las columnas: email,displayName,role');
   }
   return lineas.slice(1).map(linea => {
     const cols = linea.split(',').map(c => c.trim());
-    return { email: cols[idxEmail].toLowerCase(), displayName: cols[idxNombre], role: cols[idxRole] };
+    const slotId = idxSlot !== -1 ? (cols[idxSlot] || null) : null;
+    return { email: cols[idxEmail].toLowerCase(), displayName: cols[idxNombre], role: cols[idxRole], slotId };
   });
 }
 
@@ -76,9 +80,10 @@ async function main() {
         displayName: fila.displayName,
         role: fila.role,
         active: true,
+        slotId: fila.slotId || null,
         createdAt: FieldValue.serverTimestamp(),
       }, { merge: true });
-      console.log(`  ${fila.email} -> ${fila.role}`);
+      console.log(`  ${fila.email} -> ${fila.role}${fila.slotId ? ` (slot: ${fila.slotId})` : ''}`);
     }
     await batch.commit();
   }

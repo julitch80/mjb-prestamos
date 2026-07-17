@@ -25,6 +25,8 @@ export interface UsuarioFirestore {
   createdBy?: string;
   replacedBy?: string | null;
   uid?: string | null;
+  /** Puesto (id interno de USUARIOS en maestros.ts) que ocupa esta persona. */
+  slotId?: string | null;
 }
 
 function reqDb() {
@@ -46,6 +48,7 @@ export async function crearDocente(
   displayName: string,
   role: string,
   creadoPor: string,
+  slotId: string | null = null,
 ) {
   const d = reqDb();
   const id = email.toLowerCase().trim();
@@ -61,6 +64,7 @@ export async function crearDocente(
     createdBy: creadoPor,
     uid: null,
     replacedBy: null,
+    slotId: slotId || null,
   });
 }
 

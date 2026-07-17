@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../data/store';
-import { firebaseConfigurado } from '../lib/firebase';
+import { firebaseConfigurado, functions, db } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { collection, getDocs } from 'firebase/firestore';
 import {
   listarUsuarios,
   crearDocente,
@@ -9,6 +11,21 @@ import {
   type UsuarioFirestore,
   type RolUsuario,
 } from '../data/adminUsers';
+
+type CambioReemplazo = { campo: string; de?: string; a: string; valor?: string; usuario?: string };
+type ResultadoReemplazo = { dryRun: boolean; slot: string; changes: CambioReemplazo[] };
+
+type LogAuditoria = {
+  id: string;
+  action?: string;
+  executedBy?: string;
+  executedAt?: { toDate?: () => Date } | null;
+  outgoingEmail?: string;
+  incomingEmail?: string;
+  dryRun?: boolean;
+  status?: string;
+  errorMessage?: string | null;
+};
 
 const ROLES: RolUsuario[] = ['docente', 'coordinador', 'superusuario'];
 
@@ -30,7 +47,20 @@ export default function PanelSuperusuario() {
   const [correo, setCorreo] = useState('');
   const [nombreNuevo, setNombreNuevo] = useState('');
   const [rolNuevo, setRolNuevo] = useState<RolUsuario>('docente');
+  const [slotNuevo, setSlotNuevo] = useState('');
   const [creando, setCreando] = useState(false);
+
+  // Reemplazo de docente
+  const [salienteEmail, setSalienteEmail] = useState('');
+  const [entranteEmail, setEntranteEmail] = useState('');
+  const [previa, setPrevia] = useState<ResultadoReemplazo | null>(null);
+  const [previendo, setPreviendo] = useState(false);
+  const [ejecutando, setEjecutando] = useState(false);
+  const [mensajeReemplazo, setMensajeReemplazo] = useState<Mensaje | null>(null);
+
+  // Auditoría
+  const [logs, setLogs] = useState<LogAuditoria[] | null>(null);
+  const [cargandoLogs, setCargandoLogs] = useState(false);
 
   // Identidad del superusuario actual (para anti-auto-modificación).
   // En modo google el id del store es el correo cuando no hay usuario interno.
@@ -59,11 +89,12 @@ export default function PanelSuperusuario() {
     setMensaje(null);
     setCreando(true);
     try {
-      await crearDocente(correo, nombreNuevo, rolNuevo, creadoPor);
+      await crearDocente(correo, nombreNuevo, rolNuevo, creadoPor, slotNuevo.trim() || null);
       setMensaje({ tipo: 'ok', texto: 'Usuario creado correctamente.' });
       setCorreo('');
       setNombreNuevo('');
       setRolNuevo('docente');
+      setSlotNuevo('');
       await recargar();
     } catch (e) {
       setMensaje({ tipo: 'error', texto: (e as Error).message });
@@ -89,6 +120,72 @@ export default function PanelSuperusuario() {
       await recargar();
     } catch (e) {
       setMensaje({ tipo: 'error', texto: (e as Error).message });
+    }
+  }
+
+  // ── Reemplazo de docente (Etapa 5) ──────────────────────────────────
+  const salientes = usuarios.filter((u) => u.active && u.slotId);
+  const entrantes = usuarios.filter((u) => u.active && !u.slotId && u.email !== salienteEmail);
+
+  async function handlePrevisualizar() {
+    setMensajeReemplazo(null);
+    setPrevia(null);
+    if (!functions) {
+      setMensajeReemplazo({ tipo: 'error', texto: 'Firebase Functions no está configurado.' });
+      return;
+    }
+    setPreviendo(true);
+    try {
+      const call = httpsCallable(functions, 'replaceTeacher');
+      const res = await call({ outgoingEmail: salienteEmail, incomingEmail: entranteEmail, dryRun: true });
+      setPrevia(res.data as ResultadoReemplazo);
+    } catch (e) {
+      setMensajeReemplazo({ tipo: 'error', texto: (e as Error).message });
+    } finally {
+      setPreviendo(false);
+    }
+  }
+
+  async function handleEjecutarReemplazo() {
+    if (!functions || !previa) return;
+    const ok = window.confirm(
+      `¿Confirmas reemplazar a ${salienteEmail} por ${entranteEmail}? Esta acción no se puede deshacer desde el panel.`,
+    );
+    if (!ok) return;
+    setMensajeReemplazo(null);
+    setEjecutando(true);
+    try {
+      const call = httpsCallable(functions, 'replaceTeacher');
+      await call({ outgoingEmail: salienteEmail, incomingEmail: entranteEmail, dryRun: false });
+      setMensajeReemplazo({ tipo: 'ok', texto: 'Reemplazo ejecutado correctamente.' });
+      setPrevia(null);
+      setSalienteEmail('');
+      setEntranteEmail('');
+      await recargar();
+    } catch (e) {
+      setMensajeReemplazo({ tipo: 'error', texto: (e as Error).message });
+    } finally {
+      setEjecutando(false);
+    }
+  }
+
+  // ── Auditoría (solo lectura) ────────────────────────────────────────
+  async function cargarAuditoria() {
+    if (!db) return;
+    setCargandoLogs(true);
+    try {
+      const snap = await getDocs(collection(db, 'auditLogs'));
+      const lista: LogAuditoria[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LogAuditoria, 'id'>) }));
+      lista.sort((a, b) => {
+        const ta = a.executedAt?.toDate?.()?.getTime() ?? 0;
+        const tb = b.executedAt?.toDate?.()?.getTime() ?? 0;
+        return tb - ta;
+      });
+      setLogs(lista.slice(0, 50));
+    } catch (e) {
+      setMensajeReemplazo({ tipo: 'error', texto: (e as Error).message });
+    } finally {
+      setCargandoLogs(false);
     }
   }
 
@@ -163,6 +260,18 @@ export default function PanelSuperusuario() {
             {creando ? 'Creando…' : 'Crear'}
           </button>
         </div>
+        <div>
+          <input
+            type="text"
+            placeholder="Puesto (id interno) — opcional"
+            value={slotNuevo}
+            onChange={(e) => setSlotNuevo(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
+          />
+          <p className="text-muted text-xs mt-1">
+            Dejar vacío si es un docente nuevo sin puesto en el horario.
+          </p>
+        </div>
       </form>
 
       {/* Nota de seguridad */}
@@ -235,6 +344,154 @@ export default function PanelSuperusuario() {
           </table>
         </div>
       )}
+
+      {/* ── Reemplazar docente ─────────────────────────────────────── */}
+      <div className="bg-card rounded-xl p-5 space-y-3 max-w-xl">
+        <h3 className="text-strong font-semibold">Reemplazar docente</h3>
+        <p className="text-muted text-xs leading-snug">
+          Mueve el puesto (horario, aulas, grupos) de un docente saliente a
+          uno entrante. El entrante debe existir y estar activo, y no puede
+          ocupar ya otro puesto.
+        </p>
+
+        {mensajeReemplazo && (
+          <div
+            className={
+              'rounded-lg text-xs px-3 py-2 ' +
+              (mensajeReemplazo.tipo === 'ok'
+                ? 'bg-success-soft text-success-soft-fg'
+                : 'bg-danger-soft text-danger-soft-fg')
+            }
+          >
+            {mensajeReemplazo.texto}
+          </div>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="text-muted text-xs">Saliente</label>
+            <select
+              value={salienteEmail}
+              onChange={(e) => { setSalienteEmail(e.target.value); setPrevia(null); }}
+              className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm focus:outline-none focus:border-line-strong"
+            >
+              <option value="">Seleccionar…</option>
+              {salientes.map((u) => (
+                <option key={u.email} value={u.email}>
+                  {u.displayName} ({u.slotId})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-muted text-xs">Entrante</label>
+            <select
+              value={entranteEmail}
+              onChange={(e) => { setEntranteEmail(e.target.value); setPrevia(null); }}
+              className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm focus:outline-none focus:border-line-strong"
+            >
+              <option value="">Seleccionar…</option>
+              {entrantes.map((u) => (
+                <option key={u.email} value={u.email}>
+                  {u.displayName}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handlePrevisualizar}
+            disabled={previendo || !salienteEmail || !entranteEmail}
+            className="px-4 py-2 rounded-lg bg-elevated text-strong text-sm font-medium hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {previendo ? 'Previsualizando…' : 'Previsualizar'}
+          </button>
+          <button
+            type="button"
+            onClick={handleEjecutarReemplazo}
+            disabled={!previa || ejecutando}
+            className="px-4 py-2 rounded-lg bg-danger-soft text-danger-soft-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {ejecutando ? 'Ejecutando…' : 'Ejecutar reemplazo'}
+          </button>
+        </div>
+
+        {previa && (
+          <div className="rounded-lg bg-elevated text-xs px-3 py-2 space-y-1">
+            <p className="text-strong font-medium">Puesto: {previa.slot}</p>
+            {previa.changes.map((c, i) => (
+              <p key={i} className="text-soft">
+                {c.usuario
+                  ? `${c.campo} de ${c.usuario} → ${String(c.a)}`
+                  : `${c.campo}: ${c.de} → ${c.a}${c.valor ? ` (${c.valor})` : ''}`}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Auditoría ───────────────────────────────────────────────── */}
+      <div className="bg-card rounded-xl p-5 space-y-3 max-w-2xl">
+        <div className="flex items-center justify-between">
+          <h3 className="text-strong font-semibold">Auditoría</h3>
+          <button
+            type="button"
+            onClick={cargarAuditoria}
+            disabled={cargandoLogs}
+            className="text-xs px-3 py-1.5 rounded-md bg-elevated text-soft hover:text-strong transition disabled:opacity-40"
+          >
+            {cargandoLogs ? 'Cargando…' : 'Ver auditoría'}
+          </button>
+        </div>
+        {logs && (
+          logs.length === 0 ? (
+            <p className="text-muted text-xs">Sin registros.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="text-left text-muted border-b border-line">
+                    <th className="py-2 pr-3 font-medium">Fecha</th>
+                    <th className="py-2 pr-3 font-medium">Ejecutado por</th>
+                    <th className="py-2 pr-3 font-medium">Saliente → Entrante</th>
+                    <th className="py-2 pr-3 font-medium">Dry run</th>
+                    <th className="py-2 pr-3 font-medium">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((l) => (
+                    <tr key={l.id} className="border-b border-line/60">
+                      <td className="py-2 pr-3 text-soft">
+                        {l.executedAt?.toDate?.()?.toLocaleString('es-CO') ?? '—'}
+                      </td>
+                      <td className="py-2 pr-3 text-soft">{l.executedBy}</td>
+                      <td className="py-2 pr-3 text-soft">
+                        {l.outgoingEmail} → {l.incomingEmail}
+                      </td>
+                      <td className="py-2 pr-3 text-soft">{l.dryRun ? 'Sí' : 'No'}</td>
+                      <td className="py-2 pr-3">
+                        <span
+                          className={
+                            'text-xs rounded-full px-2 py-0.5 ' +
+                            (l.status === 'ok'
+                              ? 'bg-success-soft text-success-soft-fg'
+                              : 'bg-danger-soft text-danger-soft-fg')
+                          }
+                        >
+                          {l.status ?? '—'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+      </div>
     </div>
   );
 }

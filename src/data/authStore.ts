@@ -18,6 +18,20 @@ export function initAuthGoogle() {
     try {
       const perfil = await cargarPerfil(email);
       if (!perfil.active) { await cerrarSesionGoogle(); return; }
+      // Etapa 5: resolver puesto→persona. Carga one-shot de users/ para
+      // sobreescribir en USUARIOS los datos de quien ocupa cada slot.
+      // try/catch silencioso: si las reglas aún no lo permiten, no rompe el login.
+      try {
+        const [{ collection, getDocs }, { db }, { aplicarPlantillaFirestore }] = await Promise.all([
+          import('firebase/firestore'),
+          import('../lib/firebase'),
+          import('./plantilla'),
+        ]);
+        if (db) {
+          const snap = await getDocs(collection(db, 'users'));
+          aplicarPlantillaFirestore(snap.docs.map(d => d.data() as import('./adminUsers').UsuarioFirestore));
+        }
+      } catch { /* silencioso */ }
       const interno = USUARIOS.find(u => (u.correo || '').toLowerCase() === email);
       const id = interno?.id ?? email;
       const jornada = interno?.jornada === 'ambas' ? 'manana' : (interno?.jornada ?? 'manana');

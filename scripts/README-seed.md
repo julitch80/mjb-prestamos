@@ -9,20 +9,82 @@ login queda bloqueado.
 ## 1. Preparar el CSV
 
 Crea un archivo `docentes.csv` (en la raíz del repo, o donde prefieras) con
-las columnas `email,displayName,role`:
+las columnas `email,displayName,role` y, opcionalmente, `slotId`:
 
 ```csv
-email,displayName,role
-julian.medina@iemanueljbetancur.edu.co,Julián David Medina Tamayo,superusuario
-janneth.ocampo@iemanueljbetancur.edu.co,Janneth Astrid Ocampo Carvajal,coordinador
-juan.salazar@iemanueljbetancur.edu.co,Juan Diego Salazar Rendón,coordinador
-mjb@iemanueljbetancur.edu.co,Nancy Adriana Herrera López,rectora
-johana.cano@iemanueljbetancur.edu.co,Leidy Johana Cano Ruiz,docente
+email,displayName,role,slotId
+julian.medina@iemanueljbetancur.edu.co,Julián David Medina Tamayo,superusuario,julian
+janneth.ocampo@iemanueljbetancur.edu.co,Janneth Astrid Ocampo Carvajal,coordinador,
+juan.salazar@iemanueljbetancur.edu.co,Juan Diego Salazar Rendón,coordinador,
+mjb@iemanueljbetancur.edu.co,Nancy Adriana Herrera López,rectora,
+johana.cano@iemanueljbetancur.edu.co,Leidy Johana Cano Ruiz,docente,johana
 ```
 
 Roles sugeridos: `superusuario` (Julián), `rectora`, `coordinador`, `docente`.
 
 `docentes.csv` está en `.gitignore` — nunca se sube al repositorio.
+
+### ¿Qué es `slotId`?
+
+Es el id interno del docente dentro de la app (el mismo `id` que usa cada
+entrada de `USUARIOS` en `src/data/maestros.ts`, por ejemplo `julian`,
+`carlos`, `monica_c`). Es lo que conecta la cuenta de Firestore con un
+**puesto** en el horario: aulas, direcciones de grupo, acompañamientos y
+reservas apuntan al `slotId`, no a la persona. Por eso, cuando alguien
+reemplaza a un docente (Etapa 5, ver `docs/firebase-reemplazo-docente.md`),
+basta con mover el `slotId` de una cuenta a otra desde el panel de
+superusuario y todo el horario refleja el cambio al instante — sin editar
+código.
+
+Deja `slotId` vacío para: la rectora, los coordinadores, o cualquier
+docente que aún no tenga puesto asignado en el horario (por ejemplo un
+docente completamente nuevo, ver nota en `docs/firebase-reemplazo-docente.md`).
+
+### Tabla de mapeo — id interno (`slotId`) ↔ correo institucional
+
+Generada a partir de `src/data/maestros.ts` (`USUARIOS`), incluye
+directivos y todos los docentes con correo registrado:
+
+| slotId | Nombre | Correo |
+|---|---|---|
+| rectora | Nancy Adriana Herrera López | mjb@iemanueljbetancur.edu.co |
+| coord_manana | Janneth Astrid Ocampo Carvajal | janneth.ocampo@iemanueljbetancur.edu.co |
+| coord_tarde | Juan Diego Salazar Rendón | juan.salazar@iemanueljbetancur.edu.co |
+| johana | Leidy Johana Cano Ruiz | johana.cano@iemanueljbetancur.edu.co |
+| beatriz | Beatriz Elena Montoya Valdés | beatriz.montoya@iemanueljbetancur.edu.co |
+| adolfo | Adolfo León Arango Arroyave | adolfo.arango@iemanueljbetancur.edu.co |
+| gloria_a | Gloria Estella Álvarez López | gloria.alvarez@iemanueljbetancur.edu.co |
+| doris | Doris Castrillón Álvarez | doris.castrillon@iemanueljbetancur.edu.co |
+| marta | Marta Úsuga | martha.usuga@iemanueljbetancur.edu.co |
+| julian | Julián David Medina Tamayo | julian.medina@iemanueljbetancur.edu.co |
+| carlos | Carlos Cárdenas | carlos.cardenas@iemanueljbetancur.edu.co |
+| yoguis | Juan Carlos Blandón Vargas | juancarlosbv@iemanueljbetancur.edu.co |
+| jorge | Jorge Iván Acevedo Tabares | jorge.acevedo@iemanueljbetancur.edu.co |
+| ledis | Ledis Laura Quintana Seguanes | ledis.quintana@iemanueljbetancur.edu.co |
+| uriel | José Uriel López Arias | uriel.lopez@iemanueljbetancur.edu.co |
+| claudia | Claudia Patricia Henao Bermúdez | claudia.henao@iemanueljbetancur.edu.co |
+| margara | Margarita María Montoya Olaya | margarita.montoya@iemanueljbetancur.edu.co |
+| monica_c | Mónica Tatiana Córdoba Zapata | monica.cordoba@iemanueljbetancur.edu.co |
+| edgar | Edgar Alexis Pérez Jaramillo | edgar.perez@iemanueljbetancur.edu.co |
+| carolina | Carolina Medina | carolina.medina@iemanueljbetancur.edu.co |
+| monica_rave | Mónica Alexandra Rave Velásquez | monica.rave@iemanueljbetancur.edu.co |
+| fredy_g | Fredy Gutiérrez | fredy.gutierrez@iemanueljbetancur.edu.co |
+| fredy_garcia | John Fredy García Arrubla | john.garcia@iemanueljbetancur.edu.co |
+| luis_javier | Luis Javier Rojas | luisjavierrojas@gmail.com |
+| marina | Luz Marina Zapata Vásquez | luz.zapata@iemanueljbetancur.edu.co |
+| luis_angel | Luis Ángel Quiceno | luis.quiceno@iemanueljbetancur.edu.co |
+| juan_pablo | Juan Pablo Bettin Tapia | juan.bettin@iemanueljbetancur.edu.co |
+| hugo | Hugo Armando Yepes Franco | hugo.yepes@iemanueljbetancur.edu.co |
+| felipe | Felipe Piedrahita Nieto | felipe.piedrahita@iemanueljbetancur.edu.co |
+| valentina | Valentina Jaramillo López | valentina.jaramillo@iemanueljbetancur.edu.co |
+| yanet | Yanet María Moscote Marulanda | yanet.moscote@iemanueljbetancur.edu.co |
+| harol | Harol Gómez | harol.gomez@iemanueljbetancur.edu.co |
+| yuri | Yuri Catalina Gómez Gómez | yuri.gomez@iemanueljbetancur.edu.co |
+| alexander | Jhon Alexander Sánchez Giraldo | alexander.sanchez@iemanueljbetancur.edu.co |
+
+> Nota: si `src/data/maestros.ts` cambia (nuevos docentes, correos
+> corregidos), esta tabla debe regenerarse manualmente a partir del
+> arreglo `USUARIOS`.
 
 ## 2. Colocar la clave de servicio
 

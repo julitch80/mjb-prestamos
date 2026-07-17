@@ -40,7 +40,7 @@ service cloud.firestore {
         && request.resource.data.displayName is string;
       allow update: if isSuper()
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['displayName', 'role', 'active', 'replacedBy', 'replacedAt'])
+             .hasOnly(['displayName', 'role', 'active', 'replacedBy', 'replacedAt', 'slotId'])
         && !(email == callerEmail()
              && (request.resource.data.role != resource.data.role
                  || request.resource.data.active != resource.data.active));
