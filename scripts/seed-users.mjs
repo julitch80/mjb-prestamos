@@ -9,11 +9,13 @@
 // ver src/data/maestros.ts — habilita el reemplazo instantáneo de docente).
 // Opcionalmente una 5.ª columna: sede (uno de: central, gustavo_rojas,
 // la_finquita — Fase A, arquitectura multi-sede). Default: central.
+// Opcionalmente una 6.ª columna: jornada (uno de: manana, tarde, ambas —
+// usada para la segmentación automática del chat interno). Default: manana.
 // Ejemplo:
-//   email,displayName,role,slotId,sede
-//   julian.medina@iemanueljbetancur.edu.co,Julián David Medina Tamayo,superusuario,julian,central
-//   janneth.ocampo@iemanueljbetancur.edu.co,Janneth Astrid Ocampo Carvajal,coordinador,,central
-//   johana.cano@iemanueljbetancur.edu.co,Leidy Johana Cano Ruiz,docente,johana,central
+//   email,displayName,role,slotId,sede,jornada
+//   julian.medina@iemanueljbetancur.edu.co,Julián David Medina Tamayo,superusuario,julian,central,manana
+//   janneth.ocampo@iemanueljbetancur.edu.co,Janneth Astrid Ocampo Carvajal,coordinador,,central,manana
+//   johana.cano@iemanueljbetancur.edu.co,Leidy Johana Cano Ruiz,docente,johana,central,manana
 
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -46,6 +48,7 @@ function parseCSV(texto) {
   const idxRole = encabezado.indexOf('role');
   const idxSlot = encabezado.indexOf('slotId'); // opcional
   const idxSede = encabezado.indexOf('sede'); // opcional, 5.ª columna
+  const idxJornada = encabezado.indexOf('jornada'); // opcional, 6.ª columna
   if (idxEmail === -1 || idxNombre === -1 || idxRole === -1) {
     throw new Error('El CSV debe tener las columnas: email,displayName,role');
   }
@@ -53,7 +56,8 @@ function parseCSV(texto) {
     const cols = linea.split(',').map(c => c.trim());
     const slotId = idxSlot !== -1 ? (cols[idxSlot] || null) : null;
     const sede = idxSede !== -1 ? (cols[idxSede] || 'central') : 'central';
-    return { email: cols[idxEmail].toLowerCase(), displayName: cols[idxNombre], role: cols[idxRole], slotId, sede };
+    const jornada = idxJornada !== -1 ? (cols[idxJornada] || 'manana') : 'manana';
+    return { email: cols[idxEmail].toLowerCase(), displayName: cols[idxNombre], role: cols[idxRole], slotId, sede, jornada };
   });
 }
 
@@ -86,9 +90,10 @@ async function main() {
         active: true,
         slotId: fila.slotId || null,
         sede: fila.sede || 'central',
+        jornada: fila.jornada || 'manana',
         createdAt: FieldValue.serverTimestamp(),
       }, { merge: true });
-      console.log(`  ${fila.email} -> ${fila.role}${fila.slotId ? ` (slot: ${fila.slotId})` : ''} [sede: ${fila.sede || 'central'}]`);
+      console.log(`  ${fila.email} -> ${fila.role}${fila.slotId ? ` (slot: ${fila.slotId})` : ''} [sede: ${fila.sede || 'central'}, jornada: ${fila.jornada || 'manana'}]`);
     }
     await batch.commit();
   }

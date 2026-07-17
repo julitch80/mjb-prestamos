@@ -30,6 +30,8 @@ export interface UsuarioFirestore {
   slotId?: string | null;
   /** Sede a la que pertenece (Fase A — multi-sede). Default 'central'. */
   sede?: SedeId;
+  /** Jornada del usuario (para segmentación del chat). Default 'manana'. */
+  jornada?: 'manana' | 'tarde' | 'ambas';
 }
 
 function reqDb() {
@@ -53,6 +55,7 @@ export async function crearDocente(
   creadoPor: string,
   slotId: string | null = null,
   sede: SedeId = 'central',
+  jornada: 'manana' | 'tarde' | 'ambas' = 'manana',
 ) {
   const d = reqDb();
   const id = email.toLowerCase().trim();
@@ -70,6 +73,7 @@ export async function crearDocente(
     replacedBy: null,
     slotId: slotId || null,
     sede,
+    jornada,
   });
 }
 

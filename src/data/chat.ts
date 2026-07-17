@@ -23,13 +23,41 @@ import { useAppStore } from './store';
 export type Canal = {
   id: string;
   name?: string;
-  type: 'general' | 'rol' | 'directo';
+  type: 'general' | 'rol' | 'directo' | 'segmento' | 'grupo';
   allowedRoles?: string[];
   members?: string[];
+  sede?: string | null;
+  jornada?: string | null;
   lastMessageAt?: any;
   lastMessagePreview?: string;
   lastMessageBy?: string;
 };
+
+/**
+ * Ids de los canales `segmento` a los que el usuario actual queda
+ * suscrito automáticamente, dados su sede y jornada (o todos si es
+ * directivo). Los ids son deterministas: seg__{sede}[__{jornada}].
+ */
+export function segmentosDe(sede: string, jornada: string, esDirectivoFlag: boolean): string[] {
+  const SEDES = ['central', 'gustavo_rojas', 'la_finquita'];
+  if (esDirectivoFlag) {
+    const todos: string[] = [];
+    for (const s of SEDES) {
+      todos.push(`seg__${s}`, `seg__${s}__manana`, `seg__${s}__tarde`);
+    }
+    return todos;
+  }
+  const s = SEDES.includes(sede) ? sede : 'central';
+  const ids = [`seg__${s}`];
+  if (jornada === 'ambas') {
+    ids.push(`seg__${s}__manana`, `seg__${s}__tarde`);
+  } else if (jornada === 'tarde') {
+    ids.push(`seg__${s}__tarde`);
+  } else {
+    ids.push(`seg__${s}__manana`);
+  }
+  return ids;
+}
 
 export type Mensaje = {
   id: string;
@@ -62,6 +90,9 @@ export function dmChannelId(a: string, b: string): string {
 export function escucharCanales(
   miRol: string,
   onCanales: (canales: Canal[]) => void,
+  miSede: string = 'central',
+  miJornada: string = 'manana',
+  esDirectivoFlag: boolean = false,
 ): () => void {
   if (!db || !auth?.currentUser) return () => {};
   const d = db;
@@ -115,6 +146,30 @@ export function escucharCanales(
     'directo',
     query(collection(d, 'channels'), where('type', '==', 'directo'), where('members', 'array-contains', email)),
   );
+
+  attach(
+    'grupo',
+    query(collection(d, 'channels'), where('type', '==', 'grupo'), where('members', 'array-contains', email)),
+  );
+
+  // Canales de tipo 'segmento': no se consultan por query (evita problemas
+  // de provabilidad en las reglas) — el cliente calcula los ids que le
+  // corresponden y se suscribe por documento directo.
+  segmentosDe(miSede, miJornada, esDirectivoFlag).forEach((segId) => {
+    unsubs.push(
+      onSnapshot(
+        doc(d, 'channels', segId),
+        (snap) => {
+          buckets[`seg__${segId}`] = snap.exists() ? [{ id: snap.id, ...(snap.data() as object) } as Canal] : [];
+          emit();
+        },
+        () => {
+          buckets[`seg__${segId}`] = [];
+          emit();
+        },
+      ),
+    );
+  });
 
   return () => unsubs.forEach((u) => u());
 }
@@ -197,6 +252,23 @@ export async function crearCanal(
     name: name.trim(),
     ...(type === 'rol' ? { allowedRoles: allowedRoles ?? [] } : {}),
     createdBy: miEmail(),
+    createdAt: serverTimestamp(),
+  });
+  return id;
+}
+
+// ── Canales de grupo (miembros elegidos a dedo) ──────────────────────────────
+/** Crea un canal de tipo 'grupo' con los miembros dados (+ el creador). Devuelve su id. */
+export async function crearGrupo(nombre: string, miembros: string[]): Promise<string> {
+  if (!db || !auth?.currentUser) throw new Error('Firebase no está configurado.');
+  const yo = miEmail();
+  const members = Array.from(new Set([...miembros.map((m) => m.toLowerCase()), yo]));
+  const id = `grp__${Date.now()}`;
+  await setDoc(doc(db, 'channels', id), {
+    type: 'grupo',
+    name: nombre.trim(),
+    members,
+    createdBy: yo,
     createdAt: serverTimestamp(),
   });
   return id;

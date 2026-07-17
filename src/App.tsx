@@ -20,7 +20,7 @@ import BannerNotificaciones from './components/BannerNotificaciones';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
 import { getNotificaciones } from './data/api';
-import { USUARIOS, SEDES, esDirectivo } from './data/maestros';
+import { USUARIOS, SEDES, esDirectivo, sedeDeUsuario } from './data/maestros';
 import { AUTH_MODE } from './data/authStore';
 import { useChatStore } from './data/chatStore';
 import { cn } from './lib/utils';
@@ -79,7 +79,10 @@ export default function App() {
   // Chat interno — solo se inicia en modo google con sesión activa (no-op en pin).
   useEffect(() => {
     if (AUTH_MODE === 'google' && userId && rol) {
-      useChatStore.getState().initChat(rol);
+      const usuarioActual = USUARIOS.find((u) => u.id === userId);
+      const miSede = sedeDeUsuario(userId);
+      const miJornada = usuarioActual?.jornada ?? 'manana';
+      useChatStore.getState().initChat(rol, miSede, miJornada);
     }
   }, [userId, rol]);
 

@@ -9,15 +9,16 @@ login queda bloqueado.
 ## 1. Preparar el CSV
 
 Crea un archivo `docentes.csv` (en la raíz del repo, o donde prefieras) con
-las columnas `email,displayName,role` y, opcionalmente, `slotId` y `sede`:
+las columnas `email,displayName,role` y, opcionalmente, `slotId`, `sede` y
+`jornada`:
 
 ```csv
-email,displayName,role,slotId
-julian.medina@iemanueljbetancur.edu.co,Julián David Medina Tamayo,superusuario,julian
-janneth.ocampo@iemanueljbetancur.edu.co,Janneth Astrid Ocampo Carvajal,coordinador,
-juan.salazar@iemanueljbetancur.edu.co,Juan Diego Salazar Rendón,coordinador,
-mjb@iemanueljbetancur.edu.co,Nancy Adriana Herrera López,rectora,
-johana.cano@iemanueljbetancur.edu.co,Leidy Johana Cano Ruiz,docente,johana
+email,displayName,role,slotId,sede,jornada
+julian.medina@iemanueljbetancur.edu.co,Julián David Medina Tamayo,superusuario,julian,central,manana
+janneth.ocampo@iemanueljbetancur.edu.co,Janneth Astrid Ocampo Carvajal,coordinador,,central,manana
+juan.salazar@iemanueljbetancur.edu.co,Juan Diego Salazar Rendón,coordinador,,central,tarde
+mjb@iemanueljbetancur.edu.co,Nancy Adriana Herrera López,rectora,,central,ambas
+johana.cano@iemanueljbetancur.edu.co,Leidy Johana Cano Ruiz,docente,johana,central,manana
 ```
 
 Roles sugeridos: `superusuario` (Julián), `rectora`, `coordinador`, `docente`.
@@ -47,6 +48,13 @@ Valores válidos: `central` (Sede Central, bachillerato — la única activa hoy
 `gustavo_rojas` (Gustavo Rojas Pinilla, primaria) o `la_finquita` (La
 Finquita, primaria). Si se omite, se asume `central`. Ver
 `docs/sedes-arquitectura.md` para el modelo completo.
+
+### ¿Qué es `jornada`?
+
+Jornada del usuario: `manana`, `tarde` o `ambas`. Se usa para la
+segmentación automática de canales del chat interno (canales `segmento`,
+ver más abajo): un docente queda suscrito automáticamente al canal de su
+sede y al de su sede+jornada. Si se omite, se asume `manana`.
 
 ### Tabla de mapeo — id interno (`slotId`) ↔ correo institucional
 
@@ -116,20 +124,29 @@ El script sube los usuarios en lotes (batch) a `users/{email}` con
 Cuando termines, **borra `serviceAccountKey.json`** de tu máquina. No debe
 quedar en el disco de forma permanente ni mucho menos subirse a git.
 
-## Seed de canales del chat (Etapa 4)
+## Seed de canales del chat (Etapa 4 + segmentos/grupos)
 
-Para crear los canales base del chat interno (`channels/general` — "Sala de
-profesores", tipo `general`; y `channels/coordinacion` — "Coordinación", tipo
-`rol` con `allowedRoles: ['coordinador']`), usa el mismo
+Para crear los canales base del chat interno usa el mismo
 `serviceAccountKey.json` y ejecuta:
 
 ```bash
 node scripts/seed-channels.mjs
 ```
 
+Crea (idempotente, `merge: true`):
+- `channels/general` — "Sala de profesores", tipo `general` (todos).
+- `channels/coordinacion` y `channels/directivos` — tipo `rol`
+  (`allowedRoles: ['coordinador','rectora']` en `directivos`).
+- 9 canales `segmento` (`seg__central`, `seg__central__manana`,
+  `seg__central__tarde`, y los equivalentes para `gustavo_rojas` y
+  `la_finquita`): membresía automática por `sede`/`jornada` del usuario, sin
+  necesidad de agregar miembros manualmente. Los directivos
+  (coordinador/rectora/superusuario) acceden a los 9.
+
 Es seguro volver a correrlo (usa `merge: true`, no duplica ni borra). Los
-canales directos (DM) y los canales creados desde el panel del superusuario no
-necesitan este script — se crean desde la propia app.
+canales directos (DM) y los canales de tipo `grupo` (creados desde el chat
+por coordinadores, rectora o superusuario) no necesitan este script — se
+crean desde la propia app.
 
 ## Notas
 

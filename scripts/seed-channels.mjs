@@ -1,7 +1,10 @@
-// Seed de canales base del chat interno (Etapa 4 — Fase 3).
-// Crea dos canales iniciales en la colección `channels` de Firestore:
-//   - channels/general      → tipo 'general', "Sala de profesores" (todos)
+// Seed de canales base del chat interno (Etapa 4 — Fase 3, + segmentos y grupos).
+// Crea en la colección `channels` de Firestore:
+//   - channels/general       → tipo 'general', "Sala de profesores" (todos)
 //   - channels/coordinacion  → tipo 'rol', allowedRoles ['coordinador']
+//   - channels/directivos    → tipo 'rol', allowedRoles ['coordinador','rectora']
+//   - channels/seg__*        → tipo 'segmento', membresía automática por
+//                               sede y/o jornada del usuario (ver firestore.rules)
 //
 // Uso:
 //   node scripts/seed-channels.mjs
@@ -29,10 +32,27 @@ async function main() {
   initializeApp({ credential: cert(serviceAccount) });
   const db = getFirestore();
 
+  const segmento = (id, name, sede, jornada) => ({
+    id,
+    data: {
+      type: 'segmento',
+      name,
+      sede,
+      jornada,
+      createdBy: 'seed',
+      createdAt: FieldValue.serverTimestamp(),
+    },
+  });
+
   const canales = [
     {
       id: 'general',
-      data: { type: 'general', name: 'Sala de profesores', createdAt: FieldValue.serverTimestamp() },
+      data: {
+        type: 'general',
+        name: 'Sala de profesores',
+        createdBy: 'seed',
+        createdAt: FieldValue.serverTimestamp(),
+      },
     },
     {
       id: 'coordinacion',
@@ -40,9 +60,29 @@ async function main() {
         type: 'rol',
         name: 'Coordinación',
         allowedRoles: ['coordinador'],
+        createdBy: 'seed',
         createdAt: FieldValue.serverTimestamp(),
       },
     },
+    {
+      id: 'directivos',
+      data: {
+        type: 'rol',
+        name: 'Directivos',
+        allowedRoles: ['coordinador', 'rectora'],
+        createdBy: 'seed',
+        createdAt: FieldValue.serverTimestamp(),
+      },
+    },
+    segmento('seg__central', 'Docentes — Sede Central', 'central', null),
+    segmento('seg__gustavo_rojas', 'Docentes — Gustavo Rojas', 'gustavo_rojas', null),
+    segmento('seg__la_finquita', 'Docentes — La Finquita', 'la_finquita', null),
+    segmento('seg__central__manana', 'Central — Mañana', 'central', 'manana'),
+    segmento('seg__central__tarde', 'Central — Tarde', 'central', 'tarde'),
+    segmento('seg__gustavo_rojas__manana', 'Gustavo Rojas — Mañana', 'gustavo_rojas', 'manana'),
+    segmento('seg__gustavo_rojas__tarde', 'Gustavo Rojas — Tarde', 'gustavo_rojas', 'tarde'),
+    segmento('seg__la_finquita__manana', 'La Finquita — Mañana', 'la_finquita', 'manana'),
+    segmento('seg__la_finquita__tarde', 'La Finquita — Tarde', 'la_finquita', 'tarde'),
   ];
 
   console.log('Sembrando canales base del chat...');

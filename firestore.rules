@@ -26,7 +26,12 @@ service cloud.firestore {
       return ch.type == 'general'
         || (ch.type == 'rol'
             && (callerDoc().role in ch.allowedRoles || callerDoc().role == 'superusuario'))
-        || (ch.type == 'directo' && callerEmail() in ch.members);
+        || (ch.type == 'directo' && callerEmail() in ch.members)
+        || (ch.type == 'segmento'
+            && (callerDoc().role in ['coordinador', 'rectora', 'superusuario']
+                || ((ch.sede == null || callerDoc().sede == ch.sede)
+                    && (ch.jornada == null || callerDoc().jornada == ch.jornada || callerDoc().jornada == 'ambas'))))
+        || (ch.type == 'grupo' && callerEmail() in ch.members);
     }
 
     match /users/{email} {
@@ -35,12 +40,12 @@ service cloud.firestore {
         && email == email.lower()
         && email.matches('.*@iemanueljbetancur[.]edu[.]co')
         && request.resource.data.email == email
-        && request.resource.data.role in ['docente', 'coordinador', 'superusuario']
+        && request.resource.data.role in ['docente', 'coordinador', 'superusuario', 'rectora']
         && request.resource.data.active is bool
         && request.resource.data.displayName is string;
       allow update: if isSuper()
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['displayName', 'role', 'active', 'replacedBy', 'replacedAt', 'slotId', 'sede'])
+             .hasOnly(['displayName', 'role', 'active', 'replacedBy', 'replacedAt', 'slotId', 'sede', 'jornada'])
         && !(email == callerEmail()
              && (request.resource.data.role != resource.data.role
                  || request.resource.data.active != resource.data.active));
@@ -61,6 +66,14 @@ service cloud.firestore {
           && exists(/databases/$(database)/documents/users/$(request.resource.data.members[0]))
           && exists(/databases/$(database)/documents/users/$(request.resource.data.members[1]))
           && request.resource.data.createdBy == callerEmail())
+        ||
+        (request.resource.data.type == 'grupo'
+          && callerDoc().role in ['coordinador', 'rectora', 'superusuario']
+          && request.resource.data.members.size() >= 2
+          && callerEmail() in request.resource.data.members
+          && request.resource.data.createdBy == callerEmail()
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0)
       );
       allow update: if isSuper()
         && request.resource.data.type == resource.data.type

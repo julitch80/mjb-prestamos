@@ -50,6 +50,7 @@ export default function PanelSuperusuario() {
   const [rolNuevo, setRolNuevo] = useState<RolUsuario>('docente');
   const [slotNuevo, setSlotNuevo] = useState('');
   const [sedeNueva, setSedeNueva] = useState<SedeId>('central');
+  const [jornadaNueva, setJornadaNueva] = useState<'manana' | 'tarde' | 'ambas'>('manana');
   const [creando, setCreando] = useState(false);
 
   // Reemplazo de docente
@@ -91,13 +92,14 @@ export default function PanelSuperusuario() {
     setMensaje(null);
     setCreando(true);
     try {
-      await crearDocente(correo, nombreNuevo, rolNuevo, creadoPor, slotNuevo.trim() || null, sedeNueva);
+      await crearDocente(correo, nombreNuevo, rolNuevo, creadoPor, slotNuevo.trim() || null, sedeNueva, jornadaNueva);
       setMensaje({ tipo: 'ok', texto: 'Usuario creado correctamente.' });
       setCorreo('');
       setNombreNuevo('');
       setRolNuevo('docente');
       setSlotNuevo('');
       setSedeNueva('central');
+      setJornadaNueva('manana');
       await recargar();
     } catch (e) {
       setMensaje({ tipo: 'error', texto: (e as Error).message });
@@ -288,6 +290,18 @@ export default function PanelSuperusuario() {
                   {s.nombre}{!s.configurada ? ' (en configuración)' : ''}
                 </option>
               ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-muted text-xs">Jornada</label>
+            <select
+              value={jornadaNueva}
+              onChange={(e) => setJornadaNueva(e.target.value as 'manana' | 'tarde' | 'ambas')}
+              className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm focus:outline-none focus:border-line-strong"
+            >
+              <option value="manana">Mañana</option>
+              <option value="tarde">Tarde</option>
+              <option value="ambas">Ambas</option>
             </select>
           </div>
         </div>

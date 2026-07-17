@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../data/store';
 import { useChatStore } from '../data/chatStore';
 import { firebaseConfigurado } from '../lib/firebase';
+import { esDirectivo } from '../data/maestros';
 import {
   abrirDm,
   borrarMensaje,
@@ -38,6 +39,7 @@ function fechaCorta(ts: any): string {
 export default function Chat() {
   const rol = useAppStore((s) => s.rol) ?? '';
   const esSuper = rol === 'superusuario';
+  const puedeCrearGrupo = esDirectivo(rol) || esSuper;
 
   const {
     canales,
@@ -47,11 +49,13 @@ export default function Chat() {
     abrirCanal,
     enviar,
     noLeidos,
+    crearGrupoStore,
   } = useChatStore();
 
   const [directorio, setDirectorio] = useState<Array<{ email: string; displayName: string }>>([]);
   const [modalDm, setModalDm] = useState(false);
   const [modalCanal, setModalCanal] = useState(false);
+  const [modalGrupo, setModalGrupo] = useState(false);
   const [texto, setTexto] = useState('');
   const finRef = useRef<HTMLDivElement>(null);
 
@@ -127,6 +131,14 @@ export default function Chat() {
           >
             ＋ Nuevo mensaje directo
           </button>
+          {puedeCrearGrupo && (
+            <button
+              onClick={() => setModalGrupo(true)}
+              className="w-full text-sm px-3 py-2 rounded-lg bg-elevated text-soft hover:text-strong transition"
+            >
+              ＋ Nuevo grupo
+            </button>
+          )}
           {esSuper && (
             <button
               onClick={() => setModalCanal(true)}
@@ -157,6 +169,11 @@ export default function Chat() {
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm text-strong font-medium truncate">
                       {nombreCanal(c)}
+                      {c.type === 'grupo' && (
+                        <span className="text-xs text-muted font-normal ml-1">
+                          ({(c.members ?? []).length})
+                        </span>
+                      )}
                     </span>
                     {nuevo && <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
                   </div>
@@ -264,6 +281,19 @@ export default function Chat() {
           onClose={() => setModalCanal(false)}
           onCreado={(id) => {
             setModalCanal(false);
+            abrirCanal(id);
+          }}
+        />
+      )}
+
+      {/* ── Modal: nuevo grupo (coordinador, rectora, superusuario) ──── */}
+      {modalGrupo && puedeCrearGrupo && (
+        <ModalNuevoGrupo
+          directorio={directorio}
+          crearGrupoStore={crearGrupoStore}
+          onClose={() => setModalGrupo(false)}
+          onCreado={(id) => {
+            setModalGrupo(false);
             abrirCanal(id);
           }}
         />
@@ -456,6 +486,103 @@ function ModalNuevoCanal({
         className="w-full px-4 py-2 rounded-lg bg-accent text-strong text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
       >
         {creando ? 'Creando…' : 'Crear canal'}
+      </button>
+    </Modal>
+  );
+}
+
+// ── Modal: crear grupo (coordinador, rectora, superusuario) ────────────────
+function ModalNuevoGrupo({
+  directorio,
+  crearGrupoStore,
+  onClose,
+  onCreado,
+}: {
+  directorio: Array<{ email: string; displayName: string }>;
+  crearGrupoStore: (nombre: string, miembros: string[]) => Promise<string>;
+  onClose: () => void;
+  onCreado: (id: string) => void;
+}) {
+  const [nombre, setNombre] = useState('');
+  const [busqueda, setBusqueda] = useState('');
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+  const [creando, setCreando] = useState(false);
+
+  const filtrados = directorio.filter((u) => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return true;
+    return u.displayName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+  });
+
+  function toggle(email: string) {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(email)) next.delete(email);
+      else next.add(email);
+      return next;
+    });
+  }
+
+  async function crear() {
+    if (!nombre.trim() || seleccionados.size === 0) return;
+    setCreando(true);
+    try {
+      const id = await crearGrupoStore(nombre.trim(), Array.from(seleccionados));
+      onCreado(id);
+    } finally {
+      setCreando(false);
+    }
+  }
+
+  return (
+    <Modal titulo="Nuevo grupo" onClose={onClose}>
+      <input
+        type="text"
+        placeholder="Nombre del grupo"
+        value={nombre}
+        onChange={(e) => setNombre(e.target.value)}
+        className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
+      />
+      <input
+        type="text"
+        placeholder="Buscar docente…"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
+      />
+      <div className="text-xs text-muted">{seleccionados.size} seleccionado(s)</div>
+      <div className="max-h-56 overflow-y-auto rounded-lg border border-line divide-y divide-line/50">
+        {filtrados.length === 0 ? (
+          <div className="text-muted text-sm py-4 text-center">Sin resultados.</div>
+        ) : (
+          filtrados.map((u) => {
+            const on = seleccionados.has(u.email);
+            return (
+              <label
+                key={u.email}
+                className="flex items-center gap-2 px-3 py-2 hover:bg-elevated cursor-pointer transition"
+              >
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={() => toggle(u.email)}
+                  className="accent-current"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-strong truncate">{u.displayName}</div>
+                  <div className="text-xs text-muted truncate">{u.email}</div>
+                </div>
+              </label>
+            );
+          })
+        )}
+      </div>
+      <button
+        onClick={crear}
+        disabled={creando || !nombre.trim() || seleccionados.size === 0}
+        className="w-full px-4 py-2 rounded-lg bg-accent text-strong text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
+      >
+        {creando ? 'Creando…' : 'Crear grupo'}
       </button>
     </Modal>
   );

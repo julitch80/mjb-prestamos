@@ -6,6 +6,7 @@ import { firebaseConfigurado } from '../lib/firebase';
 import { AUTH_MODE } from './authStore';
 import {
   cargarReadStates,
+  crearGrupo,
   enviarMensaje,
   escucharCanales,
   escucharMensajes,
@@ -32,13 +33,16 @@ interface ChatState {
   canalActivo: string | null;
   iniciado: boolean;
 
-  initChat: (miRol: string) => void;
+  initChat: (miRol: string, miSede?: string, miJornada?: string) => void;
   abrirCanal: (channelId: string) => void;
   cerrarChat: () => void;
   enviar: (texto: string) => Promise<void>;
   marcarLeidoLocal: (channelId: string) => void;
   noLeidos: (canal: Canal) => boolean;
+  crearGrupoStore: (nombre: string, miembros: string[]) => Promise<string>;
 }
+
+const DIRECTIVOS = ['coordinador', 'rectora', 'superusuario'];
 
 let unsubCanales: (() => void) | null = null;
 let unsubMensajes: (() => void) | null = null;
@@ -50,7 +54,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   canalActivo: null,
   iniciado: false,
 
-  initChat: (miRol) => {
+  initChat: (miRol, miSede = 'central', miJornada = 'manana') => {
     if (!habilitado()) return;
     if (get().iniciado) return;
     set({ iniciado: true });
@@ -64,10 +68,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       .catch(() => {});
     // Listener de canales.
     unsubCanales?.();
-    unsubCanales = escucharCanales(miRol, (canales) => {
-      canales.sort((a, b) => toMs(b.lastMessageAt) - toMs(a.lastMessageAt));
-      set({ canales });
-    });
+    unsubCanales = escucharCanales(
+      miRol,
+      (canales) => {
+        canales.sort((a, b) => toMs(b.lastMessageAt) - toMs(a.lastMessageAt));
+        set({ canales });
+      },
+      miSede,
+      miJornada,
+      DIRECTIVOS.includes(miRol),
+    );
   },
 
   abrirCanal: (channelId) => {
@@ -111,5 +121,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!last) return false;
     const leido = get().readStates[canal.id] ?? 0;
     return last > leido && canal.id !== get().canalActivo;
+  },
+
+  crearGrupoStore: async (nombre, miembros) => {
+    const id = await crearGrupo(nombre, miembros);
+    return id;
   },
 }));
