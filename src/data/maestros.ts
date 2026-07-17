@@ -6,6 +6,26 @@ export type Rol       = 'rectora' | 'coordinador' | 'docente';
 export type Jornada   = 'manana' | 'tarde' | 'ambas';
 export type RecursoTipo = 'aula' | 'otro_espacio' | 'equipo';
 
+// ── Sedes (Fase A — arquitectura multi-sede) ────────────────────────────────
+// 'central' es la sede de bachillerato, ya funcional, y es el default cuando
+// un usuario no tiene sede asignada. Las otras dos son de primaria y todavía
+// no tienen dinámica definida (configurada: false) — ver docs/sedes-arquitectura.md.
+export type SedeId = 'central' | 'gustavo_rojas' | 'la_finquita';
+
+export interface Sede {
+  id: SedeId;
+  nombre: string;
+  nivel: 'bachillerato' | 'primaria';
+  jornadas: Array<'manana' | 'tarde'>;
+  configurada: boolean;
+}
+
+export const SEDES: Sede[] = [
+  { id: 'central',       nombre: 'Sede Central',            nivel: 'bachillerato', jornadas: ['manana', 'tarde'], configurada: true },
+  { id: 'gustavo_rojas', nombre: 'Gustavo Rojas Pinilla',    nivel: 'primaria',     jornadas: ['manana', 'tarde'], configurada: false },
+  { id: 'la_finquita',   nombre: 'La Finquita',              nivel: 'primaria',     jornadas: ['manana', 'tarde'], configurada: false },
+];
+
 export interface Usuario {
   id: string;
   nombre: string;
@@ -15,6 +35,8 @@ export interface Usuario {
   correo: string;
   pin: string;
   color: string;
+  /** Sede a la que pertenece el usuario. Si falta, se asume 'central'. */
+  sede?: SedeId;
 }
 
 export interface Recurso {
@@ -85,6 +107,36 @@ export const USUARIOS: Usuario[] = [
   { id: 'yuri',       nombre: 'Yuri Catalina Gómez Gómez',        nombreCorto: 'Yuri',       rol: 'docente', jornada: 'ambas', correo: 'yuri.gomez@iemanueljbetancur.edu.co',       pin: '', color: '#c4b5fd' },
   { id: 'alexander',  nombre: 'Jhon Alexander Sánchez Giraldo',   nombreCorto: 'Alexander',  rol: 'docente', jornada: 'ambas', correo: 'alexander.sanchez@iemanueljbetancur.edu.co', pin: '', color: '#fda4af' },
 ];
+
+// ── Sedes: autoridad y direccionamiento ─────────────────────────────────────
+//
+// Quién puede habilitar/editar procesos en cada sede (además de rectora y
+// superusuario). Confirmado por Julián (jul 2026): Janneth Astrid Ocampo
+// Carvajal (coord_manana) es autoridad de la sede Gustavo Rojas completa,
+// además de la jornada mañana de central; Juan Diego Salazar (coord_tarde)
+// es autoridad de La Finquita (mañana y tarde), además de la tarde de central.
+// TODO(nombre visible): confirmar si la sede se llama 'Gustavo Rojas Pinilla'
+// o 'Gustavo Rodas' — solo afecta al campo nombre en SEDES.
+export const AUTORIDAD_SEDE: Record<SedeId, string[]> = {
+  central: ['coord_manana', 'coord_tarde'],
+  gustavo_rojas: ['coord_manana'],
+  la_finquita: ['coord_tarde'],
+};
+
+export function puedeEditarEnSede(userId: string | null, rol: string | null, sede: SedeId): boolean {
+  if (!userId || !rol) return false;
+  if (rol === 'superusuario' || rol === 'rectora') return true;
+  return rol === 'coordinador' && AUTORIDAD_SEDE[sede].includes(userId);
+}
+
+export function sedeDeUsuario(userId: string | null): SedeId {
+  const u = USUARIOS.find(x => x.id === userId);
+  return (u?.sede as SedeId) || 'central';
+}
+
+export function esDirectivo(rol: string | null): boolean {
+  return rol === 'rectora' || rol === 'coordinador' || rol === 'superusuario';
+}
 
 // ── Recursos ──────────────────────────────────────────────────────────────────
 

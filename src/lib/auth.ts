@@ -21,7 +21,7 @@ export async function cerrarSesionGoogle() {
   if (auth) await signOut(auth);
 }
 
-export interface PerfilFirestore { displayName: string; role: string; active: boolean; }
+export interface PerfilFirestore { displayName: string; role: string; active: boolean; sede?: string; }
 
 export async function cargarPerfil(email: string): Promise<PerfilFirestore> {
   if (!db) throw new Error('Firebase no está configurado.');

@@ -22,6 +22,10 @@ export function aplicarPlantillaFirestore(usuariosFs: UsuarioFirestore[]) {
     const correoBase = (base.correo || '').toLowerCase();
     if (fs.displayName) base.nombre = fs.displayName;
     if (fs.email) base.correo = fs.email;
+    // Fase A — multi-sede: si el doc de Firestore trae sede, se propaga a la
+    // entrada de USUARIOS para que el direccionamiento (modo google) use la
+    // sede real en vez del default 'central'.
+    if (fs.sede) base.sede = fs.sede;
     if (emailFs && emailFs !== correoBase) {
       // Reemplazo real: nueva persona en el puesto.
       hayReemplazos = true;

@@ -12,6 +12,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import type { SedeId } from './maestros';
 
 const DOMAIN = 'iemanueljbetancur.edu.co';
 
@@ -27,6 +28,8 @@ export interface UsuarioFirestore {
   uid?: string | null;
   /** Puesto (id interno de USUARIOS en maestros.ts) que ocupa esta persona. */
   slotId?: string | null;
+  /** Sede a la que pertenece (Fase A — multi-sede). Default 'central'. */
+  sede?: SedeId;
 }
 
 function reqDb() {
@@ -49,6 +52,7 @@ export async function crearDocente(
   role: string,
   creadoPor: string,
   slotId: string | null = null,
+  sede: SedeId = 'central',
 ) {
   const d = reqDb();
   const id = email.toLowerCase().trim();
@@ -65,6 +69,7 @@ export async function crearDocente(
     uid: null,
     replacedBy: null,
     slotId: slotId || null,
+    sede,
   });
 }
 

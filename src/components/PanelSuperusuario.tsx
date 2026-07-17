@@ -11,6 +11,7 @@ import {
   type UsuarioFirestore,
   type RolUsuario,
 } from '../data/adminUsers';
+import { SEDES, type SedeId } from '../data/maestros';
 
 type CambioReemplazo = { campo: string; de?: string; a: string; valor?: string; usuario?: string };
 type ResultadoReemplazo = { dryRun: boolean; slot: string; changes: CambioReemplazo[] };
@@ -48,6 +49,7 @@ export default function PanelSuperusuario() {
   const [nombreNuevo, setNombreNuevo] = useState('');
   const [rolNuevo, setRolNuevo] = useState<RolUsuario>('docente');
   const [slotNuevo, setSlotNuevo] = useState('');
+  const [sedeNueva, setSedeNueva] = useState<SedeId>('central');
   const [creando, setCreando] = useState(false);
 
   // Reemplazo de docente
@@ -89,12 +91,13 @@ export default function PanelSuperusuario() {
     setMensaje(null);
     setCreando(true);
     try {
-      await crearDocente(correo, nombreNuevo, rolNuevo, creadoPor, slotNuevo.trim() || null);
+      await crearDocente(correo, nombreNuevo, rolNuevo, creadoPor, slotNuevo.trim() || null, sedeNueva);
       setMensaje({ tipo: 'ok', texto: 'Usuario creado correctamente.' });
       setCorreo('');
       setNombreNuevo('');
       setRolNuevo('docente');
       setSlotNuevo('');
+      setSedeNueva('central');
       await recargar();
     } catch (e) {
       setMensaje({ tipo: 'error', texto: (e as Error).message });
@@ -260,17 +263,33 @@ export default function PanelSuperusuario() {
             {creando ? 'Creando…' : 'Crear'}
           </button>
         </div>
-        <div>
-          <input
-            type="text"
-            placeholder="Puesto (id interno) — opcional"
-            value={slotNuevo}
-            onChange={(e) => setSlotNuevo(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
-          />
-          <p className="text-muted text-xs mt-1">
-            Dejar vacío si es un docente nuevo sin puesto en el horario.
-          </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <input
+              type="text"
+              placeholder="Puesto (id interno) — opcional"
+              value={slotNuevo}
+              onChange={(e) => setSlotNuevo(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
+            />
+            <p className="text-muted text-xs mt-1">
+              Dejar vacío si es un docente nuevo sin puesto en el horario.
+            </p>
+          </div>
+          <div>
+            <label className="text-muted text-xs">Sede</label>
+            <select
+              value={sedeNueva}
+              onChange={(e) => setSedeNueva(e.target.value as SedeId)}
+              className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm focus:outline-none focus:border-line-strong"
+            >
+              {SEDES.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}{!s.configurada ? ' (en configuración)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </form>
 

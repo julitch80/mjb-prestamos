@@ -6,7 +6,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth, firebaseConfigurado } from '../lib/firebase';
 import { cargarPerfil, cerrarSesionGoogle } from '../lib/auth';
 import { useAppStore } from './store';
-import { USUARIOS } from './maestros';
+import { USUARIOS, esDirectivo, type SedeId } from './maestros';
 
 export const AUTH_MODE = (import.meta.env.VITE_AUTH_MODE as string) || 'pin';
 
@@ -38,6 +38,14 @@ export function initAuthGoogle() {
       const rol = perfil.role || interno?.rol || 'docente';
       const nombre = perfil.displayName || interno?.nombre || email;
       useAppStore.getState().setUsuario(id, nombre, rol, jornada);
+      // Fase A — multi-sede: store.setUsuario ya fija sedeActual = sede del
+      // usuario para no-directivos leyendo USUARIOS (patcheado por la
+      // plantilla arriba). Cuando el docente no tiene slotId (no está en
+      // USUARIOS), usamos el campo sede del propio doc de Firestore como
+      // respaldo, porque sedeDeUsuario(id) no lo encontrará.
+      if (!interno?.sede && perfil.sede && !esDirectivo(rol)) {
+        useAppStore.getState().setSedeActual(perfil.sede as SedeId);
+      }
     } catch {
       await cerrarSesionGoogle();
     }

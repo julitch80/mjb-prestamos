@@ -20,10 +20,11 @@ import BannerNotificaciones from './components/BannerNotificaciones';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
 import { getNotificaciones } from './data/api';
-import { USUARIOS } from './data/maestros';
+import { USUARIOS, SEDES, esDirectivo } from './data/maestros';
 import { AUTH_MODE } from './data/authStore';
 import { useChatStore } from './data/chatStore';
 import { cn } from './lib/utils';
+import { SelectorSedeMenu, SelectorSedePastilla, sedeYaElegidaEnSesion } from './components/SelectorSede';
 
 type NavItem = { id: string; label: string; descripcion: string; roles: string[] };
 
@@ -52,6 +53,8 @@ export default function App() {
   const { permiso, solicitarPermiso, soportado } = useNotificacionesSistema();
   const { userId, nombre, rol, cerrarSesion, vistaActual, setVistaActual, setNotificaciones } =
     useAppStore();
+  const sedeActual = useAppStore(s => s.sedeActual);
+  const [menuSedeAbierto, setMenuSedeAbierto] = useState(false);
 
   const notificaciones = useAppStore(s => s.notificaciones);
   const notifNoLeidas = notificaciones.filter(n => !n.leida).length;
@@ -77,6 +80,13 @@ export default function App() {
   useEffect(() => {
     if (AUTH_MODE === 'google' && userId && rol) {
       useChatStore.getState().initChat(rol);
+    }
+  }, [userId, rol]);
+
+  // Menú de sede — solo directivos, solo una vez por sesión de navegador.
+  useEffect(() => {
+    if (userId && esDirectivo(rol) && !sedeYaElegidaEnSesion()) {
+      setMenuSedeAbierto(true);
     }
   }, [userId, rol]);
 
@@ -124,6 +134,9 @@ export default function App() {
 
           {/* Acciones derecha */}
           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+
+            {/* Pastilla de sede — solo directivos, pueden cambiar en cualquier momento */}
+            {esDirectivo(rol) && <SelectorSedePastilla />}
 
             {/* Pastilla usuario */}
             <div
@@ -206,15 +219,40 @@ export default function App() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
-            {vistaActual === 'disponibilidad' && <DisponibilidadGrid />}
-            {vistaActual === 'historial'      && <MiHistorial />}
-            {vistaActual === 'admin'          && rol === 'coordinador' && <PanelAdmin />}
-            {vistaActual === 'rectora'        && rol === 'rectora'     && <PanelRectora />}
-            {vistaActual === 'horario'        && <VistaHorario />}
-            {vistaActual === 'asignacion'     && <AsignacionAcademica />}
-            {vistaActual === 'tareas'         && <VistaTareas />}
-            {vistaActual === 'chat'           && AUTH_MODE === 'google' && <Chat />}
-            {vistaActual === 'admin_users'    && rol === 'superusuario' && <PanelSuperusuario />}
+            {/*
+              Fase A — multi-sede: si la sede activa NO está configurada
+              (hoy, cualquiera distinta a 'central'), solo se dejan pasar las
+              vistas transversales (chat, panel de superusuario). El resto
+              muestra un placeholder — el switch de abajo, usado cuando la
+              sede SÍ está configurada (incl. 'central' siempre), no se toca.
+            */}
+            {(() => {
+              const sede = SEDES.find(s => s.id === sedeActual);
+              const vistaTransversal = vistaActual === 'chat' || vistaActual === 'admin_users';
+              if (sede && !sede.configurada && !vistaTransversal) {
+                return (
+                  <div className="max-w-lg mx-auto text-center py-16">
+                    <p className="text-strong text-lg font-semibold">{sede.nombre}</p>
+                    <p className="text-muted text-sm mt-2 leading-relaxed">
+                      Esta sede está en configuración — sus horarios y dinámicas se cargarán próximamente.
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <>
+                  {vistaActual === 'disponibilidad' && <DisponibilidadGrid />}
+                  {vistaActual === 'historial'      && <MiHistorial />}
+                  {vistaActual === 'admin'          && rol === 'coordinador' && <PanelAdmin />}
+                  {vistaActual === 'rectora'        && rol === 'rectora'     && <PanelRectora />}
+                  {vistaActual === 'horario'        && <VistaHorario />}
+                  {vistaActual === 'asignacion'     && <AsignacionAcademica />}
+                  {vistaActual === 'tareas'         && <VistaTareas />}
+                  {vistaActual === 'chat'           && AUTH_MODE === 'google' && <Chat />}
+                  {vistaActual === 'admin_users'    && rol === 'superusuario' && <PanelSuperusuario />}
+                </>
+              );
+            })()}
           </motion.div>
         </AnimatePresence>
       </main>
@@ -228,6 +266,9 @@ export default function App() {
           </button>
         </footer>
         <ModalSugerencia open={sugerenciaAbierta} onClose={() => setSugerenciaAbierta(false)} />
+
+        {/* Menú inicial de sede — solo directivos, una vez por sesión */}
+        {menuSedeAbierto && <SelectorSedeMenu onElegir={() => setMenuSedeAbierto(false)} />}
     </div>
   );
 }

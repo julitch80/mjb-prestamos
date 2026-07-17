@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { Notificacion, Reserva } from './api';
 import type { HorarioModificado, JornadaReducida } from './horarioModificado';
 import type { PublicacionPendiente } from './publicacion';
+import { esDirectivo, sedeDeUsuario, type SedeId } from './maestros';
 
 export type VistaActual =
   | 'disponibilidad'
@@ -23,6 +24,9 @@ interface AppState {
   nombre: string | null;
   rol: string | null;
   jornada: string | null;
+
+  // Sede activa (Fase A — arquitectura multi-sede). Default 'central'.
+  sedeActual: SedeId;
 
   // Navegación — en Zustand para persistir entre re-renders
   vistaActual: VistaActual;
@@ -49,6 +53,9 @@ interface AppState {
   // Acciones auth
   setUsuario: (userId: string, nombre: string, rol: string, jornada: string) => void;
   cerrarSesion: () => void;
+
+  // Acciones sede
+  setSedeActual: (sede: SedeId) => void;
 
   // Acciones navegación
   setVistaActual: (vista: VistaActual) => void;
@@ -89,6 +96,7 @@ export const useAppStore = create<AppState>()(
       nombre: null,
       rol: null,
       jornada: null,
+      sedeActual: 'central',
       vistaActual: 'disponibilidad',
       temaOscuro: true,
       notificaciones: [],
@@ -100,7 +108,18 @@ export const useAppStore = create<AppState>()(
 
       // Auth
       setUsuario: (userId, nombre, rol, jornada) =>
-        set({ userId, nombre, rol, jornada, vistaActual: 'disponibilidad' }),
+        set((s) => ({
+          userId,
+          nombre,
+          rol,
+          jornada,
+          vistaActual: 'disponibilidad',
+          // Docentes quedan fijos en su propia sede; directivos eligen con el
+          // selector (SelectorSede), así que no se les toca aquí.
+          sedeActual: esDirectivo(rol) ? s.sedeActual : sedeDeUsuario(userId),
+        })),
+
+      setSedeActual: (sede) => set({ sedeActual: sede }),
 
       cerrarSesion: () => {
         set({
@@ -203,6 +222,7 @@ export const useAppStore = create<AppState>()(
         nombre: s.nombre,
         rol: s.rol,
         jornada: s.jornada,
+        sedeActual: s.sedeActual,
         temaOscuro: s.temaOscuro,
         horariosModificados: s.horariosModificados,
         jornadasReducidas: s.jornadasReducidas,

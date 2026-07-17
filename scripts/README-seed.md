@@ -9,7 +9,7 @@ login queda bloqueado.
 ## 1. Preparar el CSV
 
 Crea un archivo `docentes.csv` (en la raíz del repo, o donde prefieras) con
-las columnas `email,displayName,role` y, opcionalmente, `slotId`:
+las columnas `email,displayName,role` y, opcionalmente, `slotId` y `sede`:
 
 ```csv
 email,displayName,role,slotId
@@ -39,6 +39,14 @@ código.
 Deja `slotId` vacío para: la rectora, los coordinadores, o cualquier
 docente que aún no tenga puesto asignado en el horario (por ejemplo un
 docente completamente nuevo, ver nota en `docs/firebase-reemplazo-docente.md`).
+
+### ¿Qué es `sede`?
+
+Fase A (arquitectura multi-sede): indica a qué sede pertenece el usuario.
+Valores válidos: `central` (Sede Central, bachillerato — la única activa hoy),
+`gustavo_rojas` (Gustavo Rojas Pinilla, primaria) o `la_finquita` (La
+Finquita, primaria). Si se omite, se asume `central`. Ver
+`docs/sedes-arquitectura.md` para el modelo completo.
 
 ### Tabla de mapeo — id interno (`slotId`) ↔ correo institucional
 
