@@ -46,6 +46,9 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
   const [fecha, setFecha]       = useState(fechaHoyLocal());
   const [seleccionados, setSeleccionados] = useState<string[]>([]);    // docenteIds ausentes
   const [bloquesPorDocente, setBloquesPorDocente] = useState<Record<string, number[]>>({});
+  // Default true: preserva el comportamiento histórico (el docente ausente se
+  // consideraba disponible/libre fuera de sus bloques declarados ausentes).
+  const [presentePorDocente, setPresentePorDocente] = useState<Record<string, boolean>>({});
   const [apoyos, setApoyos]     = useState<ApoyoDisponible[]>([]);
   const [buscar, setBuscar]     = useState('');
 
@@ -60,6 +63,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
     setFecha(fechaHoyLocal());
     setSeleccionados([]);
     setBloquesPorDocente({});
+    setPresentePorDocente({});
     setApoyos([]);
     setBuscar('');
     onClose();
@@ -83,6 +87,11 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
           delete rest[id];
           return rest;
         });
+        setPresentePorDocente(p => {
+          const rest = { ...p };
+          delete rest[id];
+          return rest;
+        });
         return prev.filter(x => x !== id);
       }
       // al seleccionar, marcar por defecto TODOS sus bloques del día
@@ -90,6 +99,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
         .filter(e => e.docente === id && e.dia === dia && e.jornada === jornada)
         .map(e => e.bloque);
       setBloquesPorDocente(b => ({ ...b, [id]: bloquesDelDia }));
+      setPresentePorDocente(p => ({ ...p, [id]: true }));
       return [...prev, id];
     });
   }
@@ -102,6 +112,13 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
         : [...actual, bloqueId].sort((a, b) => a - b);
       return { ...prev, [docenteId]: nuevos };
     });
+  }
+
+  function togglePresente(docenteId: string) {
+    setPresentePorDocente(prev => ({
+      ...prev,
+      [docenteId]: !(prev[docenteId] ?? true),
+    }));
   }
 
   function agregarApoyo() {
@@ -139,6 +156,7 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
     const ausencias: AusenciaDocente[] = seleccionados.map(id => ({
       docenteId: id,
       bloques: bloquesPorDocente[id] ?? [],
+      presenteEnColegio: presentePorDocente[id] ?? true,
     }));
 
     // ¿Ya existe un borrador para esta fecha+jornada+autor?
@@ -373,6 +391,33 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
                                 })}
                               </div>
                             )}
+                            <div className="mt-3 pt-3 border-t border-line/60">
+                              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                                <span
+                                  onClick={() => togglePresente(id)}
+                                  className={cn(
+                                    'mt-0.5 w-8 h-4.5 rounded-full flex-shrink-0 relative transition-colors',
+                                    (presentePorDocente[id] ?? true) ? 'bg-accent' : 'bg-hover'
+                                  )}
+                                  style={{ height: 18, width: 32 }}
+                                >
+                                  <span
+                                    className="absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-transform"
+                                    style={{
+                                      transform: (presentePorDocente[id] ?? true)
+                                        ? 'translateX(16px)' : 'translateX(2px)',
+                                    }}
+                                  />
+                                </span>
+                                <span onClick={() => togglePresente(id)} className="text-xs text-soft">
+                                  <span className="font-medium text-strong">¿Estará en el colegio ese día?</span>
+                                  <span className="block text-[10px] text-muted mt-0.5">
+                                    Si estará (permiso parcial, comisión en la sede), puede supervisar
+                                    talleres en sus horas libres.
+                                  </span>
+                                </span>
+                              </label>
+                            </div>
                           </div>
                         );
                       })}

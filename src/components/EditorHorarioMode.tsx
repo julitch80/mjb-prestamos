@@ -74,6 +74,35 @@ function abrevAula(aula: string): string {
     .replace('Sala Info.', 'SI');
 }
 
+/**
+ * Detecta colisiones de aula: dos fichas activas (colocada o taller, no
+ * eliminadas/pendientes) del mismo bloque que quedaron con la misma aula.
+ * Ignora aula vacía y 'Patio' (Educación Física no usa aula física).
+ * No bloquea nada — solo informa para que el coordinador revise.
+ */
+function detectarColisionesAula(lista: FichaEditor[]): string[] {
+  const porBloque: Record<number, string[]> = {};
+  lista.forEach(f => {
+    if (f.ubicacion.tipo !== 'colocada' && f.ubicacion.tipo !== 'taller') return;
+    const aula = f.origen.aula;
+    if (!aula || aula === 'Patio') return;
+    const bloque = f.ubicacion.bloque;
+    (porBloque[bloque] ??= []).push(aula);
+  });
+  const avisos: string[] = [];
+  Object.entries(porBloque).forEach(([bloqueStr, aulas]) => {
+    const bloque = Number(bloqueStr);
+    const conteo: Record<string, number> = {};
+    aulas.forEach(a => { conteo[a] = (conteo[a] ?? 0) + 1; });
+    Object.entries(conteo).forEach(([aula, n]) => {
+      if (n > 1) {
+        avisos.push(`⚠ ${aula} queda con dos clases en el bloque ${bloque} — revisa la asignación de aula.`);
+      }
+    });
+  });
+  return avisos;
+}
+
 // ── Ficha arrastrable ────────────────────────────────────────────────────────
 
 function FichaArrastrable({
@@ -341,6 +370,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
 
   const [confirmDescartar, setConfirmDescartar] = useState(false);
   const [errorMovimiento, setErrorMovimiento] = useState<string | null>(null);
+  const [avisoColision, setAvisoColision] = useState<string[] | null>(null);
   const [verTodoElHorario, setVerTodoElHorario] = useState(false);
   const [asistenteAbierto, setAsistenteAbierto] = useState(false);
   const [resumenDifusion, setResumenDifusion] = useState<ResumenDifusion | null>(null);
@@ -356,6 +386,13 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     const t = setTimeout(() => setErrorMovimiento(null), 5000);
     return () => clearTimeout(t);
   }, [errorMovimiento]);
+
+  // Auto-dismiss del aviso de colisión de aula tras 8 segundos
+  useEffect(() => {
+    if (!avisoColision) return;
+    const t = setTimeout(() => setAvisoColision(null), 8000);
+    return () => clearTimeout(t);
+  }, [avisoColision]);
 
   const dia = diaDeSemana(borrador.fecha);
   const bloques = borrador.jornada === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
@@ -499,28 +536,29 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     }
 
     // Movimiento permitido: aplicar
-    setFichas(prev => {
-      const next = [...prev];
-      const idxActiva = next.findIndex(f => f.id === active.id);
-      if (idxActiva === -1) return prev;
+    const idxActiva = fichas.findIndex(f => f.id === active.id);
+    if (idxActiva === -1) return;
+    const next = [...fichas];
 
-      // El ocupante en la MISMA fila (mismo docente o mismo grupo en ese bloque) va a pendientes
-      const ocupanteIdx = next.findIndex(f =>
-        f.id !== active.id &&
-        (f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller') &&
-        bloqueDe(f) === overBloque &&
-        (modo === 'docente' ? f.origen.docente === overRowId : f.origen.grupo === overRowId)
-      );
-      if (ocupanteIdx !== -1) {
-        next[ocupanteIdx] = { ...next[ocupanteIdx], ubicacion: { tipo: 'pendiente' } };
-      }
+    // El ocupante en la MISMA fila (mismo docente o mismo grupo en ese bloque) va a pendientes
+    const ocupanteIdx = next.findIndex(f =>
+      f.id !== active.id &&
+      (f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller') &&
+      bloqueDe(f) === overBloque &&
+      (modo === 'docente' ? f.origen.docente === overRowId : f.origen.grupo === overRowId)
+    );
+    if (ocupanteIdx !== -1) {
+      next[ocupanteIdx] = { ...next[ocupanteIdx], ubicacion: { tipo: 'pendiente' } };
+    }
 
-      next[idxActiva] = {
-        ...next[idxActiva],
-        ubicacion: { tipo: 'colocada', bloque: overBloque },
-      };
-      return next;
-    });
+    next[idxActiva] = {
+      ...next[idxActiva],
+      ubicacion: { tipo: 'colocada', bloque: overBloque },
+    };
+
+    setFichas(next);
+    const colisiones = detectarColisionesAula(next);
+    setAvisoColision(colisiones.length > 0 ? colisiones : null);
   }
 
   // ── Acciones de fichas ─────────────────────────────────────────────────────
@@ -561,10 +599,13 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   );
 
   function aplicarPropuesta(p: PropuestaAsistente) {
-    setFichas(prev => prev.map(f => {
+    const next = fichas.map(f => {
       const cambio = p.cambios.find(c => c.fichaId === f.id);
       return cambio ? { ...f, ubicacion: cambio.nuevaUbicacion } : f;
-    }));
+    });
+    setFichas(next);
+    const colisiones = detectarColisionesAula(next);
+    setAvisoColision(colisiones.length > 0 ? colisiones : null);
     setAsistenteAbierto(false);
   }
 
@@ -902,6 +943,30 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
         )}
       </AnimatePresence>
 
+      {/* Aviso no bloqueante de colisión de aula */}
+      <AnimatePresence>
+        {avisoColision && avisoColision.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md z-40 bg-amber-950/95 backdrop-blur border border-warning rounded-2xl px-4 py-3 text-warning-soft-fg text-sm shadow-2xl space-y-1.5"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-base leading-none mt-0.5">⚠</span>
+              <div className="flex-1 space-y-1">
+                {avisoColision.map((msg, i) => <div key={i}>{msg}</div>)}
+              </div>
+              <button
+                onClick={() => setAvisoColision(null)}
+                className="text-warning-soft-fg hover:text-strong text-sm leading-none p-0.5"
+                aria-label="Cerrar"
+              >✕</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Modal de resumen para difundir tras guardar */}
       <AnimatePresence>
         {resumenDifusion && (
@@ -1136,7 +1201,9 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                     Sin propuestas automáticas para este caso. Sigue editando manualmente.
                   </div>
                 ) : ([1, 2, 3] as NivelPropuesta[]).map(nivel => {
-                  const grupo = propuestas.filter(p => p.nivel === nivel);
+                  const grupo = propuestas
+                    .filter(p => p.nivel === nivel)
+                    .sort((a, b) => a.clasesPerdidas - b.clasesPerdidas || a.prioridad - b.prioridad);
                   if (grupo.length === 0) return null;
                   const tituloNivel = nivel === 1
                     ? 'Nivel 1 · Reorganizar el día'
@@ -1176,7 +1243,19 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                             <div key={p.id} className={cn('rounded-2xl border p-4', colorBg)}>
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <div className={cn('font-semibold text-sm', colorTexto)}>{p.titulo}</div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <div className={cn('font-semibold text-sm', colorTexto)}>{p.titulo}</div>
+                                    <span className={cn(
+                                      'text-[10px] px-2 py-0.5 rounded-full font-semibold border flex-shrink-0',
+                                      p.clasesPerdidas === 0
+                                        ? 'bg-success-soft border-success text-success-soft-fg'
+                                        : 'bg-warning-soft border-warning text-warning-soft-fg'
+                                    )}>
+                                      {p.clasesPerdidas === 0
+                                        ? 'Sin pérdida de clases'
+                                        : `Pierde ${p.clasesPerdidas} clase${p.clasesPerdidas === 1 ? '' : 's'}`}
+                                    </span>
+                                  </div>
                                   <div className="text-xs text-soft mt-1">{p.descripcion}</div>
                                 </div>
                                 <button

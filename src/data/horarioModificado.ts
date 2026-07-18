@@ -5,6 +5,12 @@ import { compararGrupos } from './maestros';
 export interface AusenciaDocente {
   docenteId: string;
   bloques: number[]; // lista de bloques afectados (todos los bloques del día si está completamente ausente)
+  // ¿El docente estará en el colegio ese día (permiso parcial, comisión en la sede, etc.)?
+  // undefined se trata como true (comportamiento histórico: el docente ausente se
+  // considera disponible/libre en sus horas fuera de los bloques declarados ausentes).
+  // Solo cuando es explícitamente false el docente se excluye por completo del día
+  // como posible supervisor/apoyo.
+  presenteEnColegio?: boolean;
 }
 
 export type TipoApoyo = 'PTA' | 'UAI' | 'docente_apoyo' | 'taller' | 'otro';
@@ -401,10 +407,20 @@ export function docentesLibresEn(
       .filter(e => e.dia === dia && e.bloque === bloque && e.jornada === jornada)
       .map(e => e.docente)
   );
-  const ausentesEnBloque = new Set(
-    ausencias.filter(a => a.bloques.includes(bloque)).map(a => a.docenteId)
+  // presenteEnColegio undefined ⇒ true (comportamiento histórico: disponible fuera
+  // de los bloques declarados ausentes). Solo presenteEnColegio === false excluye
+  // al docente del día completo (no está en la sede, no puede supervisar nada).
+  const excluidosTodoElDia = new Set(
+    ausencias.filter(a => a.presenteEnColegio === false).map(a => a.docenteId)
   );
-  return candidatos.filter(d => !ocupados.has(d.id) && !ausentesEnBloque.has(d.id));
+  const ausentesEnBloque = new Set(
+    ausencias
+      .filter(a => a.presenteEnColegio !== false && a.bloques.includes(bloque))
+      .map(a => a.docenteId)
+  );
+  return candidatos.filter(d =>
+    !ocupados.has(d.id) && !excluidosTodoElDia.has(d.id) && !ausentesEnBloque.has(d.id)
+  );
 }
 
 /**
@@ -429,6 +445,9 @@ export interface PropuestaAsistente {
   grupo: string;
   titulo: string;
   descripcion: string;
+  // Bloques del grupo que quedan cancelados si se aplica esta propuesta.
+  // 0 en compactación pura y en apoyos; > 0 en entrada tardía / salida temprana.
+  clasesPerdidas: number;
   // Cambios a aplicar como mapa fichaId → nueva ubicación
   cambios: Array<{ fichaId: string; nuevaUbicacion: UbicacionFicha }>;
 }
@@ -496,8 +515,8 @@ export function generarPropuestasAsistente(
     // Busca una cadena de movimientos entre los docentes del grupo afectado
     // tal que cada uno termine en una hora donde está disponible y el grupo
     // no pierda ninguna clase. Si la encuentra, propone aplicarla en bloque.
-    const cascada = buscarCompactacionCascada(fichas, borrador, grupo);
-    if (cascada && cascada.length > 0) {
+    const cascadas = buscarCompactacionCascadaMultiple(fichas, borrador, grupo, 3);
+    cascadas.forEach((cascada, idx) => {
       // Texto descriptivo: agrupar movimientos por docente
       const porDocente = new Map<string, Array<{ desde: number; hasta: number }>>();
       cascada.forEach(m => {
@@ -514,20 +533,22 @@ export function generarPropuestasAsistente(
           .join(', ');
         return `${nombre}: ${detalle}`;
       });
+      const sufijoOpcion = cascadas.length > 1 ? ` — opción ${idx + 1}` : '';
       propuestas.push({
-        id: `cascada_${grupo}`,
+        id: `cascada_${grupo}_${idx}`,
         tipo: 'compactar',
         nivel: 1,
-        prioridad: 0,
+        prioridad: idx,
         grupo,
-        titulo: `Reorganizar el día de ${grupo} (${cascada.length} ${cascada.length === 1 ? 'movimiento' : 'movimientos'})`,
+        titulo: `Reorganizar el día de ${grupo} (${cascada.length} ${cascada.length === 1 ? 'movimiento' : 'movimientos'})${sufijoOpcion}`,
         descripcion: `El grupo no pierde ninguna clase. Cadena de intercambios: ${lineas.join(' · ')}.`,
+        clasesPerdidas: 0,
         cambios: cascada.map(m => ({
           fichaId: m.fichaId,
           nuevaUbicacion: { tipo: 'colocada' as const, bloque: m.hastaBloque },
         })),
       });
-    }
+    });
 
     // ── NIVEL 2: USAR APOYOS DISPONIBLES ──────────────────────────────────
     // Para cada apoyo declarado en el borrador, ver qué bloques ausentes
@@ -548,6 +569,7 @@ export function generarPropuestasAsistente(
         descripcion: bloquesCubiertos.length === bloquesAusentes.length
           ? `${grupo}: las clases de ${bloquesCubiertos.map(b => `${b}.ª`).join(', ')} quedan con ${apoyo.nombre}. El grupo cumple jornada completa.`
           : `${grupo}: ${apoyo.nombre} cubre ${bloquesCubiertos.map(b => `${b}.ª`).join(', ')}. Quedan ${bloquesAusentes.length - bloquesCubiertos.length} bloque(s) por resolver.`,
+        clasesPerdidas: 0,
         cambios: fichasCubiertas.map(f => ({
           fichaId: f.id,
           nuevaUbicacion: {
@@ -579,6 +601,7 @@ export function generarPropuestasAsistente(
         grupo,
         titulo: `${grupo}: entrada tardía`,
         descripcion: `Cancelar ${bloquesAusentes.map(b => `${b}.ª`).join(', ')}. El grupo entra a la ${proximoBloque}.ª hora.`,
+        clasesPerdidas: bloquesAusentes.length,
         cambios: fichasAusentes.map(f => ({
           fichaId: f.id,
           nuevaUbicacion: { tipo: 'eliminada' as const },
@@ -594,6 +617,7 @@ export function generarPropuestasAsistente(
         grupo,
         titulo: `${grupo}: salida temprana`,
         descripcion: `Cancelar ${bloquesAusentes.map(b => `${b}.ª`).join(', ')}. El grupo sale después de la ${minAusente - 1}.ª hora.`,
+        clasesPerdidas: bloquesAusentes.length,
         cambios: fichasAusentes.map(f => ({
           fichaId: f.id,
           nuevaUbicacion: { tipo: 'eliminada' as const },
@@ -806,14 +830,21 @@ interface MovCascada {
  * En 3.ª-4.ª, G está con C. C tiene libres 5.ª-6.ª.
  * Resultado: B pasa a 3-4, C pasa a 5-6, A pasa a 1-2.
  *
- * Devuelve null si no encuentra una cadena viable. Tiene cap de profundidad
- * para evitar explosión combinatoria.
+ * Devuelve un arreglo vacío si no encuentra ninguna cadena viable. Tiene cap
+ * de profundidad para evitar explosión combinatoria.
+ *
+ * `buscarCompactacionCascadaMultiple` explora el mismo espacio de estados
+ * pero sin detenerse en la primera solución encontrada: continúa el
+ * backtracking (con memoización por estado, igual que antes) hasta acumular
+ * hasta `maxSoluciones` cadenas DISTINTAS (distintas en el conjunto final de
+ * fichaId→bloque), o hasta agotar el árbol de búsqueda / el cap de profundidad.
  */
-function buscarCompactacionCascada(
+function buscarCompactacionCascadaMultiple(
   fichas: FichaEditor[],
   borrador: HorarioModificado,
   grupo: string,
-): MovCascada[] | null {
+  maxSoluciones: number = 3,
+): MovCascada[][] {
   const bloquesAusentesPorDoc: Record<string, Set<number>> = {};
   borrador.ausencias.forEach(a => {
     bloquesAusentesPorDoc[a.docenteId] = new Set(a.bloques);
@@ -824,7 +855,7 @@ function buscarCompactacionCascada(
     f.origen.grupo === grupo &&
     (f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller')
   );
-  if (fichasGrupo.length === 0) return null;
+  if (fichasGrupo.length === 0) return [];
 
   // Ubicación inicial de cada ficha del grupo
   const ubicacionInicial: Record<string, number> = {};
@@ -838,7 +869,7 @@ function buscarCompactacionCascada(
     const b = ubicacionInicial[f.id];
     return bloquesAusentesPorDoc[f.origen.docente]?.has(b);
   });
-  if (iniciales.length === 0) return null;
+  if (iniciales.length === 0) return [];
 
   // Fichas "fijas" (no pertenecen al grupo): mapa docente → set de bloques ocupados
   const ocupacionFijaPorDoc: Record<string, Set<number>> = {};
@@ -869,16 +900,22 @@ function buscarCompactacionCascada(
     return Object.entries(ub).sort().map(([k, v]) => `${k}:${v}`).join('|') + '#' + restantes.sort().join(',');
   }
 
+  const solucionesEncontradas: Record<string, number>[] = [];
+
   function intentar(
     ubicaciones: Record<string, number>,
     porMover: FichaEditor[],
     depth: number,
-  ): Record<string, number> | null {
-    if (depth > 20) return null;
-    if (porMover.length === 0) return ubicaciones;
+  ): void {
+    if (solucionesEncontradas.length >= maxSoluciones) return;
+    if (depth > 20) return;
+    if (porMover.length === 0) {
+      solucionesEncontradas.push(ubicaciones);
+      return;
+    }
 
     const key = claveEstado(ubicaciones, porMover.map(f => f.id));
-    if (visitados.has(key)) return null;
+    if (visitados.has(key)) return;
     visitados.add(key);
 
     const f = porMover[0];
@@ -886,6 +923,7 @@ function buscarCompactacionCascada(
     const huecos = huecosDocente(f.origen.docente, ubicaciones);
 
     for (const h of huecos) {
+      if (solucionesEncontradas.length >= maxSoluciones) return;
       // Si el nuevo bloque es el mismo que el actual, no es un movimiento real
       if (ubicaciones[f.id] === h) continue;
 
@@ -899,29 +937,36 @@ function buscarCompactacionCascada(
         ? [ocupante, ...resto]
         : resto;
 
-      const sol = intentar(nuevasUbicaciones, nuevoPorMover, depth + 1);
-      if (sol) return sol;
+      intentar(nuevasUbicaciones, nuevoPorMover, depth + 1);
     }
-
-    return null;
   }
 
-  const solucion = intentar(ubicacionInicial, iniciales, 0);
-  if (!solucion) return null;
+  intentar(ubicacionInicial, iniciales, 0);
+  if (solucionesEncontradas.length === 0) return [];
 
-  const movimientos: MovCascada[] = [];
-  fichasGrupo.forEach(f => {
-    const original = ubicacionInicial[f.id];
-    const finalB = solucion[f.id];
-    if (finalB !== original) {
-      movimientos.push({
-        fichaId: f.id,
-        desdeBloque: original,
-        hastaBloque: finalB,
-      });
-    }
-  });
-  return movimientos.length > 0 ? movimientos : null;
+  const vistos = new Set<string>();
+  const resultados: MovCascada[][] = [];
+  for (const solucion of solucionesEncontradas) {
+    const movimientos: MovCascada[] = [];
+    fichasGrupo.forEach(f => {
+      const original = ubicacionInicial[f.id];
+      const finalB = solucion[f.id];
+      if (finalB !== original) {
+        movimientos.push({
+          fichaId: f.id,
+          desdeBloque: original,
+          hastaBloque: finalB,
+        });
+      }
+    });
+    if (movimientos.length === 0) continue;
+    // Deduplicar cadenas equivalentes (mismo conjunto final fichaId→bloque)
+    const clave = movimientos.map(m => `${m.fichaId}:${m.hastaBloque}`).sort().join('|');
+    if (vistos.has(clave)) continue;
+    vistos.add(clave);
+    resultados.push(movimientos);
+  }
+  return resultados;
 }
 
 export function fichasAModificaciones(fichas: FichaEditor[]): ModificacionBloque[] {
