@@ -23,6 +23,7 @@ import BannerNotificaciones from './components/BannerNotificaciones';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
 import { getNotificaciones } from './data/api';
+import { cargarSyncEditor } from './data/syncEditor';
 import { USUARIOS, SEDES, esDirectivo, sedeDeUsuario } from './data/maestros';
 import { AUTH_MODE } from './data/authStore';
 import { useChatStore } from './data/chatStore';
@@ -57,7 +58,7 @@ export default function App() {
   const [hash, setHash] = useState(() => window.location.hash);
   const { temaOscuro, toggleTema } = useTheme();
   const { permiso, solicitarPermiso, soportado } = useNotificacionesSistema();
-  const { userId, nombre, rol, cerrarSesion, vistaActual, setVistaActual, setNotificaciones } =
+  const { userId, nombre, rol, cerrarSesion, vistaActual, setVistaActual, setNotificaciones, mergeSync } =
     useAppStore();
   const sedeActual = useAppStore(s => s.sedeActual);
   const [menuSedeAbierto, setMenuSedeAbierto] = useState(false);
@@ -75,6 +76,20 @@ export default function App() {
   useEffect(() => {
     if (notifData) setNotificaciones(notifData);
   }, [notifData, setNotificaciones]);
+
+  // Sincronización del editor de horario: recibe las modificaciones y
+  // jornadas reducidas publicadas por el coordinador desde cualquier
+  // dispositivo (fuente de verdad = backend), cada 60s.
+  const { data: syncData } = useQuery({
+    queryKey: ['syncEditor'],
+    queryFn: cargarSyncEditor,
+    enabled: !!userId,
+    refetchInterval: 1000 * 60,
+  });
+
+  useEffect(() => {
+    if (syncData) mergeSync(syncData.modificaciones, syncData.jornadas);
+  }, [syncData, mergeSync]);
 
   useEffect(() => {
     const fn = () => setHash(window.location.hash);

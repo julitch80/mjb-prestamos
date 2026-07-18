@@ -4,6 +4,7 @@ import type { Notificacion, Reserva } from './api';
 import type { HorarioModificado, JornadaReducida } from './horarioModificado';
 import type { PublicacionPendiente } from './publicacion';
 import { esDirectivo, sedeDeUsuario, type SedeId } from './maestros';
+import { pushModificacion, pushJornada, pushBorrado } from './syncEditor';
 
 export type VistaActual =
   | 'disponibilidad'
@@ -84,6 +85,9 @@ interface AppState {
   // Acciones jornadas reducidas
   agregarJornadaReducida: (jr: JornadaReducida) => void;
   eliminarJornadaReducida: (id: string) => void;
+
+  // Fusión con lo publicado en el backend (llamado por el polling en App.tsx)
+  mergeSync: (modificaciones: HorarioModificado[], jornadas: JornadaReducida[]) => void;
 
   // Acciones publicaciones pendientes
   agregarPublicacionPendiente: (p: PublicacionPendiente) => void;
@@ -177,29 +181,57 @@ export const useAppStore = create<AppState>()(
         })),
 
       // Horarios modificados
-      agregarHorarioModificado: (hm) =>
-        set((s) => ({ horariosModificados: [hm, ...s.horariosModificados] })),
+      agregarHorarioModificado: (hm) => {
+        set((s) => ({ horariosModificados: [hm, ...s.horariosModificados] }));
+        pushModificacion(hm);
+      },
 
-      actualizarHorarioModificado: (id, cambios) =>
+      actualizarHorarioModificado: (id, cambios) => {
         set((s) => ({
           horariosModificados: s.horariosModificados.map((h) =>
             h.id === id ? { ...h, ...cambios } : h
           ),
-        })),
+        }));
+        const actualizado = useAppStore.getState().horariosModificados.find((h) => h.id === id);
+        if (actualizado) pushModificacion(actualizado);
+      },
 
-      eliminarHorarioModificado: (id) =>
+      eliminarHorarioModificado: (id) => {
         set((s) => ({
           horariosModificados: s.horariosModificados.filter((h) => h.id !== id),
-        })),
+        }));
+        pushBorrado(id);
+      },
 
       // Jornadas reducidas
-      agregarJornadaReducida: (jr) =>
-        set((s) => ({ jornadasReducidas: [jr, ...s.jornadasReducidas] })),
+      agregarJornadaReducida: (jr) => {
+        set((s) => ({ jornadasReducidas: [jr, ...s.jornadasReducidas] }));
+        pushJornada(jr);
+      },
 
-      eliminarJornadaReducida: (id) =>
+      eliminarJornadaReducida: (id) => {
         set((s) => ({
           jornadasReducidas: s.jornadasReducidas.filter((j) => j.id !== id),
-        })),
+        }));
+        pushBorrado(id);
+      },
+
+      // Fusión con el backend: el servidor reemplaza los items locales con el
+      // mismo id; los borradores locales que no están en el servidor (aún no
+      // guardados/publicados) se conservan tal cual.
+      mergeSync: (modificaciones, jornadas) =>
+        set((s) => {
+          const idsServidorHm = new Set(modificaciones.map((h) => h.id));
+          const localesSoloBorrador = s.horariosModificados.filter(
+            (h) => !idsServidorHm.has(h.id)
+          );
+          const idsServidorJr = new Set(jornadas.map((j) => j.id));
+          const localesJr = s.jornadasReducidas.filter((j) => !idsServidorJr.has(j.id));
+          return {
+            horariosModificados: [...modificaciones, ...localesSoloBorrador],
+            jornadasReducidas: [...jornadas, ...localesJr],
+          };
+        }),
 
       // Publicaciones pendientes
       agregarPublicacionPendiente: (p) =>

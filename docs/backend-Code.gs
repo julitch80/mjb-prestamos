@@ -35,6 +35,7 @@ const TAREAS_HEADERS      = ['id','grupo','asignaturaId','docenteId','titulo','m
 const CESIONES_HEADERS    = ['id','grupo','periodo','asignaturaOrigenId','asignaturaDestinoId','docenteOrigenId','momentos','timestamp'];
 const SOLICITUDES_HEADERS = ['id','grupo','periodo','asignaturaCedenteId','asignaturaDestinoId','docenteCedenteId','docenteSolicitanteId','momentos','estado','timestamp'];
 const CUPOS_HEADERS       = ['nivel','asignaturaId','momentos','timestamp'];
+const EDITOR_SYNC_HEADERS = ['id','tipo','fecha','jornada','estado','json','timestamp'];
 
 // ── PUNTO DE ENTRADA (JSONP por GET) ─────────────────────────
 function doGet(e)  { return manejar(e); }
@@ -102,6 +103,10 @@ function manejar(e) {
       case 'crearSolicitudCesion':   resultado = crearSolicitudCesion(p);   break;
       case 'responderSolicitudCesion': resultado = responderSolicitudCesion(p); break;
       case 'guardarCupos':       resultado = guardarCupos(p);       break;
+      // ⚠ CAMBIO: requiere redespliegue (junto con la reserva de rectora)
+      case 'guardarSyncEditor':  resultado = guardarSyncEditor(p);  break;
+      case 'borrarSyncEditor':   resultado = borrarSyncEditor(p);   break;
+      case 'getSyncEditor':      resultado = getSyncEditor();       break;
       default:
         resultado = { ok: false, error: 'Acción desconocida: ' + p.action };
     }
@@ -484,6 +489,60 @@ function guardarCupos(p) {
     sheet.appendRow([String(c.nivel), String(c.asignaturaId), Number(c.momentos) || 0, ts]);
   });
   return { ok: true, n: lista.length };
+}
+
+// ── SINCRONIZACIÓN DEL EDITOR DE HORARIO (⚠ CAMBIO: requiere redespliegue) ──
+// Hoja 'EditorSync': fuente de verdad compartida para que todos los docentes
+// vean las modificaciones de horario y jornadas acortadas publicadas por el
+// coordinador, sin depender del localStorage de su navegador.
+function guardarSyncEditor(p) {
+  const sheet = getSheet('EditorSync', EDITOR_SYNC_HEADERS);
+  const ts = new Date().toISOString();
+  const updates = {
+    tipo: String(p.tipo || ''),
+    fecha: String(p.fecha || ''),
+    jornada: String(p.jornada || ''),
+    estado: String(p.estado || ''),
+    json: String(p.json || ''),
+    timestamp: ts,
+  };
+  const actualizado = actualizarFila(sheet, 'id', p.id, updates);
+  if (!actualizado) {
+    sheet.appendRow([String(p.id), updates.tipo, updates.fecha, updates.jornada, updates.estado, updates.json, updates.timestamp]);
+  }
+  return { ok: true };
+}
+
+function borrarSyncEditor(p) {
+  const sheet = getSheet('EditorSync', EDITOR_SYNC_HEADERS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idx = headers.indexOf('id');
+  if (idx < 0) return { ok: true };
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][idx]) === String(p.id)) {
+      sheet.deleteRow(i + 1);
+      break;
+    }
+  }
+  return { ok: true };
+}
+
+function getSyncEditor() {
+  const sheet = getSheet('EditorSync', EDITOR_SYNC_HEADERS);
+  const filas = hojaAObjetos(sheet);
+  const items = filas.map(function(r) {
+    return {
+      id: String(r.id),
+      tipo: String(r.tipo),
+      fecha: normalizarFecha(r.fecha),
+      jornada: String(r.jornada),
+      estado: String(r.estado),
+      json: String(r.json),
+      timestamp: String(r.timestamp),
+    };
+  });
+  return { ok: true, items: items };
 }
 
 // Sheets convierte textos como '9.1' en fechas/números al escribirlos.

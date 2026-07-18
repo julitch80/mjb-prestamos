@@ -330,6 +330,53 @@ export interface PublicacionResultado {
   error?: string;
 }
 
+// ── Sincronización del editor de horario ────────────────────────────────────
+// NOTA: json puede ser largo (una jornada con varias fichas movidas). callApi
+// usa GET con URLSearchParams; Apps Script acepta URLs largas (~8KB seguras).
+// Los HorarioModificado/JornadaReducida típicos (<20 fichas) caben con margen.
+
+export interface ItemSyncEditor {
+  id: string;
+  tipo: 'modificacion' | 'jornada';
+  fecha: string;
+  jornada: string;
+  estado: string;
+  json: string;
+  timestamp: string;
+}
+
+export async function guardarSyncEditor(item: {
+  id: string;
+  tipo: 'modificacion' | 'jornada';
+  fecha: string;
+  jornada: string;
+  estado: string;
+  json: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  return callApi({
+    action: 'guardarSyncEditor',
+    id: item.id,
+    tipo: item.tipo,
+    fecha: item.fecha,
+    jornada: item.jornada,
+    estado: item.estado,
+    json: item.json,
+  });
+}
+
+export async function borrarSyncEditor(id: string): Promise<{ ok: boolean; error?: string }> {
+  return callApi({ action: 'borrarSyncEditor', id });
+}
+
+export async function getSyncEditor(): Promise<ItemSyncEditor[]> {
+  try {
+    const res = await callApi<{ ok: boolean; items?: ItemSyncEditor[] }>({ action: 'getSyncEditor' });
+    return res.items ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function publicarAviso(
   fecha: string,
   jornada: string,
