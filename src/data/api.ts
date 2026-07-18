@@ -131,7 +131,12 @@ export async function getReservas(): Promise<Reserva[]> {
 }
 
 export async function crearReserva(
-  data: Omit<Reserva, 'id' | 'estado' | 'timestamp'>
+  data: Omit<Reserva, 'id' | 'estado' | 'timestamp'> & {
+    // Opcional: solo la rectora lo envía para que el backend cree la reserva
+    // ya 'aprobada' (asignación jerárquica) en vez de 'pendiente'. Sin este
+    // parámetro el comportamiento de docentes/coordinadores queda intacto.
+    estado?: 'aprobada';
+  }
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
   return callApi(await conIdToken({
     action: 'crearReserva',
@@ -141,6 +146,8 @@ export async function crearReserva(
     solicitante: data.solicitante,
     proposito: data.proposito,
     equipos: data.equipos ?? '',
+    ...(data.motivo ? { motivo: data.motivo } : {}),
+    ...(data.estado ? { estado: data.estado } : {}),
   }));
 }
 

@@ -410,9 +410,18 @@ export const PROPOSITOS = [
 export const MOTIVOS_RECTORA = [
   'Necesidad institucional',
   'Visita externa',
+  'Actividad institucional',
   'Reunión administrativa',
   'Evento cultural',
   'Requerimiento Secretaría Educación',
+  'Otro',
+];
+
+// Motivos para el modal de desplazamiento (rectora toma un espacio ocupado)
+export const MOTIVOS_DESPLAZAMIENTO_RECTORA = [
+  'Visita externa',
+  'Necesidad institucional',
+  'Actividad institucional',
   'Otro',
 ];
 

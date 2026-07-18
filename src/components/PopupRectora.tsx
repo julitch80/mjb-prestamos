@@ -38,6 +38,8 @@ export default function PopupRectora({ recursoIdInicial, fechaInicial, bloqueIdI
         solicitante: userId,
         proposito: 'Asignación directa de rectoría',
         equipos: undefined,
+        motivo: motivoFinal,
+        estado: 'aprobada',
       });
       if (res.ok && res.id) {
         agregarReserva({

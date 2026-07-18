@@ -193,20 +193,39 @@ function getReservas() {
   return { ok: true, reservas: reservas };
 }
 
+// ⚠ CAMBIO 2026-07-17 (reserva jerárquica de rectora): este archivo NO se
+// despliega solo. Después de pegar estos cambios en el editor de Apps
+// Script hay que hacer Implementar → Administrar implementaciones → editar
+// (lápiz) → Versión: Nueva → Implementar, para que el frontend vea el
+// comportamiento nuevo (la URL /exec no cambia).
+//
+// Reserva jerárquica de la rectora (feat: asignación inmediata). Si el
+// frontend envía p.estado === 'aprobada' (solo lo hace cuando rol==='rectora',
+// ver src/components/DisponibilidadGrid.tsx y PopupRectora.tsx), la fila se
+// crea directamente 'aprobada' y se notifica a coordinadores con mensaje
+// 'Rectoría asignó...'. Sin ese parámetro el comportamiento es el de siempre
+// (docentes/coordinadores quedan 'pendiente' de aprobación) — NO se rompe
+// nada existente.
 function crearReserva(p) {
   const sheet = getSheet('Reservas', RESERVAS_HEADERS);
   const id = 'RES-' + new Date().getTime();
   const ts = new Date().toISOString();
+  const esAsignacionRectora = p.estado === 'aprobada';
+  const estadoFinal = esAsignacionRectora ? 'aprobada' : 'pendiente';
   sheet.appendRow([
     id, p.recurso || '', p.fecha || '', Number(p.bloque || 0),
     p.solicitante || '', p.proposito || '', p.equipos || '',
-    'pendiente', '', ts
+    estadoFinal, p.motivo || '', ts
   ]);
   // Aviso in-app para ambos coordinadores (sin jornada en el payload)
-  var msg = 'Nueva solicitud de ' + (p.solicitante || '') + ': ' +
-            (p.recurso || '') + ' · ' + (p.fecha || '') + ' · ' + (p.proposito || '');
-  crearNotificacion('coord_manana', 'coordinador', msg);
-  crearNotificacion('coord_tarde', 'coordinador', msg);
+  var msg = esAsignacionRectora
+    ? 'Rectoría asignó ' + (p.recurso || '') + ' el ' + (p.fecha || '') +
+      ', bloque ' + (p.bloque || '') + '. Motivo: ' + (p.motivo || p.proposito || '')
+    : 'Nueva solicitud de ' + (p.solicitante || '') + ': ' +
+      (p.recurso || '') + ' · ' + (p.fecha || '') + ' · ' + (p.proposito || '');
+  var tipoNotif = esAsignacionRectora ? 'rectoria' : 'coordinador';
+  crearNotificacion('coord_manana', tipoNotif, msg);
+  crearNotificacion('coord_tarde', tipoNotif, msg);
   return { ok: true, id: id };
 }
 

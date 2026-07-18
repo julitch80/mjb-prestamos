@@ -3,11 +3,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../data/store';
 import { getReservas } from '../data/api';
 import type { Reserva } from '../data/api';
-import { RECURSOS, BLOQUES_MANANA, BLOQUES_TARDE, horaOrdinal } from '../data/maestros';
+import { RECURSOS, BLOQUES_MANANA, BLOQUES_TARDE, horaOrdinal, getUsuario } from '../data/maestros';
 import type { Recurso } from '../data/maestros';
 import { horarioBase } from '../data/horarioBase';
 import { cn } from '@/lib/utils';
 import PanelConfirmacion from './PanelConfirmacion';
+import PopupRectora from './PopupRectora';
+import ModalDesplazamientoRectora from './ModalDesplazamientoRectora';
 
 type CeldaEstado = 'libre' | 'clase' | 'ocupado' | 'propio' | 'rectoria';
 type TabDisp = 'aulas' | 'espacios' | 'equipos';
@@ -24,6 +26,34 @@ function tieneClaseRegular(recurso: Recurso, fecha: string, bloqueId: number): b
   const dia = diaDeSemana(fecha);
   const nombre = recurso.nombreHorario ?? recurso.nombre;
   return horarioBase.some(e => e.aula === nombre && e.dia === dia && e.bloque === bloqueId);
+}
+
+// Devuelve la reserva activa (si la hay) en ese recurso/fecha/bloque, o la
+// entrada de horario base si es una clase regular sin reserva asociada.
+// Usado por la rectora para mostrar quién ocupa el espacio antes de
+// desplazarlo (ModalDesplazamientoRectora).
+function getOcupante(
+  recurso: Recurso,
+  fecha: string,
+  bloqueId: number,
+  reservas: Reserva[]
+): { tipo: 'reserva'; reserva: Reserva } | { tipo: 'clase'; descripcion: string } | null {
+  const reserva = reservas.find(
+    r => r.recurso === recurso.id && r.fecha === fecha && r.bloque === bloqueId
+      && r.estado !== 'cancelada' && r.estado !== 'rechazada'
+  );
+  if (reserva) return { tipo: 'reserva', reserva };
+
+  if (recurso.tipo !== 'equipo') {
+    const dia = diaDeSemana(fecha);
+    const nombre = recurso.nombreHorario ?? recurso.nombre;
+    const entrada = horarioBase.find(e => e.aula === nombre && e.dia === dia && e.bloque === bloqueId);
+    if (entrada) {
+      const docente = getUsuario(entrada.docente)?.nombre ?? entrada.docente;
+      return { tipo: 'clase', descripcion: `${docente} · Grado ${entrada.grado}` };
+    }
+  }
+  return null;
 }
 
 function getEstado(
@@ -107,7 +137,7 @@ function GridRecursos({
   userId: string;
   reservas: Reserva[];
   rol: string | null;
-  onSeleccionar: (recursoId: string, fecha: string, bloqueId: number) => void;
+  onSeleccionar: (recursoId: string, fecha: string, bloqueId: number, estado: CeldaEstado) => void;
 }) {
   const hoy = fechaHoy();
   if (recursos.length === 0) return (
@@ -169,14 +199,18 @@ function GridRecursos({
               {fechas.map((fecha, fi) =>
                 bloques.map((bloque, bi) => {
                   const estado = getEstado(recurso, fecha, bloque.id, userId, reservas);
-                  const puedeReservar = estado === 'libre' || estado === 'propio';
+                  // La rectora puede desplazar espacios ocupados/con clase regular
+                  // (asignación jerárquica); los demás roles solo libre/propio.
+                  const puedeReservar = rol === 'rectora'
+                    ? (estado === 'libre' || estado === 'clase' || estado === 'ocupado')
+                    : (estado === 'libre' || estado === 'propio');
                   // Docentes no pueden reservar en sábado (índice 5+)
                   const bloqueado = fi >= 5 && rol === 'docente';
                   return (
                     <td
                       key={`${fecha}-${bloque.id}`}
                       onClick={() => {
-                        if (puedeReservar && !bloqueado) onSeleccionar(recurso.id, fecha, bloque.id);
+                        if (puedeReservar && !bloqueado) onSeleccionar(recurso.id, fecha, bloque.id, estado);
                       }}
                       className={cn(
                         'p-0.5',
@@ -186,7 +220,9 @@ function GridRecursos({
                     >
                       <div className={cn(
                         'h-8 rounded border flex items-center justify-center text-[10px] font-medium transition-all',
-                        bloqueado ? 'bg-elevated/40 border-line cursor-not-allowed opacity-40' : ESTADO_ESTILOS[estado]
+                        bloqueado ? 'bg-elevated/40 border-line cursor-not-allowed opacity-40' :
+                        (rol === 'rectora' && puedeReservar) ? cn(ESTADO_ESTILOS[estado], 'cursor-pointer hover:brightness-110') :
+                        ESTADO_ESTILOS[estado]
                       )}>
                         {!bloqueado && ESTADO_ICONO[estado]}
                       </div>
@@ -210,6 +246,11 @@ export default function DisponibilidadGrid() {
   const [cargando, setCargando]         = useState(false);
   const [tab, setTab]                   = useState<TabDisp>('aulas');
   const [seleccion, setSeleccion]       = useState<{ recursoId: string; fecha: string; bloqueId: number } | null>(null);
+  const [seleccionRectoraLibre, setSeleccionRectoraLibre] = useState<{ recursoId: string; fecha: string; bloqueId: number } | null>(null);
+  const [seleccionDesplazamiento, setSeleccionDesplazamiento] = useState<{
+    recursoId: string; fecha: string; bloqueId: number;
+    ocupante: { tipo: 'reserva'; reserva: Reserva } | { tipo: 'clase'; descripcion: string };
+  } | null>(null);
 
   const jornadaActual = jornada === 'tarde' ? 'tarde' : 'manana';
   const bloques = jornadaActual === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
@@ -336,9 +377,21 @@ export default function DisponibilidadGrid() {
             userId={userId ?? ''}
             reservas={reservas}
             rol={rol}
-            onSeleccionar={(recursoId, fecha, bloqueId) =>
-              setSeleccion({ recursoId, fecha, bloqueId })
-            }
+            onSeleccionar={(recursoId, fecha, bloqueId, estado) => {
+              if (rol === 'rectora') {
+                if (estado === 'clase' || estado === 'ocupado') {
+                  const recurso = RECURSOS.find(r => r.id === recursoId);
+                  const ocupante = recurso ? getOcupante(recurso, fecha, bloqueId, reservas) : null;
+                  if (ocupante) {
+                    setSeleccionDesplazamiento({ recursoId, fecha, bloqueId, ocupante });
+                  }
+                } else {
+                  setSeleccionRectoraLibre({ recursoId, fecha, bloqueId });
+                }
+                return;
+              }
+              setSeleccion({ recursoId, fecha, bloqueId });
+            }}
           />
         </motion.div>
       </AnimatePresence>
@@ -346,13 +399,34 @@ export default function DisponibilidadGrid() {
       {/* Leyenda */}
       <Leyenda />
 
-      {/* Panel de confirmación */}
+      {/* Panel de confirmación (docentes/coordinadores) */}
       {seleccion && (
         <PanelConfirmacion
           recursoId={seleccion.recursoId}
           fecha={seleccion.fecha}
           bloqueId={seleccion.bloqueId}
           onCerrar={() => setSeleccion(null)}
+        />
+      )}
+
+      {/* Rectora — espacio libre: asignación directa inmediata */}
+      {seleccionRectoraLibre && (
+        <PopupRectora
+          recursoIdInicial={seleccionRectoraLibre.recursoId}
+          fechaInicial={seleccionRectoraLibre.fecha}
+          bloqueIdInicial={seleccionRectoraLibre.bloqueId}
+          onCerrar={() => setSeleccionRectoraLibre(null)}
+        />
+      )}
+
+      {/* Rectora — espacio ocupado: modal de desplazamiento con justificación */}
+      {seleccionDesplazamiento && (
+        <ModalDesplazamientoRectora
+          recursoId={seleccionDesplazamiento.recursoId}
+          fecha={seleccionDesplazamiento.fecha}
+          bloqueId={seleccionDesplazamiento.bloqueId}
+          ocupante={seleccionDesplazamiento.ocupante}
+          onCerrar={() => setSeleccionDesplazamiento(null)}
         />
       )}
     </div>
