@@ -433,7 +433,8 @@ export type TipoPropuesta =
   | 'compactar'           // mover clases del ausente a sus horas libres
   | 'apoyo_taller'        // cubrir el bloque con un apoyo declarado
   | 'entrada_tardia'      // cancelar los primeros bloques afectados
-  | 'salida_temprana';    // cancelar los últimos bloques afectados
+  | 'salida_temprana'     // cancelar los últimos bloques afectados
+  | 'mixta_jornada';      // entrada tardía + salida temprana combinadas
 
 export type NivelPropuesta = 1 | 2 | 3;
 
@@ -508,9 +509,6 @@ export function generarPropuestasAsistente(
     const minGrupo = Math.min(...bloquesGrupo);
     const maxGrupo = Math.max(...bloquesGrupo);
 
-    const minAusente = bloquesAusentes[0];
-    const maxAusente = bloquesAusentes[bloquesAusentes.length - 1];
-
     // ── NIVEL 1: REORGANIZAR CON CASCADAS DE INTERCAMBIO ──────────────────
     // Busca una cadena de movimientos entre los docentes del grupo afectado
     // tal que cada uno termine en una hora donde está disponible y el grupo
@@ -582,52 +580,223 @@ export function generarPropuestasAsistente(
       });
     });
 
-    // ── NIVEL 3: MODIFICAR ENTRADA O SALIDA DEL GRUPO ─────────────────────
+    // ── NIVEL 3: AJUSTES DE JORNADA (entrada tardía / salida temprana / mixta) ──
     // En mañana se prioriza entrada tardía; en tarde, salida temprana.
-    const esContiguoDesdeInicio =
-      minAusente === minGrupo &&
-      bloquesAusentes.every((b, i) => b === minAusente + i);
-    const esContiguoHastaFin =
-      maxAusente === maxGrupo &&
-      bloquesAusentes.every((b, i) => b === minAusente + i);
-
-    if (esContiguoDesdeInicio) {
-      const proximoBloque = maxAusente + 1;
-      propuestas.push({
-        id: `entrada_tardia_${grupo}`,
-        tipo: 'entrada_tardia',
-        nivel: 3,
-        prioridad: esManana ? 0 : 1,
-        grupo,
-        titulo: `${grupo}: entrada tardía`,
-        descripcion: `Cancelar ${bloquesAusentes.map(b => `${b}.ª`).join(', ')}. El grupo entra a la ${proximoBloque}.ª hora.`,
-        clasesPerdidas: bloquesAusentes.length,
-        cambios: fichasAusentes.map(f => ({
-          fichaId: f.id,
-          nuevaUbicacion: { tipo: 'eliminada' as const },
-        })),
-      });
-    }
-    if (esContiguoHastaFin) {
-      propuestas.push({
-        id: `salida_temprana_${grupo}`,
-        tipo: 'salida_temprana',
-        nivel: 3,
-        prioridad: esManana ? 1 : 0,
-        grupo,
-        titulo: `${grupo}: salida temprana`,
-        descripcion: `Cancelar ${bloquesAusentes.map(b => `${b}.ª`).join(', ')}. El grupo sale después de la ${minAusente - 1}.ª hora.`,
-        clasesPerdidas: bloquesAusentes.length,
-        cambios: fichasAusentes.map(f => ({
-          fichaId: f.id,
-          nuevaUbicacion: { tipo: 'eliminada' as const },
-        })),
-      });
-    }
+    // Ofrece TODAS las variantes viables: pura(s) y, si aplica, la combinación
+    // mixta que preserva un tramo intermedio limpio entre dos rachas de ausencia.
+    const fichasGrupoTodas = todasPorGrupo[grupo] ?? [];
+    const alternativasJornada = generarAlternativasJornada(
+      fichas, borrador, grupo, fichasGrupoTodas, fichasAusentes,
+      bloquesAusentes, minGrupo, maxGrupo, esManana,
+    );
+    propuestas.push(...alternativasJornada);
   });
 
   // Ordenar por nivel y luego prioridad
   return propuestas.sort((a, b) => a.nivel - b.nivel || a.prioridad - b.prioridad);
+}
+
+/**
+ * Genera las variantes de ajuste de jornada (entrada tardía / salida temprana /
+ * mixta) para un grupo con bloques ausentes. Intenta reducir la pérdida real
+ * reubicando las clases "colaterales" (no causadas por la ausencia) que caen
+ * dentro del tramo que se cancela, hacia huecos libres del tramo que se
+ * conserva. Devuelve hasta 6 alternativas, ordenadas por menor pérdida y
+ * menor número de movimientos.
+ */
+function generarAlternativasJornada(
+  fichas: FichaEditor[],
+  borrador: HorarioModificado,
+  grupo: string,
+  fichasGrupoTodas: FichaEditor[],
+  fichasAusentes: FichaEditor[],
+  bloquesAusentes: number[],
+  minGrupo: number,
+  maxGrupo: number,
+  esManana: boolean,
+): PropuestaAsistente[] {
+  if (bloquesAusentes.length === 0) return [];
+
+  const minAusente = bloquesAusentes[0];
+  const maxAusente = bloquesAusentes[bloquesAusentes.length - 1];
+
+  const bloquesAusentesPorDoc: Record<string, Set<number>> = {};
+  borrador.ausencias.forEach(a => {
+    bloquesAusentesPorDoc[a.docenteId] = new Set(a.bloques);
+  });
+  const esAusenteEnBloque = (docId: string, bloque: number) =>
+    bloquesAusentesPorDoc[docId]?.has(bloque) ?? false;
+
+  // Ocupación fija de otros grupos (para no chocar al reubicar colaterales)
+  const ocupacionFijaPorDoc: Record<string, Set<number>> = {};
+  fichas.forEach(f => {
+    if (f.origen.grupo === grupo) return;
+    if (f.ubicacion.tipo !== 'colocada' && f.ubicacion.tipo !== 'taller') return;
+    (ocupacionFijaPorDoc[f.origen.docente] ??= new Set()).add(f.ubicacion.bloque);
+  });
+
+  const bloqueDeFicha = (f: FichaEditor): number =>
+    f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller' ? f.ubicacion.bloque : -1;
+
+  const ocupadosGrupo = new Set(fichasGrupoTodas.map(bloqueDeFicha));
+
+  /**
+   * Intenta vaciar el rango [rangoLo, rangoHi] moviendo las fichas colaterales
+   * (no causadas por ausencia) hacia `targets` (bloques del rango que se
+   * conserva), en orden de preferencia. Las fichas que sí son la causa de la
+   * ausencia no se intentan mover (el docente no está).
+   */
+  function intentarLiberarRango(
+    rangoLo: number,
+    rangoHi: number,
+    targets: number[],
+  ): { movidos: Array<{ ficha: FichaEditor; destino: number }>; irreductibles: FichaEditor[] } {
+    const movidos: Array<{ ficha: FichaEditor; destino: number }> = [];
+    const irreductibles: FichaEditor[] = [];
+    const targetsUsados = new Set<number>();
+
+    const fichasEnRango = fichasGrupoTodas.filter(f => {
+      const b = bloqueDeFicha(f);
+      return b >= rangoLo && b <= rangoHi;
+    });
+
+    for (const f of fichasEnRango) {
+      const bAct = bloqueDeFicha(f);
+      if (esAusenteEnBloque(f.origen.docente, bAct)) continue; // se cancela de todas formas
+      const destino = targets.find(t =>
+        !targetsUsados.has(t) &&
+        !ocupadosGrupo.has(t) &&
+        !esAusenteEnBloque(f.origen.docente, t) &&
+        !(ocupacionFijaPorDoc[f.origen.docente]?.has(t))
+      );
+      if (destino !== undefined) {
+        movidos.push({ ficha: f, destino });
+        targetsUsados.add(destino);
+      } else {
+        irreductibles.push(f);
+      }
+    }
+    return { movidos, irreductibles };
+  }
+
+  const nombreDoc = (id: string) => (USUARIO_NOMBRE_FN ? USUARIO_NOMBRE_FN(id) : id);
+
+  function describirMovidos(movidos: Array<{ ficha: FichaEditor; destino: number }>): string {
+    if (movidos.length === 0) return '';
+    const detalle = movidos
+      .map(m => `mover ${nombreDoc(m.ficha.origen.docente)} de ${bloqueDeFicha(m.ficha)}.ª a ${m.destino}.ª`)
+      .join(' + ');
+    return detalle;
+  }
+
+  function construirCambios(
+    canceladas: FichaEditor[],
+    movidos: Array<{ ficha: FichaEditor; destino: number }>,
+    irreductibles: FichaEditor[],
+  ): Array<{ fichaId: string; nuevaUbicacion: UbicacionFicha }> {
+    const cambios: Array<{ fichaId: string; nuevaUbicacion: UbicacionFicha }> = [];
+    canceladas.forEach(f => cambios.push({ fichaId: f.id, nuevaUbicacion: { tipo: 'eliminada' } }));
+    irreductibles.forEach(f => cambios.push({ fichaId: f.id, nuevaUbicacion: { tipo: 'eliminada' } }));
+    movidos.forEach(m => cambios.push({
+      fichaId: m.ficha.id,
+      nuevaUbicacion: { tipo: 'colocada', bloque: m.destino },
+    }));
+    return cambios;
+  }
+
+  const alternativas: PropuestaAsistente[] = [];
+
+  // ── ENTRADA TARDÍA: vaciar [minGrupo, maxAusente], mover colaterales a (maxAusente, maxGrupo] ──
+  {
+    const targets: number[] = [];
+    for (let b = maxAusente + 1; b <= maxGrupo; b++) targets.push(b);
+    const { movidos, irreductibles } = intentarLiberarRango(minGrupo, maxAusente, targets);
+    const proximoBloque = maxAusente + 1;
+    const perdidas = bloquesAusentes.length + irreductibles.length;
+    const detalleMov = describirMovidos(movidos);
+    alternativas.push({
+      id: `entrada_tardia_${grupo}`,
+      tipo: 'entrada_tardia',
+      nivel: 3,
+      prioridad: esManana ? 0 : 1,
+      grupo,
+      titulo: `${grupo}: entrada a la ${proximoBloque}.ª hora`,
+      descripcion: detalleMov
+        ? `${grupo} entra a la ${proximoBloque}.ª hora (pierde ${perdidas} clase${perdidas === 1 ? '' : 's'}). Antes se ${detalleMov}.`
+        : `${grupo} entra a la ${proximoBloque}.ª hora (pierde ${perdidas} clase${perdidas === 1 ? '' : 's'}).`,
+      clasesPerdidas: perdidas,
+      cambios: construirCambios(fichasAusentes, movidos, irreductibles),
+    });
+  }
+
+  // ── SALIDA TEMPRANA: vaciar [minAusente, maxGrupo], mover colaterales a [minGrupo, minAusente) ──
+  {
+    const targets: number[] = [];
+    for (let b = minAusente - 1; b >= minGrupo; b--) targets.push(b);
+    const { movidos, irreductibles } = intentarLiberarRango(minAusente, maxGrupo, targets);
+    const perdidas = bloquesAusentes.length + irreductibles.length;
+    const detalleMov = describirMovidos(movidos);
+    alternativas.push({
+      id: `salida_temprana_${grupo}`,
+      tipo: 'salida_temprana',
+      nivel: 3,
+      prioridad: esManana ? 1 : 0,
+      grupo,
+      titulo: `${grupo}: salida a la ${minAusente}.ª hora`,
+      descripcion: detalleMov
+        ? `${grupo} sale a la ${minAusente}.ª hora (pierde ${perdidas} clase${perdidas === 1 ? '' : 's'}). Antes se ${detalleMov}.`
+        : `${grupo} sale a la ${minAusente}.ª hora (pierde ${perdidas} clase${perdidas === 1 ? '' : 's'}).`,
+      clasesPerdidas: perdidas,
+      cambios: construirCambios(fichasAusentes, movidos, irreductibles),
+    });
+  }
+
+  // ── MIXTA: si hay ≥2 rachas de ausencia con un tramo intermedio limpio,
+  //           recorta ambos extremos y conserva el tramo del medio.
+  const rachas: number[][] = [];
+  bloquesAusentes.forEach(b => {
+    const ultima = rachas[rachas.length - 1];
+    if (ultima && b === ultima[ultima.length - 1] + 1) ultima.push(b);
+    else rachas.push([b]);
+  });
+  if (rachas.length >= 2) {
+    const racha1 = rachas[0];
+    const rachaN = rachas[rachas.length - 1];
+    const cut1 = racha1[racha1.length - 1];   // último bloque de la racha inicial
+    const cut2 = rachaN[0];                    // primer bloque de la racha final
+    if (cut1 < cut2 - 1) {
+      const targetsMedio: number[] = [];
+      for (let b = cut1 + 1; b <= cut2 - 1; b++) targetsMedio.push(b);
+      const liberoInicio = intentarLiberarRango(minGrupo, cut1, targetsMedio);
+      const liberoFin = intentarLiberarRango(cut2, maxGrupo, targetsMedio.filter(
+        t => !liberoInicio.movidos.some(m => m.destino === t)
+      ));
+      const canceladasMixta = fichasAusentes; // todas siguen canceladas: el docente no está
+      const irreductiblesMixta = [...liberoInicio.irreductibles, ...liberoFin.irreductibles];
+      const movidosMixta = [...liberoInicio.movidos, ...liberoFin.movidos];
+      const perdidas = bloquesAusentes.length + irreductiblesMixta.length;
+      const proximoBloque = cut1 + 1;
+      const detalleMov = describirMovidos(movidosMixta);
+      alternativas.push({
+        id: `mixta_${grupo}`,
+        tipo: 'mixta_jornada',
+        nivel: 3,
+        prioridad: 0.5,
+        grupo,
+        titulo: `${grupo}: entra a la ${proximoBloque}.ª y sale a la ${cut2}.ª hora`,
+        descripcion: detalleMov
+          ? `${grupo} entra a la ${proximoBloque}.ª hora y sale a la ${cut2}.ª hora, conservando ${cut2 - cut1 - 1} clase${cut2 - cut1 - 1 === 1 ? '' : 's'} intermedia(s) (pierde ${perdidas} en total). Antes se ${detalleMov}.`
+          : `${grupo} entra a la ${proximoBloque}.ª hora y sale a la ${cut2}.ª hora, conservando ${cut2 - cut1 - 1} clase${cut2 - cut1 - 1 === 1 ? '' : 's'} intermedia(s) (pierde ${perdidas} en total).`,
+        clasesPerdidas: perdidas,
+        cambios: construirCambios(canceladasMixta, movidosMixta, irreductiblesMixta),
+      });
+    }
+  }
+
+  // Cap y orden: menos pérdida primero, luego menos movimientos.
+  return alternativas
+    .sort((a, b) => a.clasesPerdidas - b.clasesPerdidas || a.cambios.length - b.cambios.length)
+    .slice(0, 6);
 }
 
 // Inyectable desde el componente para enriquecer descripciones con nombres
@@ -706,10 +875,38 @@ export function generarResumenDifusion(
     const eliminadas = fichas
       .filter(f => f.origen.grupo === grupo && f.ubicacion.tipo === 'eliminada')
       .map(f => f.origen.bloque)
-      .sort();
+      .sort((a, b) => a - b);
+
+    // ── Aviso de ajuste de jornada (entrada tardía / salida temprana) ─────
+    // Se deriva de las modificaciones FINALES (cancelaciones aplicadas), no
+    // de la propuesta usada, para cubrir también ediciones manuales equivalentes.
+    let avisoJornada: string | null = null;
+    if (eliminadas.length > 0) {
+      const bloquesGrupoOrigen = fichas
+        .filter(f => f.origen.grupo === grupo)
+        .map(f => f.origen.bloque);
+      const minTotal = Math.min(...bloquesGrupoOrigen);
+      const maxTotal = Math.max(...bloquesGrupoOrigen);
+      const esPrefijo = eliminadas[0] === minTotal &&
+        eliminadas.every((b, i) => b === minTotal + i);
+      const esSufijo = !esPrefijo && eliminadas[eliminadas.length - 1] === maxTotal &&
+        eliminadas.every((b, i) => b === eliminadas[0] + i);
+      if (esPrefijo) {
+        const proximoBloque = eliminadas[eliminadas.length - 1] + 1;
+        const hora = horas[proximoBloque - 1] ?? '';
+        avisoJornada = `📣 El grupo ${grupo} entra a la ${proximoBloque}.ª hora (${hora})`;
+      } else if (esSufijo) {
+        const primerCancelado = eliminadas[0];
+        const hora = horas[primerCancelado - 1] ?? '';
+        avisoJornada = `📣 El grupo ${grupo} sale a la ${primerCancelado}.ª hora (${hora})`;
+      }
+    }
 
     // HTML
     htmlPartes.push(`<h3 style="margin:16px 0 6px 0;color:#1f2937;border-bottom:1px solid #e5e7eb;padding-bottom:4px">${grupo}</h3>`);
+    if (avisoJornada) {
+      htmlPartes.push(`<p style="margin:0 0 8px 0;padding:6px 10px;background:#fef3c7;border-left:3px solid #d97706;color:#92400e;font-size:13px;font-weight:600">${avisoJornada}</p>`);
+    }
     htmlPartes.push(`<table style="width:100%;border-collapse:collapse;font-size:13px">`);
     htmlPartes.push(`<thead><tr style="background:#f3f4f6">`);
     htmlPartes.push(`<th style="text-align:left;padding:6px 8px;border:1px solid #e5e7eb">Hora</th>`);
@@ -742,6 +939,9 @@ export function generarResumenDifusion(
 
     // Texto
     textoPartes.push(`*${grupo}*`);
+    if (avisoJornada) {
+      textoPartes.push(avisoJornada);
+    }
     colocadas.forEach(f => {
       const bloque = f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller' ? f.ubicacion.bloque : 0;
       const docente = usuarios.find(u => u.id === f.origen.docente)?.nombreCorto ?? f.origen.docente;

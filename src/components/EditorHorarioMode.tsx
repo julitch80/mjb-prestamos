@@ -1225,8 +1225,8 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                         <span className="text-[11px] text-muted">{grupo.length} opci{grupo.length === 1 ? 'ón' : 'ones'}</span>
                       </div>
                       <p className="text-[11px] text-muted -mt-1">{subtitulo}</p>
-                      <div className="space-y-2">
-                        {grupo.map(p => {
+                      {(() => {
+                        const renderPropuesta = (p: PropuestaAsistente) => {
                           const colorBg = p.tipo === 'compactar' ? 'bg-success-soft border-success'
                             : p.tipo === 'apoyo_taller' ? 'bg-purple-soft border-purple'
                             : p.tipo === 'entrada_tardia' ? 'bg-info-soft border-info'
@@ -1267,8 +1267,32 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                               </div>
                             </div>
                           );
-                        })}
-                      </div>
+                        };
+
+                        if (nivel !== 3) {
+                          return <div className="space-y-2">{grupo.map(renderPropuesta)}</div>;
+                        }
+
+                        // Nivel 3: agrupar por grupo afectado, con encabezado propio.
+                        const porGrupo = new Map<string, PropuestaAsistente[]>();
+                        grupo.forEach(p => {
+                          const arr = porGrupo.get(p.grupo) ?? [];
+                          arr.push(p);
+                          porGrupo.set(p.grupo, arr);
+                        });
+                        return (
+                          <div className="space-y-4">
+                            {Array.from(porGrupo.entries()).map(([nombreGrupo, props]) => (
+                              <div key={nombreGrupo} className="space-y-2">
+                                <div className="text-[11px] font-semibold text-muted uppercase tracking-wide">
+                                  Ajuste de jornada — {nombreGrupo}
+                                </div>
+                                {props.map(renderPropuesta)}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
