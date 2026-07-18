@@ -32,6 +32,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
   const [fecha, setFecha] = useState(fechaHoyLocal());
   const [horaInicio, setHoraInicio] = useState<string>(INICIO_NORMAL[jornada]);
   const [horaFin, setHoraFin] = useState(jornada === 'manana' ? '10:00' : '16:15');
+  const [numBloques, setNumBloques] = useState<number>(6);
   const [motivo, setMotivo] = useState(MOTIVOS[0]);
   const [motivoOtro, setMotivoOtro] = useState('');
   const [guardado, setGuardado] = useState<JornadaReducida | null>(null);
@@ -43,7 +44,10 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
   const dia = diaDeSemana(fecha);
   const esDiaLectivo = dia !== 'sabado' && dia !== 'domingo';
 
-  const calculo = useMemo(() => recalcularBloquesAcortados(jornada, horaFin, horaInicio), [jornada, horaFin, horaInicio]);
+  const calculo = useMemo(
+    () => recalcularBloquesAcortados(jornada, horaFin, horaInicio, numBloques),
+    [jornada, horaFin, horaInicio, numBloques]
+  );
   const bloques = Array.isArray(calculo) ? calculo : null;
   const error = Array.isArray(calculo) ? null : calculo.error;
 
@@ -53,6 +57,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
     setFecha(fechaHoyLocal());
     setHoraInicio(INICIO_NORMAL[jornada]);
     setHoraFin(jornada === 'manana' ? '10:00' : '16:15');
+    setNumBloques(6);
     setMotivo(MOTIVOS[0]);
     setMotivoOtro('');
     setGuardado(null);
@@ -71,6 +76,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
       horaFin,
       motivo: motivoFinal,
       bloques,
+      numBloques,
       timestamp: new Date().toISOString(),
     };
     agregarJornadaReducida(jr);
@@ -91,7 +97,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
         <h2 style="margin:0 0 4px 0;color:#b45309">I.E. Manuel J. Betancur — Jornada acortada</h2>
         <p style="margin:0 0 16px 0;color:#475569"><strong>${formatearFechaLegible(jr.fecha)}</strong> · Jornada ${jr.jornada === 'manana' ? 'mañana' : 'tarde'}</p>
         <p style="margin:0 0 4px 0"><strong>Motivo:</strong> ${jr.motivo}</p>
-        <p style="margin:0 0 16px 0"><strong>Horario:</strong> entrada ${jr.horaInicio} · salida ${jr.horaFin}</p>
+        <p style="margin:0 0 16px 0"><strong>Horario:</strong> entrada ${jr.horaInicio} · salida ${jr.horaFin} · ${jr.numBloques ?? jr.bloques.length} hora${(jr.numBloques ?? jr.bloques.length) === 1 ? '' : 's'} de clase</p>
         <h3 style="margin:8px 0 6px 0">Bloques del día</h3>
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr style="background:#fef3c7"><th style="padding:6px 8px;border:1px solid #fcd34d;text-align:left">Hora</th><th style="padding:6px 8px;border:1px solid #fcd34d;text-align:left">Horario</th></tr></thead>
@@ -128,7 +134,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
       `*MJB — Jornada acortada*`,
       `${formatearFechaLegible(guardado.fecha)} · Jornada ${guardado.jornada === 'manana' ? 'mañana' : 'tarde'}`,
       `Motivo: ${guardado.motivo}`,
-      `Horario: entrada ${guardado.horaInicio} · salida ${guardado.horaFin}`,
+      `Horario: entrada ${guardado.horaInicio} · salida ${guardado.horaFin} · ${guardado.numBloques ?? guardado.bloques.length} hora${(guardado.numBloques ?? guardado.bloques.length) === 1 ? '' : 's'} de clase`,
       '',
       ...guardado.bloques.map(b => `${b.id}.ª hora: ${b.inicio} – ${b.fin}`),
       '',
@@ -218,6 +224,19 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                       />
                       <div className="text-xs text-muted mt-1">Normal: {FIN_NORMAL[jornada]}</div>
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-soft mb-1.5">Horas de clase a dictar</label>
+                    <select
+                      value={numBloques}
+                      onChange={e => setNumBloques(Number(e.target.value))}
+                      className="w-full bg-card text-strong rounded-xl px-3 py-2.5 text-sm border border-line focus:outline-none focus:border-warning"
+                    >
+                      {[1, 2, 3, 4, 5, 6].map(n => (
+                        <option key={n} value={n}>{n} hora{n === 1 ? '' : 's'} de clase</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>

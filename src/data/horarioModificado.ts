@@ -110,6 +110,7 @@ export interface JornadaReducida {
   horaFin: string;       // hora de fin de la jornada (HH:MM)
   motivo: string;        // ej. "Acto cívico", "Reunión de docentes"
   bloques: BloqueRecalculado[];
+  numBloques?: number;    // cantidad de horas de clase dictadas (default 6 si no está presente)
   timestamp: string;
 }
 
@@ -142,6 +143,7 @@ export function recalcularBloquesAcortados(
   jornada: 'manana' | 'tarde',
   horaFin: string,
   horaInicio?: string,
+  numBloques: number = 6,
 ): BloqueRecalculado[] | { error: string } {
   const inicioBase = horaInicio && horaInicio.trim() ? horaInicio : INICIO_NORMAL[jornada];
   const inicioMin = aMinutos(inicioBase);
@@ -150,26 +152,34 @@ export function recalcularBloquesAcortados(
   if (totalMin <= 0) {
     return { error: 'La hora de fin debe ser posterior a la hora de inicio.' };
   }
-  const descansos = 20 + 10; // 30 min total de descansos
+  const n = Math.min(6, Math.max(1, Math.round(numBloques)));
+  // Descansos institucionales, ubicados proporcionalmente según cuántos bloques se dicten:
+  //   n <= 2  → sin descanso
+  //   n 3-4   → un descanso de 20 min tras el 2.º bloque
+  //   n 5-6   → descanso de 20 min tras el 2.º y de 10 min tras el 4.º (igual que antes)
+  const descansoTrasBloque2 = n >= 3 ? 20 : 0;
+  const descansoTrasBloque4 = n >= 5 ? 10 : 0;
+  const descansos = descansoTrasBloque2 + descansoTrasBloque4;
   const minutosClases = totalMin - descansos;
-  if (minutosClases < 60) {
-    return { error: 'La jornada es demasiado corta para 6 clases con los descansos institucionales (mínimo ~90 min, recomendado >120).' };
+  const minMinutos = Math.max(60, n * 10);
+  if (minutosClases < minMinutos) {
+    return { error: `La jornada es demasiado corta para ${n} clase${n === 1 ? '' : 's'} con los descansos institucionales.` };
   }
-  const duracionClase = Math.floor(minutosClases / 6);
+  const duracionClase = Math.floor(minutosClases / n);
   // Repartir minutos residuales: dar el extra a las primeras clases
-  const sobrante = minutosClases - duracionClase * 6;
+  const sobrante = minutosClases - duracionClase * n;
 
   const bloques: BloqueRecalculado[] = [];
   let cursor = inicioMin;
-  for (let i = 1; i <= 6; i++) {
+  for (let i = 1; i <= n; i++) {
     const dur = duracionClase + (i <= sobrante ? 1 : 0);
     const inicio = cursor;
     const fin = cursor + dur;
     bloques.push({ id: i, inicio: aHhmm(inicio), fin: aHhmm(fin) });
     cursor = fin;
-    // Descanso después de 2 (20 min) y 4 (10 min)
-    if (i === 2) cursor += 20;
-    if (i === 4) cursor += 10;
+    // Descanso después de 2 (20 min) y 4 (10 min), si aplica
+    if (i === 2) cursor += descansoTrasBloque2;
+    if (i === 4) cursor += descansoTrasBloque4;
   }
   return bloques;
 }

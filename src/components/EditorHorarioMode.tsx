@@ -311,9 +311,34 @@ function PendientesDroppable({
 export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   const { userId, actualizarHorarioModificado, eliminarHorarioModificado, agregarPublicacionPendiente } = useAppStore();
   const [modo, setModo] = useState<ModoEditor>('grupo');
-  const [fichas, setFichas] = useState<FichaEditor[]>(() =>
+  const [fichas, setFichasRaw] = useState<FichaEditor[]>(() =>
     crearFichasIniciales(borrador, horarioBase as any)
   );
+  const [historial, setHistorial] = useState<FichaEditor[][]>([]);
+  const MAX_HISTORIAL = 30;
+
+  // Envoltorio de setFichas que empuja un snapshot del estado ANTERIOR
+  // a la pila de deshacer antes de aplicar cualquier cambio.
+  function setFichas(updater: FichaEditor[] | ((prev: FichaEditor[]) => FichaEditor[])) {
+    setFichasRaw(prev => {
+      setHistorial(h => {
+        const snapshot = prev.map(f => ({ ...f, ubicacion: { ...f.ubicacion } })) as FichaEditor[];
+        const next = [...h, snapshot];
+        return next.length > MAX_HISTORIAL ? next.slice(next.length - MAX_HISTORIAL) : next;
+      });
+      return typeof updater === 'function' ? (updater as (p: FichaEditor[]) => FichaEditor[])(prev) : updater;
+    });
+  }
+
+  function deshacer() {
+    setHistorial(h => {
+      if (h.length === 0) return h;
+      const last = h[h.length - 1];
+      setFichasRaw(last);
+      return h.slice(0, -1);
+    });
+  }
+
   const [confirmDescartar, setConfirmDescartar] = useState(false);
   const [errorMovimiento, setErrorMovimiento] = useState<string | null>(null);
   const [verTodoElHorario, setVerTodoElHorario] = useState(false);
@@ -648,6 +673,19 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={deshacer}
+                disabled={historial.length === 0}
+                className={cn(
+                  'px-3 py-2 rounded-xl text-xs transition',
+                  historial.length === 0
+                    ? 'bg-elevated text-muted cursor-not-allowed opacity-50'
+                    : 'bg-elevated hover:bg-hover text-soft'
+                )}
+                title={historial.length === 0 ? 'No hay cambios para deshacer' : 'Deshacer el último cambio'}
+              >
+                ↩ Deshacer
+              </button>
               <button
                 onClick={() => setConfirmDescartar(true)}
                 className="px-3 py-2 rounded-xl bg-elevated hover:bg-hover text-soft text-xs transition"
