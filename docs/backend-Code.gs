@@ -20,7 +20,7 @@ const CONFIG = {
   // active ese modo; con el placeholder, cualquier idToken recibido fallará
   // la validación (fail-closed), pero mientras el frontend no lo envíe
   // (modo pin, por defecto) esto no se usa.
-  FIREBASE_API_KEY: 'REEMPLAZAR_CON_LA_API_KEY_DEL_PROYECTO_FIREBASE',
+  FIREBASE_API_KEY: 'AIzaSyD4JUcD3MOnKmGQv0xHBxqBCfwwCm5MreQ',
   FIREBASE_DOMAIN:  'iemanueljbetancur.edu.co',
 };
 
