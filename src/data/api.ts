@@ -163,10 +163,16 @@ export async function actualizarReserva(
 
 export interface Notificacion {
   id: string;
-  tipo: 'rectoria' | 'coordinador' | 'intercambio' | 'aprobada' | 'rechazada' | 'cancelada';
+  tipo: 'rectoria' | 'coordinador' | 'intercambio' | 'aprobada' | 'rechazada' | 'cancelada' | 'horario_modificado';
   mensaje: string;
   leida: boolean;
   timestamp: string;
+}
+
+export async function crearNotificacionesLote(
+  items: Array<{ destinatario: string; tipo: string; mensaje: string }>,
+): Promise<{ ok: boolean; creadas?: number; error?: string }> {
+  return callApi({ action: 'crearNotificacionesLote', items: JSON.stringify(items) });
 }
 
 export async function getNotificaciones(userId: string): Promise<Notificacion[]> {

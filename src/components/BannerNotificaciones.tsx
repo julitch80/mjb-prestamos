@@ -10,6 +10,7 @@ const TIPO_CONFIG = {
   aprobada:    { label: 'Aprobada',    bg: 'bg-success-soft', fg: 'text-success-soft-fg', icon: '✅' },
   rechazada:   { label: 'Rechazada',   bg: 'bg-danger-soft',  fg: 'text-danger-soft-fg',  icon: '❌' },
   cancelada:   { label: 'Cancelada',   bg: 'bg-elevated',     fg: 'text-soft',            icon: '🚫' },
+  horario_modificado: { label: 'Horario', bg: 'bg-info-soft', fg: 'text-info-soft-fg', icon: '📅' },
 } as const;
 
 function tiempoRelativo(iso: string): string {

@@ -1169,6 +1169,169 @@ function buscarCompactacionCascadaMultiple(
   return resultados;
 }
 
+// ── Vista "Horario de los docentes afectados" ────────────────────────────────
+
+export interface BloqueDocenteDia {
+  bloque: number;
+  estado: 'normal' | 'movida' | 'cancelada' | 'taller' | 'libre';
+  grupo?: string;
+  aula?: string;
+  bloqueOriginal?: number;
+  comoSupervisorDe?: string;
+}
+
+export interface DocenteDiaEfectivo {
+  docenteId: string;
+  bloques: BloqueDocenteDia[];
+}
+
+/**
+ * Para una modificación guardada, calcula el día efectivo de CADA docente
+ * involucrado (ausente, con clase movida/cancelada, o supervisando un taller
+ * de otro docente), a partir de aplicarModificacionesAlDia. No incluye
+ * docentes sin ningún cambio ese día.
+ */
+export function docentesAfectadosConDia(
+  fecha: string,
+  jornada: 'manana' | 'tarde',
+  horarioBase: EntradaHorarioBase[],
+  horariosModificados: HorarioModificado[],
+): DocenteDiaEfectivo[] {
+  const dia = diaDeSemana(fecha);
+  const hm = horariosModificados.find(h =>
+    h.fecha === fecha && h.jornada === jornada && h.estado === 'guardado'
+  );
+  if (!hm) return [];
+
+  const entradas = aplicarModificacionesAlDia(fecha, jornada, horarioBase, horariosModificados);
+
+  // Set de docentes relevantes
+  const docentesRelevantes = new Set<string>();
+  hm.ausencias.forEach(a => docentesRelevantes.add(a.docenteId));
+  hm.modificaciones.forEach(m => {
+    docentesRelevantes.add(m.docenteOriginal);
+    if (m.supervisorId) docentesRelevantes.add(m.supervisorId);
+  });
+
+  const entradasBaseDelDia = horarioBase
+    .filter(e => e.jornada === jornada && e.dia === dia)
+    .map(e => ({ ...e, grado: e.grado.includes('/') ? e.grado.split('/')[0] : e.grado }));
+
+  const ausenciasPorDoc: Record<string, Set<number>> = {};
+  hm.ausencias.forEach(a => { ausenciasPorDoc[a.docenteId] = new Set(a.bloques); });
+
+  const resultado: DocenteDiaEfectivo[] = [];
+
+  docentesRelevantes.forEach(docenteId => {
+    const bloques: BloqueDocenteDia[] = [];
+
+    for (let b = 1; b <= 6; b++) {
+      // 1) ¿Tiene una EntradaEfectiva propia en este bloque?
+      const propia = entradas.find(e => e.bloque === b && e.docente === docenteId);
+      if (propia) {
+        if (propia.esTaller) {
+          // El docente original del taller (su clase quedó como taller)
+          bloques.push({
+            bloque: b,
+            estado: 'taller',
+            grupo: propia.grado,
+            aula: propia.aula,
+          });
+        } else {
+          bloques.push({
+            bloque: b,
+            estado: propia.esModificada ? 'movida' : 'normal',
+            grupo: propia.grado,
+            aula: propia.aula,
+            bloqueOriginal: propia.esModificada ? propia.bloqueOriginal : undefined,
+          });
+        }
+        continue;
+      }
+
+      // 2) ¿Está supervisando el taller de OTRO docente en este bloque?
+      const comoSupervisor = entradas.find(e =>
+        e.bloque === b && e.esTaller && e.supervisorId === docenteId
+      );
+      if (comoSupervisor) {
+        bloques.push({
+          bloque: b,
+          estado: 'taller',
+          grupo: comoSupervisor.grado,
+          aula: comoSupervisor.aula,
+          comoSupervisorDe: comoSupervisor.docente,
+        });
+        continue;
+      }
+
+      // 3) ¿Tenía clase base cancelada por ausencia declarada?
+      const baseEntrada = entradasBaseDelDia.find(e => e.bloque === b && e.docente === docenteId);
+      if (baseEntrada && ausenciasPorDoc[docenteId]?.has(b)) {
+        bloques.push({
+          bloque: b,
+          estado: 'cancelada',
+          grupo: baseEntrada.grado,
+          aula: baseEntrada.aula,
+        });
+        continue;
+      }
+
+      // 4) Clase base normal sin modificación (no debería llegar aquí si `entradas`
+      //    ya la habría cubierto en el paso 1, pero por seguridad la cubrimos)
+      if (baseEntrada) {
+        bloques.push({
+          bloque: b,
+          estado: 'normal',
+          grupo: baseEntrada.grado,
+          aula: baseEntrada.aula,
+        });
+        continue;
+      }
+
+      // 5) Libre
+      bloques.push({ bloque: b, estado: 'libre' });
+    }
+
+    resultado.push({ docenteId, bloques });
+  });
+
+  return resultado;
+}
+
+/**
+ * Genera el texto del mensaje de notificación personal para un docente,
+ * a partir de su día efectivo (docentesAfectadosConDia). Solo menciona los
+ * bloques que no son 'normal' ni 'libre'.
+ */
+export function mensajeNotificacionDocente(
+  dia: DocenteDiaEfectivo,
+  bloques: Array<{ id: number; inicio: string; fin: string }>,
+  fechaLegible: string,
+): string {
+  const partes: string[] = [];
+  dia.bloques.forEach(b => {
+    if (b.estado === 'normal' || b.estado === 'libre') return;
+    const info = bloques.find(x => x.id === b.bloque);
+    const horaTxt = info ? `${info.inicio}–${info.fin}` : '';
+    if (b.estado === 'movida') {
+      partes.push(`Bloque ${b.bloqueOriginal ?? '?'} (${horaTxt}) se movió al bloque ${b.bloque}.`);
+    } else if (b.estado === 'cancelada') {
+      partes.push(`Bloque ${b.bloque} (${horaTxt}) fue cancelado.`);
+    } else if (b.estado === 'taller') {
+      if (b.comoSupervisorDe) {
+        const nombre = USUARIO_NOMBRE_FN ? USUARIO_NOMBRE_FN(b.comoSupervisorDe) : b.comoSupervisorDe;
+        partes.push(`Bloque ${b.bloque}: cubres un taller de ${nombre} en ${b.grupo ?? ''}.`);
+      } else {
+        partes.push(`Bloque ${b.bloque}: tu clase quedó como taller.`);
+      }
+    }
+  });
+  if (partes.length === 0) {
+    return `Tu horario del ${fechaLegible} no tuvo cambios.`;
+  }
+  return `Tu horario del ${fechaLegible} cambió: ${partes.join(' ')}`;
+}
+
 export function fichasAModificaciones(fichas: FichaEditor[]): ModificacionBloque[] {
   const mods: ModificacionBloque[] = [];
   fichas.forEach(f => {

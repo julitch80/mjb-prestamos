@@ -14,7 +14,7 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
 import { useAppStore } from '../data/store';
-import { enviarCorreoMasivo } from '../data/api';
+import { enviarCorreoMasivo, crearNotificacionesLote } from '../data/api';
 import type { ResultadoCorreoMasivo } from '../data/api';
 import {
   USUARIOS,
@@ -39,6 +39,8 @@ import {
   generarPropuestasAsistente,
   generarResumenDifusion,
   configurarResolverNombreDocente,
+  docentesAfectadosConDia,
+  mensajeNotificacionDocente,
   TIPO_APOYO_LABEL,
 } from '../data/horarioModificado';
 import type {
@@ -379,6 +381,15 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   const [copiado, setCopiado] = useState<'html' | 'texto' | 'correos' | null>(null);
   const [enviandoCorreo, setEnviandoCorreo] = useState(false);
   const [resultadoCorreo, setResultadoCorreo] = useState<ResultadoCorreoMasivo | null>(null);
+  const [envioAutomaticoHecho, setEnvioAutomaticoHecho] = useState(false);
+  const [toastNotificacion, setToastNotificacion] = useState<string | null>(null);
+
+  // Auto-dismiss del toast de notificación tras 6 segundos
+  useEffect(() => {
+    if (!toastNotificacion) return;
+    const t = setTimeout(() => setToastNotificacion(null), 6000);
+    return () => clearTimeout(t);
+  }, [toastNotificacion]);
 
   // Auto-dismiss del toast de error tras 5 segundos
   useEffect(() => {
@@ -610,6 +621,27 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   }
 
   // ── Guardar / descartar ────────────────────────────────────────────────────
+
+  // Núcleo compartido entre el envío automático (al guardar) y el botón manual
+  // de reenvío. Actualiza los estados de progreso/resultado del correo.
+  async function enviarCorreoConResumen(resumen: ResumenDifusion) {
+    setEnviandoCorreo(true);
+    setResultadoCorreo(null);
+    const destinatarios = resumen.docentesAfectados
+      .map(d => d.correo)
+      .filter((c): c is string => !!c && c.includes('@'));
+    const cc = ['juancarlosbv@iemanueljbetancur.edu.co', 'uriel.lopez@iemanueljbetancur.edu.co'];
+    const asunto = `[MJB] Modificación de horario — ${formatearFechaLegible(borrador.fecha)}`;
+    try {
+      const res = await enviarCorreoMasivo(destinatarios, asunto, resumen.html, cc);
+      setResultadoCorreo(res);
+    } catch {
+      setResultadoCorreo({ ok: false, error: 'Error de red. Verifica tu conexión.' });
+    } finally {
+      setEnviandoCorreo(false);
+    }
+  }
+
   function guardar() {
     if (pendientes.length > 0) return;
     const modificaciones = fichasAModificaciones(fichas);
@@ -618,47 +650,54 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
       estado: 'guardado',
       timestamp: new Date().toISOString(),
     });
+    const borradorGuardado: HorarioModificado = { ...borrador, modificaciones, estado: 'guardado' };
+
     // Generar resumen para difundir
     const usuariosMinimos = USUARIOS.map(u => ({
       id: u.id, nombre: u.nombre, nombreCorto: u.nombreCorto, correo: u.correo,
     }));
-    const resumen = generarResumenDifusion(
-      { ...borrador, modificaciones, estado: 'guardado' },
-      fichas,
-      usuariosMinimos,
-    );
+    const resumen = generarResumenDifusion(borradorGuardado, fichas, usuariosMinimos);
     setResumenDifusion(resumen);
 
     // Crear publicación pendiente para la web del colegio (requiere aprobación)
     if (userId) {
-      const pub = generarPublicacionDeModificacion(
-        { ...borrador, modificaciones, estado: 'guardado' },
-        fichas,
-        usuariosMinimos,
-        userId,
-      );
+      const pub = generarPublicacionDeModificacion(borradorGuardado, fichas, usuariosMinimos, userId);
       agregarPublicacionPendiente(pub);
       setPublicacionPendiente(pub);
     }
+
+    // ── Notificación automática (in-app + correo) ────────────────────────────
+    // No debe bloquear el guardado si falla: se dispara sin await.
+    (async () => {
+      try {
+        const dias = docentesAfectadosConDia(
+          borrador.fecha, borrador.jornada, horarioBase as any, [borradorGuardado],
+        );
+        const fechaLegible = formatearFechaLegible(borrador.fecha);
+        const bloquesHoras = bloques.map(b => ({ id: b.id, inicio: b.inicio, fin: b.fin }));
+        const items: Array<{ destinatario: string; tipo: string; mensaje: string }> = [];
+        dias.forEach(d => {
+          const tieneCambio = d.bloques.some(b => b.estado !== 'normal' && b.estado !== 'libre');
+          if (!tieneCambio) return;
+          const mensaje = mensajeNotificacionDocente(d, bloquesHoras, fechaLegible);
+          items.push({ destinatario: d.docenteId, tipo: 'horario_modificado', mensaje });
+        });
+        if (items.length > 0) {
+          await crearNotificacionesLote(items).catch(() => {});
+        }
+        // Envío automático de correo (usa la misma lógica del botón manual)
+        await enviarCorreoConResumen(resumen);
+        setEnvioAutomaticoHecho(true);
+        setToastNotificacion(`✅ Se notificó a ${items.length} docente${items.length === 1 ? '' : 's'} (app + correo)`);
+      } catch {
+        // Silencioso: el guardado ya se completó; el botón manual sigue disponible.
+      }
+    })();
   }
 
   async function enviarCorreoAhora() {
     if (!resumenDifusion) return;
-    setEnviandoCorreo(true);
-    setResultadoCorreo(null);
-    const destinatarios = resumenDifusion.docentesAfectados
-      .map(d => d.correo)
-      .filter((c): c is string => !!c && c.includes('@'));
-    const cc = ['juancarlosbv@iemanueljbetancur.edu.co', 'uriel.lopez@iemanueljbetancur.edu.co'];
-    const asunto = `[MJB] Modificación de horario — ${formatearFechaLegible(borrador.fecha)}`;
-    try {
-      const res = await enviarCorreoMasivo(destinatarios, asunto, resumenDifusion.html, cc);
-      setResultadoCorreo(res);
-    } catch {
-      setResultadoCorreo({ ok: false, error: 'Error de red. Verifica tu conexión.' });
-    } finally {
-      setEnviandoCorreo(false);
-    }
+    await enviarCorreoConResumen(resumenDifusion);
   }
 
   async function copiarPortapapeles(texto: string, kind: 'html' | 'texto' | 'correos') {
@@ -967,6 +1006,27 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
         )}
       </AnimatePresence>
 
+      {/* Toast de notificación automática enviada */}
+      <AnimatePresence>
+        {toastNotificacion && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md z-40 bg-success-soft border border-success rounded-2xl px-4 py-3 text-success-soft-fg text-sm shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex-1">{toastNotificacion}</div>
+              <button
+                onClick={() => setToastNotificacion(null)}
+                className="text-success-soft-fg hover:text-strong text-sm leading-none p-0.5"
+                aria-label="Cerrar"
+              >✕</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Modal de resumen para difundir tras guardar */}
       <AnimatePresence>
         {resumenDifusion && (
@@ -1036,7 +1096,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                       </div>
                       <button
                         onClick={enviarCorreoAhora}
-                        disabled={enviandoCorreo || resultadoCorreo?.ok === true}
+                        disabled={enviandoCorreo}
                         className={cn(
                           'px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-2 flex-shrink-0',
                           resultadoCorreo?.ok === true
@@ -1053,6 +1113,8 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                           </>
                         ) : resultadoCorreo?.ok === true ? (
                           <>✓ Enviado</>
+                        ) : envioAutomaticoHecho ? (
+                          <>Reenviar correo</>
                         ) : (
                           <>Enviar correo a todos →</>
                         )}

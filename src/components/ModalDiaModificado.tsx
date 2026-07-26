@@ -13,9 +13,10 @@ import {
 import { horarioBase } from '../data/horarioBase';
 import {
   aplicarModificacionesAlDia,
+  docentesAfectadosConDia,
   formatearFechaLegible,
 } from '../data/horarioModificado';
-import type { HorarioModificado, EntradaEfectiva } from '../data/horarioModificado';
+import type { HorarioModificado, EntradaEfectiva, BloqueDocenteDia } from '../data/horarioModificado';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -58,6 +59,59 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
   const todosGrupos = Array.from(new Set(entradas.map(e => e.grado))).sort(compararGrupos);
   const grupos = todosGrupos.filter(g => gruposAfectados.has(g));
   const finalGrupos = grupos.length > 0 ? grupos : todosGrupos.slice(0, 3);
+
+  const docentesDia = docentesAfectadosConDia(
+    modificacion.fecha,
+    modificacion.jornada,
+    horarioBase as any,
+    [modificacion],
+  );
+
+  function renderCeldaDocente(b: BloqueDocenteDia) {
+    if (b.estado === 'libre') {
+      return (
+        <div className="h-full rounded-lg border border-dashed border-line flex items-center justify-center">
+          <span className="text-muted opacity-60 text-[10px]">—</span>
+        </div>
+      );
+    }
+    if (b.estado === 'normal') {
+      return (
+        <div className="h-full rounded-lg border border-line flex flex-col items-center justify-center gap-0.5 px-1">
+          <span className="text-[10px] font-bold">{b.grupo}</span>
+          <span className="text-[9px] text-muted">{b.aula ? abrevAula(b.aula) : ''}</span>
+        </div>
+      );
+    }
+    if (b.estado === 'movida') {
+      return (
+        <div className="h-full rounded-lg border border-dashed border-info bg-info-soft/40 flex flex-col items-center justify-center gap-0.5 px-1">
+          <span className="text-[10px] font-bold text-info-soft-fg">{b.grupo}</span>
+          <span className="text-[8px] text-info-soft-fg/80">desde {b.bloqueOriginal}.ª</span>
+        </div>
+      );
+    }
+    if (b.estado === 'cancelada') {
+      return (
+        <div className="h-full rounded-lg border border-dashed border-danger bg-danger-soft/50 flex flex-col items-center justify-center gap-0.5 px-1">
+          <span className="text-[10px] font-bold line-through text-danger/80">{b.grupo}</span>
+          <span className="text-[9px] text-danger-soft-fg/60">cancelada</span>
+        </div>
+      );
+    }
+    // taller
+    const supervisorNombre = b.comoSupervisorDe
+      ? USUARIOS.find(u => u.id === b.comoSupervisorDe)?.nombreCorto ?? b.comoSupervisorDe
+      : undefined;
+    return (
+      <div className="h-full rounded-lg border border-dashed border-warning bg-warning-soft/40 flex flex-col items-center justify-center gap-0.5 px-1">
+        <span className="text-[10px] font-bold text-warning-soft-fg">
+          {supervisorNombre ? `Cubres taller de ${supervisorNombre}` : 'Taller'}
+        </span>
+        <span className="text-[9px] text-warning-soft-fg/80">{b.grupo}</span>
+      </div>
+    );
+  }
 
   function celdaPorGrupoBloque(grupo: string, bloque: number): EntradaEfectiva | null {
     return entradas.find(e => e.grado === grupo && e.bloque === bloque) ?? null;
@@ -114,6 +168,36 @@ export default function ModalDiaModificado({ modificacion, onClose }: Props) {
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-4">
+              {docentesDia.length > 0 && (
+                <div className="rounded-2xl border border-line bg-elevated/60 overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-line">
+                    <span className="font-bold text-sm text-strong">👤 Docentes afectados</span>
+                  </div>
+                  <div className="divide-y divide-white/8">
+                    {docentesDia.map(dd => {
+                      const doc = USUARIOS.find(u => u.id === dd.docenteId);
+                      return (
+                        <div key={dd.docenteId} className="px-4 py-2.5">
+                          <div className="text-xs font-semibold mb-1.5" style={{ color: doc?.color }}>
+                            {doc?.nombreCorto ?? dd.docenteId}
+                          </div>
+                          <div className="grid grid-cols-6 gap-1.5">
+                            {dd.bloques.map(b => (
+                              <div key={b.bloque} style={{ height: 52 }}>
+                                {renderCeldaDocente(b)}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="px-4 py-2 border-t border-line text-[10px] text-muted italic">
+                    Aquí ves el día completo de cada docente afectado, sin importar en cuántos grupos aparece.
+                  </div>
+                </div>
+              )}
+
               {finalGrupos.map(grupo => {
                 const dirId = directores[grupo];
                 const dir = USUARIOS.find(u => u.id === dirId);

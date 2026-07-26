@@ -107,6 +107,8 @@ function manejar(e) {
       case 'guardarSyncEditor':  resultado = guardarSyncEditor(p);  break;
       case 'borrarSyncEditor':   resultado = borrarSyncEditor(p);   break;
       case 'getSyncEditor':      resultado = getSyncEditor();       break;
+      // ⚠ CAMBIO: requiere redespliegue
+      case 'crearNotificacionesLote': resultado = crearNotificacionesLote(p); break;
       default:
         resultado = { ok: false, error: 'Acción desconocida: ' + p.action };
     }
@@ -259,6 +261,18 @@ function crearNotificacion(destinatario, tipo, mensaje) {
   const id = 'NOT-' + new Date().getTime() + '-' + Math.random().toString(36).slice(2, 6);
   sheet.appendRow([id, destinatario, tipo, mensaje, false, new Date().toISOString()]);
   return id;
+}
+
+function crearNotificacionesLote(p) {
+  try {
+    var items = JSON.parse(p.items || '[]'); // [{destinatario, tipo, mensaje}, ...]
+    items.forEach(function(it) {
+      crearNotificacion(it.destinatario, it.tipo, it.mensaje);
+    });
+    return { ok: true, creadas: items.length };
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) };
+  }
 }
 
 function getNotificaciones(p) {
