@@ -61,6 +61,8 @@ export default function App() {
   const { userId, nombre, rol, cerrarSesion, vistaActual, setVistaActual, setNotificaciones, mergeSync } =
     useAppStore();
   const sedeActual = useAppStore(s => s.sedeActual);
+  const identidadReal = useAppStore(s => s.identidadReal);
+  const salirSimulacion = useAppStore(s => s.salirSimulacion);
   const [menuSedeAbierto, setMenuSedeAbierto] = useState(false);
 
   const notificaciones = useAppStore(s => s.notificaciones);
@@ -164,8 +166,12 @@ export default function App() {
 
             {/* Pastilla usuario */}
             <div
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border border-line"
+              className={cn(
+                'hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border',
+                identidadReal ? 'border-dashed border-warning' : 'border-line'
+              )}
               style={{ backgroundColor: ROL_COLOR[rol ?? 'docente'], color: usuario?.color ?? 'var(--color-strong)' }}
+              title={identidadReal ? `Viendo como ${nombre} — identidad real: ${identidadReal.nombre}` : undefined}
             >
               <span
                 className="w-1.5 h-1.5 rounded-full flex-shrink-0"
@@ -229,6 +235,24 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* ── Banner "Ver como" — visible en toda la app mientras hay simulación ── */}
+      {identidadReal && (
+        <div className="w-full bg-warning-soft border-b border-warning text-warning-soft-fg">
+          <div className="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
+            <span className="leading-snug">
+              👁 Viendo la app como <strong>{nombre}</strong> ({rol}).
+              <span className="hidden sm:inline"> Tu identidad real: {identidadReal.nombre}.</span>
+            </span>
+            <button
+              onClick={salirSimulacion}
+              className="flex-shrink-0 px-3 py-1 rounded-full bg-warning-soft border border-warning hover:opacity-80 transition font-medium"
+            >
+              Volver a mi identidad
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Banner notificaciones ─────────────────────────────────── */}
       {rol === 'docente' && <BannerNotificaciones />}

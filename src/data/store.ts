@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { Notificacion, Reserva } from './api';
 import type { HorarioModificado, JornadaReducida } from './horarioModificado';
 import type { PublicacionPendiente } from './publicacion';
-import { esDirectivo, sedeDeUsuario, type SedeId } from './maestros';
+import { esDirectivo, sedeDeUsuario, USUARIOS, type SedeId } from './maestros';
 import { pushModificacion, pushJornada, pushBorrado } from './syncEditor';
 
 export type VistaActual =
@@ -28,6 +28,17 @@ interface AppState {
   nombre: string | null;
   rol: string | null;
   jornada: string | null;
+
+  // Modo "Ver como" — solo superusuario. Guarda la identidad REAL mientras
+  // los campos userId/nombre/rol/jornada reflejan la identidad simulada,
+  // para que toda la app (que lee esos campos del store) funcione sin
+  // cambios. NOTA/limitación conocida: el chat (modo google) usa
+  // auth.currentUser.email de Firebase directamente, NO estos campos del
+  // store — así que durante la simulación los mensajes de chat se siguen
+  // enviando como la identidad real (Julián). Es correcto y deseable: las
+  // reglas de seguridad de Firestore exigen que el remitente coincida con
+  // el usuario autenticado de verdad.
+  identidadReal: { userId: string; nombre: string; rol: string; jornada: string } | null;
 
   // Sede activa (Fase A — arquitectura multi-sede). Default 'central'.
   sedeActual: SedeId;
@@ -57,6 +68,10 @@ interface AppState {
   // Acciones auth
   setUsuario: (userId: string, nombre: string, rol: string, jornada: string) => void;
   cerrarSesion: () => void;
+
+  // Acciones "Ver como" (impersonación de solo-superusuario)
+  simularUsuario: (userId: string) => void;
+  salirSimulacion: () => void;
 
   // Acciones sede
   setSedeActual: (sede: SedeId) => void;
@@ -95,6 +110,16 @@ interface AppState {
   eliminarPublicacionPendiente: (id: string) => void;
 }
 
+/**
+ * Vista de inicio válida para un rol. El superusuario no tiene acceso a las
+ * vistas operativas (reservar, horario…), así que arranca en su panel; el
+ * resto de roles sí puede ver 'disponibilidad'. Se usa al iniciar sesión y al
+ * entrar/salir del modo "Ver como", para no dejar una vista sin permiso.
+ */
+function vistaInicialDeRol(rol: string | null): VistaActual {
+  return rol === 'superusuario' ? 'admin_users' : 'disponibilidad';
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -103,6 +128,7 @@ export const useAppStore = create<AppState>()(
       nombre: null,
       rol: null,
       jornada: null,
+      identidadReal: null,
       sedeActual: 'central',
       vistaActual: 'disponibilidad',
       temaOscuro: true,
@@ -120,7 +146,7 @@ export const useAppStore = create<AppState>()(
           nombre,
           rol,
           jornada,
-          vistaActual: 'disponibilidad',
+          vistaActual: vistaInicialDeRol(rol),
           // Docentes quedan fijos en su propia sede; directivos eligen con el
           // selector (SelectorSede), así que no se les toca aquí.
           sedeActual: esDirectivo(rol) ? s.sedeActual : sedeDeUsuario(userId),
@@ -128,12 +154,55 @@ export const useAppStore = create<AppState>()(
 
       setSedeActual: (sede) => set({ sedeActual: sede }),
 
+      // "Ver como" — solo superusuario puede iniciar una simulación. Guarda
+      // la identidad real la PRIMERA vez (si ya hay una simulación activa,
+      // se conserva la identidad real original y solo cambia el simulado).
+      simularUsuario: (userId) =>
+        set((s) => {
+          const rolBase = s.identidadReal?.rol ?? s.rol;
+          if (rolBase !== 'superusuario') return s; // guarda de seguridad: no escala privilegios
+          const objetivo = USUARIOS.find((u) => u.id === userId);
+          if (!objetivo) return s;
+          const identidadReal =
+            s.identidadReal ?? {
+              userId: s.userId ?? '',
+              nombre: s.nombre ?? '',
+              rol: s.rol ?? '',
+              jornada: s.jornada ?? '',
+            };
+          const jornadaSimulada = objetivo.jornada === 'ambas' ? 'manana' : objetivo.jornada;
+          return {
+            identidadReal,
+            userId: objetivo.id,
+            nombre: objetivo.nombre,
+            rol: objetivo.rol,
+            jornada: jornadaSimulada,
+            // La vista activa puede no existir para el rol simulado (p. ej. venir
+            // de 'admin_users' y pasar a rectora), lo que dejaría la pantalla en
+            // blanco. Se reubica en una vista válida para ese rol.
+            vistaActual: vistaInicialDeRol(objetivo.rol),
+            sedeActual: esDirectivo(objetivo.rol) ? s.sedeActual : sedeDeUsuario(objetivo.id),
+          };
+        }),
+
+      salirSimulacion: () =>
+        set((s) => {
+          if (!s.identidadReal) return s;
+          const { userId, nombre, rol, jornada } = s.identidadReal;
+          return {
+            userId, nombre, rol, jornada,
+            identidadReal: null,
+            vistaActual: vistaInicialDeRol(rol),
+          };
+        }),
+
       cerrarSesion: () => {
         set({
           userId: null,
           nombre: null,
           rol: null,
           jornada: null,
+          identidadReal: null,
           notificaciones: [],
           notifCargadas: false,
           reservas: [],
@@ -257,6 +326,7 @@ export const useAppStore = create<AppState>()(
         nombre: s.nombre,
         rol: s.rol,
         jornada: s.jornada,
+        identidadReal: s.identidadReal,
         sedeActual: s.sedeActual,
         temaOscuro: s.temaOscuro,
         horariosModificados: s.horariosModificados,

@@ -11,7 +11,7 @@ import {
   type UsuarioFirestore,
   type RolUsuario,
 } from '../data/adminUsers';
-import { SEDES, type SedeId } from '../data/maestros';
+import { SEDES, USUARIOS, type SedeId } from '../data/maestros';
 
 type CambioReemplazo = { campo: string; de?: string; a: string; valor?: string; usuario?: string };
 type ResultadoReemplazo = { dryRun: boolean; slot: string; changes: CambioReemplazo[] };
@@ -38,11 +38,25 @@ const ROL_LABEL: Record<RolUsuario, string> = {
 
 type Mensaje = { tipo: 'ok' | 'error'; texto: string };
 
+const ROL_VER_COMO_LABEL: Record<string, string> = {
+  rectora: 'Rectora',
+  coordinador: 'Coordinador',
+  docente: 'Docente',
+  superusuario: 'Superusuario',
+};
+
 export default function PanelSuperusuario() {
-  const { userId, nombre } = useAppStore();
+  const { userId, nombre, rol } = useAppStore();
+  const identidadReal = useAppStore((s) => s.identidadReal);
+  const simularUsuario = useAppStore((s) => s.simularUsuario);
+  const salirSimulacion = useAppStore((s) => s.salirSimulacion);
   const [usuarios, setUsuarios] = useState<UsuarioFirestore[]>([]);
   const [cargando, setCargando] = useState(true);
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
+
+  // "Ver como" — buscador + selección
+  const [busquedaVerComo, setBusquedaVerComo] = useState('');
+  const [seleccionVerComo, setSeleccionVerComo] = useState('');
 
   // Formulario de alta
   const [correo, setCorreo] = useState('');
@@ -194,11 +208,82 @@ export default function PanelSuperusuario() {
     }
   }
 
+  const puedeVerComo = rol === 'superusuario' || !!identidadReal;
+  const usuariosFiltrados = USUARIOS.filter((u) => {
+    const q = busquedaVerComo.trim().toLowerCase();
+    if (!q) return true;
+    return u.nombre.toLowerCase().includes(q) || u.nombreCorto.toLowerCase().includes(q) || u.rol.includes(q);
+  });
+
+  function handleVerComo() {
+    if (!seleccionVerComo) return;
+    simularUsuario(seleccionVerComo);
+    setSeleccionVerComo('');
+  }
+
+  const seccionVerComo = puedeVerComo && (
+    <div className="bg-card rounded-xl p-5 space-y-3 max-w-xl">
+      <h3 className="text-strong font-semibold">👁 Ver como otro usuario</h3>
+      <p className="text-muted text-xs leading-snug">
+        Revisa la app tal como la vería otro rol. Tu identidad real sigue
+        siendo la tuya; puedes volver en cualquier momento.
+      </p>
+
+      {identidadReal ? (
+        <div className="rounded-lg bg-warning-soft text-warning-soft-fg text-xs px-3 py-2 flex items-center justify-between gap-3">
+          <span>
+            Simulando a <strong>{nombre}</strong> ({rol}). Identidad real: {identidadReal.nombre}.
+          </span>
+          <button
+            type="button"
+            onClick={salirSimulacion}
+            className="flex-shrink-0 px-3 py-1.5 rounded-md bg-elevated text-strong text-xs font-medium hover:opacity-90 transition"
+          >
+            Volver a mi identidad
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="text"
+            placeholder="Buscar por nombre o rol…"
+            value={busquedaVerComo}
+            onChange={(e) => setBusquedaVerComo(e.target.value)}
+            className="w-full sm:w-48 px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
+          />
+          <select
+            value={seleccionVerComo}
+            onChange={(e) => setSeleccionVerComo(e.target.value)}
+            className="flex-1 px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm focus:outline-none focus:border-line-strong"
+          >
+            <option value="">Seleccionar usuario…</option>
+            {usuariosFiltrados.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.nombreCorto} — {ROL_VER_COMO_LABEL[u.rol] ?? u.rol}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={handleVerComo}
+            disabled={!seleccionVerComo}
+            className="px-4 py-2 rounded-lg bg-accent text-strong text-sm font-medium hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+          >
+            Ver como este usuario
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   if (!firebaseConfigurado) {
     return (
-      <div className="max-w-md mx-auto">
-        <div className="rounded-xl bg-info-soft text-info-soft-fg text-sm px-4 py-4 leading-snug">
-          Disponible solo con autenticación Google activa.
+      <div className="space-y-5">
+        {seccionVerComo}
+        <div className="max-w-md mx-auto">
+          <div className="rounded-xl bg-info-soft text-info-soft-fg text-sm px-4 py-4 leading-snug">
+            Disponible solo con autenticación Google activa.
+          </div>
         </div>
       </div>
     );
@@ -206,6 +291,8 @@ export default function PanelSuperusuario() {
 
   return (
     <div className="space-y-5">
+      {seccionVerComo}
+
       <div>
         <h2 className="text-strong text-lg font-semibold">Gestión de usuarios</h2>
         <p className="text-muted text-xs mt-1">
