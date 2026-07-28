@@ -85,6 +85,9 @@ async function main() {
       }
       const ref = db.doc(`users/${fila.email}`);
       batch.set(ref, {
+        // Redundante con el id del documento a propósito: el panel de usuarios
+        // y el directorio del chat leen este campo.
+        email: fila.email,
         displayName: fila.displayName,
         role: fila.role,
         active: true,
