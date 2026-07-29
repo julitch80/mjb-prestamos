@@ -1,3 +1,21 @@
+// ⛔ ARCHIVO COMPARTIDO — proyecto Firebase 'mjb-prestamos'
+//
+// Este proyecto aloja DOS modulos: prestamos (este repo) y asistencia (repo
+// aparte). Firestore admite UN SOLO archivo de reglas por proyecto: el ultimo
+// despliegue REEMPLAZA todo lo anterior, no lo fusiona.
+//
+// Por eso:
+//   - NO despliegues estas reglas desde el repo de asistencia, ni las de
+//     asistencia desde aqui. Quien lo haga deja al otro modulo sin permisos.
+//   - Cualquier coleccion nueva debe agregarse a ESTE archivo unificado antes
+//     de desplegar. La regla catch-all del final niega todo lo no declarado.
+//
+// Lo mismo aplica a las funciones: las de prestamos viven en el codebase
+// 'default' (ver firebase.json). Un `firebase deploy --only functions` a secas
+// desde otro repo las BORRA — incluidas beforecreated/beforesignedin, que son
+// las que restringen el acceso al dominio institucional. Despliega siempre
+// acotando el codebase: `--only functions:default` o `--only functions:asistencia`.
+
 rules_version = '2';
 
 service cloud.firestore {
