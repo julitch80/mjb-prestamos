@@ -6,6 +6,7 @@ import { useAppStore } from './data/store';
 import { useTheme } from './hooks/useTheme';
 import { useNotificacionesSistema } from './hooks/useNotificacionesSistema';
 import LoginScreen from './components/LoginScreen';
+import PanelInicio from './components/PanelInicio';
 import PanelAdmin from './components/PanelAdmin';
 import PanelRectora from './components/PanelRectora';
 import DisponibilidadGrid from './components/DisponibilidadGrid';
@@ -33,6 +34,7 @@ import { SelectorSedeMenu, SelectorSedePastilla, sedeYaElegidaEnSesion } from '.
 type NavItem = { id: string; label: string; descripcion: string; roles: string[] };
 
 const NAV_ITEMS: NavItem[] = [
+  { id: 'inicio',          label: 'Inicio',        descripcion: 'Tu resumen del día',                roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'disponibilidad', label: 'Reservar',     descripcion: 'Solicita un aula o recurso',        roles: ['docente', 'coordinador'] },
   { id: 'historial',      label: 'Mis reservas', descripcion: 'Tus solicitudes y su estado',       roles: ['docente', 'coordinador', 'rectora'] },
   { id: 'admin',          label: 'Panel',         descripcion: 'Pendientes, hoy y configuración',   roles: ['coordinador'] },
@@ -360,7 +362,7 @@ export default function App() {
             */}
             {(() => {
               const sede = SEDES.find(s => s.id === sedeActual);
-              const vistaTransversal = vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes';
+              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes';
               if (sede && !sede.configurada && !vistaTransversal) {
                 return (
                   <div className="max-w-lg mx-auto text-center py-16">
@@ -373,6 +375,7 @@ export default function App() {
               }
               return (
                 <>
+                  {vistaActual === 'inicio'          && <PanelInicio navItems={navItems} />}
                   {vistaActual === 'disponibilidad' && <DisponibilidadGrid />}
                   {vistaActual === 'historial'      && <MiHistorial />}
                   {vistaActual === 'admin'          && rol === 'coordinador' && <PanelAdmin />}

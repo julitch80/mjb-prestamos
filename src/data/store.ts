@@ -7,6 +7,7 @@ import { esDirectivo, sedeDeUsuario, USUARIOS, type SedeId } from './maestros';
 import { pushModificacion, pushJornada, pushBorrado } from './syncEditor';
 
 export type VistaActual =
+  | 'inicio'
   | 'disponibilidad'
   | 'historial'
   | 'admin'
@@ -120,8 +121,8 @@ interface AppState {
  * resto de roles sí puede ver 'disponibilidad'. Se usa al iniciar sesión y al
  * entrar/salir del modo "Ver como", para no dejar una vista sin permiso.
  */
-function vistaInicialDeRol(rol: string | null): VistaActual {
-  return rol === 'superusuario' ? 'admin_users' : 'disponibilidad';
+function vistaInicialDeRol(_rol: string | null): VistaActual {
+  return 'inicio';
 }
 
 export const useAppStore = create<AppState>()(
@@ -134,7 +135,7 @@ export const useAppStore = create<AppState>()(
       jornada: null,
       identidadReal: null,
       sedeActual: 'central',
-      vistaActual: 'disponibilidad',
+      vistaActual: 'inicio',
       temaOscuro: true,
       notificaciones: [],
       notifCargadas: false,
@@ -251,7 +252,7 @@ export const useAppStore = create<AppState>()(
           notificaciones: [],
           notifCargadas: false,
           reservas: [],
-          vistaActual: 'disponibilidad',
+          vistaActual: 'inicio',
         });
         // En modo Google (Etapa 2) también cierra la sesión de Firebase Auth.
         // Import dinámico para evitar ciclo store <-> authStore; no-op en modo pin.
