@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sun, Moon, LogOut, Bell, BellRing } from 'lucide-react';
+import { Sun, Moon, LogOut, Bell, BellRing, Home } from 'lucide-react';
 import { useAppStore } from './data/store';
 import { useTheme } from './hooks/useTheme';
 import { useNotificacionesSistema } from './hooks/useNotificacionesSistema';
@@ -143,8 +143,15 @@ export default function App() {
       <header className="sticky top-0 z-40 border-b border-line bg-card/85 backdrop-blur-xl shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
 
-          {/* Logo */}
-          <div className="flex items-center gap-2.5 flex-shrink-0">
+          {/* Logo — también es el botón de regreso al panel de inicio, para no
+              quedar encerrado en una sección sin pasar por el desplegable. */}
+          <button
+            type="button"
+            onClick={() => setVistaActual('inicio' as typeof vistaActual)}
+            className="flex items-center gap-2.5 flex-shrink-0 rounded-lg px-1 -mx-1 py-1 hover:bg-elevated transition"
+            title="Ir al panel de inicio"
+            aria-label="Ir al panel de inicio"
+          >
             <img
               src="/mjb-prestamos/mjb_escudo.png"
               alt="MJB"
@@ -153,7 +160,7 @@ export default function App() {
             <span className="text-sm font-semibold text-strong hidden md:block tracking-wide">
               Manuel J. Betancur
             </span>
-          </div>
+          </button>
 
           {/* Divisor */}
           <div className="w-px h-5 bg-line hidden md:block flex-shrink-0" />
@@ -165,6 +172,20 @@ export default function App() {
             onSelect={id => setVistaActual(id as typeof vistaActual)}
             badge={notifNoLeidas}
           />
+
+          {/* Regreso explícito al inicio: el escudo ya lleva allí, pero no es
+              evidente, así que fuera del inicio se muestra también este chip. */}
+          {vistaActual !== 'inicio' && (
+            <button
+              type="button"
+              onClick={() => setVistaActual('inicio' as typeof vistaActual)}
+              className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-line text-xs font-medium text-soft hover:text-strong hover:bg-elevated transition"
+              title="Volver al panel de inicio"
+            >
+              <Home size={13} />
+              <span className="hidden sm:inline">Inicio</span>
+            </button>
+          )}
 
           {/* Acciones derecha */}
           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
@@ -344,7 +365,10 @@ export default function App() {
       {rol === 'docente' && <BannerNotificaciones />}
 
       {/* ── Contenido ────────────────────────────────────────────── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-5">
+      {/* overflow-x-hidden como red de seguridad: las tablas anchas ya tienen su
+          propio scroll interno, así que nada debería empujar la página entera
+          de lado en el celular. */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-5 overflow-x-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={vistaActual}

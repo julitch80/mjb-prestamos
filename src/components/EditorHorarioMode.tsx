@@ -739,8 +739,10 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
       <div className="space-y-3">
         {/* Banner superior */}
         <div className="rounded-2xl border border-info bg-info-soft p-4 space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
+          {/* En móvil los tres botones no caben junto al texto y empujaban el
+              banner fuera de la pantalla: aquí van debajo, y pueden envolverse. */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div className="min-w-0">
               <div className="text-strong text-sm font-semibold flex items-center gap-2">
                 <span className="text-info">✎</span> Editando horario
               </div>
@@ -752,7 +754,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                 Las clases del docente ausente aparecen tachadas — puedes eliminarlas con ✕.
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0">
               <button
                 onClick={deshacer}
                 disabled={historial.length === 0}

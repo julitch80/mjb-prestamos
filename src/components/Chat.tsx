@@ -52,6 +52,8 @@ export default function Chat() {
   } = useChatStore();
 
   const [directorio, setDirectorio] = useState<Array<{ email: string; displayName: string }>>([]);
+  const [pestana, setPestana] = useState<'chats' | 'docentes'>('chats');
+  const [buscar, setBuscar] = useState('');
   const [modalDm, setModalDm] = useState(false);
   const [modalCanal, setModalCanal] = useState(false);
   const [modalGrupo, setModalGrupo] = useState(false);
@@ -81,6 +83,14 @@ export default function Chat() {
   }, [directorio]);
 
   const yo = miEmail();
+
+  const docentesFiltrados = useMemo(() => {
+    const q = buscar.trim().toLowerCase();
+    if (!q) return directorio;
+    return directorio.filter(
+      (u) => u.displayName.toLowerCase().includes(q) || u.email.includes(q)
+    );
+  }, [directorio, buscar]);
 
   function nombreCanal(c: Canal): string {
     if (c.type === 'directo') {
@@ -124,13 +134,72 @@ export default function Chat() {
           (canalActivo ? 'hidden md:flex' : 'flex')
         }
       >
-        <div className="p-3 border-b border-line space-y-2">
+        {/* Pestañas: las conversaciones existentes y el directorio de docentes.
+            Antes el directorio vivía dentro de un modal y no se encontraba. */}
+        <div className="flex border-b border-line">
           <button
-            onClick={() => setModalDm(true)}
-            className="w-full text-sm px-3 py-2 rounded-lg bg-accent text-strong font-medium hover:opacity-90 transition"
+            onClick={() => setPestana('chats')}
+            className={
+              'flex-1 text-sm py-2.5 font-medium transition border-b-2 ' +
+              (pestana === 'chats'
+                ? 'border-accent text-strong'
+                : 'border-transparent text-muted hover:text-soft')
+            }
           >
-            ＋ Nuevo mensaje directo
+            Conversaciones
           </button>
+          <button
+            onClick={() => setPestana('docentes')}
+            className={
+              'flex-1 text-sm py-2.5 font-medium transition border-b-2 ' +
+              (pestana === 'docentes'
+                ? 'border-accent text-strong'
+                : 'border-transparent text-muted hover:text-soft')
+            }
+          >
+            Docentes{directorio.length > 0 ? ` (${directorio.length})` : ''}
+          </button>
+        </div>
+
+        {pestana === 'docentes' ? (
+          <>
+            <div className="p-3 border-b border-line">
+              <input
+                type="search"
+                value={buscar}
+                onChange={(e) => setBuscar(e.target.value)}
+                placeholder="Buscar un docente…"
+                className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {directorio.length === 0 ? (
+                <div className="text-center text-muted text-xs py-8 px-3 leading-relaxed">
+                  No se pudo cargar el directorio.
+                  <br />
+                  Verifica que tengas la sesión institucional abierta.
+                </div>
+              ) : docentesFiltrados.length === 0 ? (
+                <div className="text-center text-muted text-xs py-8 px-3">
+                  Ningún docente coincide con «{buscar}».
+                </div>
+              ) : (
+                docentesFiltrados.map((u) => (
+                  <button
+                    key={u.email}
+                    onClick={() => handleAbrirDm(u.email)}
+                    className="w-full text-left px-3 py-2.5 border-b border-line/50 hover:bg-elevated transition"
+                  >
+                    <div className="text-sm text-strong truncate">{u.displayName}</div>
+                    <div className="text-xs text-muted truncate">{u.email}</div>
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        ) : (
+        <>
+        <div className="p-3 border-b border-line space-y-2">
           {puedeCrearGrupo && (
             <button
               onClick={() => setModalGrupo(true)}
@@ -150,8 +219,10 @@ export default function Chat() {
         </div>
         <div className="flex-1 overflow-y-auto">
           {canales.length === 0 ? (
-            <div className="text-center text-muted text-xs py-8 px-3">
+            <div className="text-center text-muted text-xs py-8 px-3 leading-relaxed">
               No hay conversaciones aún.
+              <br />
+              Abre la pestaña «Docentes» para escribirle a alguien.
             </div>
           ) : (
             canales.map((c) => {
@@ -187,6 +258,8 @@ export default function Chat() {
             })
           )}
         </div>
+        </>
+        )}
       </aside>
 
       {/* ── Conversación ─────────────────────────────────────────────── */}
