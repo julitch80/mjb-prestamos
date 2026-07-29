@@ -22,22 +22,27 @@ import {
   formatearFechaLegible,
 } from '../data/horarioModificado';
 import { AGENDA_ACTUAL } from '../data/agendaSemanal';
-import { cn } from '@/lib/utils';
+import {
+  neonDe,
+  IconoCampana,
+  IconoReloj,
+  IconoBrujula,
+  IconoDespejado,
+  IconoGrafico,
+  IconoHorario,
+  IconoAgenda,
+} from './IconosNeon';
 
 type NavItem = { id: string; label: string; descripcion: string; roles: string[] };
 
-const EMOJI_NAV: Record<string, string> = {
-  disponibilidad: '📅',
-  historial: '📋',
-  admin: '🗂',
-  rectora: '🏛',
-  horario: '🗓',
-  asignacion: '📚',
-  tareas: '✅',
-  agenda: '📰',
-  riesgo: '🧯',
-  asistentes: '🤖',
-  admin_users: '👥',
+/** Un aviso del carrusel superior ("Tu día"). */
+type Aviso = {
+  id: string;
+  color: string;
+  Icono: (p: { className?: string; style?: React.CSSProperties }) => React.ReactElement;
+  titulo: string;
+  detalle?: string;
+  accion?: { label: string; onClick: () => void };
 };
 
 const DIAS_ES: Record<string, string> = {
@@ -136,9 +141,112 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   // ── Resumen operativo para coordinador ──────────────────────────────────
   const esCoordinador = rol === 'coordinador';
 
-  const accesos = navItems.filter((item) => item.id !== 'inicio' && item.id !== 'chat');
+  const accesos = navItems.filter((item) => item.id !== 'inicio');
 
   const nombrePila = nombre?.split(' ')[0] ?? '';
+
+  // ── Avisos del carrusel superior, en orden de urgencia ───────────────────
+  const avisos: Aviso[] = [];
+
+  if (notifNoLeidas > 0) {
+    avisos.push({
+      id: 'notif',
+      color: '#38bdf8',
+      Icono: IconoCampana,
+      titulo: notifNoLeidas === 1 ? '1 notificación nueva' : `${notifNoLeidas} notificaciones nuevas`,
+      detalle: 'Toca para revisarlas.',
+      accion: { label: 'Ver', onClick: () => setVistaActual('disponibilidad' as never) },
+    });
+  }
+
+  if (modHoy) {
+    avisos.push({
+      id: 'mod-hoy',
+      color: '#fbbf24',
+      Icono: IconoHorario,
+      titulo: 'Tu horario cambió hoy',
+      detalle: `${formatearFechaLegible(modHoy.fecha)} · ${modHoy.ausencias.length} docente${modHoy.ausencias.length === 1 ? '' : 's'} ausente${modHoy.ausencias.length === 1 ? '' : 's'}`,
+      accion: { label: 'Ver detalle', onClick: () => setVistaActual('horario' as never) },
+    });
+  }
+
+  if (jornadaHoy) {
+    avisos.push({
+      id: 'jornada-hoy',
+      color: '#fb923c',
+      Icono: IconoReloj,
+      titulo: 'Jornada acortada hoy',
+      detalle: `${jornadaHoy.horaInicio}–${jornadaHoy.horaFin} · ${jornadaHoy.motivo}`,
+    });
+  }
+
+  if (esDocente && proximaClase) {
+    avisos.push({
+      id: 'clase',
+      color: '#34d399',
+      Icono: IconoReloj,
+      titulo: `${proximaClase.enCurso ? 'Ahora' : 'Siguiente'}: ${proximaClase.ordinal} hora`,
+      detalle: `${proximaClase.grado} en ${proximaClase.aula} · desde las ${proximaClase.hora}`,
+      accion: { label: 'Mi horario', onClick: () => setVistaActual('horario' as never) },
+    });
+  }
+
+  if (esDocente && !proximaClase) {
+    avisos.push({
+      id: 'sin-clases',
+      color: '#94a3b8',
+      Icono: IconoDespejado,
+      titulo: 'No tienes más clases hoy',
+      detalle: 'Tu jornada ya terminó.',
+    });
+  }
+
+  if (esDocente && acompanamientoHoy) {
+    avisos.push({
+      id: 'acompanamiento',
+      color: '#c084fc',
+      Icono: IconoBrujula,
+      titulo: 'Hoy te toca acompañamiento',
+      detalle: acompanamientoHoy.lugar,
+    });
+  }
+
+  if (esCoordinador && modsProximas.length > 0) {
+    avisos.push({
+      id: 'coord-mods',
+      color: '#f472b6',
+      Icono: IconoGrafico,
+      titulo: `${modsProximas.length} modificación${modsProximas.length === 1 ? '' : 'es'} de horario`,
+      detalle: 'En los próximos 14 días.',
+      accion: { label: 'Ver panel', onClick: () => setVistaActual('admin' as never) },
+    });
+  }
+
+  for (const m of modFuturas) {
+    avisos.push({
+      id: `mod-${m.id}`,
+      color: '#60a5fa',
+      Icono: IconoHorario,
+      titulo: 'Modificación de horario próxima',
+      detalle: `${formatearFechaLegible(m.fecha)} · jornada ${m.jornada}`,
+      accion: { label: 'Ver', onClick: () => setVistaActual('horario' as never) },
+    });
+  }
+
+  if (agendaHoy && (agendaHoy.actividades.length > 0 || agendaHoy.festivo)) {
+    const primeras = agendaHoy.actividades
+      .slice(0, 2)
+      .map((a) => (a.hora ? `${a.hora} — ${a.actividad}` : a.actividad))
+      .join(' · ');
+    avisos.push({
+      id: 'agenda',
+      color: '#a3e635',
+      Icono: IconoAgenda,
+      titulo: 'Agenda institucional de hoy',
+      detalle: agendaHoy.festivo || primeras,
+      accion: { label: 'Ver', onClick: () => setVistaActual('agenda' as never) },
+    });
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -151,133 +259,35 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
         <p className="text-sm text-muted mt-0.5 first-letter:uppercase">{fechaLargaHoy()}</p>
       </div>
 
-      {/* ── Bloque A: Tu día ──────────────────────────────────────────── */}
-      <section className="space-y-2.5">
-        {notifNoLeidas > 0 && (
-          <TarjetaInicio bg="bg-info-soft" borde="border-info" texto="text-info-soft-fg">
-            <span className="text-base leading-none">🔔</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">
-                {notifNoLeidas === 1 ? 'Tienes 1 notificación nueva' : `Tienes ${notifNoLeidas} notificaciones nuevas`}
-              </p>
-            </div>
-            <BotonVer onClick={() => setVistaActual('disponibilidad' as never)} label="Ver" />
-          </TarjetaInicio>
-        )}
-
-        {modHoy && (
-          <TarjetaInicio bg="bg-warning-soft" borde="border-warning" texto="text-warning-soft-fg">
-            <span className="text-base leading-none">📅</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">Tu horario cambió hoy</p>
-              <p className="text-xs mt-0.5 opacity-90">
-                {formatearFechaLegible(modHoy.fecha)} · {modHoy.ausencias.length} docente{modHoy.ausencias.length === 1 ? '' : 's'} ausente{modHoy.ausencias.length === 1 ? '' : 's'}
-              </p>
-            </div>
-            <BotonVer onClick={() => setVistaActual('horario' as never)} label="Ver detalle" />
-          </TarjetaInicio>
-        )}
-
-        {modFuturas.map((m) => (
-          <TarjetaInicio key={m.id} bg="bg-card" borde="border-line" texto="text-strong">
-            <span className="text-base leading-none">📅</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">Modificación de horario próxima</p>
-              <p className="text-xs mt-0.5 text-muted">{formatearFechaLegible(m.fecha)} · jornada {m.jornada}</p>
-            </div>
-            <BotonVer onClick={() => setVistaActual('horario' as never)} label="Ver" />
-          </TarjetaInicio>
-        ))}
-
-        {jornadaHoy && (
-          <TarjetaInicio bg="bg-warning-soft" borde="border-warning" texto="text-warning-soft-fg">
-            <span className="text-base leading-none">⏰</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">Jornada acortada hoy</p>
-              <p className="text-xs mt-0.5 opacity-90">
-                {jornadaHoy.horaInicio}–{jornadaHoy.horaFin} · {jornadaHoy.motivo}
-              </p>
-            </div>
-          </TarjetaInicio>
-        )}
-
-        {esDocente && proximaClase && (
-          <TarjetaInicio bg="bg-success-soft" borde="border-line" texto="text-success-soft-fg">
-            <span className="text-base leading-none">🕐</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">
-                {proximaClase.enCurso ? 'Ahora' : 'Siguiente'}: {proximaClase.ordinal} hora — {proximaClase.grado} en {proximaClase.aula}
-              </p>
-              <p className="text-xs mt-0.5 opacity-90">Desde las {proximaClase.hora}</p>
-            </div>
-          </TarjetaInicio>
-        )}
-
-        {esDocente && !proximaClase && (
-          <TarjetaInicio bg="bg-card" borde="border-line" texto="text-muted">
-            <span className="text-base leading-none">🌤</span>
-            <p className="text-sm">No tienes más clases hoy.</p>
-          </TarjetaInicio>
-        )}
-
-        {esDocente && acompanamientoHoy && (
-          <TarjetaInicio bg="bg-card" borde="border-line" texto="text-strong">
-            <span className="text-base leading-none">🧭</span>
-            <p className="text-sm">Hoy te toca acompañamiento en <strong>{acompanamientoHoy.lugar}</strong>.</p>
-          </TarjetaInicio>
-        )}
-
-        {esCoordinador && modsProximas.length > 0 && (
-          <TarjetaInicio bg="bg-card" borde="border-line" texto="text-strong">
-            <span className="text-base leading-none">📊</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">
-                {modsProximas.length} modificación{modsProximas.length === 1 ? '' : 'es'} de horario en los próximos 14 días
-              </p>
-            </div>
-            <BotonVer onClick={() => setVistaActual('admin' as never)} label="Ver panel" />
-          </TarjetaInicio>
-        )}
-
-        {agendaHoy && (agendaHoy.actividades.length > 0 || agendaHoy.festivo) && (
-          <TarjetaInicio bg="bg-card" borde="border-line" texto="text-strong">
-            <span className="text-base leading-none">📰</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">Agenda institucional de hoy</p>
-              {agendaHoy.festivo && <p className="text-xs mt-0.5 text-muted">{agendaHoy.festivo}</p>}
-              <ul className="mt-1 space-y-0.5">
-                {agendaHoy.actividades.slice(0, 3).map((a, i) => (
-                  <li key={i} className="text-xs text-muted truncate">
-                    {a.hora ? `${a.hora} — ` : ''}{a.actividad}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <BotonVer onClick={() => setVistaActual('agenda' as never)} label="Ver" />
-          </TarjetaInicio>
-        )}
-      </section>
-
-      {/* ── Bloque B: Accesos rápidos ────────────────────────────────────── */}
-      {accesos.length > 0 && (
+      {/* ── Bloque A: Tu día — banners con scroll lateral ────────────────── */}
+      {avisos.length > 0 && (
         <section>
-          <h2 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Accesos rápidos</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            {accesos.map((item) => (
-              <motion.button
-                key={item.id}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => setVistaActual(item.id as never)}
-                className="flex flex-col items-start gap-1 p-3 rounded-xl bg-card border border-line hover:bg-hover hover:border-line-strong transition text-left"
-              >
-                <span className="text-xl leading-none">{EMOJI_NAV[item.id] ?? '▫️'}</span>
-                <span className="text-sm font-medium text-strong mt-1">{item.label}</span>
-                <span className="text-xs text-muted leading-snug">{item.descripcion}</span>
-              </motion.button>
+          <h2 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Tu día</h2>
+          <div className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0">
+            {avisos.map((a) => (
+              <BannerAviso key={a.id} aviso={a} />
             ))}
           </div>
         </section>
       )}
+
+      {/* ── Bloque B: ¿Qué deseas hacer? — baldosas con scroll lateral ───── */}
+      {accesos.length > 0 && (
+        <section>
+          <h2 className="text-base font-semibold text-strong mb-3">¿Qué deseas hacer?</h2>
+          <div className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0">
+            {accesos.map((item) => (
+              <BaldosaNeon
+                key={item.id}
+                id={item.id}
+                label={item.label}
+                onClick={() => setVistaActual(item.id as never)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
 
       {/* ── Bloque C: Chat ────────────────────────────────────────────────── */}
       <ChatResumen />
@@ -287,24 +297,70 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
 
 // ── Componentes auxiliares ─────────────────────────────────────────────────
 
-function TarjetaInicio({
-  bg, borde, texto, children,
-}: { bg: string; borde: string; texto: string; children: React.ReactNode }) {
+/**
+ * Banner del carrusel "Tu día": franja de color con el icono a la izquierda
+ * y el texto a la derecha. El color viene del propio aviso y tiñe borde,
+ * fondo de la franja y resplandor del trazo.
+ */
+function BannerAviso({ aviso }: { aviso: Aviso }) {
+  const { color, Icono, titulo, detalle, accion } = aviso;
   return (
-    <div className={cn('flex items-start gap-3 p-3 rounded-xl border', bg, borde, texto)}>
-      {children}
+    <div
+      className="flex-shrink-0 w-[270px] sm:w-[300px] flex rounded-2xl border overflow-hidden bg-card"
+      style={{ borderColor: `${color}44` }}
+    >
+      <div
+        className="w-[78px] flex-shrink-0 flex items-center justify-center"
+        style={{ background: `${color}1a` }}
+      >
+        <Icono
+          className="w-9 h-9"
+          style={{ color, filter: `drop-shadow(0 0 7px ${color}80)` }}
+        />
+      </div>
+      <div className="flex-1 min-w-0 p-3 flex flex-col justify-center">
+        <p className="text-sm font-semibold text-strong leading-snug">{titulo}</p>
+        {detalle && <p className="text-xs text-muted mt-1 leading-snug line-clamp-2">{detalle}</p>}
+        {accion && (
+          <button
+            onClick={accion.onClick}
+            className="mt-2 self-start text-xs font-semibold hover:underline"
+            style={{ color }}
+          >
+            {accion.label}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-function BotonVer({ onClick, label }: { onClick: () => void; label: string }) {
+/**
+ * Baldosa de "¿Qué deseas hacer?": cuadro tintado con el icono de línea
+ * resplandeciente y la etiqueta debajo, al estilo de las acciones rápidas
+ * de Acrobat.
+ */
+function BaldosaNeon({ id, label, onClick }: { id: string; label: string; onClick: () => void }) {
+  const { Icono, color } = neonDe(id);
   return (
-    <button
+    <motion.button
+      whileTap={{ scale: 0.94 }}
       onClick={onClick}
-      className="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg bg-elevated text-strong hover:opacity-80 transition"
+      className="group flex-shrink-0 w-[84px] flex flex-col items-center gap-2 focus:outline-none"
     >
-      {label}
-    </button>
+      <div
+        className="w-[70px] h-[70px] rounded-2xl border flex items-center justify-center transition-colors"
+        style={{ background: `${color}14`, borderColor: `${color}33` }}
+      >
+        <Icono
+          className="w-8 h-8 transition-transform group-hover:scale-110"
+          style={{ color, filter: `drop-shadow(0 0 7px ${color}80)` }}
+        />
+      </div>
+      <span className="text-[11px] leading-tight text-center text-soft group-hover:text-strong transition-colors">
+        {label}
+      </span>
+    </motion.button>
   );
 }
 
