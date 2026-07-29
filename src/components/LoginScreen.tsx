@@ -393,12 +393,16 @@ export default function LoginScreen() {
 
               {/* Footer */}
               <div className="px-6 pb-5 text-center space-y-2">
-                <button
-                  onClick={() => setModoRecup(true)}
-                  className="text-xs text-muted hover:text-soft transition block w-full"
-                >
-                  ¿Olvidaste tu PIN?
-                </button>
+                {/* La recuperación de PIN solo aplica al modo pin; en modo
+                    google la identidad la gestiona el Workspace del colegio. */}
+                {AUTH_MODE !== 'google' && (
+                  <button
+                    onClick={() => setModoRecup(true)}
+                    className="text-xs text-muted hover:text-soft transition block w-full"
+                  >
+                    ¿Olvidaste tu PIN?
+                  </button>
+                )}
                 <button
                   onClick={() => setInstalarOpen(true)}
                   className="text-xs text-muted hover:text-soft transition block w-full"
