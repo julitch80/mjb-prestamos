@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../data/store';
 import { useChatStore } from '../data/chatStore';
-import { firebaseConfigurado } from '../lib/firebase';
+import { esperarAuth, firebaseConfigurado } from '../lib/firebase';
 import { esDirectivo } from '../data/maestros';
 import {
   abrirDm,
@@ -45,7 +45,6 @@ export default function Chat() {
     canales,
     mensajesPorCanal,
     canalActivo,
-    initChat,
     abrirCanal,
     enviar,
     noLeidos,
@@ -59,12 +58,13 @@ export default function Chat() {
   const [texto, setTexto] = useState('');
   const finRef = useRef<HTMLDivElement>(null);
 
+  // initChat lo dispara App.tsx, que sí conoce sede y jornada del usuario.
   useEffect(() => {
-    if (firebaseConfigurado) {
-      initChat(rol);
-      listarUsuariosParaDm().then(setDirectorio).catch(() => {});
-    }
-  }, [rol, initChat]);
+    if (!firebaseConfigurado) return;
+    void esperarAuth().then((haySesion) => {
+      if (haySesion) listarUsuariosParaDm().then(setDirectorio).catch(() => {});
+    });
+  }, [rol]);
 
   const mensajes = canalActivo ? mensajesPorCanal[canalActivo] ?? [] : [];
 

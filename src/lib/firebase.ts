@@ -1,5 +1,5 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getFunctions, type Functions } from 'firebase/functions';
 
@@ -18,3 +18,20 @@ export const app: FirebaseApp | null = firebaseConfigurado ? initializeApp(cfg a
 export const auth: Auth | null = app ? getAuth(app) : null;
 export const db: Firestore | null = app ? getFirestore(app) : null;
 export const functions: Functions | null = app ? getFunctions(app, 'us-central1') : null;
+
+/**
+ * Resuelve cuando Firebase Auth ya restauró (o descartó) la sesión.
+ * Al recargar la página, el store persistido conoce al usuario mucho antes de
+ * que `auth.currentUser` exista; sin esperar, toda lectura de Firestore se
+ * dispara sin credenciales y falla en silencio.
+ */
+export function esperarAuth(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!auth) return resolve(false);
+    if (auth.currentUser) return resolve(true);
+    const off = onAuthStateChanged(auth, (user) => {
+      off();
+      resolve(Boolean(user));
+    });
+  });
+}

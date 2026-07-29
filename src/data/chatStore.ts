@@ -2,7 +2,7 @@
 // Solo hace algo si AUTH_MODE === 'google' y Firebase está configurado; en
 // modo pin todas las acciones son no-op y no se adjunta ningún listener.
 import { create } from 'zustand';
-import { firebaseConfigurado } from '../lib/firebase';
+import { esperarAuth, firebaseConfigurado } from '../lib/firebase';
 import { AUTH_MODE } from './authStore';
 import {
   cargarReadStates,
@@ -46,6 +46,9 @@ const DIRECTIVOS = ['coordinador', 'rectora', 'superusuario'];
 
 let unsubCanales: (() => void) | null = null;
 let unsubMensajes: (() => void) | null = null;
+// Clave del contexto ya inicializado (rol/sede/jornada). Si cambia — p. ej. al
+// alternar Docente/Superusuario — hay que rehacer los listeners.
+let claveIniciada: string | null = null;
 
 export const useChatStore = create<ChatState>((set, get) => ({
   canales: [],
@@ -56,28 +59,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   initChat: (miRol, miSede = 'central', miJornada = 'manana') => {
     if (!habilitado()) return;
-    if (get().iniciado) return;
+    const clave = `${miRol}|${miSede}|${miJornada}`;
+    if (claveIniciada === clave) return;
+    claveIniciada = clave;
     set({ iniciado: true });
-    // Estados de lectura iniciales (para badges de no-leídos).
-    cargarReadStates()
-      .then((raw) => {
-        const rs: Record<string, number> = {};
-        for (const k of Object.keys(raw)) rs[k] = toMs(raw[k]);
-        set({ readStates: rs });
-      })
-      .catch(() => {});
-    // Listener de canales.
-    unsubCanales?.();
-    unsubCanales = escucharCanales(
-      miRol,
-      (canales) => {
-        canales.sort((a, b) => toMs(b.lastMessageAt) - toMs(a.lastMessageAt));
-        set({ canales });
-      },
-      miSede,
-      miJornada,
-      DIRECTIVOS.includes(miRol),
-    );
+    void esperarAuth().then((haySesion) => {
+      // Si la sesión se perdió o el contexto cambió mientras esperábamos, salir.
+      if (!haySesion || claveIniciada !== clave) return;
+      // Estados de lectura iniciales (para badges de no-leídos).
+      cargarReadStates()
+        .then((raw) => {
+          const rs: Record<string, number> = {};
+          for (const k of Object.keys(raw)) rs[k] = toMs(raw[k]);
+          set({ readStates: rs });
+        })
+        .catch(() => {});
+      // Listener de canales.
+      unsubCanales?.();
+      unsubCanales = escucharCanales(
+        miRol,
+        (canales) => {
+          canales.sort((a, b) => toMs(b.lastMessageAt) - toMs(a.lastMessageAt));
+          set({ canales });
+        },
+        miSede,
+        miJornada,
+        DIRECTIVOS.includes(miRol),
+      );
+    });
   },
 
   abrirCanal: (channelId) => {
@@ -97,6 +106,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     unsubMensajes?.();
     unsubCanales = null;
     unsubMensajes = null;
+    claveIniciada = null;
     set({
       canales: [],
       mensajesPorCanal: {},
