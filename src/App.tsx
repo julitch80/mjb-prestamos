@@ -63,6 +63,8 @@ export default function App() {
   const sedeActual = useAppStore(s => s.sedeActual);
   const identidadReal = useAppStore(s => s.identidadReal);
   const salirSimulacion = useAppStore(s => s.salirSimulacion);
+  const entrarModoDocente = useAppStore(s => s.entrarModoDocente);
+  const volverModoSuperusuario = useAppStore(s => s.volverModoSuperusuario);
   const [menuSedeAbierto, setMenuSedeAbierto] = useState(false);
 
   const notificaciones = useAppStore(s => s.notificaciones);
@@ -127,6 +129,10 @@ export default function App() {
     // El chat solo tiene sentido en modo google (Firebase). En modo pin se oculta.
     .filter(item => item.id !== 'chat' || AUTH_MODE === 'google');
   const usuario  = USUARIOS.find(u => u.id === userId);
+  const rolReal = identidadReal?.rol ?? rol;
+  const esSuperusuarioReal = rolReal === 'superusuario';
+  const esModoDocentePropio = !!identidadReal && identidadReal.userId === userId;
+  const simulandoOtro = !!identidadReal && identidadReal.userId !== userId;
 
   return (
     <div className={cn('min-h-screen flex flex-col')}>
@@ -161,6 +167,34 @@ export default function App() {
           {/* Acciones derecha */}
           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
 
+            {/* Interruptor modo docente / superusuario — solo si el rol REAL es superusuario */}
+            {esSuperusuarioReal && (
+              <div className="flex items-center rounded-full border border-line bg-elevated p-0.5 text-xs font-medium flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={entrarModoDocente}
+                  className={cn(
+                    'px-2.5 py-1 rounded-full transition',
+                    rol !== 'superusuario' ? 'bg-hover text-strong' : 'text-muted hover:text-strong'
+                  )}
+                  title="Modo docente — tu propio perfil"
+                >
+                  👤 <span className="hidden sm:inline">Docente</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={volverModoSuperusuario}
+                  className={cn(
+                    'px-2.5 py-1 rounded-full transition',
+                    rol === 'superusuario' ? 'bg-hover text-strong' : 'text-muted hover:text-strong'
+                  )}
+                  title="Modo superusuario — panel administrativo"
+                >
+                  🛡 <span className="hidden sm:inline">Superusuario</span>
+                </button>
+              </div>
+            )}
+
             {/* Pastilla de sede — solo directivos, pueden cambiar en cualquier momento */}
             {esDirectivo(rol) && <SelectorSedePastilla />}
 
@@ -168,10 +202,10 @@ export default function App() {
             <div
               className={cn(
                 'hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border',
-                identidadReal ? 'border-dashed border-warning' : 'border-line'
+                simulandoOtro ? 'border-dashed border-warning' : 'border-line'
               )}
               style={{ backgroundColor: ROL_COLOR[rol ?? 'docente'], color: usuario?.color ?? 'var(--color-strong)' }}
-              title={identidadReal ? `Viendo como ${nombre} — identidad real: ${identidadReal.nombre}` : undefined}
+              title={simulandoOtro ? `Viendo como ${nombre} — identidad real: ${identidadReal?.nombre}` : undefined}
             >
               <span
                 className="w-1.5 h-1.5 rounded-full flex-shrink-0"
@@ -236,8 +270,23 @@ export default function App() {
         </div>
       </header>
 
-      {/* ── Banner "Ver como" — visible en toda la app mientras hay simulación ── */}
-      {identidadReal && (
+      {/* ── Franja "modo docente" — el superusuario viéndose a sí mismo ── */}
+      {esModoDocentePropio && (
+        <div className="w-full bg-info-soft border-b border-info text-info-soft-fg">
+          <div className="max-w-7xl mx-auto px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="leading-snug">Estás viendo la app en modo docente.</span>
+            <button
+              onClick={volverModoSuperusuario}
+              className="flex-shrink-0 underline hover:opacity-80 transition font-medium"
+            >
+              Volver a superusuario
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Banner "Ver como" — visible en toda la app mientras se simula a OTRA persona ── */}
+      {simulandoOtro && identidadReal && (
         <div className="w-full bg-warning-soft border-b border-warning text-warning-soft-fg">
           <div className="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
             <span className="leading-snug">

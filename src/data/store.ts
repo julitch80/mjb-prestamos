@@ -73,6 +73,10 @@ interface AppState {
   simularUsuario: (userId: string) => void;
   salirSimulacion: () => void;
 
+  // Interruptor modo docente/superusuario (superusuario viéndose a sí mismo)
+  entrarModoDocente: () => void;
+  volverModoSuperusuario: () => void;
+
   // Acciones sede
   setSedeActual: (sede: SedeId) => void;
 
@@ -186,6 +190,47 @@ export const useAppStore = create<AppState>()(
         }),
 
       salirSimulacion: () =>
+        set((s) => {
+          if (!s.identidadReal) return s;
+          const { userId, nombre, rol, jornada } = s.identidadReal;
+          return {
+            userId, nombre, rol, jornada,
+            identidadReal: null,
+            vistaActual: vistaInicialDeRol(rol),
+          };
+        }),
+
+      // Interruptor rápido: el superusuario se ve a sí mismo con su rol de
+      // base (normalmente 'docente'). Es un caso particular de simularUsuario
+      // donde el objetivo es la propia identidad real.
+      entrarModoDocente: () =>
+        set((s) => {
+          const rolBase = s.identidadReal?.rol ?? s.rol;
+          if (rolBase !== 'superusuario') return s;
+          const propioId = s.identidadReal?.userId ?? s.userId;
+          if (!propioId) return s;
+          const objetivo = USUARIOS.find((u) => u.id === propioId);
+          if (!objetivo) return s;
+          const identidadReal =
+            s.identidadReal ?? {
+              userId: s.userId ?? '',
+              nombre: s.nombre ?? '',
+              rol: s.rol ?? '',
+              jornada: s.jornada ?? '',
+            };
+          const jornadaSimulada = objetivo.jornada === 'ambas' ? 'manana' : objetivo.jornada;
+          return {
+            identidadReal,
+            userId: objetivo.id,
+            nombre: objetivo.nombre,
+            rol: objetivo.rol,
+            jornada: jornadaSimulada,
+            vistaActual: vistaInicialDeRol(objetivo.rol),
+            sedeActual: esDirectivo(objetivo.rol) ? s.sedeActual : sedeDeUsuario(objetivo.id),
+          };
+        }),
+
+      volverModoSuperusuario: () =>
         set((s) => {
           if (!s.identidadReal) return s;
           const { userId, nombre, rol, jornada } = s.identidadReal;

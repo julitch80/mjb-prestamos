@@ -209,7 +209,9 @@ export default function PanelSuperusuario() {
   }
 
   const puedeVerComo = rol === 'superusuario' || !!identidadReal;
+  const propioIdReal = identidadReal?.userId ?? userId;
   const usuariosFiltrados = USUARIOS.filter((u) => {
+    if (u.id === propioIdReal) return false; // para verse a sí mismo está el interruptor del header
     const q = busquedaVerComo.trim().toLowerCase();
     if (!q) return true;
     return u.nombre.toLowerCase().includes(q) || u.nombreCorto.toLowerCase().includes(q) || u.rol.includes(q);
