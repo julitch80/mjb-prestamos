@@ -167,9 +167,11 @@ export default function App() {
           {/* Acciones derecha */}
           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
 
-            {/* Interruptor modo docente / superusuario — solo si el rol REAL es superusuario */}
+            {/* Interruptor modo docente / superusuario — solo si el rol REAL es
+                superusuario. En móvil no cabe en el header (se superponía con el
+                menú), así que ahí se muestra en su propia barra bajo el header. */}
             {esSuperusuarioReal && (
-              <div className="flex items-center rounded-full border border-line bg-elevated p-0.5 text-xs font-medium flex-shrink-0">
+              <div className="hidden sm:flex items-center rounded-full border border-line bg-elevated p-0.5 text-xs font-medium flex-shrink-0">
                 <button
                   type="button"
                   onClick={entrarModoDocente}
@@ -179,7 +181,7 @@ export default function App() {
                   )}
                   title="Modo docente — tu propio perfil"
                 >
-                  👤 <span className="hidden sm:inline">Docente</span>
+                  👤 Docente
                 </button>
                 <button
                   type="button"
@@ -190,7 +192,7 @@ export default function App() {
                   )}
                   title="Modo superusuario — panel administrativo"
                 >
-                  🛡 <span className="hidden sm:inline">Superusuario</span>
+                  🛡 Superusuario
                 </button>
               </div>
             )}
@@ -269,6 +271,39 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* ── Interruptor de modo en móvil ──────────────────────────────────
+          En pantallas pequeñas el header no tiene espacio (el interruptor se
+          superponía con el menú), así que aquí va en su propia barra. */}
+      {esSuperusuarioReal && (
+        <div className="sm:hidden w-full border-b border-line bg-card/70">
+          <div className="max-w-7xl mx-auto px-4 py-2 flex items-center gap-2">
+            <span className="text-[11px] text-muted flex-shrink-0">Modo:</span>
+            <div className="flex items-center rounded-full border border-line bg-elevated p-0.5 text-xs font-medium flex-1">
+              <button
+                type="button"
+                onClick={entrarModoDocente}
+                className={cn(
+                  'flex-1 px-3 py-1.5 rounded-full transition',
+                  rol !== 'superusuario' ? 'bg-hover text-strong' : 'text-muted'
+                )}
+              >
+                👤 Docente
+              </button>
+              <button
+                type="button"
+                onClick={volverModoSuperusuario}
+                className={cn(
+                  'flex-1 px-3 py-1.5 rounded-full transition',
+                  rol === 'superusuario' ? 'bg-hover text-strong' : 'text-muted'
+                )}
+              >
+                🛡 Superusuario
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Franja "modo docente" — el superusuario viéndose a sí mismo ── */}
       {esModoDocentePropio && (
