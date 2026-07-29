@@ -90,9 +90,22 @@ retirados.
 `grado.includes('º')`. Respetarlo o el módulo mostrará grupos de la jornada
 equivocada.
 
-**Los bloques horarios difieren por jornada.** Seis bloques en cada una, con
-horas distintas, más dos recreos. Están en `src/data/maestros.ts` como
-`BLOQUES_MANANA` y `BLOQUES_TARDE`. No redefinirlos.
+**Los bloques horarios difieren por jornada, y son SEIS, no ocho.** Numerados
+`1..6` en cada jornada, con horas distintas y dos recreos intercalados. Están en
+`src/data/maestros.ts` como `BLOQUES_MANANA` y `BLOQUES_TARDE`. No redefinirlos
+ni asumir un rango 1–8.
+
+**No sanear la notación de los grados.** Convertir `6º1` en `6-1` borra la `º`
+con la que la app distingue jornada: es un bug silencioso que aparece semanas
+después. Los identificadores de documento de Firestore aceptan UTF-8; `6º1` es
+un id válido. Lo único prohibido en un id es `/`, los nombres `.` y `..`, y el
+patrón `__algo__`. Si hace falta una clave normalizada para otra cosa, se guarda
+aparte y **el grado original se conserva literal en su propio campo**.
+
+**Hay tres sedes, no una.** `central`, `gustavo_rodas` y `la_finquita`. Las dos
+últimas son de primaria y están en configuración, pero el campo `sede` debe
+existir en el modelo desde el principio, con `central` por defecto. Añadirlo
+después obliga a migrar datos.
 
 **El horario base son 600 entradas** en `src/data/horarioBase.ts`, con forma
 `{ dia, bloque, jornada, docente, grado, aula }`. Es la fuente para saber quién
@@ -187,24 +200,73 @@ con URLs.
 2. **Bloque de reglas de Firestore**, en un archivo aparte, con solo los
    `match` del módulo. Sin `rules_version`, sin `service cloud.firestore`, sin
    redefinir los helpers (`callerEmail`, `isInstitutional`, `callerDoc`,
-   `isActiveUser`, `isSuper`) — se reusan los existentes. **No pegarlo después
-   de la regla `match /{document=**}`**: esa niega todo lo no declarado y va
-   siempre al final; un bloque colocado detrás queda muerto sin dar error.
+   `isActiveUser`, `isSuper`) — se reusan los existentes. Por convención se
+   pega antes del `match /{document=**}` final, para mantener el archivo
+   legible.
+
+   > **Aclaración importante, porque una versión anterior de este documento
+   > decía lo contrario:** las reglas de Firestore se evalúan **en unión**. Si
+   > cualquier `allow` del archivo concede el acceso, el acceso se concede. No
+   > hay precedencia por orden ni "gana la primera coincidencia", y un bloque
+   > colocado después del catch-all funcionaría igual.
+   >
+   > La consecuencia práctica es la que importa: **`match /{document=**} { allow
+   > read, write: if false; }` NO es una red de seguridad.** Solo cubre lo que
+   > ninguna otra regla permitió. No protege de un `allow` demasiado amplio
+   > escrito en cualquier otro punto del archivo. Cada bloque debe ser correcto
+   > por sí solo; nada lo va a acotar después.
 3. **Índices compuestos** que necesiten las consultas, declarados.
 4. **Documento del modelo de datos**: colecciones, campos, tipos, qué rol lee y
    qué rol escribe cada uno.
 5. **Funciones** (si hay) en su propio codebase `asistencia`.
 6. **Lista de dependencias npm nuevas**, si hay, con justificación.
 
-### Nota sobre el costo de los helpers
+### Granularidad de los documentos, y cómo NO perder el conflicto por celda
 
 `callerDoc()` hace un `get()` a `users/{email}`, y **eso es una lectura
-facturable cada vez que se evalúa una regla**. En operaciones por lotes sobre
-muchos documentos (pasar lista de un grupo completo, por ejemplo) se multiplica.
-Conviene diseñar las escrituras de asistencia como pocos documentos grandes —
-por ejemplo, un documento por grupo/fecha/bloque con el listado dentro — en vez
-de un documento por estudiante y hora. Esto es una decisión de modelado que hay
-que tomar temprano, no al final.
+facturable cada vez que se evalúa una regla**. Un documento por estudiante y por
+hora multiplica ese costo por el número de estudiantes del grupo en cada pase de
+lista. Por eso el modelo debe ser **un documento por sesión**
+(grupo + fecha + bloque), con el listado dentro.
+
+La objeción legítima a eso es que el mecanismo de conflictos deja de operar por
+celda y pasa a operar por sesión completa. **Se resuelve sin renunciar a la
+granularidad fina:** guardar los estudiantes como un **mapa**, no como un array,
+y escribir siempre con rutas de campo puntuales:
+
+```ts
+// Correcto: dos docentes tocando estudiantes distintos NO se pisan.
+await updateDoc(ref, {
+  'estudiantes.est_0412.estado': 'presente',
+  'estudiantes.est_0412.registradoPor': miEmail(),
+  'estudiantes.est_0412.registradoEn': serverTimestamp(),
+});
+
+// Incorrecto: reescribe el mapa entero y borra el trabajo del otro.
+await updateDoc(ref, { estudiantes: mapaCompletoLocal });
+```
+
+Firestore fusiona a nivel de campo, así que el conflicto sigue siendo por
+estudiante: mismo comportamiento que antes, con un documento en vez de treinta.
+La regla que exige un array o un mapa completo es lo que rompería esto, así que
+las reglas deben validar con `diff().affectedKeys()` sobre las claves tocadas, no
+sobre el mapa entero.
+
+### Un límite de las reglas que hay que tener presente
+
+Las reglas de Firestore **no pueden consultar `horarioBase.ts`**: viven en el
+servidor y ese archivo está en el bundle del cliente. Es decir, **no hay forma de
+que una regla verifique que quien pasa lista es el docente asignado a esa hora**,
+salvo espejando el horario completo en Firestore (600 entradas más las
+modificaciones diarias, con el costo y la desincronización que implica).
+
+La decisión recomendada es no espejarlo: permitir que **cualquier docente activo**
+escriba asistencia, y dejar **rastro obligatorio de autoría** (`registradoPor`,
+`registradoEn`, inmutables una vez escritos) para que cualquier registro indebido
+sea visible y atribuible. En un colegio de ~34 docentes identificados por correo
+institucional, la trazabilidad es una garantía más realista que el control previo.
+Si Julián prefiere el control estricto, hay que espejar el horario y asumir su
+costo — pero es su decisión, no un detalle de implementación.
 
 ---
 
