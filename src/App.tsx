@@ -132,7 +132,14 @@ export default function App() {
     .filter(item => item.id !== 'chat' || AUTH_MODE === 'google');
   const usuario  = USUARIOS.find(u => u.id === userId);
   const rolReal = identidadReal?.rol ?? rol;
-  const esSuperusuarioReal = rolReal === 'superusuario';
+  // El interruptor Docente/Superusuario solo tiene sentido si el superusuario
+  // ocupa además un puesto docente (tiene entrada en USUARIOS): es lo que le da
+  // horario y clases propias. Una cuenta puramente administrativa como
+  // admin.asistencia no tiene a qué cambiar, y el botón se quedaba visible pero
+  // muerto — entrarModoDocente() no encuentra el puesto y no hace nada.
+  const userIdReal = identidadReal?.userId ?? userId;
+  const tienePuestoDocente = USUARIOS.some(u => u.id === userIdReal);
+  const esSuperusuarioReal = rolReal === 'superusuario' && tienePuestoDocente;
   const esModoDocentePropio = !!identidadReal && identidadReal.userId === userId;
   const simulandoOtro = !!identidadReal && identidadReal.userId !== userId;
 
