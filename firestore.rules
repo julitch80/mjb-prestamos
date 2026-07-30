@@ -73,9 +73,12 @@ service cloud.firestore {
         && request.resource.data.role in ['docente', 'coordinador', 'superusuario', 'rectora']
         && request.resource.data.active is bool
         && request.resource.data.displayName is string;
+      // 'grupoDirigido' lo exige el modulo de asistencia: es como sus reglas
+      // resuelven quien dirige un grupo (no existe un role 'director'). Sin este
+      // campo en el documento, asisIsDirectorOf() falla para todo el mundo.
       allow update: if isSuper()
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['displayName', 'role', 'active', 'replacedBy', 'replacedAt', 'slotId', 'sede', 'jornada'])
+             .hasOnly(['displayName', 'role', 'active', 'replacedBy', 'replacedAt', 'slotId', 'sede', 'jornada', 'grupoDirigido'])
         && !(email == callerEmail()
              && (request.resource.data.role != resource.data.role
                  || request.resource.data.active != resource.data.active));
@@ -145,6 +148,231 @@ service cloud.firestore {
       allow read, write: if isSuper();
       allow delete: if false;
     }
+    // =========================================================================
+    //  BLOQUE DE REGLAS DEL MODULO DE ASISTENCIA
+    //
+    //  Integrado desde el repo de asistencia (rules/asistencia.rules). Se pega
+    //  aqui porque Firestore admite un solo archivo de reglas por proyecto.
+    //  ESTE archivo es el que se despliega: no editar el fragmento de alla y
+    //  este a la vez, o divergen sin que nadie lo note.
+    // =========================================================================
+
+
+    // ---------- Helpers propios del modulo (nombres nuevos, no pisan los de MJB) ----------
+
+    function asisIsCoordinador() {
+      return isActiveUser() && callerDoc().role == 'coordinador';
+    }
+
+    // El superusuario carga datos base pero NUNCA registra: su clave es transferible, asi
+    // que sus actos no serian atribuibles a una persona fisica.
+    function asisCanRecord() {
+      return isActiveUser() && callerDoc().role != 'superusuario';
+    }
+
+    // Director de grupo: no es un valor de `role`. Se resuelve contra el grado que el
+    // documento lleva denormalizado, porque las reglas no pueden consultar colecciones.
+    function asisIsDirectorOf(grado) {
+      return isActiveUser() && callerDoc().grupoDirigido == grado;
+    }
+
+    // Sello de autoria a nivel de documento. Es lo unico que el servidor puede garantizar
+    // cuando una misma escritura toca varios estudiantes del mapa (las reglas no iteran).
+    function asisAuthorStamp() {
+      return request.resource.data.ultimaEscrituraPor == callerEmail()
+        && request.resource.data.ultimaEscrituraEn == request.time;
+    }
+
+    // ---------- Sesiones de clase: el documento central ----------
+    match /asistenciaSessions/{sessionId} {
+
+      // Lectura amplia entre usuarios activos: el reporte de tercera hora necesita ver
+      // todos los grados, y el docente necesita su planilla. El dato sensible (motivos de
+      // justificacion, que pueden incluir salud) se filtra en la interfaz por rol; lo que
+      // aqui se protege es la ESCRITURA.
+      allow read: if isActiveUser();
+
+      // Decision (a) del contrato: cualquier docente activo puede abrir una sesion. El
+      // horario propone, no prohibe — los reemplazos improvisados son el dia a dia, y una
+      // sesion bloqueada es una sesion que no existe para la estadistica.
+      allow create: if asisCanRecord()
+        && request.resource.data.createdBy == callerEmail()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.closed == false
+        && request.resource.data.grado is string
+        && request.resource.data.fecha is string
+        && request.resource.data.bloque is int
+        && request.resource.data.bloque >= 1
+        && request.resource.data.bloque <= 6
+        && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
+        && request.resource.data.jornada in ['manana', 'tarde']
+        && asisAuthorStamp();
+
+      // Actualizacion: o se marcan estudiantes, o se cierra la sesion. Nunca se puede
+      // reescribir la identidad de la sesion ni quien la creo.
+      allow update: if asisCanRecord()
+        && asisAuthorStamp()
+        && request.resource.data.grado == resource.data.grado
+        && request.resource.data.fecha == resource.data.fecha
+        && request.resource.data.bloque == resource.data.bloque
+        && request.resource.data.subjectId == resource.data.subjectId
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['estudiantes', 'closed', 'closedBy', 'closedAt',
+                       'ultimaEscrituraPor', 'ultimaEscrituraEn'])
+        // Si se cierra la sesion, queda dicho quien la cerro.
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['closed'])
+            || request.resource.data.closedBy == callerEmail());
+
+      allow delete: if false;   // no se borra: se corrige, y la correccion deja rastro
+
+      // El historial lo escribe una Cloud Function con Admin SDK. Jamas el cliente: si
+      // dependiera del cliente, una correccion sin rastro seria trivial, y el rastro es
+      // justo lo que protege ante una disputa de una familia.
+      match /historial/{entryId} {
+        allow read: if isSuper() || asisIsCoordinador() || isActiveUser();
+        allow write: if false;
+      }
+    }
+
+    // ---------- Llegadas tarde a la institucion ----------
+    // OJO: no es el `retraso` de clase. Otra autoridad y otra unidad temporal.
+    match /asistenciaLateArrivals/{lateId} {
+
+      allow read: if isSuper()
+        || asisIsCoordinador()
+        || asisIsDirectorOf(resource.data.grado);
+
+      // Autoridad exclusiva del coordinador. Un director de grupo las VE pero no las crea.
+      allow create: if asisIsCoordinador()
+        && request.resource.data.registradoPor == callerEmail()
+        && request.resource.data.registradoEn == request.time
+        && request.resource.data.studentId is string
+        && request.resource.data.grado is string
+        && request.resource.data.fecha is string
+        && request.resource.data.bloqueIngreso is int
+        && request.resource.data.estado in ['sin_justificar', 'pendiente_verificacion', 'justificada'];
+
+      // La verificacion posterior (llamar al acudiente y cerrar el estado) es del
+      // coordinador. La autoria original es inmutable.
+      allow update: if asisIsCoordinador()
+        && request.resource.data.studentId == resource.data.studentId
+        && request.resource.data.fecha == resource.data.fecha
+        && request.resource.data.registradoPor == resource.data.registradoPor
+        && request.resource.data.registradoEn == resource.data.registradoEn
+        && request.resource.data.estado in ['sin_justificar', 'pendiente_verificacion', 'justificada']
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['estado', 'motivo', 'observacion', 'horaLlegada', 'bloqueIngreso',
+                       'resueltoPor', 'resueltoEn'])
+        && request.resource.data.resueltoPor == callerEmail();
+
+      allow delete: if false;
+
+      match /historial/{entryId} {
+        allow read: if isSuper() || asisIsCoordinador();
+        allow write: if false;
+      }
+    }
+
+    // ---------- Contactos con la familia (llamadas y avisos, un solo historial) ----------
+    match /asistenciaFamilyContacts/{contactId} {
+
+      // Las observaciones de las llamadas son solo para coordinacion y direccion de grupo.
+      allow read: if isSuper()
+        || asisIsCoordinador()
+        || asisIsDirectorOf(resource.data.grado);
+
+      allow create: if (asisIsCoordinador() || asisIsDirectorOf(request.resource.data.grado))
+        && request.resource.data.llamadoPor == callerEmail()
+        && request.resource.data.llamadoEn == request.time
+        && request.resource.data.resultado in ['contesto', 'no_contesto', 'pendiente'];
+
+      allow update: if (asisIsCoordinador() || asisIsDirectorOf(resource.data.grado))
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['resultado', 'observacion'])
+        && request.resource.data.resultado in ['contesto', 'no_contesto', 'pendiente'];
+
+      allow delete: if false;
+    }
+
+    // ---------- Fichas de estudiantes ----------
+    match /asistenciaStudents/{studentId} {
+      allow read: if isActiveUser();
+
+      // La creacion masiva la hace la Cloud Function de importacion (Admin SDK).
+      allow create: if isSuper();
+
+      // Edita el superusuario, el coordinador o el director del grupo del estudiante.
+      // Campos blindados: el hash del documento, el token QR y el grado vigente. Si un
+      // director pudiera reescribir `gradoActual`, se auto-otorgaria permiso sobre
+      // cualquier ficha del colegio.
+      allow update: if (isSuper() || asisIsCoordinador() || asisIsDirectorOf(resource.data.gradoActual))
+        && request.resource.data.docHash == resource.data.docHash
+        && request.resource.data.qrToken == resource.data.qrToken
+        && request.resource.data.gradoActual == resource.data.gradoActual;
+
+      allow delete: if false;   // baja logica con activo:false
+
+      match /historial/{entryId} {
+        allow read: if isSuper() || asisIsCoordinador();
+        allow write: if false;
+      }
+    }
+
+    // ---------- Matriculas (grado con vigencia) ----------
+    match /asistenciaEnrollments/{enrollmentId} {
+      allow read: if isActiveUser();
+      allow create, update: if isSuper() || asisIsCoordinador();
+      allow delete: if false;
+    }
+
+    // ---------- Datos base: los carga el superusuario ----------
+    match /asistenciaPeriods/{periodId} {
+      allow read: if isActiveUser();
+      allow create, update: if isSuper();
+      allow delete: if false;
+    }
+
+    // Catalogo de las siete marcas. Se desactivan, nunca se borran: el historico ya
+    // registrado apunta a ellas.
+    match /asistenciaCatalog/{code} {
+      allow read: if isActiveUser();
+      allow create, update: if isSuper();
+      allow delete: if false;
+    }
+
+    // La eleccion Master2000 vs. app, por asignatura y periodo.
+    match /asistenciaSubjectConfigs/{configId} {
+      allow read: if isActiveUser();
+      allow create, update: if asisCanRecord()
+        && request.resource.data.fuente in ['app', 'master2000']
+        && request.resource.data.fijadoPor == callerEmail();
+      allow delete: if false;
+    }
+
+    // Umbrales de alerta. Cada docente puede ajustar el suyo de retrasos; el resto de la
+    // configuracion es del superusuario.
+    match /asistenciaConfig/{docId} {
+      allow read: if isActiveUser();
+      allow write: if isSuper()
+        || (docId == 'alertas' && asisIsCoordinador())
+        || (docId == 'umbralesPorDocente' && asisCanRecord());
+    }
+
+    // ---------- Tokens QR ----------
+    // El token es la unica carga util del QR: una cadena opaca sin datos personales.
+    match /asistenciaQrTokens/{token} {
+      allow read: if isActiveUser();     // hay que poder resolver un escaneo, incluso offline
+      allow write: if false;             // los genera y rota una Cloud Function
+    }
+
+    // ---------- Revision manual de importacion ----------
+    match /asistenciaImportReviews/{reviewId} {
+      allow read: if isSuper();
+      allow write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
