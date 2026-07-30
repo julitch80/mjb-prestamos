@@ -1,0 +1,60 @@
+// ⛔ ARCHIVO COMPARTIDO — proyecto Firebase 'mjb-prestamos'
+//
+// Este proyecto aloja DOS modulos: prestamos (este repo) y asistencia (repo
+// aparte). Cloud Storage admite UN SOLO archivo de reglas por proyecto: el
+// ultimo despliegue REEMPLAZA todo lo anterior, no lo fusiona.
+//
+// Por eso:
+//   - NO despliegues estas reglas desde el repo de asistencia, ni las de
+//     asistencia desde aqui. Quien lo haga deja al otro modulo sin permisos.
+//   - Cualquier ruta nueva debe agregarse a ESTE archivo unificado antes de
+//     desplegar. La regla catch-all del final niega todo lo no declarado.
+//   - Despliegue: `firebase deploy --only storage`.
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Comprobación de dominio institucional. Storage rules NO pueden hacer
+    // get() a Firestore de forma barata (no hay `get()` de documentos como en
+    // firestore.rules), así que aquí NO se puede verificar la pertenencia al
+    // canal (`members` del documento `channels/{channelId}`) ni el estado
+    // `active` del usuario. La URL de descarga con token que genera Firebase
+    // Storage es la que realmente protege el acceso a cada archivo: solo
+    // quien la recibe (por estar en el chat) puede abrirla directamente.
+    function isInstitutional() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower().matches('.*@iemanueljbetancur[.]edu[.]co');
+    }
+
+    function contentTypeValido() {
+      return request.resource.contentType.matches('image/.*')
+        || request.resource.contentType == 'audio/mpeg'
+        || request.resource.contentType == 'application/pdf'
+        || request.resource.contentType == 'application/msword'
+        || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        || request.resource.contentType == 'application/vnd.ms-excel'
+        || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        || request.resource.contentType == 'application/vnd.ms-powerpoint'
+        || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        || request.resource.contentType == 'text/plain';
+    }
+
+    // Adjuntos del chat interno: chat/{channelId}/{fileName}.
+    match /chat/{channelId}/{fileName} {
+      allow read: if isInstitutional();
+      allow write: if isInstitutional()
+        && request.resource.size < 10 * 1024 * 1024
+        && contentTypeValido();
+      // El borrado lo hace la regla de ciclo de vida del bucket a los 90
+      // días, no el cliente.
+      allow delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -2,6 +2,7 @@
 // Solo funciona en modo google con Firebase configurado. En modo pin el item de
 // navegación 'chat' ni siquiera aparece (filtrado en App.tsx).
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Paperclip, Mic, Trash2, Send, FileText, X } from 'lucide-react';
 import { useAppStore } from '../data/store';
 import { useChatStore } from '../data/chatStore';
 import { esperarAuth, firebaseConfigurado } from '../lib/firebase';
@@ -16,6 +17,8 @@ import {
   type Canal,
   type Mensaje,
 } from '../data/chat';
+import { subirAdjunto, pesoLegible, TAMANO_MAXIMO_BYTES, type AdjuntoSubido } from '../data/adjuntos';
+import { crearGrabadora, grabadoraSoportada, type Grabadora } from '../data/audioVoz';
 
 function tsToDate(ts: any): Date | null {
   if (!ts) return null;
@@ -58,7 +61,15 @@ export default function Chat() {
   const [modalCanal, setModalCanal] = useState(false);
   const [modalGrupo, setModalGrupo] = useState(false);
   const [texto, setTexto] = useState('');
+  const [archivoPendiente, setArchivoPendiente] = useState<File | null>(null);
+  const [subiendoPct, setSubiendoPct] = useState<number | null>(null);
+  const [errorAdjunto, setErrorAdjunto] = useState('');
+  const [grabando, setGrabando] = useState(false);
+  const [segundosGrabados, setSegundosGrabados] = useState(0);
   const finRef = useRef<HTMLDivElement>(null);
+  const inputArchivoRef = useRef<HTMLInputElement>(null);
+  const grabadoraRef = useRef<Grabadora | null>(null);
+  const timerGrabacionRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // initChat lo dispara App.tsx, que sí conoce sede y jornada del usuario.
   useEffect(() => {
@@ -110,9 +121,102 @@ export default function Chat() {
 
   async function handleEnviar() {
     const t = texto.trim();
-    if (!t) return;
+    if (!t && !archivoPendiente) return;
+    setErrorAdjunto('');
+    if (archivoPendiente && canalActivo) {
+      setSubiendoPct(0);
+      try {
+        const adjunto: AdjuntoSubido = await subirAdjunto(canalActivo, archivoPendiente, setSubiendoPct);
+        setTexto('');
+        setArchivoPendiente(null);
+        await enviar(t, adjunto);
+      } catch (e: any) {
+        setErrorAdjunto(e?.message || 'No se pudo subir el archivo.');
+      } finally {
+        setSubiendoPct(null);
+      }
+      return;
+    }
     setTexto('');
     await enviar(t);
+  }
+
+  function handleElegirArchivo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setErrorAdjunto('');
+    if (file.size > TAMANO_MAXIMO_BYTES) {
+      setErrorAdjunto('El archivo supera el límite de 10 MB.');
+      return;
+    }
+    setArchivoPendiente(file);
+  }
+
+  async function handleIniciarGrabacion() {
+    if (!grabadoraSoportada()) {
+      setErrorAdjunto('Este dispositivo no permite grabar notas de voz.');
+      return;
+    }
+    setErrorAdjunto('');
+    // Clic para iniciar / clic para detener (no mantener presionado): en
+    // móvil, mantener presionado abre el menú contextual del navegador y es
+    // una interacción frágil de detectar de forma confiable entre iOS/Android.
+    const grabadora = crearGrabadora(() => handleDetenerGrabacion());
+    try {
+      await grabadora.iniciar();
+    } catch (e: any) {
+      setErrorAdjunto(e?.message || 'No se pudo acceder al micrófono.');
+      return;
+    }
+    grabadoraRef.current = grabadora;
+    setSegundosGrabados(0);
+    setGrabando(true);
+    timerGrabacionRef.current = setInterval(() => {
+      setSegundosGrabados((s) => s + 1);
+    }, 1000);
+  }
+
+  function pararTimer() {
+    if (timerGrabacionRef.current) {
+      clearInterval(timerGrabacionRef.current);
+      timerGrabacionRef.current = null;
+    }
+  }
+
+  // La usa tanto el botón de enviar como el corte automático a los 5 minutos.
+  async function handleDetenerGrabacion() {
+    const grabadora = grabadoraRef.current;
+    if (!grabadora) return;
+    pararTimer();
+    setGrabando(false);
+    try {
+      const { blob, duracionSeg } = await grabadora.detener();
+      grabadoraRef.current = null;
+      if (!canalActivo) return;
+      setSubiendoPct(0);
+      const file = new File([blob], `nota_voz_${Date.now()}.mp3`, { type: 'audio/mpeg' });
+      const adjunto = await subirAdjunto(canalActivo, file, setSubiendoPct, duracionSeg);
+      await enviar('', adjunto);
+    } catch (e: any) {
+      setErrorAdjunto(e?.message || 'No se pudo procesar la nota de voz.');
+    } finally {
+      setSubiendoPct(null);
+    }
+  }
+
+  function handleCancelarGrabacion() {
+    pararTimer();
+    grabadoraRef.current?.cancelar();
+    grabadoraRef.current = null;
+    setGrabando(false);
+    setSegundosGrabados(0);
+  }
+
+  function mmss(totalSeg: number): string {
+    const m = Math.floor(totalSeg / 60);
+    const s = totalSeg % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
   }
 
   if (!firebaseConfigurado) {
@@ -300,27 +404,117 @@ export default function Chat() {
               <div ref={finRef} />
             </div>
 
-            <div className="p-3 border-t border-line flex items-end gap-2">
-              <textarea
-                value={texto}
-                onChange={(e) => setTexto(e.target.value.slice(0, 4000))}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleEnviar();
-                  }
-                }}
-                rows={1}
-                placeholder="Escribe un mensaje…"
-                className="flex-1 resize-none px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong max-h-32"
-              />
-              <button
-                onClick={handleEnviar}
-                disabled={!texto.trim()}
-                className="px-4 py-2 rounded-lg bg-accent text-strong text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
-              >
-                Enviar
-              </button>
+            <div className="border-t border-line">
+              {errorAdjunto && (
+                <div className="mx-3 mt-2 px-3 py-2 rounded-lg bg-danger-soft text-danger text-xs">
+                  {errorAdjunto}
+                </div>
+              )}
+
+              {/* Vista previa del archivo elegido, antes de enviar. */}
+              {archivoPendiente && !grabando && (
+                <div className="mx-3 mt-2 flex items-center gap-2 px-2 py-2 rounded-lg bg-elevated border border-line">
+                  {archivoPendiente.type.startsWith('image/') ? (
+                    <img
+                      src={URL.createObjectURL(archivoPendiente)}
+                      alt=""
+                      className="w-10 h-10 rounded object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <FileText size={20} className="text-muted flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs text-strong truncate">{archivoPendiente.name}</div>
+                    <div className="text-[10px] text-muted">{pesoLegible(archivoPendiente.size)}</div>
+                    {subiendoPct !== null && (
+                      <div className="mt-1 h-1 rounded-full bg-card overflow-hidden">
+                        <div
+                          className="h-full bg-accent transition-all"
+                          style={{ width: `${subiendoPct}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {subiendoPct === null && (
+                    <button
+                      onClick={() => setArchivoPendiente(null)}
+                      className="text-muted hover:text-strong flex-shrink-0"
+                      aria-label="Quitar adjunto"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {grabando ? (
+                <div className="p-3 flex items-center gap-3">
+                  <span className="w-2.5 h-2.5 rounded-full bg-danger animate-pulse flex-shrink-0" />
+                  <span className="text-sm text-strong font-medium flex-1">
+                    Grabando… {mmss(segundosGrabados)}
+                  </span>
+                  <button
+                    onClick={handleCancelarGrabacion}
+                    className="p-2 rounded-lg bg-elevated text-muted hover:text-danger transition"
+                    aria-label="Cancelar grabación"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                  <button
+                    onClick={() => handleDetenerGrabacion()}
+                    className="p-2 rounded-lg bg-accent text-strong hover:opacity-90 transition"
+                    aria-label="Enviar nota de voz"
+                  >
+                    <Send size={18} />
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 flex items-end gap-2">
+                  <input
+                    ref={inputArchivoRef}
+                    type="file"
+                    hidden
+                    onChange={handleElegirArchivo}
+                    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                  />
+                  <button
+                    onClick={() => inputArchivoRef.current?.click()}
+                    disabled={subiendoPct !== null}
+                    className="p-2 rounded-lg text-muted hover:text-strong hover:bg-elevated transition flex-shrink-0 disabled:opacity-40"
+                    aria-label="Adjuntar archivo"
+                  >
+                    <Paperclip size={18} />
+                  </button>
+                  <button
+                    onClick={handleIniciarGrabacion}
+                    disabled={subiendoPct !== null}
+                    className="p-2 rounded-lg text-muted hover:text-strong hover:bg-elevated transition flex-shrink-0 disabled:opacity-40"
+                    aria-label="Grabar nota de voz"
+                  >
+                    <Mic size={18} />
+                  </button>
+                  <textarea
+                    value={texto}
+                    onChange={(e) => setTexto(e.target.value.slice(0, 4000))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleEnviar();
+                      }
+                    }}
+                    rows={1}
+                    placeholder="Escribe un mensaje…"
+                    className="flex-1 resize-none px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong max-h-32"
+                  />
+                  <button
+                    onClick={handleEnviar}
+                    disabled={(!texto.trim() && !archivoPendiente) || subiendoPct !== null}
+                    className="px-4 py-2 rounded-lg bg-accent text-strong text-sm font-medium hover:opacity-90 transition disabled:opacity-40"
+                  >
+                    Enviar
+                  </button>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -435,7 +629,10 @@ function Burbuja({
             </div>
           </div>
         ) : (
-          <div className="text-sm whitespace-pre-wrap break-words">{m.text}</div>
+          <>
+            {m.adjunto && <AdjuntoVista adjunto={m.adjunto} />}
+            {m.text && <div className="text-sm whitespace-pre-wrap break-words">{m.text}</div>}
+          </>
         )}
         <div className="flex items-center gap-2 justify-end mt-1">
           {m.editedAt && <span className="text-[10px] text-muted">editado</span>}
@@ -463,6 +660,69 @@ function Burbuja({
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Adjunto de una burbuja ────────────────────────────────────────────────
+// Los adjuntos se borran a los 90 días por ciclo de vida del bucket, pero el
+// mensaje permanece. Un fallo de carga es esperado (no un error del sistema),
+// por eso se muestra un aviso tenue en vez de un ícono roto.
+function AdjuntoVista({ adjunto }: { adjunto: NonNullable<Mensaje['adjunto']> }) {
+  const [expirado, setExpirado] = useState(false);
+
+  if (expirado) {
+    return (
+      <div className="text-xs text-muted italic mb-1">
+        Adjunto expirado (los archivos se borran a los 90 días).
+      </div>
+    );
+  }
+
+  if (adjunto.tipo === 'imagen') {
+    return (
+      <a href={adjunto.url} target="_blank" rel="noopener noreferrer" className="block mb-1">
+        <img
+          src={adjunto.url}
+          alt={adjunto.nombre}
+          className="max-h-60 rounded-lg"
+          onError={() => setExpirado(true)}
+        />
+      </a>
+    );
+  }
+
+  if (adjunto.tipo === 'audio') {
+    return (
+      <div className="mb-1 flex items-center gap-2">
+        <audio controls preload="metadata" src={adjunto.url} className="max-w-full" onError={() => setExpirado(true)} />
+        {typeof adjunto.duracionSeg === 'number' && (
+          <span className="text-[10px] text-muted flex-shrink-0">
+            {Math.floor(adjunto.duracionSeg / 60)}:{String(adjunto.duracionSeg % 60).padStart(2, '0')}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // 'archivo'
+  return (
+    <a
+      href={adjunto.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mb-1 flex items-center gap-2 px-2 py-2 rounded-lg bg-card/50 border border-line hover:border-line-strong transition"
+      onClick={(e) => {
+        // No hay onError en <a>; si el enlace no resuelve, el navegador
+        // mostrará su propio error de descarga — es aceptable para archivos.
+        void e;
+      }}
+    >
+      <FileText size={18} className="text-muted flex-shrink-0" />
+      <div className="min-w-0">
+        <div className="text-xs text-strong truncate">{adjunto.nombre}</div>
+        <div className="text-[10px] text-muted">{pesoLegible(adjunto.bytes)}</div>
+      </div>
+    </a>
   );
 }
 

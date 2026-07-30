@@ -67,6 +67,13 @@ export type Mensaje = {
   createdAt: any;
   deleted: boolean;
   editedAt?: any;
+  adjunto?: {
+    tipo: 'imagen' | 'audio' | 'archivo';
+    url: string;
+    nombre: string;
+    bytes: number;
+    duracionSeg?: number;
+  };
 };
 
 /** Email del usuario actual (identidad del chat), en minúsculas. */
@@ -196,16 +203,22 @@ export function escucharMensajes(
 }
 
 // ── Escritura de mensajes ────────────────────────────────────────────────────
-export async function enviarMensaje(channelId: string, texto: string): Promise<void> {
+export async function enviarMensaje(
+  channelId: string,
+  texto: string,
+  adjunto?: Mensaje['adjunto'],
+): Promise<void> {
   if (!db || !auth?.currentUser) return;
   const limpio = texto.slice(0, 4000);
-  if (!limpio.trim()) return;
+  // Un mensaje necesita texto O adjunto; una nota de voz puede no traer texto.
+  if (!limpio.trim() && !adjunto) return;
   await addDoc(collection(db, 'channels', channelId, 'messages'), {
     authorEmail: miEmail(),
     authorName: miNombre(),
     text: limpio,
     createdAt: serverTimestamp(),
     deleted: false,
+    ...(adjunto ? { adjunto } : {}),
   });
 }
 

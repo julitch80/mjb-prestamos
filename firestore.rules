@@ -40,6 +40,18 @@ service cloud.firestore {
     function isSuper() {
       return isActiveUser() && callerDoc().role == 'superusuario';
     }
+    // Valida el mapa `adjunto` opcional de un mensaje (imagen, audio o
+    // archivo subido a Cloud Storage). El límite de 10 MB espeja el de
+    // storage.rules.
+    function adjuntoValido(a) {
+      return a.tipo in ['imagen', 'audio', 'archivo']
+        && a.url is string
+        && a.nombre is string
+        && a.bytes is number && a.bytes > 0 && a.bytes <= 10485760
+        && a.keys().hasOnly(['tipo', 'url', 'nombre', 'bytes', 'duracionSeg'])
+        && (!('duracionSeg' in a) || a.duracionSeg is number);
+    }
+
     function canAccessChannel(ch) {
       return ch.type == 'general'
         || (ch.type == 'rol'
@@ -104,11 +116,12 @@ service cloud.firestore {
         allow create: if isActiveUser()
           && canAccessChannel(get(/databases/$(database)/documents/channels/$(channelId)).data)
           && request.resource.data.keys().hasOnly(
-               ['authorEmail', 'authorName', 'text', 'createdAt', 'deleted'])
+               ['authorEmail', 'authorName', 'text', 'createdAt', 'deleted', 'adjunto'])
           && request.resource.data.authorEmail == callerEmail()
           && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 4000
+          && (request.resource.data.text.size() > 0 || 'adjunto' in request.resource.data)
+          && (!('adjunto' in request.resource.data) || adjuntoValido(request.resource.data.adjunto))
           && request.resource.data.createdAt == request.time
           && request.resource.data.deleted == false;
         allow update: if isActiveUser() && (

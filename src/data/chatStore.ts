@@ -36,7 +36,7 @@ interface ChatState {
   initChat: (miRol: string, miSede?: string, miJornada?: string) => void;
   abrirCanal: (channelId: string) => void;
   cerrarChat: () => void;
-  enviar: (texto: string) => Promise<void>;
+  enviar: (texto: string, adjunto?: Mensaje['adjunto']) => Promise<void>;
   marcarLeidoLocal: (channelId: string) => void;
   noLeidos: (canal: Canal) => boolean;
   crearGrupoStore: (nombre: string, miembros: string[]) => Promise<string>;
@@ -116,10 +116,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
-  enviar: async (texto) => {
+  enviar: async (texto, adjunto) => {
     const id = get().canalActivo;
     if (!id) return;
-    await enviarMensaje(id, texto);
+    await enviarMensaje(id, texto, adjunto);
   },
 
   marcarLeidoLocal: (channelId) => {
