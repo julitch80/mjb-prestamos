@@ -2,7 +2,7 @@
 // Solo hace algo si AUTH_MODE === 'google' y Firebase está configurado; en
 // modo pin todas las acciones son no-op y no se adjunta ningún listener.
 import { create } from 'zustand';
-import { esperarAuth, firebaseConfigurado } from '../lib/firebase';
+import { auth, esperarAuth, firebaseConfigurado } from '../lib/firebase';
 import { AUTH_MODE } from './authStore';
 import {
   cargarReadStates,
@@ -32,6 +32,10 @@ interface ChatState {
   readStates: Record<string, number>; // channelId -> ms de última lectura
   canalActivo: string | null;
   iniciado: boolean;
+  /** Diagnóstico visible en la interfaz cuando no llega ningún canal. */
+  errorCanales: string | null;
+  /** Correo de la sesión de Firebase, o null si no hay ninguna. */
+  emailSesion: string | null;
 
   initChat: (miRol: string, miSede?: string, miJornada?: string) => void;
   abrirCanal: (channelId: string) => void;
@@ -56,6 +60,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   readStates: {},
   canalActivo: null,
   iniciado: false,
+  errorCanales: null,
+  emailSesion: null,
 
   initChat: (miRol, miSede = 'central', miJornada = 'manana') => {
     if (!habilitado()) return;
@@ -64,8 +70,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     claveIniciada = clave;
     set({ iniciado: true });
     void esperarAuth().then((haySesion) => {
-      // Si la sesión se perdió o el contexto cambió mientras esperábamos, salir.
-      if (!haySesion || claveIniciada !== clave) return;
+      if (claveIniciada !== clave) return; // el contexto cambió mientras esperábamos
+      set({ emailSesion: auth?.currentUser?.email?.toLowerCase() ?? null });
+      if (!haySesion) {
+        set({ errorCanales: 'sin-sesion-firebase' });
+        return;
+      }
+      set({ errorCanales: null });
       // Estados de lectura iniciales (para badges de no-leídos).
       cargarReadStates()
         .then((raw) => {
@@ -85,6 +96,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         miSede,
         miJornada,
         DIRECTIVOS.includes(miRol),
+        (detalle) => set({ errorCanales: detalle }),
       );
     });
   },
@@ -113,6 +125,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       readStates: {},
       canalActivo: null,
       iniciado: false,
+      errorCanales: null,
+      emailSesion: null,
     });
   },
 

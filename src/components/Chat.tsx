@@ -52,6 +52,8 @@ export default function Chat() {
     enviar,
     noLeidos,
     crearGrupoStore,
+    errorCanales,
+    emailSesion,
   } = useChatStore();
 
   const [directorio, setDirectorio] = useState<Array<{ email: string; displayName: string }>>([]);
@@ -323,10 +325,26 @@ export default function Chat() {
         </div>
         <div className="flex-1 overflow-y-auto">
           {canales.length === 0 ? (
-            <div className="text-center text-muted text-xs py-8 px-3 leading-relaxed">
-              No hay conversaciones aún.
-              <br />
-              Abre la pestaña «Docentes» para escribirle a alguien.
+            <div className="text-center text-muted text-xs py-8 px-3 leading-relaxed space-y-3">
+              <p>
+                No hay conversaciones aún.
+                <br />
+                Abre la pestaña «Docentes» para escribirle a alguien.
+              </p>
+              {/* Diagnóstico: sin esto, una lista vacía por falta de sesión o
+                  por permisos se ve idéntica a una lista vacía legítima. */}
+              <div className="mx-auto max-w-xs text-left rounded-lg border border-line bg-elevated px-3 py-2 space-y-1">
+                <p className="text-[10px] uppercase tracking-wide text-muted">Diagnóstico</p>
+                <p className="text-[11px] text-soft break-all">
+                  Sesión: {emailSesion ?? <span className="text-danger">ninguna</span>}
+                </p>
+                {errorCanales && (
+                  <p className="text-[11px] text-danger break-all">Fallo: {errorCanales}</p>
+                )}
+                {!errorCanales && emailSesion && (
+                  <p className="text-[11px] text-soft">Sin errores: no hay canales visibles.</p>
+                )}
+              </div>
             </div>
           ) : (
             canales.map((c) => {

@@ -100,8 +100,19 @@ export function escucharCanales(
   miSede: string = 'central',
   miJornada: string = 'manana',
   esDirectivoFlag: boolean = false,
+  // Los errores de los listeners se reportaban descartándolos en silencio, lo
+  // que dejaba la lista de canales vacía sin ninguna pista de por qué. Ahora
+  // suben a la interfaz para poder diagnosticar desde el propio teléfono.
+  onError?: (detalle: string) => void,
 ): () => void {
-  if (!db || !auth?.currentUser) return () => {};
+  if (!db) {
+    onError?.('Firebase no está configurado en esta compilación.');
+    return () => {};
+  }
+  if (!auth?.currentUser) {
+    onError?.('sin-sesion-firebase');
+    return () => {};
+  }
   const d = db;
   const email = miEmail();
 
@@ -132,7 +143,8 @@ export function escucharCanales(
           buckets[key] = snap.docs.map((s: any) => ({ id: s.id, ...(s.data() as object) })) as Canal[];
           emit();
         },
-        () => {
+        (err: any) => {
+          onError?.(`${key}: ${err?.code || err?.message || 'error desconocido'}`);
           buckets[key] = [];
           emit();
         },
@@ -170,7 +182,8 @@ export function escucharCanales(
           buckets[`seg__${segId}`] = snap.exists() ? [{ id: snap.id, ...(snap.data() as object) } as Canal] : [];
           emit();
         },
-        () => {
+        (err: any) => {
+          onError?.(`${segId}: ${err?.code || err?.message || 'error desconocido'}`);
           buckets[`seg__${segId}`] = [];
           emit();
         },
