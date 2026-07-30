@@ -1,5 +1,8 @@
 {
   "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" },
-  "storage": { "rules": "storage.rules" },
+  "storage": [
+    { "bucket": "mjb-prestamos.firebasestorage.app", "rules": "storage.rules" },
+    { "bucket": "mjb-prestamos-chat", "rules": "storage.rules" }
+  ],
   "functions": [ { "source": "functions", "codebase": "default" } ]
 }
