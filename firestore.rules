@@ -73,12 +73,9 @@ service cloud.firestore {
         && request.resource.data.role in ['docente', 'coordinador', 'superusuario', 'rectora']
         && request.resource.data.active is bool
         && request.resource.data.displayName is string;
-      // 'grupoDirigido' lo exige el modulo de asistencia: es como sus reglas
-      // resuelven quien dirige un grupo (no existe un role 'director'). Sin este
-      // campo en el documento, asisIsDirectorOf() falla para todo el mundo.
       allow update: if isSuper()
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['displayName', 'role', 'active', 'replacedBy', 'replacedAt', 'slotId', 'sede', 'jornada', 'grupoDirigido'])
+             .hasOnly(['displayName', 'role', 'active', 'replacedBy', 'replacedAt', 'slotId', 'sede', 'jornada'])
         && !(email == callerEmail()
              && (request.resource.data.role != resource.data.role
                  || request.resource.data.active != resource.data.active));
@@ -170,10 +167,33 @@ service cloud.firestore {
       return isActiveUser() && callerDoc().role != 'superusuario';
     }
 
-    // Director de grupo: no es un valor de `role`. Se resuelve contra el grado que el
-    // documento lleva denormalizado, porque las reglas no pueden consultar colecciones.
+    // Director de grupo: no es un valor de `role`. Se resuelve contra un único
+    // documento espejo, `asistenciaConfig/directores`, cuyo campo `mapa` va de
+    // grado a slotId: { "11.2": "julian", "6º1": "luis_angel", … }.
+    //
+    // Por qué un documento y no un campo en users/: la fuente de verdad son
+    // DIRECTORES_MANANA/DIRECTORES_TARDE de maestros.ts, y un solo espejo no
+    // puede desincronizarse por partes como sí lo harían 34 copias. Además lo
+    // escribe el superusuario desde la app (ver PanelSuperusuario), sin
+    // necesidad de la clave de servicio.
+    //
+    // Se compara contra `slotId` y no contra el correo por el modelo
+    // puesto/persona: el mapa apunta al puesto, así que sigue siendo correcto
+    // después de un reemplazo de docente.
+    //
+    // El mapa va anidado bajo `mapa` a propósito: como campo de raíz, un grado
+    // de la mañana como "9.1" sería ambiguo con la notación de ruta de campo de
+    // Firestore, que usa el punto como separador.
+    //
+    // Costo: un get() extra por evaluación. Aceptable porque pasar lista no
+    // pasa por aquí — usa asisCanRecord(), que no consulta directores.
+    function asisDirectores() {
+      return get(/databases/$(database)/documents/asistenciaConfig/directores).data.mapa;
+    }
     function asisIsDirectorOf(grado) {
-      return isActiveUser() && callerDoc().grupoDirigido == grado;
+      return isActiveUser()
+        && grado in asisDirectores()
+        && asisDirectores()[grado] == callerDoc().slotId;
     }
 
     // Sello de autoria a nivel de documento. Es lo unico que el servidor puede garantizar

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { mapaDirectores, sincronizarDirectores } from '../data/directoresSync';
 import { useAppStore } from '../data/store';
 import { firebaseConfigurado, functions, db } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -74,6 +75,10 @@ export default function PanelSuperusuario() {
   const [previendo, setPreviendo] = useState(false);
   const [ejecutando, setEjecutando] = useState(false);
   const [mensajeReemplazo, setMensajeReemplazo] = useState<Mensaje | null>(null);
+
+  // Espejo de directores de grupo para las reglas de asistencia.
+  const [sincronizandoDir, setSincronizandoDir] = useState(false);
+  const [mensajeDir, setMensajeDir] = useState<Mensaje | null>(null);
 
   // Auditoría
   const [logs, setLogs] = useState<LogAuditoria[] | null>(null);
@@ -278,6 +283,19 @@ export default function PanelSuperusuario() {
     </div>
   );
 
+  async function handleSincronizarDirectores() {
+    setSincronizandoDir(true);
+    setMensajeDir(null);
+    try {
+      const total = await sincronizarDirectores();
+      setMensajeDir({ tipo: 'ok', texto: `${total} directores de grupo sincronizados.` });
+    } catch (e: any) {
+      setMensajeDir({ tipo: 'error', texto: e?.message || 'No se pudo sincronizar.' });
+    } finally {
+      setSincronizandoDir(false);
+    }
+  }
+
   if (!firebaseConfigurado) {
     return (
       <div className="space-y-5">
@@ -300,6 +318,32 @@ export default function PanelSuperusuario() {
         <p className="text-muted text-xs mt-1">
           Alta de docentes, cambio de rol y activación en Firestore.
         </p>
+      </div>
+
+      {/* Espejo de directores de grupo. Las reglas de seguridad del módulo de
+          asistencia no pueden leer maestros.ts, así que necesitan este
+          documento para saber quién dirige cada grupo. */}
+      <div className="rounded-xl border border-line bg-card p-3 space-y-2">
+        <div>
+          <h3 className="text-strong text-sm font-semibold">Directores de grupo</h3>
+          <p className="text-muted text-xs mt-0.5 leading-snug">
+            Copia a Firestore los {Object.keys(mapaDirectores()).length} directores definidos en la app,
+            para que los permisos de asistencia reconozcan a cada director sobre su grupo.
+            Vuelve a pulsarlo cuando cambie un director.
+          </p>
+        </div>
+        <button
+          onClick={handleSincronizarDirectores}
+          disabled={sincronizandoDir}
+          className="px-3 py-2 rounded-lg bg-elevated hover:bg-hover text-soft hover:text-strong text-xs font-medium transition disabled:opacity-50"
+        >
+          {sincronizandoDir ? 'Sincronizando…' : 'Sincronizar directores'}
+        </button>
+        {mensajeDir && (
+          <p className={'text-xs ' + (mensajeDir.tipo === 'ok' ? 'text-success-soft-fg' : 'text-danger')}>
+            {mensajeDir.texto}
+          </p>
+        )}
       </div>
 
       {mensaje && (
