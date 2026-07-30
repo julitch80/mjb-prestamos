@@ -13,7 +13,19 @@ export const AUTH_MODE = (import.meta.env.VITE_AUTH_MODE as string) || 'pin';
 export function initAuthGoogle() {
   if (AUTH_MODE !== 'google' || !firebaseConfigurado || !auth) return;
   onAuthStateChanged(auth, async (user) => {
-    if (!user) { return; }
+    if (!user) {
+      // Sesión local huérfana: el store persistido en el navegador dice que hay
+      // un usuario, pero Firebase no tiene sesión. Le pasa a todo el que entró
+      // con PIN antes de migrar a Google — la app lo sigue reconociendo sola y
+      // nunca le vuelve a pedir login, así que jamás pasa por Google. Todo
+      // funciona salvo lo que necesita Firebase (el chat), y sin aviso alguno.
+      // Devolverlo al login es la única salida: el chat no puede funcionar sin
+      // una sesión real y el silencio es peor que pedir que entre de nuevo.
+      if (useAppStore.getState().userId) {
+        useAppStore.getState().cerrarSesion();
+      }
+      return;
+    }
     const email = user.email?.toLowerCase() ?? '';
     try {
       const perfil = await cargarPerfil(email);

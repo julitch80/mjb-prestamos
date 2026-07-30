@@ -254,6 +254,13 @@ export const useAppStore = create<AppState>()(
           reservas: [],
           vistaActual: 'inicio',
         });
+        // El chat guarda fuera del store la clave del contexto ya inicializado
+        // y los listeners activos. Sin reiniciarlo aquí, quien vuelve a entrar
+        // en la misma pestaña conserva esa clave, initChat se salta por
+        // considerarse ya iniciado y el chat queda vacío hasta recargar.
+        import('./chatStore').then(({ useChatStore }) => {
+          useChatStore.getState().cerrarChat();
+        }).catch(() => {});
         // En modo Google (Etapa 2) también cierra la sesión de Firebase Auth.
         // Import dinámico para evitar ciclo store <-> authStore; no-op en modo pin.
         if ((import.meta.env.VITE_AUTH_MODE as string) === 'google') {
