@@ -206,11 +206,24 @@ service cloud.firestore {
     // ---------- Sesiones de clase: el documento central ----------
     match /asistenciaSessions/{sessionId} {
 
-      // Lectura amplia entre usuarios activos: el reporte de tercera hora necesita ver
-      // todos los grados, y el docente necesita su planilla. El dato sensible (motivos de
-      // justificacion, que pueden incluir salud) se filtra en la interfaz por rol; lo que
-      // aqui se protege es la ESCRITURA.
-      allow read: if isActiveUser();
+      // DECISION DE JULIAN (jul 30 2026): un docente NO puede leer las sesiones de
+      // estudiantes que no son suyos. El fragmento original traia
+      // `allow read: if isActiveUser()` y dejaba el filtrado por rol a la interfaz,
+      // pero una interfaz no protege nada: basta pedir el documento directamente.
+      // Como los motivos de justificacion pueden incluir informacion de salud de
+      // menores, la restriccion tiene que estar en el servidor.
+      //
+      // Se respeta la matriz de visibilidad del modelo de datos:
+      //   coordinador -> todas las sesiones
+      //   director de grupo -> las de su grupo, en todas las asignaturas
+      //   docente -> solo las sesiones que el mismo dicta (por slotId)
+      //   superusuario -> NO lee el detalle (misma razon por la que no registra:
+      //                   su clave es transferible)
+      allow read: if isActiveUser() && (
+        asisIsCoordinador()
+        || asisIsDirectorOf(resource.data.grado)
+        || resource.data.slotId == callerDoc().slotId
+      );
 
       // Decision (a) del contrato: cualquier docente activo puede abrir una sesion. El
       // horario propone, no prohibe — los reemplazos improvisados son el dia a dia, y una
@@ -251,7 +264,11 @@ service cloud.firestore {
       // dependiera del cliente, una correccion sin rastro seria trivial, y el rastro es
       // justo lo que protege ante una disputa de una familia.
       match /historial/{entryId} {
-        allow read: if isSuper() || asisIsCoordinador() || isActiveUser();
+        // Estaba como `isSuper() || asisIsCoordinador() || isActiveUser()`, que
+        // en la practica lo abria a todo el mundo y volvia decorativas las dos
+        // primeras condiciones. El historial de correcciones es material de
+        // coordinacion, no de consulta general.
+        allow read: if isSuper() || asisIsCoordinador();
         allow write: if false;
       }
     }
