@@ -114,7 +114,17 @@ prestamo-mjb/
 | 9°2 | Marta | Marta Úsuga |
 | 9°3 | Uriel | José Uriel López Arias |
 
-Directores de grupo de la tarde: **NO DISPONIBLES AÚN** — pendiente de obtener del usuario.
+### Directores de grupo (tarde)
+
+Ya disponibles (fuente: asignación académica 2026, con los reemplazos vigentes). Están en `maestros.ts` como `DIRECTORES_TARDE`:
+
+| Grupo | Docente | Grupo | Docente |
+|-------|---------|-------|---------|
+| 6º1 | Luis Ángel | 7º3 | Harol |
+| 6º2 | Fredy García | 8º1 | Edgar |
+| 6º3 | Carolina | 8º2 | Hugo |
+| 7º1 | Yanet | 8º3 | Mónica Rave |
+| 7º2 | Luis Javier | 8º4 | Juan Pablo |
 
 ### Aulas tarde ↔ grupos
 
@@ -390,8 +400,7 @@ Nota: 'MARGARA' en código (`margara`) = Margarita María Montoya Olaya. 'LILIAN
 
 ## Datos pendientes por obtener del usuario
 
-1. Directores de grupo — jornada tarde (nombres)
-2. Horario media técnica — Felipe Piedrahita, Valentina Jaramillo (Versión 3)
+1. Horario media técnica — Felipe Piedrahita, Valentina Jaramillo (Versión 3)
 
 ---
 
