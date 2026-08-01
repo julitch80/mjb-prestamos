@@ -161,32 +161,31 @@ service cloud.firestore {
       return isActiveUser() && callerDoc().role == 'coordinador';
     }
 
-    // El superusuario carga datos base pero NUNCA registra: su clave es transferible, asi
-    // que sus actos no serian atribuibles a una persona fisica.
-    function asisCanRecord() {
-      return isActiveUser() && callerDoc().role != 'superusuario';
+    function asisIsRectora() {
+      return isActiveUser() && callerDoc().role == 'rectora';
     }
 
-    // Director de grupo: no es un valor de `role`. Se resuelve contra un único
-    // documento espejo, `asistenciaConfig/directores`, cuyo campo `mapa` va de
-    // grado a slotId: { "11.2": "julian", "6º1": "luis_angel", … }.
+    // Quien puede REGISTRAR. Se excluye a dos roles, por razones distintas:
+    //  - superusuario: su clave es transferible, asi que sus actos no serian atribuibles
+    //    a una persona fisica.
+    //  - rectora: decision de Julian (2026-07-30). Consulta, no registra.
     //
-    // Por qué un documento y no un campo en users/: la fuente de verdad son
-    // DIRECTORES_MANANA/DIRECTORES_TARDE de maestros.ts, y un solo espejo no
-    // puede desincronizarse por partes como sí lo harían 34 copias. Además lo
-    // escribe el superusuario desde la app (ver PanelSuperusuario), sin
-    // necesidad de la clave de servicio.
-    //
-    // Se compara contra `slotId` y no contra el correo por el modelo
-    // puesto/persona: el mapa apunta al puesto, así que sigue siendo correcto
-    // después de un reemplazo de docente.
-    //
-    // El mapa va anidado bajo `mapa` a propósito: como campo de raíz, un grado
-    // de la mañana como "9.1" sería ambiguo con la notación de ruta de campo de
-    // Firestore, que usa el punto como separador.
-    //
-    // Costo: un get() extra por evaluación. Aceptable porque pasar lista no
-    // pasa por aquí — usa asisCanRecord(), que no consulta directores.
+    // OJO: antes de este cambio la rectora SI podia registrar. El filtro solo excluia al
+    // superusuario, y como 'rectora' es un rol distinto, pasaba. No era una decision:
+    // era un hueco.
+    function asisCanRecord() {
+      return isActiveUser()
+        && callerDoc().role != 'superusuario'
+        && callerDoc().role != 'rectora';
+    }
+
+    // Director de grupo: no es un valor de `role`. Se resuelve contra un unico documento
+    // espejo, `asistenciaConfig/directores`, cuyo campo `mapa` va de grado a slotId.
+    // El mapa va anidado bajo `mapa` a proposito: como campo de raiz, un grado de la
+    // manana como "9.1" seria ambiguo con la notacion de rutas de campo de Firestore, que
+    // usa el punto como separador. Por eso tambien se escribe con setDoc, nunca updateDoc.
+    // Se compara contra slotId y no contra el correo: el mapa apunta al PUESTO, asi que
+    // sigue siendo correcto despues de reemplazar a un docente.
     function asisDirectores() {
       return get(/databases/$(database)/documents/asistenciaConfig/directores).data.mapa;
     }
@@ -206,21 +205,22 @@ service cloud.firestore {
     // ---------- Sesiones de clase: el documento central ----------
     match /asistenciaSessions/{sessionId} {
 
-      // DECISION DE JULIAN (jul 30 2026): un docente NO puede leer las sesiones de
-      // estudiantes que no son suyos. El fragmento original traia
-      // `allow read: if isActiveUser()` y dejaba el filtrado por rol a la interfaz,
-      // pero una interfaz no protege nada: basta pedir el documento directamente.
-      // Como los motivos de justificacion pueden incluir informacion de salud de
-      // menores, la restriccion tiene que estar en el servidor.
+      // Un docente NO puede leer las sesiones de estudiantes que no son suyos. La version
+      // original dejaba el filtrado a la interfaz, pero una interfaz no protege nada: basta
+      // pedir el documento directamente. Como los motivos de justificacion pueden incluir
+      // informacion de salud de menores, la restriccion tiene que estar en el servidor.
+      //   coordinador       -> todas las sesiones
+      //   director de grupo -> las de su grado, en cualquier asignatura, la dicte o no
+      //   docente           -> solo las que el mismo dicta (por slotId)
+      //   superusuario      -> ninguna (misma razon por la que no registra)
       //
-      // Se respeta la matriz de visibilidad del modelo de datos:
-      //   coordinador -> todas las sesiones
-      //   director de grupo -> las de su grupo, en todas las asignaturas
-      //   docente -> solo las sesiones que el mismo dicta (por slotId)
-      //   superusuario -> NO lee el detalle (misma razon por la que no registra:
-      //                   su clave es transferible)
+      // OJO EN EL CLIENTE: Firestore rechaza la consulta entera si no puede probar que
+      // todos los resultados seran legibles. Un docente DEBE consultar con
+      // where('slotId','==',<el suyo>) y un director con where('grado','==',<el suyo>);
+      // una consulta sin filtrar falla aunque tuviera derecho a cada documento.
       allow read: if isActiveUser() && (
         asisIsCoordinador()
+        || asisIsRectora()          // consulta institucional; no registra
         || asisIsDirectorOf(resource.data.grado)
         || resource.data.slotId == callerDoc().slotId
       );
@@ -264,10 +264,9 @@ service cloud.firestore {
       // dependiera del cliente, una correccion sin rastro seria trivial, y el rastro es
       // justo lo que protege ante una disputa de una familia.
       match /historial/{entryId} {
-        // Estaba como `isSuper() || asisIsCoordinador() || isActiveUser()`, que
-        // en la practica lo abria a todo el mundo y volvia decorativas las dos
-        // primeras condiciones. El historial de correcciones es material de
-        // coordinacion, no de consulta general.
+        // Estaba como `... || isActiveUser()`, que en la practica lo abria a todo el mundo
+        // y volvia decorativas las dos primeras condiciones. El historial de correcciones
+        // es material de coordinacion, no de consulta general.
         allow read: if isSuper() || asisIsCoordinador();
         allow write: if false;
       }
@@ -279,6 +278,7 @@ service cloud.firestore {
 
       allow read: if isSuper()
         || asisIsCoordinador()
+        || asisIsRectora()
         || asisIsDirectorOf(resource.data.grado);
 
       // Autoridad exclusiva del coordinador. Un director de grupo las VE pero no las crea.
@@ -409,6 +409,7 @@ service cloud.firestore {
       allow read: if isSuper();
       allow write: if false;
     }
+
 
     match /{document=**} {
       allow read, write: if false;
