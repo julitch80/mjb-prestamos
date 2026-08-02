@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../data/store';
 import {
@@ -1733,7 +1733,7 @@ export default function VistaHorario() {
             <motion.div
               initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-              className="w-full max-w-md bg-gray-950 border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+              className="w-full max-w-md bg-card border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col"
               onClick={e => e.stopPropagation()}
             >
               <div className="px-6 pt-5 pb-4 border-b border-line flex items-center justify-between">
@@ -1757,15 +1757,33 @@ export default function VistaHorario() {
                   <table className="w-full text-sm">
                     <tbody>
                       {verDetalleJr.bloques.map(b => (
-                        <tr key={b.id} className="border-b border-line last:border-b-0">
-                          <td className="py-2 text-soft w-24 text-sm">{b.id}.ª hora</td>
-                          <td className="py-2 font-semibold text-strong tabular-nums">{b.inicio} – {b.fin}</td>
-                        </tr>
+                        <Fragment key={b.id}>
+                          <tr className="border-b border-line last:border-b-0">
+                            <td className="py-2 text-soft w-24 text-sm">{b.id}.ª hora</td>
+                            <td className="py-2 font-semibold text-strong tabular-nums">{b.inicio} – {b.fin}</td>
+                          </tr>
+                          {b.descansoDespues && (
+                            <tr className="border-b border-line last:border-b-0">
+                              <td colSpan={2} className="py-1.5 text-xs text-warning-soft-fg italic">
+                                ⏸ Descanso de {b.descansoDespues} min
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <div className="text-[11px] text-muted italic">Descansos: 20 min después de 2.ª · 10 min después de 4.ª</div>
+                {/* Si no hay descansos configurados explícitamente (undefined), es el
+                    patrón institucional; se anota igual para no dejar el dato implícito. */}
+                {!verDetalleJr.descansos && (
+                  <div className="text-[11px] text-muted italic">
+                    Descansos institucionales: 20 min después de la 2.ª · 10 min después de la 4.ª (según aplique).
+                  </div>
+                )}
+                {verDetalleJr.descansos && verDetalleJr.descansos.length === 0 && (
+                  <div className="text-[11px] text-muted italic">Sin descansos: la jornada corre seguida.</div>
+                )}
               </div>
             </motion.div>
           </motion.div>

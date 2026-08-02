@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../data/store';
 import { getDocentes, horaOrdinal } from '../data/maestros';
@@ -12,8 +12,9 @@ import {
   diaDeSemana,
   INICIO_NORMAL,
   FIN_NORMAL,
+  descansosInstitucionales,
 } from '../data/horarioModificado';
-import type { JornadaReducida } from '../data/horarioModificado';
+import type { JornadaReducida, DescansoConfig } from '../data/horarioModificado';
 import { generarPublicacionDeJornadaReducida } from '../data/publicacion';
 import type { PublicacionPendiente } from '../data/publicacion';
 import ModalRevisarPublicacion from './ModalRevisarPublicacion';
@@ -33,6 +34,11 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
   const [horaInicio, setHoraInicio] = useState<string>(INICIO_NORMAL[jornada]);
   const [horaFin, setHoraFin] = useState(jornada === 'manana' ? '10:00' : '16:15');
   const [numBloques, setNumBloques] = useState<number>(6);
+  // Descansos: arrancan en el patrón institucional. `descansosTocados` distingue
+  // si el coordinador los editó a mano — mientras no lo haga, se recalculan solos
+  // al cambiar numBloques (ver efecto abajo).
+  const [descansos, setDescansos] = useState<DescansoConfig[]>(() => descansosInstitucionales(6));
+  const [descansosTocados, setDescansosTocados] = useState(false);
   const [motivo, setMotivo] = useState(MOTIVOS[0]);
   const [motivoOtro, setMotivoOtro] = useState('');
   const [guardado, setGuardado] = useState<JornadaReducida | null>(null);
@@ -44,20 +50,61 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
   const dia = diaDeSemana(fecha);
   const esDiaLectivo = dia !== 'sabado' && dia !== 'domingo';
 
+  // Si el coordinador no ha tocado los descansos, recalcularlos con el patrón
+  // institucional cada vez que cambia el número de bloques. Si ya los tocó,
+  // respetar lo que puso pero descartar los que queden fuera de rango (el
+  // bloque tras el que iban ya no existe con el nuevo numBloques).
+  useEffect(() => {
+    if (!descansosTocados) {
+      setDescansos(descansosInstitucionales(numBloques));
+    } else {
+      setDescansos(ds => ds.filter(d => d.despuesDe >= 1 && d.despuesDe < numBloques));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [numBloques]);
+
   const calculo = useMemo(
-    () => recalcularBloquesAcortados(jornada, horaFin, horaInicio, numBloques),
-    [jornada, horaFin, horaInicio, numBloques]
+    () => recalcularBloquesAcortados(jornada, horaFin, horaInicio, numBloques, descansos),
+    [jornada, horaFin, horaInicio, numBloques, descansos]
   );
   const bloques = Array.isArray(calculo) ? calculo : null;
   const error = Array.isArray(calculo) ? null : calculo.error;
 
   const yaExiste = jornadasReducidas.some(j => j.fecha === fecha && j.jornada === jornada);
 
+  function restaurarPatronInstitucional() {
+    setDescansos(descansosInstitucionales(numBloques));
+    setDescansosTocados(false);
+  }
+
+  function actualizarDescanso(idx: number, cambio: Partial<DescansoConfig>) {
+    setDescansosTocados(true);
+    setDescansos(ds => ds.map((d, i) => i === idx ? { ...d, ...cambio } : d));
+  }
+
+  function eliminarDescanso(idx: number) {
+    setDescansosTocados(true);
+    setDescansos(ds => ds.filter((_, i) => i !== idx));
+  }
+
+  function anadirDescanso() {
+    setDescansosTocados(true);
+    // Bloque por defecto: el primero disponible que no tenga ya un descanso
+    const usados = new Set(descansos.map(d => d.despuesDe));
+    let despuesDe = 1;
+    for (let b = 1; b < numBloques; b++) {
+      if (!usados.has(b)) { despuesDe = b; break; }
+    }
+    setDescansos(ds => [...ds, { despuesDe, duracion: 10 }]);
+  }
+
   function reset() {
     setFecha(fechaHoyLocal());
     setHoraInicio(INICIO_NORMAL[jornada]);
     setHoraFin(jornada === 'manana' ? '10:00' : '16:15');
     setNumBloques(6);
+    setDescansos(descansosInstitucionales(6));
+    setDescansosTocados(false);
     setMotivo(MOTIVOS[0]);
     setMotivoOtro('');
     setGuardado(null);
@@ -77,6 +124,10 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
       motivo: motivoFinal,
       bloques,
       numBloques,
+      // Solo se guarda si el coordinador los tocó a mano: ausente = patrón
+      // institucional (necesario para que las jornadas ya guardadas sigan
+      // comportándose igual, y para no inflar el JSON en el caso común).
+      ...(descansosTocados ? { descansos } : {}),
       timestamp: new Date().toISOString(),
     };
     agregarJornadaReducida(jr);
@@ -89,9 +140,12 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
   }
 
   function htmlJornadaReducidaPara(jr: JornadaReducida): string {
-    const filas = jr.bloques.map(b =>
-      `<tr><td style="padding:6px 8px;border:1px solid #fcd34d">${b.id}.ª hora</td><td style="padding:6px 8px;border:1px solid #fcd34d">${b.inicio} – ${b.fin}</td></tr>`
-    ).join('');
+    const filas = jr.bloques.map(b => {
+      const descansoTxt = b.descansoDespues
+        ? `<tr><td colspan="2" style="padding:2px 8px;border:1px solid #fcd34d;color:#92400e;font-style:italic">Descanso de ${b.descansoDespues} min</td></tr>`
+        : '';
+      return `<tr><td style="padding:6px 8px;border:1px solid #fcd34d">${b.id}.ª hora</td><td style="padding:6px 8px;border:1px solid #fcd34d">${b.inicio} – ${b.fin}</td></tr>${descansoTxt}`;
+    }).join('');
     return `
       <div style="font-family:Arial,sans-serif;max-width:600px;color:#1f2937">
         <h2 style="margin:0 0 4px 0;color:#b45309">I.E. Manuel J. Betancur — Jornada acortada</h2>
@@ -136,7 +190,10 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
       `Motivo: ${guardado.motivo}`,
       `Horario: entrada ${guardado.horaInicio} · salida ${guardado.horaFin} · ${guardado.numBloques ?? guardado.bloques.length} hora${(guardado.numBloques ?? guardado.bloques.length) === 1 ? '' : 's'} de clase`,
       '',
-      ...guardado.bloques.map(b => `${b.id}.ª hora: ${b.inicio} – ${b.fin}`),
+      ...guardado.bloques.flatMap(b => [
+        `${b.id}.ª hora: ${b.inicio} – ${b.fin}`,
+        ...(b.descansoDespues ? [`   ⏸ Descanso de ${b.descansoDespues} min`] : []),
+      ]),
       '',
       '— MJB Préstamos',
     ].join('\n');
@@ -172,7 +229,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                   <span className="text-warning">⏱</span> Acortar jornada del día
                 </h2>
                 <p className="text-xs text-muted mt-0.5">
-                  Recalcula las clases manteniendo descansos institucionales (20+10 min).
+                  Recalcula las clases con los descansos que definas abajo (por defecto, el patrón institucional).
                 </p>
               </div>
               <button onClick={reset} className="text-muted hover:text-strong text-lg leading-none p-1" aria-label="Cerrar">✕</button>
@@ -240,6 +297,66 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                   </div>
 
                   <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs text-soft">Descansos</label>
+                      {descansosTocados && (
+                        <button
+                          type="button"
+                          onClick={restaurarPatronInstitucional}
+                          className="text-[11px] text-accent hover:underline"
+                        >
+                          Volver al patrón institucional
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      {descansos.map((d, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-xs text-muted shrink-0">Tras la</span>
+                          <select
+                            value={d.despuesDe}
+                            onChange={e => actualizarDescanso(idx, { despuesDe: Number(e.target.value) })}
+                            className="bg-card text-strong rounded-lg px-2 py-1.5 text-xs border border-line focus:outline-none focus:border-warning"
+                          >
+                            {Array.from({ length: numBloques - 1 }, (_, i) => i + 1).map(b => (
+                              <option key={b} value={b}>{horaOrdinal(b)}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            min={1}
+                            max={120}
+                            value={d.duracion}
+                            onChange={e => actualizarDescanso(idx, { duracion: Math.max(1, Number(e.target.value)) })}
+                            className="w-16 bg-card text-strong rounded-lg px-2 py-1.5 text-xs border border-line focus:outline-none focus:border-warning tabular-nums"
+                          />
+                          <span className="text-xs text-muted">min</span>
+                          <button
+                            type="button"
+                            onClick={() => eliminarDescanso(idx)}
+                            className="ml-auto text-danger hover:text-danger/80 text-xs px-2 py-1"
+                            aria-label="Eliminar descanso"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                      {descansos.length === 0 && (
+                        <div className="text-[11px] text-muted italic">Sin descansos: la jornada corre seguida.</div>
+                      )}
+                      {descansos.length < 3 && numBloques >= 2 && (
+                        <button
+                          type="button"
+                          onClick={anadirDescanso}
+                          className="text-[11px] text-accent hover:underline"
+                        >
+                          + Añadir descanso
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
                     <label className="block text-xs text-soft mb-1.5">Motivo</label>
                     <select
                       value={motivo}
@@ -271,22 +388,28 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                       <table className="w-full text-xs">
                         <tbody>
                           {bloques.map(b => (
-                            <tr key={b.id} className="border-b border-line last:border-b-0">
-                              <td className="py-1.5 text-soft w-24">{horaOrdinal(b.id)} hora</td>
-                              <td className="py-1.5 font-semibold text-strong tabular-nums">{b.inicio} – {b.fin}</td>
-                              <td className="py-1.5 text-muted text-right tabular-nums">
-                                {(() => {
-                                  const [hi, mi] = b.inicio.split(':').map(Number);
-                                  const [hf, mf] = b.fin.split(':').map(Number);
-                                  const min = (hf * 60 + mf) - (hi * 60 + mi);
-                                  return `${min} min`;
-                                })()}
-                              </td>
-                            </tr>
+                            <React.Fragment key={b.id}>
+                              <tr className="border-b border-line last:border-b-0">
+                                <td className="py-1.5 text-soft w-24">{horaOrdinal(b.id)} hora</td>
+                                <td className="py-1.5 font-semibold text-strong tabular-nums">{b.inicio} – {b.fin}</td>
+                                <td className="py-1.5 text-muted text-right tabular-nums">
+                                  {(() => {
+                                    const [hi, mi] = b.inicio.split(':').map(Number);
+                                    const [hf, mf] = b.fin.split(':').map(Number);
+                                    const min = (hf * 60 + mf) - (hi * 60 + mi);
+                                    return `${min} min`;
+                                  })()}
+                                </td>
+                              </tr>
+                              {b.descansoDespues && (
+                                <tr className="border-b border-line last:border-b-0">
+                                  <td colSpan={3} className="py-1 text-[11px] text-warning-soft-fg italic">
+                                    ⏸ Descanso de {b.descansoDespues} min
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
                           ))}
-                          <tr><td colSpan={3} className="pt-2 text-[10px] text-muted">
-                            Descansos institucionales mantenidos: 20 min después de 2.ª · 10 min después de 4.ª
-                          </td></tr>
                         </tbody>
                       </table>
                     </div>
@@ -302,10 +425,19 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                     <table className="w-full text-xs">
                       <tbody>
                         {guardado.bloques.map(b => (
-                          <tr key={b.id} className="border-b border-line last:border-b-0">
-                            <td className="py-1.5 text-soft w-24">{horaOrdinal(b.id)} hora</td>
-                            <td className="py-1.5 font-semibold text-strong tabular-nums">{b.inicio} – {b.fin}</td>
-                          </tr>
+                          <React.Fragment key={b.id}>
+                            <tr className="border-b border-line last:border-b-0">
+                              <td className="py-1.5 text-soft w-24">{horaOrdinal(b.id)} hora</td>
+                              <td className="py-1.5 font-semibold text-strong tabular-nums">{b.inicio} – {b.fin}</td>
+                            </tr>
+                            {b.descansoDespues && (
+                              <tr className="border-b border-line last:border-b-0">
+                                <td colSpan={2} className="py-1 text-[11px] text-warning-soft-fg italic">
+                                  ⏸ Descanso de {b.descansoDespues} min
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         ))}
                       </tbody>
                     </table>
@@ -386,7 +518,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
                     disabled={!puedeGuardar}
                     className={cn(
                       'px-5 py-2.5 rounded-xl text-strong text-sm font-semibold transition',
-                      puedeGuardar ? 'bg-warning hover:bg-warning/85' : 'bg-gray-700 cursor-not-allowed'
+                      puedeGuardar ? 'bg-warning hover:bg-warning/85' : 'bg-elevated cursor-not-allowed'
                     )}
                   >
                     Guardar jornada acortada

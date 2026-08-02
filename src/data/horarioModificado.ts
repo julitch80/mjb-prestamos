@@ -105,6 +105,16 @@ export interface BloqueRecalculado {
   id: number;
   inicio: string; // HH:MM
   fin: string;
+  descansoDespues?: number; // minutos de descanso que siguen a este bloque, si hay
+}
+
+/**
+ * Un descanso configurable de la jornada acortada. `despuesDe` identifica el
+ * bloque tras el cual va (1-indexado); `duracion` en minutos.
+ */
+export interface DescansoConfig {
+  despuesDe: number;
+  duracion: number;
 }
 
 export interface JornadaReducida {
@@ -117,6 +127,11 @@ export interface JornadaReducida {
   motivo: string;        // ej. "Acto cívico", "Reunión de docentes"
   bloques: BloqueRecalculado[];
   numBloques?: number;    // cantidad de horas de clase dictadas (default 6 si no está presente)
+  // Descansos aplicados. AUSENTE (undefined) = patrón institucional (comportamiento
+  // histórico, obligatorio para no romper jornadas ya guardadas en el backend).
+  // Array VACÍO = el coordinador eligió explícitamente que no haya ningún descanso.
+  // Estas dos cosas NO son equivalentes: no colapsar una en la otra en ningún punto.
+  descansos?: DescansoConfig[];
   timestamp: string;
 }
 
@@ -138,18 +153,40 @@ function aHhmm(mins: number): string {
 }
 
 /**
- * Recalcula los 6 bloques manteniendo los descansos institucionales
- * (20 min después de la 2.ª y 10 min después de la 4.ª) y repartiendo
- * el tiempo restante equitativamente entre las clases.
+ * Patrón institucional de descansos según cuántos bloques se dicten:
+ *   n <= 2  → sin descanso
+ *   n 3-4   → un descanso de 20 min tras el 2.º bloque
+ *   n 5-6   → descanso de 20 min tras el 2.º y de 10 min tras el 4.º
+ *
+ * Es la fuente única de este patrón: `recalcularBloquesAcortados` lo usa
+ * como default cuando no se pasan descansos explícitos, y la interfaz lo usa
+ * para precargar el selector de descansos.
+ */
+export function descansosInstitucionales(numBloques: number): DescansoConfig[] {
+  const n = Math.min(6, Math.max(1, Math.round(numBloques)));
+  const resultado: DescansoConfig[] = [];
+  if (n >= 3) resultado.push({ despuesDe: 2, duracion: 20 });
+  if (n >= 5) resultado.push({ despuesDe: 4, duracion: 10 });
+  return resultado;
+}
+
+/**
+ * Recalcula los bloques de una jornada acortada repartiendo el tiempo
+ * disponible entre las clases y los descansos.
  *
  * Acepta tanto la hora de inicio como la de fin. Si no se pasa inicio,
  * usa el inicio normal de la jornada (06:00 mañana / 12:15 tarde).
+ *
+ * Si no se pasa `descansos`, usa el patrón institucional — esto es
+ * obligatorio para que las jornadas ya guardadas en producción (sin el
+ * campo `descansos`) sigan calculándose exactamente igual que antes.
  */
 export function recalcularBloquesAcortados(
   jornada: 'manana' | 'tarde',
   horaFin: string,
   horaInicio?: string,
   numBloques: number = 6,
+  descansos?: DescansoConfig[],
 ): BloqueRecalculado[] | { error: string } {
   const inicioBase = horaInicio && horaInicio.trim() ? horaInicio : INICIO_NORMAL[jornada];
   const inicioMin = aMinutos(inicioBase);
@@ -159,17 +196,21 @@ export function recalcularBloquesAcortados(
     return { error: 'La hora de fin debe ser posterior a la hora de inicio.' };
   }
   const n = Math.min(6, Math.max(1, Math.round(numBloques)));
-  // Descansos institucionales, ubicados proporcionalmente según cuántos bloques se dicten:
-  //   n <= 2  → sin descanso
-  //   n 3-4   → un descanso de 20 min tras el 2.º bloque
-  //   n 5-6   → descanso de 20 min tras el 2.º y de 10 min tras el 4.º (igual que antes)
-  const descansoTrasBloque2 = n >= 3 ? 20 : 0;
-  const descansoTrasBloque4 = n >= 5 ? 10 : 0;
-  const descansos = descansoTrasBloque2 + descansoTrasBloque4;
-  const minutosClases = totalMin - descansos;
+
+  // Descansos: patrón institucional si no se pasan explícitos. Se descartan
+  // (sin fallar) los que caigan fuera del rango de bloques de esta jornada.
+  const descansosFuente = descansos ?? descansosInstitucionales(n);
+  const descansosValidos = descansosFuente.filter(d => d.despuesDe >= 1 && d.despuesDe < n);
+  const descansoPorBloque = new Map<number, number>();
+  descansosValidos.forEach(d => {
+    descansoPorBloque.set(d.despuesDe, (descansoPorBloque.get(d.despuesDe) ?? 0) + d.duracion);
+  });
+  const totalDescansos = descansosValidos.reduce((acc, d) => acc + d.duracion, 0);
+
+  const minutosClases = totalMin - totalDescansos;
   const minMinutos = Math.max(60, n * 10);
   if (minutosClases < minMinutos) {
-    return { error: `La jornada es demasiado corta para ${n} clase${n === 1 ? '' : 's'} con los descansos institucionales.` };
+    return { error: `La jornada es demasiado corta para ${n} clase${n === 1 ? '' : 's'} con los descansos configurados.` };
   }
   const duracionClase = Math.floor(minutosClases / n);
   // Repartir minutos residuales: dar el extra a las primeras clases
@@ -181,11 +222,15 @@ export function recalcularBloquesAcortados(
     const dur = duracionClase + (i <= sobrante ? 1 : 0);
     const inicio = cursor;
     const fin = cursor + dur;
-    bloques.push({ id: i, inicio: aHhmm(inicio), fin: aHhmm(fin) });
+    const descansoDespues = descansoPorBloque.get(i);
+    bloques.push({
+      id: i,
+      inicio: aHhmm(inicio),
+      fin: aHhmm(fin),
+      ...(descansoDespues ? { descansoDespues } : {}),
+    });
     cursor = fin;
-    // Descanso después de 2 (20 min) y 4 (10 min), si aplica
-    if (i === 2) cursor += descansoTrasBloque2;
-    if (i === 4) cursor += descansoTrasBloque4;
+    if (descansoDespues) cursor += descansoDespues;
   }
   return bloques;
 }
