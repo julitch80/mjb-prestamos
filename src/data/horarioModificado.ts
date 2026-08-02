@@ -1,4 +1,4 @@
-import { compararGrupos } from './maestros';
+import { compararGrupos, horaOrdinal } from './maestros';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -36,6 +36,17 @@ export interface ModificacionBloque {
 
 export type EstadoHorarioMod = 'borrador' | 'guardado';
 
+// Un ACOMPAÑANTE no es una reubicación: su horario no cambia, simplemente
+// va con su grupo a una actividad fuera del aula. Por eso el sistema no
+// generaba ningún aviso para él (no hay bloques alterados que detectar) —
+// este es justo el caso que originó el módulo: ver docs/modulo-dia-escolar.md.
+export interface Acompanante {
+  docenteId: string;
+  grupo: string;        // el grupo al que acompaña
+  bloques: number[];    // en qué bloques
+  nota?: string;        // p. ej. "Actividad con los onces"
+}
+
 export interface HorarioModificado {
   id: string;
   fecha: string;                       // YYYY-MM-DD
@@ -46,6 +57,9 @@ export interface HorarioModificado {
   modificaciones: ModificacionBloque[]; // se completa en la fase del editor
   estado: EstadoHorarioMod;
   timestamp: string;
+  // OPCIONAL: modificaciones guardadas antes de este cambio no lo tienen.
+  // Tratar `undefined` como lista vacía en todas partes — nunca asumir que existe.
+  acompanantes?: Acompanante[];
 }
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -66,6 +80,10 @@ export function generarIdHorarioMod(): string {
 
 export function generarIdApoyo(): string {
   return `ap_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+export function generarIdAcompanante(): string {
+  return `ac_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
 export function fechaHoyLocal(): string {
@@ -860,7 +878,7 @@ export interface DocenteAfectadoResumen {
   nombre: string;
   nombreCorto: string;
   correo: string;
-  motivo: string; // 'ausente' | 'clase movida' | 'supervisor de taller'
+  motivo: string; // 'ausente' | 'clase movida' | 'supervisor de taller' | 'acompañante'
 }
 
 export interface ResumenDifusion {
@@ -1006,6 +1024,27 @@ export function generarResumenDifusion(
     textoPartes.push('');
   });
 
+  // ── Acompañantes ───────────────────────────────────────────────────────────
+  // No son reubicaciones: su horario no cambia, pero van con su grupo a una
+  // actividad. Se difunden aparte para que quede constancia de dónde está
+  // cada grupo, aunque no haya ningún bloque "movido" que listar arriba.
+  const acompanantes = borrador.acompanantes ?? [];
+  if (acompanantes.length > 0) {
+    htmlPartes.push(`<h3 style="margin:16px 0 6px 0;color:#1f2937;border-bottom:1px solid #e5e7eb;padding-bottom:4px">Acompañantes</h3>`);
+    htmlPartes.push(`<ul style="margin:0;padding-left:18px;font-size:13px;color:#1f2937">`);
+    textoPartes.push('*Acompañantes*');
+    acompanantes.forEach(ac => {
+      const docente = usuarios.find(u => u.id === ac.docenteId)?.nombreCorto ?? ac.docenteId;
+      const horasTxt = joinOrdinales(ac.bloques);
+      const plural = ac.bloques.length > 1 ? 's' : '';
+      const notaTxt = ac.nota ? ` — ${ac.nota}` : '';
+      htmlPartes.push(`<li>👥 ${docente} acompaña al grupo ${ac.grupo} en la ${horasTxt} hora${plural}${notaTxt}</li>`);
+      textoPartes.push(`👥 ${docente} acompaña al grupo ${ac.grupo} en la ${horasTxt} hora${plural}${notaTxt}`);
+    });
+    htmlPartes.push(`</ul>`);
+    textoPartes.push('');
+  }
+
   htmlPartes.push(`<p style="margin-top:20px;font-size:11px;color:#94a3b8">Generado por MJB Préstamos</p>`);
   htmlPartes.push(`</div>`);
   textoPartes.push('— MJB Préstamos');
@@ -1048,6 +1087,17 @@ export function generarResumenDifusion(
           motivo: 'supervisor de taller',
         });
       }
+    }
+  });
+
+  // (4) acompañantes — no tienen bloques alterados, pero deben enterarse igual
+  acompanantes.forEach(ac => {
+    const u = usuarios.find(x => x.id === ac.docenteId);
+    if (u && !docentesAfectadosMap.has(u.id)) {
+      docentesAfectadosMap.set(u.id, {
+        id: u.id, nombre: u.nombre, nombreCorto: u.nombreCorto, correo: u.correo,
+        motivo: 'acompañante',
+      });
     }
   });
 
@@ -1375,6 +1425,30 @@ export function mensajeNotificacionDocente(
     return `Tu horario del ${fechaLegible} no tuvo cambios.`;
   }
   return `Tu horario del ${fechaLegible} cambió: ${partes.join(' ')}`;
+}
+
+/** Une una lista de ordinales de hora en texto legible: "5.ª", "5.ª y 6.ª", "5.ª, 6.ª y 7.ª". */
+function joinOrdinales(bloques: number[]): string {
+  const horas = [...bloques].sort((a, b) => a - b).map(horaOrdinal);
+  if (horas.length === 1) return horas[0];
+  if (horas.length === 2) return `${horas[0]} y ${horas[1]}`;
+  return `${horas.slice(0, -1).join(', ')} y ${horas[horas.length - 1]}`;
+}
+
+/**
+ * Genera el mensaje de notificación para un ACOMPAÑANTE: docente cuyo horario
+ * no cambia, pero que va con su grupo a una actividad y por tanto debe
+ * enterarse igual que cualquier docente reubicado (ese es el origen de este
+ * módulo — ver docs/modulo-dia-escolar.md, situación 1).
+ */
+export function mensajeNotificacionAcompanante(
+  acompanante: Acompanante,
+  fechaLegible: string,
+): string {
+  const horas = joinOrdinales(acompanante.bloques);
+  const plural = acompanante.bloques.length > 1 ? 's' : '';
+  const base = `El ${fechaLegible} acompañas al grupo ${acompanante.grupo} en la ${horas} hora${plural}. Tu horario no cambia.`;
+  return acompanante.nota ? `${base} (${acompanante.nota})` : base;
 }
 
 export function fichasAModificaciones(fichas: FichaEditor[]): ModificacionBloque[] {

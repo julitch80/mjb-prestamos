@@ -121,7 +121,11 @@ service firebase.storage {
     }
 
     // ---------- Fotografias de estudiantes ----------
-    match /asistencia/photos/{studentId}.jpg {
+    // CORREGIDO al integrar: venia como `{studentId}.jpg`, y Cloud Storage NO admite
+    // comodines con sufijo literal — el despliegue fallaba con "Unexpected '.'". El
+    // comodin captura el nombre COMPLETO del archivo y el id del estudiante se deriva
+    // quitandole la extension.
+    match /asistencia/photos/{archivo} {
 
       // Lectura para cualquier usuario institucional ACTIVO. Es deliberadamente amplia:
       // la foto se usa para verificar identidad al escanear un QR y en el plano de clase,
@@ -131,7 +135,7 @@ service firebase.storage {
       // Ojo con la consecuencia practica: las fotos se cachean en los dispositivos de los
       // docentes para que la app funcione sin senal. Eso es intencional y esta cubierto por
       // la autorizacion de tratamiento, pero conviene que el colegio lo sepa.
-      allow read: if asisActivo();
+      allow read: if asisActivo() && archivo.matches('.*[.]jpg');
 
       // Escritura: superusuario, coordinador o el director del grupo del estudiante. Es la
       // misma lista que puede editar la ficha.
@@ -139,9 +143,10 @@ service firebase.storage {
       // reglas se evaluan en union, el `allow delete: if false` de abajo no revocaba nada y
       // el borrado quedaba permitido. Con create/update la intencion se cumple de verdad.
       allow create, update: if asisActivo()
+        && archivo.matches('.*[.]jpg')
         && (asisRol() == 'superusuario'
             || asisRol() == 'coordinador'
-            || asisEsDirectorDe(studentId))
+            || asisEsDirectorDe(archivo.split('[.]')[0]))
         && request.resource.size < 2 * 1024 * 1024
         && request.resource.contentType.matches('image/jpeg');
 

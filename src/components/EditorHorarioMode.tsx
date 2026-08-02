@@ -41,6 +41,7 @@ import {
   configurarResolverNombreDocente,
   docentesAfectadosConDia,
   mensajeNotificacionDocente,
+  mensajeNotificacionAcompanante,
   TIPO_APOYO_LABEL,
 } from '../data/horarioModificado';
 import type {
@@ -49,6 +50,7 @@ import type {
   PropuestaAsistente,
   NivelPropuesta,
   ResumenDifusion,
+  Acompanante,
 } from '../data/horarioModificado';
 import { generarPublicacionDeModificacion } from '../data/publicacion';
 import type { PublicacionPendiente } from '../data/publicacion';
@@ -384,6 +386,16 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   const [envioAutomaticoHecho, setEnvioAutomaticoHecho] = useState(false);
   const [toastNotificacion, setToastNotificacion] = useState<string | null>(null);
 
+  // ── Acompañantes ─────────────────────────────────────────────────────────
+  // Docentes que no tienen ningún bloque alterado (su horario sigue igual)
+  // pero que ese día van con su grupo a una actividad fuera del aula. El
+  // sistema no tenía forma de detectarlos ni avisarles — ver docs/modulo-dia-escolar.md.
+  const [acompanantes, setAcompanantes] = useState<Acompanante[]>(borrador.acompanantes ?? []);
+  const [formAcompDocente, setFormAcompDocente] = useState('');
+  const [formAcompGrupo, setFormAcompGrupo] = useState('');
+  const [formAcompBloques, setFormAcompBloques] = useState<Set<number>>(new Set());
+  const [formAcompNota, setFormAcompNota] = useState('');
+
   // Auto-dismiss del toast de notificación tras 6 segundos
   useEffect(() => {
     if (!toastNotificacion) return;
@@ -478,6 +490,20 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     () => getDocentes(borrador.jornada).map(d => ({ id: d.id, nombreCorto: d.nombreCorto, color: d.color })),
     [borrador.jornada]
   );
+
+  // Docentes y grupos disponibles para declarar un acompañante: cualquier
+  // docente de la jornada (no solo los afectados por ausencias) y cualquier
+  // grupo que exista ese día en horarioBase para esa jornada.
+  const docentesJornada = useMemo(() => getDocentes(borrador.jornada), [borrador.jornada]);
+  const gruposDelDia = useMemo(() => {
+    const set = new Set<string>();
+    (horarioBase as any).forEach((e: any) => {
+      if (e.jornada !== borrador.jornada || e.dia !== dia) return;
+      const grado = e.grado.includes('/') ? e.grado.split('/')[0] : e.grado;
+      set.add(grado);
+    });
+    return Array.from(set).sort(compararGrupos);
+  }, [borrador.jornada, dia]);
 
   // ── Drag-and-drop handler ──────────────────────────────────────────────────
   function handleDragEnd(e: DragEndEvent) {
@@ -603,6 +629,34 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     }));
   }
 
+  // ── Acompañantes: añadir / quitar ──────────────────────────────────────────
+  function agregarAcompanante() {
+    if (!formAcompDocente || !formAcompGrupo || formAcompBloques.size === 0) return;
+    const nuevo: Acompanante = {
+      docenteId: formAcompDocente,
+      grupo: formAcompGrupo,
+      bloques: Array.from(formAcompBloques).sort((a, b) => a - b),
+      nota: formAcompNota.trim() || undefined,
+    };
+    setAcompanantes(prev => [...prev, nuevo]);
+    setFormAcompDocente('');
+    setFormAcompGrupo('');
+    setFormAcompBloques(new Set());
+    setFormAcompNota('');
+  }
+
+  function quitarAcompanante(idx: number) {
+    setAcompanantes(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function toggleFormAcompBloque(b: number) {
+    setFormAcompBloques(prev => {
+      const next = new Set(prev);
+      if (next.has(b)) next.delete(b); else next.add(b);
+      return next;
+    });
+  }
+
   // ── Asistente: propuestas y aplicación ─────────────────────────────────────
   const propuestas = useMemo(
     () => generarPropuestasAsistente(fichas, borrador),
@@ -647,10 +701,11 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     const modificaciones = fichasAModificaciones(fichas);
     actualizarHorarioModificado(borrador.id, {
       modificaciones,
+      acompanantes,
       estado: 'guardado',
       timestamp: new Date().toISOString(),
     });
-    const borradorGuardado: HorarioModificado = { ...borrador, modificaciones, estado: 'guardado' };
+    const borradorGuardado: HorarioModificado = { ...borrador, modificaciones, acompanantes, estado: 'guardado' };
 
     // Generar resumen para difundir
     const usuariosMinimos = USUARIOS.map(u => ({
@@ -681,6 +736,21 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
           if (!tieneCambio) return;
           const mensaje = mensajeNotificacionDocente(d, bloquesHoras, fechaLegible);
           items.push({ destinatario: d.docenteId, tipo: 'horario_modificado', mensaje });
+        });
+        // Acompañantes: su horario NO tiene bloques alterados (por eso el bucle
+        // anterior nunca los detecta), pero deben enterarse igual — es justo
+        // el caso que originó este módulo. Si el mismo docente YA recibe aviso
+        // por reubicación, se le añade la frase del acompañamiento a ESE
+        // mensaje en vez de mandarle una segunda notificación (un docente
+        // puede ser reubicado en unas horas y acompañante en otras).
+        acompanantes.forEach(ac => {
+          const mensajeAcomp = mensajeNotificacionAcompanante(ac, fechaLegible);
+          const existente = items.find(it => it.destinatario === ac.docenteId);
+          if (existente) {
+            existente.mensaje = `${existente.mensaje} ${mensajeAcomp}`;
+          } else {
+            items.push({ destinatario: ac.docenteId, tipo: 'horario_modificado', mensaje: mensajeAcomp });
+          }
         });
         if (items.length > 0) {
           await crearNotificacionesLote(items).catch(() => {});
@@ -804,6 +874,96 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               ))}
             </div>
           )}
+
+          {/* ── Acompañantes ────────────────────────────────────────────────
+              El docente que va con su grupo a una actividad no tiene ningún
+              bloque alterado, así que el editor no tenía nada que reorganizar
+              y el aviso automático lo descartaba. Declararlo aquí es lo que
+              hace que reciba la notificación. */}
+          <div className="pt-2 border-t border-info space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] text-info-soft-fg/70">Acompañantes:</span>
+              {acompanantes.length === 0 && (
+                <span className="text-[10px] text-info-soft-fg/50">
+                  ninguno — quien acompaña a su grupo no cambia de horario, pero sí debe enterarse
+                </span>
+              )}
+              {acompanantes.map((ac, i) => (
+                <span
+                  key={`${ac.docenteId}-${ac.grupo}-${i}`}
+                  className="text-[10px] px-2 py-1 rounded-full bg-purple-soft border border-purple text-purple-soft-fg flex items-center gap-1.5"
+                  title={ac.bloques.map(b => `${horaOrdinal(b)} hora`).join(', ')}
+                >
+                  {USUARIOS.find(u => u.id === ac.docenteId)?.nombreCorto ?? ac.docenteId} → {ac.grupo} ({ac.bloques.map(b => horaOrdinal(b)).join(', ')})
+                  <button
+                    onClick={() => quitarAcompanante(i)}
+                    className="opacity-70 hover:opacity-100"
+                    title="Quitar acompañante"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+              <select
+                value={formAcompDocente}
+                onChange={e => setFormAcompDocente(e.target.value)}
+                className="px-2 py-1.5 rounded-lg bg-elevated border border-line text-strong text-xs focus:outline-none"
+              >
+                <option value="">Docente…</option>
+                {docentesJornada.map(d => (
+                  <option key={d.id} value={d.id}>{d.nombreCorto || d.nombre}</option>
+                ))}
+              </select>
+
+              <select
+                value={formAcompGrupo}
+                onChange={e => setFormAcompGrupo(e.target.value)}
+                className="px-2 py-1.5 rounded-lg bg-elevated border border-line text-strong text-xs focus:outline-none"
+              >
+                <option value="">Grupo…</option>
+                {gruposDelDia.map(g => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+
+              <div className="flex items-center gap-1 flex-wrap">
+                {bloques.map(b => (
+                  <button
+                    key={b.id}
+                    onClick={() => toggleFormAcompBloque(b.id)}
+                    className={cn(
+                      'px-2 py-1 rounded-lg text-[10px] border transition',
+                      formAcompBloques.has(b.id)
+                        ? 'bg-purple-soft border-purple text-purple-soft-fg'
+                        : 'bg-elevated border-line text-muted hover:text-soft'
+                    )}
+                    title={`${b.inicio}–${b.fin}`}
+                  >
+                    {horaOrdinal(b.id)}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                type="text"
+                value={formAcompNota}
+                onChange={e => setFormAcompNota(e.target.value)}
+                placeholder="Nota (opcional): actividad con los onces…"
+                className="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-elevated border border-line text-strong text-xs placeholder:text-muted focus:outline-none"
+              />
+
+              <button
+                onClick={agregarAcompanante}
+                disabled={!formAcompDocente || !formAcompGrupo || formAcompBloques.size === 0}
+                className="px-3 py-1.5 rounded-lg bg-elevated hover:bg-hover text-soft hover:text-strong text-xs font-medium transition disabled:opacity-40"
+              >
+                Añadir
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Selector modo edición */}
