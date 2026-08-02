@@ -181,6 +181,18 @@ export const IconoSugerencias = (p: Props) => (
   </Svg>
 );
 
+/** Asistencia — planilla con casillas marcadas. */
+export const IconoAsistencia = (p: Props) => (
+  <Svg {...p}>
+    <rect x="3.5" y="4" width="17" height="16" rx="2.5" />
+    <path d="M3.5 9h17" />
+    <path d="M7 5.5v-2M17 5.5v-2" />
+    <path d="M6.5 12.5l1.3 1.3L10.3 11" />
+    <path d="M6.5 16.7l1.3 1.3 2.5-2.8" />
+    <path d="M13 12.2h5M13 16.7h5" />
+  </Svg>
+);
+
 /** Genérico, por si aparece una sección nueva sin icono propio. */
 export const IconoGenerico = (p: Props) => (
   <Svg {...p}>
@@ -210,6 +222,7 @@ export const NEON_NAV: Record<
   admin_users:    { Icono: IconoUsuarios,   color: '#38bdf8' }, // celeste
   chat:           { Icono: IconoChat,       color: '#2dd4bf' }, // turquesa
   sugerencias:    { Icono: IconoSugerencias, color: '#fde047' }, // amarillo
+  asistencia:     { Icono: IconoAsistencia, color: '#4ade80' }, // verde esmeralda
 };
 
 export function neonDe(id: string) {

@@ -45,12 +45,120 @@ service firebase.storage {
     // Adjuntos del chat interno: chat/{channelId}/{fileName}.
     match /chat/{channelId}/{fileName} {
       allow read: if isInstitutional();
-      allow write: if isInstitutional()
+      // `write` incluye delete y las reglas se evaluan en union, asi que el
+      // `allow delete: if false` de abajo no revocaba nada: cualquier usuario
+      // institucional podia borrar los adjuntos de otro. Con create/update no.
+      allow create, update: if isInstitutional()
         && request.resource.size < 10 * 1024 * 1024
         && contentTypeValido();
       // El borrado lo hace la regla de ciclo de vida del bucket a los 90
       // días, no el cliente.
       allow delete: if false;
+    }
+
+    // =========================================================================
+    //  BLOQUE DE STORAGE DEL MODULO DE ASISTENCIA
+    //  Integrado desde el repo de asistencia (rules/asistencia.storage.rules).
+    //  ESTE archivo es el que se despliega.
+    // =========================================================================
+
+    // =============================================================================
+    //  BLOQUE DE REGLAS DE STORAGE DEL MODULO DE ASISTENCIA
+    //
+    //  Fragmento: se pega dentro del `match /b/{bucket}/o` de storage.rules de
+    //  mjb-prestamos. NO lleva `rules_version` ni `service firebase.storage`.
+    //
+    //  ⛔ Se despliega DESDE EL REPO DE MJB. Nunca desde asistencia.
+    //
+    //  POR QUE ESTO ES BLOQUEANTE PARA EL PILOTO: son fotografias de menores de edad. Sin
+    //  estas reglas, cualquier archivo subido al bucket queda sin control de acceso. Tienen
+    //  que estar desplegadas ANTES de la primera foto real, no despues.
+    //
+    //  El colegio tiene la autorizacion de tratamiento (Ley 1581/2012), lo que habilita
+    //  tomarlas y usarlas — no relaja quien puede verlas.
+    // =============================================================================
+
+    // Helpers propios, con prefijo `asis` para no chocar con los de prestamos.
+    // Storage no comparte los helpers de Firestore: hay que consultar Firestore
+    // explicitamente con firestore.get().
+
+    function asisCaller() {
+      return request.auth.token.email.lower();
+    }
+
+    function asisEsInstitucional() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && asisCaller().matches('.*@iemanueljbetancur[.]edu[.]co');
+    }
+
+    function asisUserDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(asisCaller())).data;
+    }
+
+    function asisActivo() {
+      return asisEsInstitucional()
+        && firestore.exists(/databases/(default)/documents/users/$(asisCaller()))
+        && asisUserDoc().active == true;
+    }
+
+    function asisRol() {
+      return asisUserDoc().role;
+    }
+
+    // Director del grupo del estudiante: mismo mecanismo que en Firestore — el documento
+    // espejo asistenciaConfig/directores, cuyo campo `mapa` va de grado a slotId. El grado
+    // vigente del estudiante viaja denormalizado en su ficha.
+    function asisGradoDe(studentId) {
+      return firestore.get(/databases/(default)/documents/asistenciaStudents/$(studentId)).data.gradoActual;
+    }
+
+    function asisEsDirectorDe(studentId) {
+      return asisGradoDe(studentId) in
+          firestore.get(/databases/(default)/documents/asistenciaConfig/directores).data.mapa
+        && firestore.get(/databases/(default)/documents/asistenciaConfig/directores).data.mapa[asisGradoDe(studentId)]
+           == asisUserDoc().slotId;
+    }
+
+    // ---------- Fotografias de estudiantes ----------
+    match /asistencia/photos/{studentId}.jpg {
+
+      // Lectura para cualquier usuario institucional ACTIVO. Es deliberadamente amplia:
+      // la foto se usa para verificar identidad al escanear un QR y en el plano de clase,
+      // y cualquier docente puede terminar acompanando un grupo que no es el suyo. La
+      // restriccion fina esta en los datos de asistencia, no en el rostro.
+      //
+      // Ojo con la consecuencia practica: las fotos se cachean en los dispositivos de los
+      // docentes para que la app funcione sin senal. Eso es intencional y esta cubierto por
+      // la autorizacion de tratamiento, pero conviene que el colegio lo sepa.
+      allow read: if asisActivo();
+
+      // Escritura: superusuario, coordinador o el director del grupo del estudiante. Es la
+      // misma lista que puede editar la ficha.
+      // CORREGIDO al integrar: era `allow write`, que en Storage incluye delete. Como las
+      // reglas se evaluan en union, el `allow delete: if false` de abajo no revocaba nada y
+      // el borrado quedaba permitido. Con create/update la intencion se cumple de verdad.
+      allow create, update: if asisActivo()
+        && (asisRol() == 'superusuario'
+            || asisRol() == 'coordinador'
+            || asisEsDirectorDe(studentId))
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/jpeg');
+
+      allow delete: if false;   // se reemplaza, no se borra
+    }
+
+    // Copias previas al reemplazar una foto. Evidencia, no consulta general.
+    match /asistencia/photos/history/{studentId}/{ts} {
+      allow read: if asisActivo() && asisRol() in ['superusuario', 'coordinador'];
+      allow write: if false;    // las escribe una Cloud Function con Admin SDK
+    }
+
+    // ---------- Archivos importados de Master2000 ----------
+    // Se conservan tal como llegaron, como evidencia de que produjo cada importacion.
+    // Contienen documentos de identidad en claro, asi que NO los ve nadie mas.
+    match /asistencia/imports/{fileName} {
+      allow read, write: if asisActivo() && asisRol() == 'superusuario';
     }
 
     match /{allPaths=**} {

@@ -22,7 +22,8 @@ export type VistaActual =
   | 'agenda'
   | 'riesgo'
   | 'asistentes'
-  | 'sugerencias';
+  | 'sugerencias'
+  | 'asistencia';
 
 interface AppState {
   // Auth

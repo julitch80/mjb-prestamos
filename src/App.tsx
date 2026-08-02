@@ -21,6 +21,7 @@ import Chat from './components/Chat';
 import AgendaSemanal from './components/AgendaSemanal';
 import GestionRiesgo from './components/GestionRiesgo';
 import Asistentes from './components/Asistentes';
+import Asistencia from './asistencia';
 import BannerNotificaciones from './components/BannerNotificaciones';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
@@ -49,6 +50,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'asistentes',     label: 'Asistentes',      descripcion: 'Chatbots de convivencia y evaluación', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',        roles: ['superusuario'] },
   { id: 'sugerencias',    label: 'Sugerencias',     descripcion: 'Lo que reportan los docentes',    roles: ['superusuario'] },
+  { id: 'asistencia',     label: 'Asistencia',      descripcion: 'Registro de clase',               roles: ['docente', 'coordinador', 'rectora'] },
 ];
 
 const ROL_COLOR: Record<string, string> = {
@@ -422,6 +424,7 @@ export default function App() {
                   {vistaActual === 'asistentes'     && <Asistentes />}
                   {vistaActual === 'admin_users'    && rol === 'superusuario' && <PanelSuperusuario />}
                   {vistaActual === 'sugerencias'    && rol === 'superusuario' && <PanelSugerencias />}
+                  {vistaActual === 'asistencia'     && <Asistencia />}
                 </>
               );
             })()}
