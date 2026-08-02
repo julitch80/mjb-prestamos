@@ -11,9 +11,29 @@
 // falta descargar la clave de servicio cada vez que cambie un director.
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
-import { DIRECTORES_MANANA, DIRECTORES_TARDE } from './maestros';
+import { AUTORIDAD_SEDE, DIRECTORES_MANANA, DIRECTORES_TARDE, SEDES, USUARIOS, type SedeId } from './maestros';
 
 export const RUTA_DIRECTORES = 'asistenciaConfig/directores';
+export const RUTA_AUTORIDAD = 'asistenciaConfig/autoridadSede';
+
+/**
+ * Mapa sede → correos de los coordinadores con autoridad en esa sede.
+ *
+ * Se guardan CORREOS y no slotId a propósito: en las reglas la identidad
+ * garantizada es `callerEmail()`, mientras que `slotId` depende de que el
+ * documento del usuario en Firestore lo tenga bien puesto. Si faltara, el
+ * coordinador se quedaría sin acceso sin que nadie entienda por qué.
+ */
+export function mapaAutoridadSede(): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const sede of SEDES) {
+    const ids = AUTORIDAD_SEDE[sede.id as SedeId] ?? [];
+    out[sede.id] = ids
+      .map((id) => USUARIOS.find((u) => u.id === id)?.correo?.toLowerCase() ?? '')
+      .filter(Boolean);
+  }
+  return out;
+}
 
 /** Mapa grado → slotId con las dos jornadas juntas. */
 export function mapaDirectores(): Record<string, string> {
@@ -32,6 +52,23 @@ export async function sincronizarDirectores(): Promise<number> {
   // porque un grado de la mañana como "9.1" se interpretaría como ruta de campo
   // anidada: el punto es el separador de rutas en Firestore.
   await setDoc(doc(db, 'asistenciaConfig', 'directores'), {
+    mapa,
+    actualizadoPor: auth.currentUser.email?.toLowerCase() ?? '',
+    actualizadoEn: serverTimestamp(),
+  });
+  return Object.keys(mapa).length;
+}
+
+/**
+ * Sincroniza el espejo de autoridad por sede. Las reglas no pueden leer
+ * AUTORIDAD_SEDE de maestros.ts, así que sin este documento cualquier
+ * coordinador podría registrar asistencia en cualquier sede.
+ * Devuelve cuántas sedes quedaron registradas.
+ */
+export async function sincronizarAutoridadSede(): Promise<number> {
+  if (!db || !auth?.currentUser) throw new Error('No hay sesión de Firebase.');
+  const mapa = mapaAutoridadSede();
+  await setDoc(doc(db, 'asistenciaConfig', 'autoridadSede'), {
     mapa,
     actualizadoPor: auth.currentUser.email?.toLowerCase() ?? '',
     actualizadoEn: serverTimestamp(),

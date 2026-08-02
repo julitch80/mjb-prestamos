@@ -161,6 +161,26 @@ service cloud.firestore {
       return isActiveUser() && callerDoc().role == 'coordinador';
     }
 
+    // Autoridad del coordinador ACOTADA POR SEDE. Hasta ahora asisIsCoordinador()
+    // solo miraba el rol, asi que cualquier coordinador podia registrar asistencia
+    // en cualquier sede. Con una sola sede configurada daba igual; con tres, no.
+    //
+    // Decision de Julian (ago 2 2026): Janneth Ocampo manda en Gustavo Rodas en las
+    // dos jornadas y solo ella; Juan Diego Salazar en La Finquita en las dos y solo
+    // el. En central siguen los dos.
+    //
+    // El espejo asistenciaConfig/autoridadSede guarda CORREOS, no slotId: en las
+    // reglas la identidad garantizada es callerEmail(), mientras que slotId depende
+    // de que el documento del usuario lo tenga bien puesto.
+    function asisAutoridadSede() {
+      return get(/databases/$(database)/documents/asistenciaConfig/autoridadSede).data.mapa;
+    }
+    function asisCoordinaSede(sede) {
+      return asisIsCoordinador()
+        && sede in asisAutoridadSede()
+        && callerEmail() in asisAutoridadSede()[sede];
+    }
+
     function asisIsRectora() {
       return isActiveUser() && callerDoc().role == 'rectora';
     }
@@ -219,7 +239,7 @@ service cloud.firestore {
       // where('slotId','==',<el suyo>) y un director con where('grado','==',<el suyo>);
       // una consulta sin filtrar falla aunque tuviera derecho a cada documento.
       allow read: if isActiveUser() && (
-        asisIsCoordinador()
+        asisCoordinaSede(resource.data.sede)
         || asisIsRectora()          // consulta institucional; no registra
         || asisIsDirectorOf(resource.data.grado)
         || resource.data.slotId == callerDoc().slotId

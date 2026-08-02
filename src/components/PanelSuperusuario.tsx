@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { mapaDirectores, sincronizarDirectores } from '../data/directoresSync';
+import { mapaDirectores, sincronizarAutoridadSede, sincronizarDirectores } from '../data/directoresSync';
 import { useAppStore } from '../data/store';
 import { firebaseConfigurado, functions, db } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -288,7 +288,11 @@ export default function PanelSuperusuario() {
     setMensajeDir(null);
     try {
       const total = await sincronizarDirectores();
-      setMensajeDir({ tipo: 'ok', texto: `${total} directores de grupo sincronizados.` });
+      const sedes = await sincronizarAutoridadSede();
+      setMensajeDir({
+        tipo: 'ok',
+        texto: `${total} directores de grupo y la autoridad de ${sedes} sedes sincronizados.`,
+      });
     } catch (e: any) {
       setMensajeDir({ tipo: 'error', texto: e?.message || 'No se pudo sincronizar.' });
     } finally {
@@ -325,11 +329,12 @@ export default function PanelSuperusuario() {
           documento para saber quién dirige cada grupo. */}
       <div className="rounded-xl border border-line bg-card p-3 space-y-2">
         <div>
-          <h3 className="text-strong text-sm font-semibold">Directores de grupo</h3>
+          <h3 className="text-strong text-sm font-semibold">Directores y autoridad por sede</h3>
           <p className="text-muted text-xs mt-0.5 leading-snug">
-            Copia a Firestore los {Object.keys(mapaDirectores()).length} directores definidos en la app,
-            para que los permisos de asistencia reconozcan a cada director sobre su grupo.
-            Vuelve a pulsarlo cuando cambie un director.
+            Copia a Firestore los {Object.keys(mapaDirectores()).length} directores de grupo y qué
+            coordinador manda en cada sede. Los permisos de asistencia leen esos datos de ahí, porque
+            las reglas no pueden consultar el código. Vuelve a pulsarlo cuando cambie un director o
+            la autoridad de una sede.
           </p>
         </div>
         <button
@@ -337,7 +342,7 @@ export default function PanelSuperusuario() {
           disabled={sincronizandoDir}
           className="px-3 py-2 rounded-lg bg-elevated hover:bg-hover text-soft hover:text-strong text-xs font-medium transition disabled:opacity-50"
         >
-          {sincronizandoDir ? 'Sincronizando…' : 'Sincronizar directores'}
+          {sincronizandoDir ? 'Sincronizando…' : 'Sincronizar permisos'}
         </button>
         {mensajeDir && (
           <p className={'text-xs ' + (mensajeDir.tipo === 'ok' ? 'text-success-soft-fg' : 'text-danger')}>
