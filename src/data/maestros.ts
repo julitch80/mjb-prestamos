@@ -106,6 +106,26 @@ export const USUARIOS: Usuario[] = [
   // Nuevos docentes
   { id: 'yuri',       nombre: 'Yuri Catalina Gómez Gómez',        nombreCorto: 'Yuri',       rol: 'docente', jornada: 'ambas', correo: 'yuri.gomez@iemanueljbetancur.edu.co',       pin: '', color: '#c4b5fd' },
   { id: 'alexander',  nombre: 'Jhon Alexander Sánchez Giraldo',   nombreCorto: 'Alexander',  rol: 'docente', jornada: 'ambas', correo: 'alexander.sanchez@iemanueljbetancur.edu.co', pin: '', color: '#fda4af' },
+
+  // ── Sede Gustavo Rodas Isaza (primaria) ────────────────────────────────────
+  // Fuente: "asignacion Academica 2026 FINAL.xlsx", hoja PRIMARIA GRI, cruzada
+  // con el directorio de correos institucionales y la Resolucion Rectoral 33.
+  // Ids con prefijo `gri_` para que no colisionen con los de central: hay
+  // nombres repetidos entre sedes (dos Beatriz, dos Margaritas).
+  // MANANA — cada docente dicta todas las asignaturas de su grupo.
+  { id: 'gri_leidy_a',   nombre: 'Leidy Yadira Atehortúa Rojas',      nombreCorto: 'Leidy A.',   rol: 'docente', jornada: 'manana', correo: 'leidy.atehortua@iemanueljbetancur.edu.co',   pin: '', color: '#7dd3fc', sede: 'gustavo_rodas' },
+  { id: 'gri_maria_v',   nombre: 'María Victoria Henao Toro',         nombreCorto: 'María V.',   rol: 'docente', jornada: 'manana', correo: 'maria.henao@iemanueljbetancur.edu.co',       pin: '', color: '#86efac', sede: 'gustavo_rodas' },
+  { id: 'gri_lourdes',   nombre: 'Lourdes Uparela Imbeth',            nombreCorto: 'Lourdes',    rol: 'docente', jornada: 'manana', correo: 'lourdes.uparela@iemanueljbetancur.edu.co',   pin: '', color: '#fcd34d', sede: 'gustavo_rodas' },
+  { id: 'gri_edison',    nombre: 'Edison Alejandro Sánchez',          nombreCorto: 'Edison',     rol: 'docente', jornada: 'manana', correo: 'edison.sanches@iemanueljbetancur.edu.co',    pin: '', color: '#c4b5fd', sede: 'gustavo_rodas' },
+  { id: 'gri_jaqueline', nombre: 'Jaqueline Arévalo Alzate',          nombreCorto: 'Jaqueline',  rol: 'docente', jornada: 'manana', correo: 'jaqueline.arevalo@iemanueljbetancur.edu.co', pin: '', color: '#f9a8d4', sede: 'gustavo_rodas' },
+  // TARDE — cada docente dicta una o dos asignaturas en todos los grupos.
+  { id: 'gri_sandra',    nombre: 'Sandra Milena García García',       nombreCorto: 'Sandra',     rol: 'docente', jornada: 'tarde',  correo: 'sandra.garcia@iemanueljbetancur.edu.co',     pin: '', color: '#fdba74', sede: 'gustavo_rodas' },
+  { id: 'gri_johana_r',  nombre: 'Johana Rivera',                     nombreCorto: 'Johana R.',  rol: 'docente', jornada: 'tarde',  correo: 'johana.rivera@iemanueljbetancur.edu.co',     pin: '', color: '#5eead4', sede: 'gustavo_rodas' },
+  { id: 'gri_edwin',     nombre: 'Edwin Alexis Toro Dávila',          nombreCorto: 'Edwin',      rol: 'docente', jornada: 'tarde',  correo: 'edwin.toro@iemanueljbetancur.edu.co',        pin: '', color: '#a3e635', sede: 'gustavo_rodas' },
+  { id: 'gri_leonardo',  nombre: 'Leonardo Acevedo Suárez',           nombreCorto: 'Leonardo',   rol: 'docente', jornada: 'tarde',  correo: 'leonardo.acevedo@iemanueljbetancur.edu.co',  pin: '', color: '#93c5fd', sede: 'gustavo_rodas' },
+  { id: 'gri_diego',     nombre: 'Diego Alejandro Mejía Merino',      nombreCorto: 'Diego',      rol: 'docente', jornada: 'tarde',  correo: 'diego.mejia@iemanueljbetancur.edu.co',       pin: '', color: '#f0abfc', sede: 'gustavo_rodas' },
+  { id: 'gri_beatriz_z', nombre: 'Beatriz Elena Zapata Vásquez',      nombreCorto: 'Beatriz Z.', rol: 'docente', jornada: 'tarde',  correo: 'beatriz.zapata@iemanueljbetancur.edu.co',    pin: '', color: '#fca5a5', sede: 'gustavo_rodas' },
+  { id: 'gri_dolly',     nombre: 'Dolly Marley Gutiérrez Guevara',    nombreCorto: 'Dolly',      rol: 'docente', jornada: 'tarde',  correo: 'dolly.gutierrez@iemanueljbetancur.edu.co',   pin: '', color: '#fde047', sede: 'gustavo_rodas' },
 ];
 
 // ── Sedes: autoridad y direccionamiento ─────────────────────────────────────
@@ -228,6 +248,76 @@ export const DIRECTORES_TARDE: Record<string, string> = {
   '8º3': 'monica_rave',
   '8º4': 'juan_pablo',
 };
+
+// ── Sede Gustavo Rodas Isaza: grupos y direccion de grupo ────────────────────
+//
+// Los grupos de primaria usan el simbolo de grado (3°1), NO el ordinal (3º1)
+// que usa la tarde de bachillerato. Se conserva la notacion del cuadro oficial.
+// El ultimo digito distingue la sede: Gustavo Rodas usa 1 y 2, La Finquita usa 3.
+
+export const GRUPOS_GUSTAVO_RODAS: Record<'manana' | 'tarde', string[]> = {
+  manana: ['T°1', '1°1', '1°2', '2°1', '2°2'],
+  tarde:  ['T°2', '3°1', '3°2', '4°1', '4°2', '5°1', '5°2'],
+};
+
+// Direccion de grupo. La MANANA esta confirmada por el cuadro de asignacion
+// academica. La TARDE esta DEDUCIDA del encabezado del horario ("JOHANA 3-1",
+// "EDWIN 3-2"...) y está pendiente de que la coordinadora la confirme.
+export const DIRECTORES_GUSTAVO_RODAS: Record<string, string> = {
+  // Mañana — confirmado
+  'T°1': 'gri_leidy_a',
+  '1°1': 'gri_maria_v',
+  '1°2': 'gri_lourdes',
+  '2°1': 'gri_edison',
+  '2°2': 'gri_jaqueline',
+  // Tarde — DEDUCIDO, pendiente de confirmación
+  'T°2': 'gri_sandra',
+  '3°1': 'gri_johana_r',
+  '3°2': 'gri_edwin',
+  '4°1': 'gri_leonardo',
+  '4°2': 'gri_diego',
+  '5°1': 'gri_beatriz_z',
+  '5°2': 'gri_dolly',
+};
+
+// Asignaturas que dicta cada docente de la tarde (en la manana cada uno dicta
+// todas las de su grupo). Deducido del cuadro "HORARIO POR DOCENTE".
+export const ASIGNATURAS_TARDE_GUSTAVO_RODAS: Record<string, string> = {
+  gri_sandra:    'Transición',
+  gri_johana_r:  'Inglés y Artística',
+  gri_edwin:     'C. Naturales y Ética',
+  gri_leonardo:  'Matemáticas',
+  gri_diego:     'Ed. Física y Tecnología',
+  gri_beatriz_z: 'C. Sociales',
+  gri_dolly:     'Lengua Castellana',
+};
+
+// Horas de entrada y salida por jornada y grupo. Transición tiene horario
+// propio DENTRO de su misma jornada, cosa que no ocurre en bachillerato.
+export const HORARIO_JORNADA_GUSTAVO_RODAS = [
+  { jornada: 'manana' as const, grupos: ['1°1', '1°2', '2°1', '2°2'], inicio: '07:00', fin: '12:00' },
+  { jornada: 'manana' as const, grupos: ['T°1'],                       inicio: '07:30', fin: '11:45' },
+  { jornada: 'tarde'  as const, grupos: ['3°1', '3°2', '4°1', '4°2', '5°1', '5°2'], inicio: '12:30', fin: '17:30' },
+  { jornada: 'tarde'  as const, grupos: ['T°2'],                       inicio: '12:30', fin: '16:45' },
+];
+
+// La jornada de la TARDE tiene CINCO bloques diarios, no seis como
+// bachillerato (se deduce del cuadro impreso, cuyas columnas van de 1 a 5).
+// Los de la manana se desconocen.
+export const BLOQUES_POR_JORNADA_GUSTAVO_RODAS: Record<'manana' | 'tarde', number | null> = {
+  manana: null,   // pendiente del horario detallado
+  tarde: 5,
+};
+
+// PENDIENTE de la coordinadora (solicitado el 30 de julio de 2026):
+//   - Horario detallado de la MANANA (docente, asignatura y grupo por bloque).
+//   - Horas exactas de inicio y fin de cada bloque, en las dos jornadas.
+//   - Espacios de la sede y qué salón usa cada grupo.
+//   - Turnos de acompañamiento.
+//   - Confirmación de la dirección de grupo de la tarde.
+//   - Qué función cumplen Beatriz Amparo Marín Marín y Milena Badel, que
+//     figuran en la Resolución 33 como personal de la sede pero no en la
+//     asignación académica. Por eso no están en USUARIOS todavía.
 
 // Aulas tarde → grupo
 export const AULA_GRUPO_TARDE: Record<string, string> = {
@@ -543,9 +633,20 @@ export function getUsuario(id: string): Usuario | undefined {
   return USUARIOS.find(u => u.id === id);
 }
 
-export function getDocentes(jornada?: Jornada): Usuario[] {
+/**
+ * Docentes de una jornada Y de una sede.
+ *
+ * La sede por defecto es 'central' a proposito: todas las llamadas existentes
+ * (editor de horario, asistente de ausencias, acortar jornada, vista de
+ * horario) son de bachillerato, y al incorporar los docentes de las sedes de
+ * primaria empezarian a aparecer en esos selectores sin este filtro. Los
+ * usuarios sin campo `sede` se consideran de central, que es como estaban
+ * todos antes de la expansion multi-sede.
+ */
+export function getDocentes(jornada?: Jornada, sede: SedeId = 'central'): Usuario[] {
   return USUARIOS.filter(u => {
     if (u.rol !== 'docente') return false;
+    if ((u.sede ?? 'central') !== sede) return false;
     if (!jornada) return true;
     return u.jornada === jornada || u.jornada === 'ambas';
   });

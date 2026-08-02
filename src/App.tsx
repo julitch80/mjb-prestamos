@@ -23,6 +23,7 @@ import GestionRiesgo from './components/GestionRiesgo';
 import Asistentes from './components/Asistentes';
 import Asistencia from './asistencia';
 import BannerNotificaciones from './components/BannerNotificaciones';
+import FichaSede from './components/FichaSede';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
 import { getNotificaciones } from './data/api';
@@ -399,14 +400,7 @@ export default function App() {
               const sede = SEDES.find(s => s.id === sedeActual);
               const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes' || vistaActual === 'sugerencias';
               if (sede && !sede.configurada && !vistaTransversal) {
-                return (
-                  <div className="max-w-lg mx-auto text-center py-16">
-                    <p className="text-strong text-lg font-semibold">{sede.nombre}</p>
-                    <p className="text-muted text-sm mt-2 leading-relaxed">
-                      Esta sede está en configuración — sus horarios y dinámicas se cargarán próximamente.
-                    </p>
-                  </div>
-                );
+                return <FichaSede sede={sede} />;
               }
               return (
                 <>
