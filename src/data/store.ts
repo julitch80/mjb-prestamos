@@ -21,7 +21,8 @@ export type VistaActual =
   | 'chat'
   | 'agenda'
   | 'riesgo'
-  | 'asistentes';
+  | 'asistentes'
+  | 'sugerencias';
 
 interface AppState {
   // Auth

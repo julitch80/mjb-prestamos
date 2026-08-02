@@ -173,6 +173,14 @@ export const IconoGrafico = (p: Props) => (
   </Svg>
 );
 
+/** Sugerencias — bombilla. */
+export const IconoSugerencias = (p: Props) => (
+  <Svg {...p}>
+    <path d="M9 18h6M10 21h4" />
+    <path d="M12 3a6.5 6.5 0 0 0-3.5 12c.6.4 1 1.1 1 1.8V17h5v-.2c0-.7.4-1.4 1-1.8A6.5 6.5 0 0 0 12 3z" />
+  </Svg>
+);
+
 /** Genérico, por si aparece una sección nueva sin icono propio. */
 export const IconoGenerico = (p: Props) => (
   <Svg {...p}>
@@ -201,6 +209,7 @@ export const NEON_NAV: Record<
   asistentes:     { Icono: IconoAsistentes, color: '#c084fc' }, // púrpura
   admin_users:    { Icono: IconoUsuarios,   color: '#38bdf8' }, // celeste
   chat:           { Icono: IconoChat,       color: '#2dd4bf' }, // turquesa
+  sugerencias:    { Icono: IconoSugerencias, color: '#fde047' }, // amarillo
 };
 
 export function neonDe(id: string) {

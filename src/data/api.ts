@@ -327,6 +327,40 @@ export async function crearSugerencia(
   return callApi({ action: 'crearSugerencia', autor, texto });
 }
 
+// Fase 1 del módulo de sugerencias (docs/modulo-sugerencias.md): leer y
+// clasificar. El aviso al autor (fase 2) y la vinculación entre sugerencias
+// (fase 3) quedan fuera de alcance aquí; 'relacionadas' se guarda en el
+// modelo pero la interfaz aún no lo edita.
+export type EstadoSugerencia = 'nueva' | 'clasificada' | 'en_curso' | 'resuelta' | 'descartada';
+export type ClasificacionSugerencia = 'fallo' | 'forma' | 'capacidad' | '';
+
+export interface Sugerencia {
+  id: string;
+  autor: string;
+  texto: string;
+  timestamp: string;
+  estado: EstadoSugerencia;
+  clasificacion: ClasificacionSugerencia;
+  nota: string;
+  vinculo: string;
+  relacionadas: string;
+  resueltoPor: string;
+  resueltoEn: string;
+  avisadoEn: string;
+}
+
+export async function getSugerencias(): Promise<{ ok: boolean; items: Sugerencia[]; error?: string }> {
+  const res = await callApi<{ ok: boolean; items?: Sugerencia[]; error?: string }>({ action: 'getSugerencias' });
+  return { ok: res.ok, items: res.items ?? [], error: res.error };
+}
+
+export async function actualizarSugerencia(
+  id: string,
+  cambios: Partial<Pick<Sugerencia, 'estado' | 'clasificacion' | 'nota' | 'vinculo' | 'relacionadas' | 'resueltoPor' | 'avisadoEn'>>,
+): Promise<{ ok: boolean; error?: string }> {
+  return callApi({ action: 'actualizarSugerencia', id, ...cambios });
+}
+
 // ── Publicación en Google Site del colegio ─────────────────────────────────────
 
 export interface PublicacionResultado {

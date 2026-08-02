@@ -16,6 +16,7 @@ import VistaTareas from './components/VistaTareas';
 import AgendaPublica from './components/AgendaPublica';
 import MiHistorial from './components/MiHistorial';
 import PanelSuperusuario from './components/PanelSuperusuario';
+import PanelSugerencias from './components/PanelSugerencias';
 import Chat from './components/Chat';
 import AgendaSemanal from './components/AgendaSemanal';
 import GestionRiesgo from './components/GestionRiesgo';
@@ -47,6 +48,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'riesgo',         label: 'Gestión del Riesgo', descripcion: 'Brigadas de emergencia y funciones', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'asistentes',     label: 'Asistentes',      descripcion: 'Chatbots de convivencia y evaluación', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',        roles: ['superusuario'] },
+  { id: 'sugerencias',    label: 'Sugerencias',     descripcion: 'Lo que reportan los docentes',    roles: ['superusuario'] },
 ];
 
 const ROL_COLOR: Record<string, string> = {
@@ -393,7 +395,7 @@ export default function App() {
             */}
             {(() => {
               const sede = SEDES.find(s => s.id === sedeActual);
-              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes';
+              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes' || vistaActual === 'sugerencias';
               if (sede && !sede.configurada && !vistaTransversal) {
                 return (
                   <div className="max-w-lg mx-auto text-center py-16">
@@ -419,6 +421,7 @@ export default function App() {
                   {vistaActual === 'riesgo'         && <GestionRiesgo />}
                   {vistaActual === 'asistentes'     && <Asistentes />}
                   {vistaActual === 'admin_users'    && rol === 'superusuario' && <PanelSuperusuario />}
+                  {vistaActual === 'sugerencias'    && rol === 'superusuario' && <PanelSugerencias />}
                 </>
               );
             })()}

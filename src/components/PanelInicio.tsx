@@ -1,12 +1,13 @@
 // Panel de inicio — primera pantalla al entrar a la app. Resume notificaciones,
 // cambios de horario, próxima clase (docentes), agenda institucional del día,
 // accesos rápidos por rol y un resumen de chat (solo modo google + Firebase).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { useAppStore } from '../data/store';
 import { useChatStore } from '../data/chatStore';
 import { AUTH_MODE } from '../data/authStore';
 import { firebaseConfigurado } from '../lib/firebase';
+import { getSugerencias } from '../data/api';
 import {
   BLOQUES_MANANA,
   BLOQUES_TARDE,
@@ -31,6 +32,7 @@ import {
   IconoGrafico,
   IconoHorario,
   IconoAgenda,
+  IconoSugerencias,
 } from './IconosNeon';
 
 type NavItem = { id: string; label: string; descripcion: string; roles: string[] };
@@ -141,6 +143,21 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   // ── Resumen operativo para coordinador ──────────────────────────────────
   const esCoordinador = rol === 'coordinador';
 
+  // ── Sugerencias pendientes (superusuario) ────────────────────────────────
+  const esSuperusuario = rol === 'superusuario';
+  const [sugerenciasNuevas, setSugerenciasNuevas] = useState(0);
+  useEffect(() => {
+    if (!esSuperusuario) return;
+    let cancelado = false;
+    getSugerencias().then((res) => {
+      if (cancelado || !res.ok) return;
+      setSugerenciasNuevas(res.items.filter((s) => s.estado === 'nueva').length);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [esSuperusuario]);
+
   const accesos = navItems.filter((item) => item.id !== 'inicio');
 
   const nombrePila = nombre?.split(' ')[0] ?? '';
@@ -230,6 +247,17 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       titulo: 'Modificación de horario próxima',
       detalle: `${formatearFechaLegible(m.fecha)} · jornada ${m.jornada}`,
       accion: { label: 'Ver', onClick: () => setVistaActual('horario' as never) },
+    });
+  }
+
+  if (esSuperusuario && sugerenciasNuevas > 0) {
+    avisos.push({
+      id: 'sugerencias-nuevas',
+      color: '#fde047',
+      Icono: IconoSugerencias,
+      titulo: sugerenciasNuevas === 1 ? '1 sugerencia nueva' : `${sugerenciasNuevas} sugerencias nuevas`,
+      detalle: 'Docentes reportaron algo — revísalo.',
+      accion: { label: 'Ver', onClick: () => setVistaActual('sugerencias' as never) },
     });
   }
 

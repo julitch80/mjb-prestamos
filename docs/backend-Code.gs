@@ -30,7 +30,7 @@ const DOC_AVISOS_ID = '1Z4ZPgkm5ognsKMwc8fizRTxIS2YWVyQFyzbkQ6QKEUk';
 // Esquemas de las hojas (se crean solas si no existen)
 const RESERVAS_HEADERS    = ['id','recurso','fecha','bloque','solicitante','proposito','equipos','estado','motivo','timestamp'];
 const NOTIF_HEADERS       = ['id','destinatario','tipo','mensaje','leida','timestamp'];
-const SUGERENCIAS_HEADERS = ['id','autor','texto','timestamp'];
+const SUGERENCIAS_HEADERS = ['id','autor','texto','timestamp','estado','clasificacion','nota','vinculo','relacionadas','resueltoPor','resueltoEn','avisadoEn'];
 const TAREAS_HEADERS      = ['id','grupo','asignaturaId','docenteId','titulo','momentos','fechaAsignacion','fechaEntrega','estado','timestamp'];
 const CESIONES_HEADERS    = ['id','grupo','periodo','asignaturaOrigenId','asignaturaDestinoId','docenteOrigenId','momentos','timestamp'];
 const SOLICITUDES_HEADERS = ['id','grupo','periodo','asignaturaCedenteId','asignaturaDestinoId','docenteCedenteId','docenteSolicitanteId','momentos','estado','timestamp'];
@@ -96,6 +96,10 @@ function manejar(e) {
       case 'enviarCorreoMasivo': resultado = enviarCorreoMasivo(p); break;
       case 'publicarAviso':      resultado = publicarAviso(p);      break;
       case 'crearSugerencia':    resultado = crearSugerencia(p);    break;
+      // ⚠ CAMBIO: requiere redespliegue
+      case 'getSugerencias':     resultado = getSugerencias();      break;
+      // ⚠ CAMBIO: requiere redespliegue
+      case 'actualizarSugerencia': resultado = actualizarSugerencia(p); break;
       case 'getDatosTareas':     resultado = getDatosTareas(p);     break;
       case 'crearTarea':         resultado = crearTarea(p);         break;
       case 'cancelarTarea':      resultado = cancelarTarea(p);      break;
@@ -656,11 +660,75 @@ function responderSolicitudCesion(p) {
 }
 
 // ── Sugerencias ──────────────────────────────────────────────
+// Fase 1 del módulo (docs/modulo-sugerencias.md): leer y clasificar.
+// La hoja 'Sugerencias' ya existe en producción con datos y solo 4
+// columnas ('id','autor','texto','timestamp'). asegurarEncabezados_
+// amplía la fila 1 con las columnas nuevas SIN reescribirla ni
+// reordenarla, para no perder ni desalinear lo que ya hay.
+
+function asegurarEncabezados_(sheet, headersEsperados) {
+  const actuales = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  const faltantes = headersEsperados.filter(function(h) { return actuales.indexOf(h) < 0; });
+  if (faltantes.length > 0) {
+    sheet.getRange(1, actuales.length + 1, 1, faltantes.length).setValues([faltantes]);
+  }
+}
 
 function crearSugerencia(p) {
   const sheet = getSheet('Sugerencias', SUGERENCIAS_HEADERS);
+  asegurarEncabezados_(sheet, SUGERENCIAS_HEADERS);
   const id = 'SUG-' + new Date().getTime();
   const ts = new Date().toISOString();
+  // Las columnas nuevas quedan vacías: solo se llenan al clasificar/actualizar.
   sheet.appendRow([id, p.autor || 'anónimo', p.texto || '', ts]);
   return { ok: true, id: id };
+}
+
+// ⚠ CAMBIO: requiere redespliegue
+function getSugerencias() {
+  const sheet = getSheet('Sugerencias', SUGERENCIAS_HEADERS);
+  asegurarEncabezados_(sheet, SUGERENCIAS_HEADERS);
+  const filas = hojaAObjetos(sheet);
+  const items = filas.map(function(s) {
+    return {
+      id: String(s.id),
+      autor: String(s.autor || ''),
+      texto: String(s.texto || ''),
+      timestamp: String(s.timestamp || ''),
+      // Fila sin estado (creada antes de esta fase, o recién llegada) = 'nueva'.
+      estado: s.estado ? String(s.estado) : 'nueva',
+      clasificacion: s.clasificacion ? String(s.clasificacion) : '',
+      nota: s.nota ? String(s.nota) : '',
+      vinculo: s.vinculo ? String(s.vinculo) : '',
+      relacionadas: s.relacionadas ? String(s.relacionadas) : '',
+      resueltoPor: s.resueltoPor ? String(s.resueltoPor) : '',
+      resueltoEn: s.resueltoEn ? String(s.resueltoEn) : '',
+      avisadoEn: s.avisadoEn ? String(s.avisadoEn) : '',
+    };
+  }).sort(function(a, b) { return b.timestamp.localeCompare(a.timestamp); });
+  return { ok: true, items: items };
+}
+
+// ⚠ CAMBIO: requiere redespliegue
+// Actualiza solo los campos que vengan en los parámetros. 'resueltoEn' se
+// rellena solo automáticamente cuando el estado pasa a 'resuelta' o
+// 'descartada' (y no venía ya explícito en la petición).
+function actualizarSugerencia(p) {
+  if (!p.id) return { ok: false, error: 'Falta el id de la sugerencia' };
+  const sheet = getSheet('Sugerencias', SUGERENCIAS_HEADERS);
+  asegurarEncabezados_(sheet, SUGERENCIAS_HEADERS);
+
+  const CAMPOS = ['estado', 'clasificacion', 'nota', 'vinculo', 'relacionadas', 'resueltoPor', 'avisadoEn'];
+  const updates = {};
+  CAMPOS.forEach(function(c) {
+    if (Object.prototype.hasOwnProperty.call(p, c)) updates[c] = p[c];
+  });
+
+  if (updates.estado === 'resuelta' || updates.estado === 'descartada') {
+    if (!p.resueltoEn) updates.resueltoEn = new Date().toISOString();
+  }
+
+  const ok = actualizarFila(sheet, 'id', p.id, updates);
+  if (!ok) return { ok: false, error: 'Sugerencia no encontrada' };
+  return { ok: true };
 }
