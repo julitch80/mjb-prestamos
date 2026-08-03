@@ -51,7 +51,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'asistentes',     label: 'Asistentes',      descripcion: 'Chatbots de convivencia y evaluación', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',        roles: ['superusuario'] },
   { id: 'sugerencias',    label: 'Sugerencias',     descripcion: 'Lo que reportan los docentes',    roles: ['superusuario'] },
-  { id: 'asistencia',     label: 'Asistencia',      descripcion: 'Registro de clase',               roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'asistencia',     label: 'Asistencia',      descripcion: 'Registro de clase',               roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
 ];
 
 const ROL_COLOR: Record<string, string> = {

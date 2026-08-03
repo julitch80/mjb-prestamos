@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Planilla from './Planilla';
+// Carga diferida: la pantalla de importacion arrastra exceljs (~1 MB), y solo
+// la usa el superusuario. Con import() dinamico sale del bundle principal y no
+// la descargan los 34 docentes que nunca van a importar nada.
+const Importar = lazy(() => import('./Importar'));
 import {
   abrirSesion,
   cerrarSesion as cerrarSesionRemota,
@@ -69,12 +73,14 @@ export default function Asistencia() {
   }, [alcance]);
 
   useEffect(() => {
-    if (!firebaseConfigurado) {
+    // El superusuario no lee sesiones: la regla se lo deniega siempre. Pedirlas igual
+    // solo produciria un permission-denied inutil en cada visita.
+    if (!firebaseConfigurado || rol === 'superusuario') {
       setCargando(false);
       return;
     }
     void cargarSesiones();
-  }, [cargarSesiones]);
+  }, [cargarSesiones, rol]);
 
   // El grupo se carga aparte: depende del grado elegido, no de las sesiones.
   useEffect(() => {
@@ -157,6 +163,18 @@ export default function Asistencia() {
         Firebase no está configurado en esta instalación, así que el módulo de asistencia
         no puede cargar datos.
       </p>
+    );
+  }
+
+  // El superusuario no registra asistencia (su clave es transferible) ni lee el detalle
+  // de las sesiones: las reglas se lo impiden. Lo suyo es cargar los datos base.
+  if (rol === 'superusuario') {
+    return (
+      <Suspense
+        fallback={<p className="text-sm text-muted text-center py-12">Cargando el importador…</p>}
+      >
+        <Importar />
+      </Suspense>
     );
   }
 
