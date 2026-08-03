@@ -378,7 +378,19 @@ service cloud.firestore {
     // ---------- Matriculas (grado con vigencia) ----------
     match /asistenciaEnrollments/{enrollmentId} {
       allow read: if isActiveUser();
-      allow create, update: if isSuper() || asisIsCoordinador();
+
+      // Acotado por sede igual que el resto. Se decidio NO cerrarlo por grado: el grado
+      // identifica la sede solo por una convencion implicita (Gustavo Rodas usa 1 y 2 en el
+      // ultimo digito, La Finquita el 3) que se rompe el dia que se abra un tercer grupo.
+      // La redundancia del campo es lo que hace la regla demostrable.
+      allow create: if isSuper()
+        || (asisCoordinaSede(request.resource.data.sede)
+            && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']);
+
+      allow update: if isSuper()
+        || (asisCoordinaSede(resource.data.sede)
+            && request.resource.data.sede == resource.data.sede);
+
       allow delete: if false;
     }
 

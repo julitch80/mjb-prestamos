@@ -86,6 +86,14 @@ export interface Enrollment {
   studentId: string;
   anio: number;
   grado: string;
+  /**
+   * Denormalizada, aunque el grado "ya la implique". No la implica: eso descansa en una
+   * convencion implicita (Gustavo Rodas usa 1 y 2 en el ultimo digito, La Finquita el 3)
+   * que nadie documento y que se rompe el dia que Gustavo Rodas abra un tercer grupo de
+   * primero. En un modelo denormalizado la redundancia es lo que hace la regla
+   * demostrable. Anadirla ahora cuesta un campo; despues cuesta migrar.
+   */
+  sede: Sede;
   seq: number;
   /** `desde` inclusivo, `hasta` exclusivo (null = vigente). */
   desde: string;
@@ -160,6 +168,12 @@ export interface FamilyContact {
   contactId: string;
   studentId: string;
   grado: string;
+  /**
+   * Denormalizada para que las reglas puedan acotar al coordinador por sede
+   * (`asisCoordinaSede`). Sin este campo, un coordinador de una sede leería los
+   * contactos con familias de las otras dos.
+   */
+  sede: Sede;
   fecha: string;
   motivoContacto: ContactReason;
   telefonoUsado: string;
