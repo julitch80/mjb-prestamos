@@ -1,72 +1,114 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Planilla from './Planilla';
-import { sessionId as construirSessionId } from './domain/ids';
+import {
+  abrirSesion,
+  cerrarSesion as cerrarSesionRemota,
+  leerGrupo,
+  leerSesiones,
+  marcarEstudiante,
+  type AlcanceLectura,
+} from './datos';
+import { toDateKey } from './domain/ids';
+import { jornadaDeGrado } from './domain/ids';
 import type { MarkCode } from './domain/marks';
 import type { Enrollment, Session, Student } from './domain/types';
+import { firebaseConfigurado } from '../lib/firebase';
 import { useAppStore } from '../data/store';
 
 /**
  * Componente raiz del modulo de asistencia. ESTE es el punto de pegado.
  *
- * Se exporta por defecto y no recibe props obligatorias, como pide el contrato. En MJB
- * se enchufa con `{vistaActual === 'asistencia' && <Asistencia />}`; la navegacion
- * interna se hace con estado local, nunca con URLs.
+ * Export default y sin props obligatorias, como pide el contrato. La navegacion interna
+ * es estado local, nunca URLs.
  *
- * PENDIENTE: conectar con Firestore. Hoy trabaja sobre un conjunto en memoria para que
- * la pantalla se pueda ver y probar. Al conectar, recordar dos cosas:
- *   1. `await esperarAuth()` antes de la primera lectura.
- *   2. Las consultas van SIEMPRE filtradas — `where('slotId','==',<el propio>)` para un
- *      docente, `where('grado','==',<el suyo>)` para un director. Firestore rechaza la
- *      consulta entera si no puede probar que todo el resultado sera legible, aunque el
- *      usuario tuviera derecho a cada documento por separado.
- *   3. Las escrituras al mapa van con rutas de campo puntuales
- *      (`estudiantes.est_0412.estado`), jamas reemplazando el mapa completo, y el autor
- *      sale de `exigirAutor()` de ./identidad, nunca del store.
+ * Sobre el alcance de las consultas: NO es una preferencia. Firestore rechaza la
+ * consulta entera si no puede probar que todo el resultado sera legible, asi que un
+ * docente tiene que consultar por su `slotId` y un coordinador puede ir sin acotar
+ * (dentro de las sedes que le tocan). Una consulta sin filtrar falla con
+ * permission-denied aunque el usuario tuviera derecho a cada documento por separado.
  */
 export default function Asistencia() {
   const rol = useAppStore((s) => s.rol);
+  const slotId = useAppStore((s) => s.userId);
   const sede = useAppStore((s) => s.sedeActual);
 
-  // La rectora consulta pero no registra (decision de Julian, 2026-07-30). El servidor
-  // ya lo impide; esto solo evita ofrecerle botones que fallarian.
+  // La rectora y el superusuario consultan pero no registran. El servidor ya lo impide;
+  // esto solo evita ofrecer botones que fallarian.
   const puedeRegistrar = rol !== 'rectora' && rol !== 'superusuario';
 
-  const [datos, setDatos] = useState(() => conjuntoDeMuestra(sede));
-
-  const grado = '6º1';
-  const asignatura = 'MAT';
-
-  const sesiones = useMemo(
-    () => datos.sesiones.filter((s) => s.grado === grado && s.subjectId === asignatura),
-    [datos.sesiones],
+  const alcance: AlcanceLectura = useMemo(
+    () => (rol === 'coordinador' ? { tipo: 'coordinador' } : { tipo: 'docente', slotId: slotId ?? '' }),
+    [rol, slotId],
   );
 
-  function marcar(sessionId: string, studentId: string, estado: MarkCode) {
-    setDatos((prev) => ({
-      ...prev,
-      sesiones: prev.sesiones.map((s) =>
-        s.sessionId !== sessionId
-          ? s
-          : {
-              ...s,
-              estudiantes: {
-                ...s.estudiantes,
-                [studentId]: {
-                  estado,
-                  registradoPor: 'pendiente@local',
-                  registradoEn: Date.now(),
-                  motivo: null,
-                  observacion: null,
-                  modificadoPor: null,
-                  modificadoEn: null,
-                },
-              },
-            },
-      ),
-    }));
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sesiones, setSesiones] = useState<Session[]>([]);
+  const [estudiantes, setEstudiantes] = useState<Student[]>([]);
+  const [matriculas, setMatriculas] = useState<Enrollment[]>([]);
+  const [cruce, setCruce] = useState<{ grado: string; subjectId: string } | null>(null);
+
+  /** Cruces (grado + asignatura) que aparecen en las sesiones del usuario. */
+  const cruces = useMemo(() => {
+    const vistos = new Map<string, { grado: string; subjectId: string }>();
+    for (const s of sesiones) vistos.set(`${s.grado}|${s.subjectId}`, { grado: s.grado, subjectId: s.subjectId });
+    return [...vistos.values()].sort((a, b) => a.grado.localeCompare(b.grado));
+  }, [sesiones]);
+
+  const cargarSesiones = useCallback(async () => {
+    setError(null);
+    try {
+      const lista = await leerSesiones(alcance);
+      setSesiones(lista);
+      setCruce((actual) => actual ?? (lista.length ? { grado: lista[0].grado, subjectId: lista[0].subjectId } : null));
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally {
+      setCargando(false);
+    }
+  }, [alcance]);
+
+  useEffect(() => {
+    if (!firebaseConfigurado) {
+      setCargando(false);
+      return;
+    }
+    void cargarSesiones();
+  }, [cargarSesiones]);
+
+  // El grupo se carga aparte: depende del grado elegido, no de las sesiones.
+  useEffect(() => {
+    if (!cruce) return;
+    void (async () => {
+      try {
+        const { estudiantes: al, matriculas: mat } = await leerGrupo(cruce.grado);
+        setEstudiantes(al);
+        setMatriculas(mat);
+      } catch (e) {
+        setError(mensajeDeError(e));
+      }
+    })();
+  }, [cruce?.grado]);
+
+  const sesionesDelCruce = useMemo(
+    () =>
+      cruce
+        ? sesiones.filter((s) => s.grado === cruce.grado && s.subjectId === cruce.subjectId)
+        : [],
+    [sesiones, cruce],
+  );
+
+  async function marcar(sessionIdDoc: string, studentId: string, estado: MarkCode) {
+    setError(null);
+    try {
+      await marcarEstudiante(sessionIdDoc, studentId, estado);
+      await cargarSesiones();
+    } catch (e) {
+      setError(mensajeDeError(e));
+    }
   }
 
-  function cerrarSesion(sessionId: string, sinRegistrar: number) {
+  async function cerrar(sessionIdDoc: string, sinRegistrar: number) {
     const ok = window.confirm(
       sinRegistrar > 0
         ? `Quedan ${sinRegistrar} casillas SIN REGISTRAR. Al cerrar NO se convierten en ` +
@@ -74,121 +116,125 @@ export default function Asistencia() {
         : '¿Cerrar la sesión de clase?',
     );
     if (!ok) return;
-    setDatos((prev) => ({
-      ...prev,
-      sesiones: prev.sesiones.map((s) =>
-        s.sessionId === sessionId ? { ...s, closed: true } : s,
-      ),
-    }));
+    setError(null);
+    try {
+      await cerrarSesionRemota(sessionIdDoc);
+      await cargarSesiones();
+    } catch (e) {
+      setError(mensajeDeError(e));
+    }
   }
+
+  async function nuevaSesion() {
+    if (!cruce) return;
+    const respuesta = window.prompt('¿En qué bloque es la clase de hoy? (1 a 6)', '1');
+    if (!respuesta) return;
+    const bloque = Number(respuesta);
+    if (!Number.isInteger(bloque) || bloque < 1 || bloque > 6) {
+      setError('El bloque debe ser un número entre 1 y 6.');
+      return;
+    }
+    setError(null);
+    try {
+      await abrirSesion({
+        sede,
+        grado: cruce.grado,
+        jornada: jornadaDeGrado(cruce.grado),
+        fecha: toDateKey(new Date()),
+        bloque,
+        subjectId: cruce.subjectId,
+        slotId: slotId ?? '',
+      });
+      await cargarSesiones();
+    } catch (e) {
+      setError(mensajeDeError(e));
+    }
+  }
+
+  if (!firebaseConfigurado) {
+    return (
+      <p className="rounded-xl border border-warning-soft bg-warning-soft p-3 text-sm text-warning-soft-fg">
+        Firebase no está configurado en esta instalación, así que el módulo de asistencia
+        no puede cargar datos.
+      </p>
+    );
+  }
+
+  if (cargando) return <p className="p-3 text-sm text-muted">Cargando asistencia…</p>;
 
   return (
     <div className="space-y-3">
-      <div className="rounded-xl border border-warning-soft bg-warning-soft p-3 text-sm text-warning-soft-fg">
-        <strong>Vista previa con datos ficticios.</strong> La planilla todavía no está
-        conectada a Firestore: lo que registre aquí no se guarda en ninguna parte y
-        ningún dato real de estudiantes está involucrado.
-      </div>
+      {error && (
+        <div className="rounded-xl border border-danger-soft bg-danger-soft p-3 text-sm text-danger-soft-fg">
+          {error}
+        </div>
+      )}
 
-      <Planilla
-        grado={grado}
-        asignatura={asignatura}
-        estudiantes={datos.estudiantes}
-        sesiones={sesiones}
-        matriculas={datos.matriculas}
-        puedeRegistrar={puedeRegistrar}
-        onMarcar={marcar}
-        onCerrarSesion={cerrarSesion}
-        onAbrirFicha={(id) => window.alert(`Ficha de ${id} — pendiente de construir.`)}
-        onNuevaSesion={() => window.alert('Crear sesión — pendiente de conectar.')}
-      />
+      {cruces.length === 0 ? (
+        <p className="rounded-xl border border-line bg-card p-3 text-sm text-muted">
+          No hay sesiones de clase registradas todavía. Cuando alguien abra la primera,
+          aparecerá aquí. Recuerde que mientras no exista una sesión, ese día no existe
+          para la estadística.
+        </p>
+      ) : (
+        <>
+          {cruces.length > 1 && (
+            <div className="flex flex-wrap gap-1.5">
+              {cruces.map((c) => {
+                const activo = cruce?.grado === c.grado && cruce?.subjectId === c.subjectId;
+                return (
+                  <button
+                    key={`${c.grado}|${c.subjectId}`}
+                    onClick={() => setCruce(c)}
+                    className={[
+                      'rounded-full border px-3 py-1 text-sm',
+                      activo
+                        ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                        : 'border-line text-soft',
+                    ].join(' ')}
+                  >
+                    {c.grado} · {c.subjectId}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {cruce && (
+            <Planilla
+              grado={cruce.grado}
+              asignatura={cruce.subjectId}
+              estudiantes={estudiantes}
+              sesiones={sesionesDelCruce}
+              matriculas={matriculas}
+              puedeRegistrar={puedeRegistrar}
+              onMarcar={marcar}
+              onCerrarSesion={cerrar}
+              onAbrirFicha={(id) => window.alert(`Ficha de ${id} — pendiente de construir.`)}
+              onNuevaSesion={nuevaSesion}
+            />
+          )}
+        </>
+      )}
     </div>
   );
 }
 
-/** Conjunto ficticio para poder ver la pantalla. Se elimina al conectar Firestore. */
-function conjuntoDeMuestra(sede: string): {
-  estudiantes: Student[];
-  sesiones: Session[];
-  matriculas: Enrollment[];
-} {
-  const nombres = [
-    ['Ficticia Prueba', 'Ana Lucia'],
-    ['Demo Ejemplo', 'Brayan Steven'],
-    ['Muestra Simulada', 'Camila Andrea'],
-    ['Ejemplo Demo', 'Daniel Felipe'],
-    ['Inventado Falso', 'Estefania'],
-    ['Figurado Ilustrativo', 'Fabian Andres'],
-  ];
-
-  const estudiantes: Student[] = nombres.map(([apellidos, nombresPila], i) => ({
-    studentId: `est_${String(i + 1).padStart(4, '0')}`,
-    nombres: nombresPila,
-    apellidos,
-    docHash: `hash-demo-${i}`,
-    docType: 'TI',
-    acudiente: 'Acudiente Ficticio',
-    telefonos: ['3000000000'],
-    fotoPath: null,
-    qrToken: `TOKENDEMO${i}`,
-    sede: 'central',
-    gradoActual: '6º1',
-    activo: true,
-  }));
-
-  const marcas: (MarkCode | null)[][] = [
-    ['ausencia_justificada', 'ausencia', 'asistencia', 'asistencia'],
-    ['asistencia', 'asistencia', 'retraso', 'asistencia'],
-    ['asistencia', null, 'asistencia', 'asistencia'],
-    ['ausencia', 'ausencia', 'ausencia', 'asistencia'],
-    ['asistencia', 'asistencia', 'asistencia', null],
-    ['evasion', 'asistencia', 'asistencia', 'asistencia'],
-  ];
-
-  const fechas = ['2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16'];
-  const sesiones: Session[] = fechas.map((fecha, col) => {
-    const estudiantesMapa: Session['estudiantes'] = {};
-    estudiantes.forEach((e, fila) => {
-      const estado = marcas[fila][col];
-      if (!estado) return;
-      estudiantesMapa[e.studentId] = {
-        estado,
-        registradoPor: 'julian.medina@iemanueljbetancur.edu.co',
-        registradoEn: 0,
-        motivo: null,
-        observacion: null,
-        modificadoPor: null,
-        modificadoEn: null,
-      };
-    });
-    return {
-      sessionId: construirSessionId('central', '6º1', fecha, 3),
-      grado: '6º1',
-      jornada: 'tarde',
-      sede: (sede as Session['sede']) ?? 'central',
-      fecha,
-      bloque: 3,
-      subjectId: 'MAT',
-      slotId: 'julian',
-      createdBy: 'julian.medina@iemanueljbetancur.edu.co',
-      createdAt: 0,
-      closed: col < 2,
-      closedBy: null,
-      closedAt: null,
-      estudiantes: estudiantesMapa,
-      ultimaEscrituraPor: 'julian.medina@iemanueljbetancur.edu.co',
-      ultimaEscrituraEn: 0,
-    };
-  });
-
-  const matriculas: Enrollment[] = estudiantes.map((e) => ({
-    studentId: e.studentId,
-    anio: 2026,
-    grado: '6º1',
-    seq: 1,
-    desde: '2026-01-20',
-    hasta: null,
-  }));
-
-  return { estudiantes, sesiones, matriculas };
+/**
+ * Traduce los errores de Firestore a algo que un docente pueda entender. Un
+ * `permission-denied` crudo no le dice a nadie qué hacer, y aquí casi siempre significa
+ * una de dos cosas concretas.
+ */
+function mensajeDeError(e: unknown): string {
+  const texto = e instanceof Error ? e.message : String(e);
+  if (texto.includes('permission-denied') || texto.includes('insufficient permissions')) {
+    return (
+      'El servidor no permitió la operación. Suele ser porque la sesión de clase no es ' +
+      'suya o pertenece a otra sede. Si cree que sí le corresponde, avise a coordinación.'
+    );
+  }
+  if (texto.includes('Sesión no activa') || texto.includes('sesion activa')) {
+    return 'Su sesión expiró. Vuelva a entrar antes de registrar.';
+  }
+  return texto;
 }

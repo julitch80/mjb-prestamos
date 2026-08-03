@@ -154,24 +154,22 @@ service cloud.firestore {
     //  este a la vez, o divergen sin que nadie lo note.
     // =========================================================================
 
-
     // ---------- Helpers propios del modulo (nombres nuevos, no pisan los de MJB) ----------
 
     function asisIsCoordinador() {
       return isActiveUser() && callerDoc().role == 'coordinador';
     }
 
-    // Autoridad del coordinador ACOTADA POR SEDE. Hasta ahora asisIsCoordinador()
-    // solo miraba el rol, asi que cualquier coordinador podia registrar asistencia
-    // en cualquier sede. Con una sola sede configurada daba igual; con tres, no.
+    // Coordinador ACOTADO POR SEDE. Julian decidio (2026-07-31) que Janneth manda en
+    // Gustavo Rodas, Juan Diego en La Finquita, y ambos en central. Antes las reglas solo
+    // miraban el rol, asi que cualquier coordinador leia la asistencia de cualquier sede.
     //
-    // Decision de Julian (ago 2 2026): Janneth Ocampo manda en Gustavo Rodas en las
-    // dos jornadas y solo ella; Juan Diego Salazar en La Finquita en las dos y solo
-    // el. En central siguen los dos.
-    //
-    // El espejo asistenciaConfig/autoridadSede guarda CORREOS, no slotId: en las
-    // reglas la identidad garantizada es callerEmail(), mientras que slotId depende
+    // El documento espejo `asistenciaConfig/autoridadSede` guarda CORREOS, no slotId: en
+    // las reglas la identidad garantizada es `callerEmail()`, mientras que `slotId` depende
     // de que el documento del usuario lo tenga bien puesto.
+    //
+    // Se declara aqui por si el fragmento se lee suelto; en el archivo fusionado de MJB ya
+    // existe y NO debe declararse dos veces.
     function asisAutoridadSede() {
       return get(/databases/$(database)/documents/asistenciaConfig/autoridadSede).data.mapa;
     }
@@ -229,7 +227,7 @@ service cloud.firestore {
       // original dejaba el filtrado a la interfaz, pero una interfaz no protege nada: basta
       // pedir el documento directamente. Como los motivos de justificacion pueden incluir
       // informacion de salud de menores, la restriccion tiene que estar en el servidor.
-      //   coordinador       -> todas las sesiones
+      //   coordinador       -> solo las sedes que le tocan (autoridadSede)
       //   director de grupo -> las de su grado, en cualquier asignatura, la dicte o no
       //   docente           -> solo las que el mismo dicta (por slotId)
       //   superusuario      -> ninguna (misma razon por la que no registra)
@@ -239,8 +237,8 @@ service cloud.firestore {
       // where('slotId','==',<el suyo>) y un director con where('grado','==',<el suyo>);
       // una consulta sin filtrar falla aunque tuviera derecho a cada documento.
       allow read: if isActiveUser() && (
-        asisCoordinaSede(resource.data.sede)
-        || asisIsRectora()          // consulta institucional; no registra
+        asisCoordinaSede(resource.data.sede)   // coordinador SOLO en las sedes que le tocan
+        || asisIsRectora()                     // consulta institucional; no registra
         || asisIsDirectorOf(resource.data.grado)
         || resource.data.slotId == callerDoc().slotId
       );
@@ -297,12 +295,12 @@ service cloud.firestore {
     match /asistenciaLateArrivals/{lateId} {
 
       allow read: if isSuper()
-        || asisIsCoordinador()
+        || asisCoordinaSede(resource.data.sede)
         || asisIsRectora()
         || asisIsDirectorOf(resource.data.grado);
 
       // Autoridad exclusiva del coordinador. Un director de grupo las VE pero no las crea.
-      allow create: if asisIsCoordinador()
+      allow create: if asisCoordinaSede(request.resource.data.sede)
         && request.resource.data.registradoPor == callerEmail()
         && request.resource.data.registradoEn == request.time
         && request.resource.data.studentId is string
@@ -313,7 +311,7 @@ service cloud.firestore {
 
       // La verificacion posterior (llamar al acudiente y cerrar el estado) es del
       // coordinador. La autoria original es inmutable.
-      allow update: if asisIsCoordinador()
+      allow update: if asisCoordinaSede(resource.data.sede)
         && request.resource.data.studentId == resource.data.studentId
         && request.resource.data.fecha == resource.data.fecha
         && request.resource.data.registradoPor == resource.data.registradoPor
@@ -337,15 +335,15 @@ service cloud.firestore {
 
       // Las observaciones de las llamadas son solo para coordinacion y direccion de grupo.
       allow read: if isSuper()
-        || asisIsCoordinador()
+        || asisCoordinaSede(resource.data.sede)
         || asisIsDirectorOf(resource.data.grado);
 
-      allow create: if (asisIsCoordinador() || asisIsDirectorOf(request.resource.data.grado))
+      allow create: if (asisCoordinaSede(request.resource.data.sede) || asisIsDirectorOf(request.resource.data.grado))
         && request.resource.data.llamadoPor == callerEmail()
         && request.resource.data.llamadoEn == request.time
         && request.resource.data.resultado in ['contesto', 'no_contesto', 'pendiente'];
 
-      allow update: if (asisIsCoordinador() || asisIsDirectorOf(resource.data.grado))
+      allow update: if (asisCoordinaSede(resource.data.sede) || asisIsDirectorOf(resource.data.grado))
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['resultado', 'observacion'])
         && request.resource.data.resultado in ['contesto', 'no_contesto', 'pendiente'];
@@ -364,7 +362,7 @@ service cloud.firestore {
       // Campos blindados: el hash del documento, el token QR y el grado vigente. Si un
       // director pudiera reescribir `gradoActual`, se auto-otorgaria permiso sobre
       // cualquier ficha del colegio.
-      allow update: if (isSuper() || asisIsCoordinador() || asisIsDirectorOf(resource.data.gradoActual))
+      allow update: if (isSuper() || asisCoordinaSede(resource.data.sede) || asisIsDirectorOf(resource.data.gradoActual))
         && request.resource.data.docHash == resource.data.docHash
         && request.resource.data.qrToken == resource.data.qrToken
         && request.resource.data.gradoActual == resource.data.gradoActual;
@@ -429,7 +427,6 @@ service cloud.firestore {
       allow read: if isSuper();
       allow write: if false;
     }
-
 
     match /{document=**} {
       allow read, write: if false;

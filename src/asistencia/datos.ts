@@ -217,3 +217,4 @@ export async function cerrarSesion(sessionIdDoc: string): Promise<void> {
     ultimaEscrituraEn: serverTimestamp(),
   });
 }
+

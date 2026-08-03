@@ -65,6 +65,10 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "sede",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "fecha",
           "order": "ASCENDING"
         },
@@ -111,12 +115,34 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "sede",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "fecha",
           "order": "ASCENDING"
         },
         {
           "fieldPath": "estado",
           "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "asistenciaFamilyContacts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sede",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "resultado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fecha",
+          "order": "DESCENDING"
         }
       ]
     },
