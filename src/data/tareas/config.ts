@@ -3,6 +3,7 @@
 // el límite duro del estudiante es siempre el tope diario.
 
 import { CONTRAJORNADAS_MT } from './calendario';
+import { esGrupoDePrimaria } from '../maestros';
 
 export type Nivel = 'primaria' | 'basica' | 'media' | 'mt';
 
@@ -25,6 +26,12 @@ export const CONFIG_NIVEL: Record<Nivel, ConfigNivel> = {
 export const GRUPOS_MT = Object.keys(CONTRAJORNADAS_MT);
 
 export function nivelDeGrupo(grupo: string): Nivel {
+  // Primaria se pregunta PRIMERO y por lista explicita: su notacion (3°1) usa el
+  // simbolo de grado y la tarde de bachillerato (3º1) el ordinal, que son
+  // caracteres distintos. Distinguirlos por el texto seria un error silencioso —
+  // un grupo de primaria caeria en 'basica' y tomaria 4 momentos diarios y
+  // estudio de 20 minutos, que no es su politica.
+  if (esGrupoDePrimaria(grupo)) return 'primaria';
   if (GRUPOS_MT.includes(grupo)) return 'mt';
   if (grupo.startsWith('10.') || grupo.startsWith('11.')) return 'media';
   return 'basica'; // 6º–8º (tarde) y 9.x (mañana)
@@ -51,8 +58,23 @@ const CUPOS_MT: Record<string, number> = {
   mt_software: 1, mt_audiovisual: 1,
 };
 
+// Primaria: las nueve asignaturas que se dictan en la jornada de la tarde de
+// Gustavo Rodas, deducidas de su cuadro de horario. En la MANANA una sola
+// docente dicta todas las asignaturas de su grupo, asi que no hay competencia
+// entre docentes que arbitrar y el cupo por asignatura pierde sentido — ver la
+// nota al final de este archivo.
+//
+// El valor 1 es PROVISIONAL: reparte 9 de los 15 momentos semanales y deja
+// holgura. La coordinacion de primaria tiene que fijar la tabla real, igual que
+// hizo la de bachillerato. Se edita desde el panel del coordinador sin tocar
+// codigo (NIVELES_CUPO ya incluye primaria).
+const CUPOS_PRIMARIA: Record<string, number> = {
+  matematicas: 1, lengua: 1, ingles: 1, naturales: 1, sociales: 1,
+  ed_fisica: 1, artistica: 1, etica: 1, tecnologia: 1,
+};
+
 export const CUPOS_DEFAULT: Record<Nivel, Record<string, number>> = {
-  primaria: CUPOS_BASICA, // provisional hasta tener los datos de primaria
+  primaria: CUPOS_PRIMARIA,
   basica:   CUPOS_BASICA,
   media:    CUPOS_MEDIA,
   mt:       CUPOS_MT,
@@ -90,3 +112,12 @@ export const NIVELES_CUPO: { nivel: Nivel; label: string }[] = [
   { nivel: 'mt',     label: 'Media técnica' },
   { nivel: 'primaria', label: 'Primaria' },
 ];
+
+// ── Nota sobre primaria, para quien retome esto ──────────────────────────────
+// El modulo de Tareas existe para ARBITRAR entre docentes que compiten por el
+// tiempo del mismo grupo: por eso hay cupos por asignatura. En la jornada de la
+// TARDE de primaria esa competencia es real (siete docentes, una asignatura cada
+// uno, repartidos entre los grupos) y el modulo aplica igual que en
+// bachillerato. En la MANANA no existe: una sola docente dicta todo a su grupo y
+// decide sola. Ahi el modulo no le resuelve un problema, le anade un tramite.
+// Pendiente de preguntarle a la coordinacion si quiere la manana dentro o fuera.

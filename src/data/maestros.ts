@@ -249,6 +249,15 @@ export const DIRECTORES_TARDE: Record<string, string> = {
   '8º4': 'juan_pablo',
 };
 
+// Todos los grupos de primaria, de cualquier sede. Se usa para clasificar el
+// nivel en el modulo de Tareas: la notacion NO sirve para distinguirlos, porque
+// primaria usa el simbolo de grado (3°1) y la tarde de bachillerato el ordinal
+// (3º1), que son caracteres distintos y facilisimos de confundir. Preguntar por
+// pertenencia a esta lista es explicito y no se rompe solo.
+export function esGrupoDePrimaria(grupo: string): boolean {
+  return GRUPOS_PRIMARIA.includes(grupo);
+}
+
 // ── Sede Gustavo Rodas Isaza: grupos y direccion de grupo ────────────────────
 //
 // Los grupos de primaria usan el simbolo de grado (3°1), NO el ordinal (3º1)
@@ -259,6 +268,12 @@ export const GRUPOS_GUSTAVO_RODAS: Record<'manana' | 'tarde', string[]> = {
   manana: ['T°1', '1°1', '1°2', '2°1', '2°2'],
   tarde:  ['T°2', '3°1', '3°2', '4°1', '4°2', '5°1', '5°2'],
 };
+
+export const GRUPOS_PRIMARIA: string[] = [
+  ...GRUPOS_GUSTAVO_RODAS.manana,
+  ...GRUPOS_GUSTAVO_RODAS.tarde,
+  // La Finquita se anadira cuando lleguen sus datos.
+];
 
 // Direccion de grupo. La MANANA esta confirmada por el cuadro de asignacion
 // academica. La TARDE esta DEDUCIDA del encabezado del horario ("JOHANA 3-1",
