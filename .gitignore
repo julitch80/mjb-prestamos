@@ -18,3 +18,9 @@ firestore-debug.log*
 _horario_manana.html
 _horario_manana_raw.txt
 _horario_tarde_Hoja1.csv
+
+# Agendas semanales en PDF: documentos institucionales que Julian deja aqui
+# para que Claude las transcriba. NO se versionan — el repositorio es publico y
+# traen nombres y actividades internas. Lo que se publica es la transcripcion en
+# src/data/agendaSemanal.ts, no el archivo original.
+Agenda/

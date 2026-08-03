@@ -7,6 +7,36 @@ La agenda semanal institucional vive como datos estáticos en
 `src/components/AgendaSemanal.tsx`. No depende de Firebase ni del backend de
 Apps Script — funciona igual en modo `pin` y en modo `google`.
 
+## La ruta acordada: la carpeta `Agenda/`
+
+Julián deja el PDF de la semana en **`Agenda/`**, en la raíz del repositorio. Sin
+renombrar nada: el nombre que traiga el archivo sirve.
+
+Claude toma **el archivo más reciente de esa carpeta**, lo transcribe a
+`AGENDA_ACTUAL` y publica. No hace falta adjuntarlo al chat ni avisar de dónde
+está; basta con decir "actualiza la agenda".
+
+**Los PDF no se versionan.** `Agenda/` está en `.gitignore` a propósito: el
+repositorio es público y las agendas traen nombres de estudiantes, grupos y
+actividades internas. Lo que se publica es la transcripción, no el original.
+
+### Cómo se lee el PDF
+
+El entorno no tiene `poppler`, así que el visor de PDF de Claude no funciona.
+La vía que sí funciona es extraer el texto con `pdfplumber`, que ya está
+instalado:
+
+```python
+import pdfplumber
+with pdfplumber.open('Agenda/<archivo>.pdf') as pdf:
+    for pg in pdf.pages:
+        print(pg.extract_text())
+```
+
+El pie de página institucional se repite en todas las páginas y conviene
+filtrarlo. La agenda institucional suele ocupar las tres primeras; lo que sigue
+es la agenda de profesionales, que va aparte.
+
 ## Flujo semanal
 
 1. Cada viernes, Julián recibe o genera el PDF oficial "AGENDA DE LA SEMANA
