@@ -42,14 +42,33 @@ es la agenda de profesionales, que va aparte.
 1. Cada viernes, Julián recibe o genera el PDF oficial "AGENDA DE LA SEMANA
    n" del Equipo Técnico Institucional.
 2. Adjunta el PDF (o un enlace/captura) a Claude.
-3. Claude transcribe fielmente el contenido a la constante `AGENDA_ACTUAL` en
-   `src/data/agendaSemanal.ts` — respetando los datos exactos del documento
+3. Claude transcribe fielmente el contenido y lo **añade al final** del arreglo
+   `AGENDAS` en `src/data/agendaSemanal.ts`. No se sobrescribe la semana
+   anterior: `AGENDA_ACTUAL` es siempre el último elemento del arreglo, así que
+   la agenda vigente se actualiza sola y las pasadas quedan archivadas — respetando los datos exactos del documento
    (horas, actividades, asistentes, lugares, responsables, festivos y
    notas), sin inventar ni completar información faltante.
 4. Julián revisa el diff y hace commit + push a `master`.
 5. GitHub Actions dispara el build automático y despliega a GitHub Pages.
 6. La app en producción se auto-actualiza; los usuarios con la PWA instalada
    la reciben en su próxima carga (el service worker refresca el bundle).
+
+## Por qué se archivan todas
+
+Hasta el 2 de agosto de 2026 solo se guardaba la semana en curso, y al
+transcribir una nueva se perdía la anterior. Eso hace imposible contar cuántas
+sesiones de clase ha perdido un grupo en el periodo, porque **los festivos y las
+jornadas pedagógicas solo constan en la agenda**. El módulo del día escolar
+necesita ese histórico (ver `docs/modulo-dia-escolar.md`).
+
+Funciones disponibles para consultarlo:
+
+- `agendaDeFecha(fecha)` — el día de agenda de esa fecha, en cualquier semana.
+- `esFestivo(fecha)` — el motivo del festivo, o `null` si fue lectivo.
+- `fechaCubierta(fecha)` — si esa fecha cae en una semana guardada. Importante:
+  "no consta" no es lo mismo que "hubo clase", y quien cuente pérdidas tiene que
+  distinguirlo.
+- `festivosConocidos()` — todos los festivos registrados, ordenados.
 
 ## Notas
 
