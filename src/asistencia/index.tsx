@@ -1,12 +1,17 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Planilla from './Planilla';
-// Carga diferida: la pantalla de importacion arrastra exceljs (~1 MB), y solo
-// la usa el superusuario. Con import() dinamico sale del bundle principal y no
-// la descargan los 34 docentes que nunca van a importar nada.
+// Carga diferida: la pantalla de importacion arrastra exceljs (~1 MB) y solo la
+// usa el superusuario. Con import() dinamico sale del bundle principal y no la
+// descargan los 34 docentes que nunca van a importar nada.
+// OJO al recopiar el modulo: este cambio es de MJB y se pierde si se pega el
+// index.tsx original tal cual. Ya paso una vez.
 const Importar = lazy(() => import('./Importar'));
+import Ficha from './Ficha';
+import TerceraHora from './TerceraHora';
 import {
   abrirSesion,
   cerrarSesion as cerrarSesionRemota,
+  leerDirectores,
   leerGrupo,
   leerSesiones,
   marcarEstudiante,
@@ -51,6 +56,10 @@ export default function Asistencia() {
   const [estudiantes, setEstudiantes] = useState<Student[]>([]);
   const [matriculas, setMatriculas] = useState<Enrollment[]>([]);
   const [cruce, setCruce] = useState<{ grado: string; subjectId: string } | null>(null);
+  /** Navegacion interna: por estado, nunca por URL (contrato, seccion 6). */
+  const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
+  const [directores, setDirectores] = useState<Record<string, string>>({});
+  const [vista, setVista] = useState<'planilla' | 'tercera_hora'>('planilla');
 
   /** Cruces (grado + asignatura) que aparecen en las sesiones del usuario. */
   const cruces = useMemo(() => {
@@ -80,6 +89,7 @@ export default function Asistencia() {
       return;
     }
     void cargarSesiones();
+    void leerDirectores().then(setDirectores);
   }, [cargarSesiones, rol]);
 
   // El grupo se carga aparte: depende del grado elegido, no de las sesiones.
@@ -180,8 +190,33 @@ export default function Asistencia() {
 
   if (cargando) return <p className="p-3 text-sm text-muted">Cargando asistencia…</p>;
 
+  if (fichaAbierta) {
+    // Editar la ficha lo decide el servidor: director del grupo, coordinacion o
+    // superusuario. Aqui solo se evita ofrecer botones que fallarian.
+    const esDirector = Boolean(cruce && directores[cruce.grado] === slotId);
+    return (
+      <Ficha
+        studentId={fichaAbierta}
+        puedeEditar={rol === 'coordinador' || esDirector}
+        onVolver={() => setFichaAbierta(null)}
+      />
+    );
+  }
+
+  // El reporte de tercera hora es del coordinador: lee sesiones de todos los grados de
+  // su sede, y las reglas solo se lo permiten a el.
+  if (rol === 'coordinador' && vista === 'tercera_hora') {
+    return (
+      <div className="space-y-3">
+        <Pestanas vista={vista} onCambiar={setVista} />
+        <TerceraHora sede={sede} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
+      {rol === 'coordinador' && <Pestanas vista={vista} onCambiar={setVista} />}
       {error && (
         <div className="rounded-xl border border-danger-soft bg-danger-soft p-3 text-sm text-danger-soft-fg">
           {error}
@@ -228,12 +263,41 @@ export default function Asistencia() {
               puedeRegistrar={puedeRegistrar}
               onMarcar={marcar}
               onCerrarSesion={cerrar}
-              onAbrirFicha={(id) => window.alert(`Ficha de ${id} — pendiente de construir.`)}
+              onAbrirFicha={setFichaAbierta}
               onNuevaSesion={nuevaSesion}
             />
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function Pestanas({
+  vista,
+  onCambiar,
+}: {
+  vista: 'planilla' | 'tercera_hora';
+  onCambiar: (v: 'planilla' | 'tercera_hora') => void;
+}) {
+  const clase = (activa: boolean) =>
+    [
+      'rounded-full border px-3 py-1 text-sm',
+      activa
+        ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+        : 'border-line text-soft',
+    ].join(' ');
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <button className={clase(vista === 'planilla')} onClick={() => onCambiar('planilla')}>
+        Planillas
+      </button>
+      <button
+        className={clase(vista === 'tercera_hora')}
+        onClick={() => onCambiar('tercera_hora')}
+      >
+        Reporte de tercera hora
+      </button>
     </div>
   );
 }

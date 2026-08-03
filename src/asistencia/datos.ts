@@ -35,7 +35,7 @@ import {
 import { db, esperarAuth } from '../lib/firebase';
 import { sessionId as construirSessionId } from './domain/ids';
 import type { MarkCode } from './domain/marks';
-import type { Enrollment, Session, Student } from './domain/types';
+import type { Enrollment, LateArrival, Session, Student } from './domain/types';
 import { exigirAutor } from './identidad';
 
 /** El servidor rechazo la escritura porque alguien sincronizo primero. */
@@ -115,6 +115,119 @@ export async function leerGrupo(
     );
 
   return { estudiantes, matriculas };
+}
+
+/**
+ * Insumos del reporte de tercera hora — §4.1 del modelo de datos.
+ *
+ * La consulta va acotada por SEDE obligatoriamente: desde que el coordinador quedó
+ * acotado, Firestore rechaza la consulta entera si no puede probar que todo el
+ * resultado será legible. Por eso es un reporte POR SEDE, no uno del colegio entero.
+ * El índice que lo sostiene es `sede + fecha + jornada + bloque`.
+ */
+export async function leerInsumosTerceraHora(input: {
+  sede: string;
+  fecha: string;
+  jornada: 'manana' | 'tarde';
+}): Promise<{ sesiones: Session[]; llegadas: LateArrival[]; estudiantes: Student[] }> {
+  if (!(await listo())) return { sesiones: [], llegadas: [], estudiantes: [] };
+
+  const sesiones = aLista<Session>(
+    await getDocs(
+      query(
+        collection(baseDatos(), 'asistenciaSessions'),
+        where('sede', '==', input.sede),
+        where('fecha', '==', input.fecha),
+        where('jornada', '==', input.jornada),
+        where('bloque', '==', 3),
+      ),
+    ),
+  );
+
+  const llegadas = aLista<LateArrival>(
+    await getDocs(
+      query(
+        collection(baseDatos(), 'asistenciaLateArrivals'),
+        where('sede', '==', input.sede),
+        where('fecha', '==', input.fecha),
+      ),
+    ),
+  );
+
+  // Solo se piden las fichas de quienes aparecen ausentes: traer el colegio entero para
+  // mostrar veinte nombres sería un gasto sin sentido.
+  const ausentes = new Set<string>();
+  for (const s of sesiones) {
+    for (const [id, m] of Object.entries(s.estudiantes ?? {})) {
+      if (m.estado.startsWith('ausencia') || m.estado === 'evasion') ausentes.add(id);
+    }
+  }
+  const fichas = await Promise.all(
+    [...ausentes].map((id) => getDoc(doc(baseDatos(), 'asistenciaStudents', id))),
+  );
+
+  return {
+    sesiones,
+    llegadas,
+    estudiantes: fichas.filter((f) => f.exists()).map((f) => f.data() as Student),
+  };
+}
+
+/** Registra una llamada o aviso a la familia. Un solo historial para todos los motivos. */
+export async function registrarContacto(input: {
+  studentId: string;
+  grado: string;
+  sede: string;
+  fecha: string;
+  motivoContacto: string;
+  telefonoUsado: string;
+  resultado: 'contesto' | 'no_contesto' | 'pendiente';
+  observacion: string;
+}): Promise<void> {
+  const autor = await exigirAutor();
+  const ref = doc(collection(baseDatos(), 'asistenciaFamilyContacts'));
+  await setDoc(ref, {
+    contactId: ref.id,
+    ...input,
+    llamadoPor: autor,
+    llamadoEn: serverTimestamp(),
+  });
+}
+
+/**
+ * Mapa grado -> slotId del director, desde `asistenciaConfig/directores`.
+ *
+ * Es el mismo documento espejo que consultan las reglas. Se lee aquí solo para no
+ * ofrecer botones que el servidor rechazaría; quien decide sigue siendo la regla.
+ * El mapa va anidado bajo `mapa` porque un grado de mañana como `9.1` chocaría con la
+ * notación de rutas de campo de Firestore.
+ */
+export async function leerDirectores(): Promise<Record<string, string>> {
+  if (!(await listo())) return {};
+  const snap = await getDoc(doc(baseDatos(), 'asistenciaConfig', 'directores'));
+  return snap.exists() ? ((snap.data().mapa ?? {}) as Record<string, string>) : {};
+}
+
+export async function leerEstudiante(studentId: string): Promise<Student | null> {
+  if (!(await listo())) return null;
+  const snap = await getDoc(doc(baseDatos(), 'asistenciaStudents', studentId));
+  return snap.exists() ? (snap.data() as Student) : null;
+}
+
+/**
+ * Edita los datos de contacto de la ficha.
+ *
+ * Ni se intentan los campos que las reglas blindan: `docHash`, `qrToken`, `gradoActual`
+ * y `sede`. Enviarlos haría fallar la escritura entera, y de todos modos no le
+ * corresponde al cliente cambiarlos — `gradoActual` es de lo que depende que las reglas
+ * reconozcan al director de grupo.
+ */
+export async function actualizarFicha(
+  studentId: string,
+  cambios: { acudiente?: string; telefonos?: string[]; fotoPath?: string | null },
+): Promise<void> {
+  await exigirAutor();
+  await updateDoc(doc(baseDatos(), 'asistenciaStudents', studentId), cambios);
 }
 
 /**
