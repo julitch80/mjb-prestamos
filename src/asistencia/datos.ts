@@ -173,6 +173,110 @@ export async function leerInsumosTerceraHora(input: {
   };
 }
 
+/**
+ * Llegadas tarde a la institución de una sede en un rango.
+ * OJO: no es el `retraso` de clase. Otra autoridad y otra unidad temporal.
+ */
+export async function leerLlegadasTarde(input: {
+  sede: string;
+  desde: string;
+  hasta: string;
+}): Promise<LateArrival[]> {
+  if (!(await listo())) return [];
+  return aLista<LateArrival>(
+    await getDocs(
+      query(
+        collection(baseDatos(), 'asistenciaLateArrivals'),
+        where('sede', '==', input.sede),
+        where('fecha', '>=', input.desde),
+        where('fecha', '<=', input.hasta),
+      ),
+    ),
+  );
+}
+
+/** Busca estudiantes por apellido o nombre dentro de una sede. */
+export async function buscarEstudiantes(sede: string, texto: string): Promise<Student[]> {
+  if (!(await listo()) || texto.trim().length < 2) return [];
+  // Firestore no hace búsqueda por subcadena. A escala de una sede (unos cientos de
+  // estudiantes) filtrar en memoria es más simple y más barato que montar un índice de
+  // búsqueda, y el resultado es inmediato porque la caché offline ya los tiene.
+  const todos = aLista<Student>(
+    await getDocs(
+      query(collection(baseDatos(), 'asistenciaStudents'), where('sede', '==', sede)),
+    ),
+  );
+  const t = texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+  return todos
+    .filter((e) => e.activo)
+    .filter((e) =>
+      `${e.apellidos} ${e.nombres}`
+        .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .includes(t),
+    )
+    .slice(0, 12);
+}
+
+/**
+ * Registra una llegada tarde. Id determinista por (estudiante, día): un segundo
+ * registro el mismo día es rechazado por el servidor, no por una validación que se
+ * pueda olvidar.
+ */
+export async function registrarLlegadaTarde(input: {
+  studentId: string;
+  grado: string;
+  sede: string;
+  fecha: string;
+  horaLlegada: string;
+  bloqueIngreso: number;
+  estado: 'sin_justificar' | 'pendiente_verificacion';
+}): Promise<void> {
+  const autor = await exigirAutor();
+  const id = `${input.studentId}_${input.fecha}`;
+  const ref = doc(baseDatos(), 'asistenciaLateArrivals', id);
+
+  const existente = await getDoc(ref);
+  if (existente.exists()) {
+    const prev = existente.data() as LateArrival;
+    throw new ConflictoError(
+      `Ya tiene llegada tarde registrada hoy a las ${prev.horaLlegada}, por ${prev.registradoPor}.`,
+    );
+  }
+
+  await setDoc(ref, {
+    lateArrivalId: id,
+    ...input,
+    motivo: null,
+    observacion: null,
+    registradoPor: autor,
+    registradoEn: serverTimestamp(),
+    resueltoPor: null,
+    resueltoEn: null,
+  });
+}
+
+/** Cierra la verificación: la excusa se aprueba o se descarta. */
+export async function resolverLlegadaTarde(
+  lateArrivalId: string,
+  estado: 'sin_justificar' | 'pendiente_verificacion' | 'justificada',
+  motivo: string | null,
+  observacion: string | null,
+): Promise<void> {
+  const autor = await exigirAutor();
+  await updateDoc(doc(baseDatos(), 'asistenciaLateArrivals', lateArrivalId), {
+    estado,
+    motivo,
+    observacion,
+    resueltoPor: autor,
+    resueltoEn: serverTimestamp(),
+  });
+}
+
 /** Registra una llamada o aviso a la familia. Un solo historial para todos los motivos. */
 export async function registrarContacto(input: {
   studentId: string;

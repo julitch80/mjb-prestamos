@@ -4,10 +4,11 @@ import Planilla from './Planilla';
 // usa el superusuario. Con import() dinamico sale del bundle principal y no la
 // descargan los 34 docentes que nunca van a importar nada.
 // OJO al recopiar el modulo: este cambio es de MJB y se pierde si se pega el
-// index.tsx original tal cual. Ya paso una vez.
+// index.tsx original tal cual. Ya paso dos veces.
 const Importar = lazy(() => import('./Importar'));
 import Ficha from './Ficha';
 import TerceraHora from './TerceraHora';
+import LlegadasTarde from './LlegadasTarde';
 import {
   abrirSesion,
   cerrarSesion as cerrarSesionRemota,
@@ -59,7 +60,7 @@ export default function Asistencia() {
   /** Navegacion interna: por estado, nunca por URL (contrato, seccion 6). */
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
   const [directores, setDirectores] = useState<Record<string, string>>({});
-  const [vista, setVista] = useState<'planilla' | 'tercera_hora'>('planilla');
+  const [vista, setVista] = useState<'planilla' | 'tercera_hora' | 'llegadas'>('planilla');
 
   /** Cruces (grado + asignatura) que aparecen en las sesiones del usuario. */
   const cruces = useMemo(() => {
@@ -214,6 +215,16 @@ export default function Asistencia() {
     );
   }
 
+  // Las llegadas tarde a la institucion son autoridad exclusiva del coordinador.
+  if (rol === 'coordinador' && vista === 'llegadas') {
+    return (
+      <div className="space-y-3">
+        <Pestanas vista={vista} onCambiar={setVista} />
+        <LlegadasTarde sede={sede} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {rol === 'coordinador' && <Pestanas vista={vista} onCambiar={setVista} />}
@@ -277,8 +288,8 @@ function Pestanas({
   vista,
   onCambiar,
 }: {
-  vista: 'planilla' | 'tercera_hora';
-  onCambiar: (v: 'planilla' | 'tercera_hora') => void;
+  vista: 'planilla' | 'tercera_hora' | 'llegadas';
+  onCambiar: (v: 'planilla' | 'tercera_hora' | 'llegadas') => void;
 }) {
   const clase = (activa: boolean) =>
     [
@@ -297,6 +308,9 @@ function Pestanas({
         onClick={() => onCambiar('tercera_hora')}
       >
         Reporte de tercera hora
+      </button>
+      <button className={clase(vista === 'llegadas')} onClick={() => onCambiar('llegadas')}>
+        Llegadas tarde
       </button>
     </div>
   );
@@ -320,3 +334,4 @@ function mensajeDeError(e: unknown): string {
   }
   return texto;
 }
+
