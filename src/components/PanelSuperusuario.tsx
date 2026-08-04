@@ -410,6 +410,56 @@ export default function PanelSuperusuario() {
             {mensajeCuentas.texto}
           </p>
         )}
+
+        {/*
+          Diagnóstico del puesto (slotId). Es EL dato que hace que un docente sea
+          reconocido como director de su grupo, y el más difícil de ver: la app lo
+          resuelve contra la lista estática y el servidor contra Firestore, así que
+          cuando no coinciden la app habilita botones que el servidor rechaza.
+          Aquí se ven los dos lados juntos, que es lo único que permite decidir cuál
+          de los dos está mal — reponer a ciegas rompería un reemplazo de docente.
+        */}
+        {(() => {
+          const filas = usuarios
+            .filter((u) => u.active)
+            .map((u) => {
+              const correo = (u.email || '').toLowerCase();
+              const estatico = USUARIOS.find((s) => (s.correo || '').toLowerCase() === correo);
+              return { correo, enFirestore: u.slotId || null, enCodigo: estatico?.id ?? null };
+            })
+            .filter((f) => f.enCodigo !== null && f.enFirestore !== f.enCodigo);
+          if (filas.length === 0) return null;
+          return (
+            <details className="rounded-lg border border-warning bg-warning-soft p-2 text-xs">
+              <summary className="cursor-pointer text-warning-soft-fg">
+                {filas.length} cuenta(s) con el puesto distinto al del código — puede impedir subir
+                fotos o editar fichas
+              </summary>
+              <table className="mt-2 w-full text-left">
+                <thead className="text-muted">
+                  <tr>
+                    <th className="pr-2 font-medium">Correo</th>
+                    <th className="pr-2 font-medium">En Firestore</th>
+                    <th className="font-medium">En el código</th>
+                  </tr>
+                </thead>
+                <tbody className="text-soft">
+                  {filas.map((f) => (
+                    <tr key={f.correo}>
+                      <td className="pr-2">{f.correo}</td>
+                      <td className="pr-2 font-mono">{f.enFirestore ?? '(vacío)'}</td>
+                      <td className="font-mono">{f.enCodigo}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-muted">
+                El servidor usa la columna «En Firestore». Si una fila corresponde a un reemplazo de
+                docente, el valor de Firestore es el correcto y no hay que tocarlo.
+              </p>
+            </details>
+          );
+        })()}
       </div>
 
       {mensaje && (
