@@ -240,11 +240,27 @@ export default function Asistencia() {
       )}
 
       {cruces.length === 0 ? (
-        <p className="rounded-xl border border-line bg-card p-3 text-sm text-muted">
-          No hay sesiones de clase registradas todavía. Cuando alguien abra la primera,
-          aparecerá aquí. Recuerde que mientras no exista una sesión, ese día no existe
-          para la estadística.
-        </p>
+        <PrimeraSesion
+          puedeRegistrar={puedeRegistrar}
+          onAbrir={async (grado, subjectId, bloque) => {
+            setError(null);
+            try {
+              await abrirSesion({
+                sede,
+                grado,
+                jornada: jornadaDeGrado(grado),
+                fecha: toDateKey(new Date()),
+                bloque,
+                subjectId,
+                slotId: slotId ?? '',
+              });
+              setCruce({ grado, subjectId });
+              await cargarSesiones();
+            } catch (e) {
+              setError(mensajeDeError(e));
+            }
+          }}
+        />
       ) : (
         <>
           {cruces.length > 1 && (
@@ -285,6 +301,98 @@ export default function Asistencia() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Arranque en frio: sin ninguna sesion registrada, la planilla no tiene de donde sacar
+ * los grados ni las asignaturas —los deduce de las sesiones existentes—, asi que sin
+ * esta pantalla no habria forma de crear la primera. Callejon sin salida clasico del
+ * primer dia.
+ */
+function PrimeraSesion({
+  puedeRegistrar,
+  onAbrir,
+}: {
+  puedeRegistrar: boolean;
+  onAbrir: (grado: string, subjectId: string, bloque: number) => Promise<void>;
+}) {
+  const [grado, setGrado] = useState('');
+  const [asignatura, setAsignatura] = useState('');
+  const [bloque, setBloque] = useState(1);
+  const [enviando, setEnviando] = useState(false);
+
+  if (!puedeRegistrar) {
+    return (
+      <p className="rounded-xl border border-line bg-card p-3 text-sm text-muted">
+        No hay sesiones de clase registradas todavía. Aparecerán aquí cuando los docentes
+        empiecen a pasar lista.
+      </p>
+    );
+  }
+
+  const listo = grado.trim() !== '' && asignatura.trim() !== '';
+
+  return (
+    <div className="rounded-xl border border-line bg-card p-3">
+      <h3 className="text-sm font-semibold text-strong">Abrir la primera sesión</h3>
+      <p className="mb-2 text-xs text-muted">
+        Todavía no hay ninguna sesión registrada. Cree la de hoy y la planilla aparecerá
+        con los estudiantes del grupo. Mientras no exista la sesión, ese día no existe
+        para la estadística.
+      </p>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-xs text-muted">
+          Grado
+          <input
+            value={grado}
+            onChange={(e) => setGrado(e.target.value)}
+            placeholder="11.2"
+            className="mt-0.5 block w-24 rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Asignatura
+          <input
+            value={asignatura}
+            onChange={(e) => setAsignatura(e.target.value.toUpperCase())}
+            placeholder="MAT"
+            className="mt-0.5 block w-28 rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Bloque
+          <select
+            value={bloque}
+            onChange={(e) => setBloque(Number(e.target.value))}
+            className="mt-0.5 block rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+          >
+            {[1, 2, 3, 4, 5, 6].map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          disabled={!listo || enviando}
+          onClick={async () => {
+            setEnviando(true);
+            await onAbrir(grado.trim(), asignatura.trim(), bloque);
+            setEnviando(false);
+          }}
+          className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-50"
+        >
+          {enviando ? 'Abriendo…' : 'Abrir sesión de hoy'}
+        </button>
+      </div>
+
+      <p className="mt-2 text-xs text-muted">
+        El grado va tal como lo escribe el colegio: <b>11.2</b> en la mañana, <b>6º1</b> en
+        la tarde. La <b>º</b> es lo que distingue la jornada, así que no la cambie.
+      </p>
     </div>
   );
 }
