@@ -59,8 +59,24 @@ export default function Importar() {
   const [previa, setPrevia] = useState<Resumen | null>(null);
   const [hecho, setHecho] = useState<Resumen | null>(null);
 
+  /** Vuelve al punto de partida. Nada de lo previsualizado se ha escrito. */
+  function limpiar() {
+    setArchivo(null);
+    setNombreArchivo('');
+    setMapeo([]);
+    setFilas([]);
+    setAvisos([]);
+    setPrevia(null);
+    setHecho(null);
+    setError(null);
+  }
+
   async function elegirArchivo(ev: React.ChangeEvent<HTMLInputElement>) {
     const f = ev.target.files?.[0];
+    // Se limpia el valor del input para que volver a elegir EL MISMO archivo dispare el
+    // evento otra vez. Sin esto, corregir el archivo en Master2000 y reelegirlo con el
+    // mismo nombre no haria nada, y parece que la aplicacion se quedo colgada.
+    ev.target.value = '';
     if (!f) return;
     setError(null);
     setPrevia(null);
@@ -130,6 +146,10 @@ export default function Importar() {
   const gradosNoTraducibles = [
     ...new Set(filas.map(gradoDeFila).filter((g) => g.error).map((g) => g.grado)),
   ];
+  /** Cuántas filas se van a excluir de verdad, no cuántos códigos distintos fallan. */
+  const filasExcluidas = filas.filter((f) => gradoDeFila(f).error).length;
+  const filasAImportar = filas.length - filasExcluidas;
+  const gruposDelArchivo = [...new Set(filas.map((f) => f.grupo).filter(Boolean))].sort();
 
   async function enviar(dryRun: boolean) {
     if (!functions) {
@@ -179,11 +199,23 @@ export default function Importar() {
         </p>
       </div>
 
-      <label className="inline-block cursor-pointer rounded-lg border border-line bg-card px-3 py-2 text-sm text-strong">
-        Seleccionar archivo…
-        <input type="file" accept=".xlsx,.xls" hidden onChange={elegirArchivo} />
-      </label>
-      {nombreArchivo && <span className="ml-2 text-xs text-muted">{nombreArchivo}</span>}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="cursor-pointer rounded-lg border border-line bg-card px-3 py-2 text-sm text-strong">
+          {archivo ? 'Elegir otro archivo…' : 'Seleccionar archivo…'}
+          <input type="file" accept=".xlsx,.xls" hidden onChange={elegirArchivo} />
+        </label>
+        {nombreArchivo && (
+          <>
+            <span className="text-xs text-muted">{nombreArchivo}</span>
+            <button
+              onClick={limpiar}
+              className="rounded-lg border border-line px-3 py-2 text-sm text-soft"
+            >
+              Quitar archivo
+            </button>
+          </>
+        )}
+      </div>
 
       {error && (
         <div className="rounded-xl border border-danger-soft bg-danger-soft p-3 text-sm text-danger-soft-fg">
@@ -196,7 +228,19 @@ export default function Importar() {
           <div className="rounded-xl border border-line bg-card p-3 text-sm">
             <p className="text-strong">
               {filas.length} filas · encabezados en la fila {archivo.filaEncabezados + 1}
+              {gruposDelArchivo.length > 1 && (
+                <span className="text-muted">
+                  {' '}
+                  · <b>{gruposDelArchivo.length} grupos distintos</b>
+                </span>
+              )}
             </p>
+            {gruposDelArchivo.length > 1 && (
+              <p className="mt-1 text-xs text-muted">
+                Grupos en el archivo: {gruposDelArchivo.join(', ')}. Si esperaba un solo
+                grupo, el listado no salió filtrado.
+              </p>
+            )}
             <p className="text-xs text-muted">
               Revise que cada columna vaya al campo correcto. Master2000 cambia las
               columnas según lo que se elija al generar el listado, así que la sugerencia
@@ -239,9 +283,15 @@ export default function Importar() {
 
           {gradosNoTraducibles.length > 0 && (
             <div className="rounded-xl border border-warning-soft bg-warning-soft p-3 text-sm text-warning-soft-fg">
-              <b>{gradosNoTraducibles.length} código(s) de grupo sin traducir:</b>{' '}
-              {gradosNoTraducibles.join(', ')}. Esas filas <b>no se importarán</b>. Ocurre
-              con Transición y con la primaria, cuya notación todavía no está definida.
+              <b>
+                Se van a importar {filasAImportar} de {filas.length} filas: quedan{' '}
+                {filasExcluidas} fuera.
+              </b>
+              <br />
+              Sus códigos de grupo no se pueden traducir todavía:{' '}
+              {gradosNoTraducibles.join(', ')}. Ocurre con Transición y con la primaria,
+              cuya notación aún no está definida. Si esperaba importar todas las filas,
+              revise el listado antes de continuar.
             </div>
           )}
 

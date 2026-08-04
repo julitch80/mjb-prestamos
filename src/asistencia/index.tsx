@@ -1,10 +1,17 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Planilla from './Planilla';
-// Carga diferida: la pantalla de importacion arrastra exceljs (~1 MB) y solo la
-// usa el superusuario. Con import() dinamico sale del bundle principal y no la
-// descargan los 34 docentes que nunca van a importar nada.
-// OJO al recopiar el modulo: este cambio es de MJB y se pierde si se pega el
-// index.tsx original tal cual. Ya paso dos veces.
+
+/**
+ * ⚠️ NO CONVERTIR EN IMPORT ESTATICO.
+ *
+ * `Importar` arrastra `exceljs` (~1 MB) para leer el archivo de Master2000. Cargado de
+ * forma estatica, ese peso entra en el bundle principal de MJB y lo paga TODO el mundo
+ * —incluidos los docentes que solo pasan lista desde el celular— aunque la importacion
+ * la use el superusuario dos veces al ano.
+ *
+ * Esto ya se perdio dos veces al recopiar el archivo completo. Si vuelve a aparecer como
+ * `import Importar from './Importar'` arriba, es una regresion: devolverlo aqui.
+ */
 const Importar = lazy(() => import('./Importar'));
 import Ficha from './Ficha';
 import TerceraHora from './TerceraHora';
@@ -181,9 +188,7 @@ export default function Asistencia() {
   // de las sesiones: las reglas se lo impiden. Lo suyo es cargar los datos base.
   if (rol === 'superusuario') {
     return (
-      <Suspense
-        fallback={<p className="text-sm text-muted text-center py-12">Cargando el importador…</p>}
-      >
+      <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando importación…</p>}>
         <Importar />
       </Suspense>
     );
