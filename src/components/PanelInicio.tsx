@@ -276,6 +276,17 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
     });
   }
 
+  // Con la barra de scroll oculta a proposito (ver .scroll-lateral en index.css), en
+  // movil el dedo desliza el carrusel sin problema, pero en PC con mouse normal (sin
+  // trackpad) no hay forma de moverlo: la rueda solo manda scroll vertical. Se
+  // redirige a horizontal cuando el contenedor tiene de donde desplazarse.
+  const desplazarConRueda = (e: React.WheelEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollWidth <= el.clientWidth) return;
+    el.scrollLeft += e.deltaY;
+    e.preventDefault();
+  };
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* ── Encabezado ─────────────────────────────────────────────────── */}
@@ -291,7 +302,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       {avisos.length > 0 && (
         <section>
           <h2 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Tu día</h2>
-          <div className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0">
+          <div className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0" onWheel={desplazarConRueda}>
             {avisos.map((a) => (
               <BannerAviso key={a.id} aviso={a} />
             ))}
@@ -303,7 +314,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       {accesos.length > 0 && (
         <section>
           <h2 className="text-base font-semibold text-strong mb-3">¿Qué deseas hacer?</h2>
-          <div className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0">
+          <div className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0" onWheel={desplazarConRueda}>
             {accesos.map((item) => (
               <BaldosaNeon
                 key={item.id}
