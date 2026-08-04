@@ -21,6 +21,7 @@ import {
   cerrarSesion as cerrarSesionRemota,
   leerDirectores,
   leerGrupo,
+  llenarColumna,
   leerSesiones,
   marcarEstudiante,
   type AlcanceLectura,
@@ -126,6 +127,21 @@ export default function Asistencia() {
     setError(null);
     try {
       await marcarEstudiante(sessionIdDoc, studentId, estado);
+      await cargarSesiones();
+    } catch (e) {
+      setError(mensajeDeError(e));
+    }
+  }
+
+  /** Llenado por defecto de una columna. Solo toca las casillas vacías. */
+  async function llenar(sessionIdDoc: string, estado: MarkCode) {
+    setError(null);
+    try {
+      await llenarColumna(
+        sessionIdDoc,
+        estudiantes.map((e) => e.studentId),
+        estado,
+      );
       await cargarSesiones();
     } catch (e) {
       setError(mensajeDeError(e));
@@ -296,6 +312,7 @@ export default function Asistencia() {
               onMarcar={marcar}
               onCerrarSesion={cerrar}
               onAbrirFicha={setFichaAbierta}
+              onLlenarColumna={llenar}
               onNuevaSesion={nuevaSesion}
             />
           )}
@@ -447,4 +464,5 @@ function mensajeDeError(e: unknown): string {
   }
   return texto;
 }
+
 

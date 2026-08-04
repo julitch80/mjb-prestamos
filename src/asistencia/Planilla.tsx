@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
+import Avatar from './Avatar';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
+import { nombresDePila } from './domain/nombres';
 import { computeStats, conDenominador } from './domain/stats';
 import type { Enrollment, Session, Student } from './domain/types';
 
@@ -54,6 +56,8 @@ export interface PlanillaProps {
   onCerrarSesion: (sessionId: string, sinRegistrar: number) => void;
   onAbrirFicha: (studentId: string) => void;
   onNuevaSesion: () => void;
+  /** Llena de golpe las casillas vacías de una columna. */
+  onLlenarColumna: (sessionId: string, estado: MarkCode) => void;
 }
 
 export default function Planilla({
@@ -67,8 +71,10 @@ export default function Planilla({
   onCerrarSesion,
   onAbrirFicha,
   onNuevaSesion,
+  onLlenarColumna,
 }: PlanillaProps) {
   const [celda, setCelda] = useState<{ sessionId: string; studentId: string } | null>(null);
+  const [columnaMenu, setColumnaMenu] = useState<string | null>(null);
 
   const ordenadas = useMemo(
     () =>
@@ -130,13 +136,23 @@ export default function Planilla({
                   >
                     <span className="block font-semibold text-strong">{s.fecha.slice(5)}</span>
                     b{s.bloque}
-                    <button
-                      onClick={() => puedeRegistrar && !s.closed && cerrar(s)}
-                      title={s.closed ? 'Sesión cerrada' : 'Cerrar sesión de clase'}
-                      className="block w-full text-center"
-                    >
-                      {s.closed ? '🔒' : '🔓'}
-                    </button>
+                    <span className="flex items-center justify-center gap-0.5">
+                      <button
+                        onClick={() => puedeRegistrar && !s.closed && cerrar(s)}
+                        title={s.closed ? 'Sesión cerrada' : 'Cerrar sesión de clase'}
+                      >
+                        {s.closed ? '🔒' : '🔓'}
+                      </button>
+                      {puedeRegistrar && !s.closed && (
+                        <button
+                          onClick={() => setColumnaMenu(s.sessionId)}
+                          title="Llenar las casillas vacías de esta columna"
+                          className="rounded px-1 text-strong"
+                        >
+                          ⋯
+                        </button>
+                      )}
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -147,12 +163,16 @@ export default function Planilla({
                   <td className="sticky left-0 z-10 min-w-[9.5rem] max-w-[9.5rem] border-b border-r border-line bg-card p-2">
                     <button
                       onClick={() => onAbrirFicha(e.studentId)}
-                      className="block truncate text-left text-xs leading-tight text-strong"
+                      className="flex w-full items-center gap-2 text-left"
                       title={`${e.apellidos}, ${e.nombres}`}
                     >
-                      <span className="font-semibold">{e.apellidos}</span>
-                      <br />
-                      <span className="text-muted">{e.nombres}</span>
+                      <Avatar estudiante={e} tamano={30} />
+                      <span className="min-w-0 truncate text-xs leading-tight text-strong">
+                        <span className="block truncate font-semibold">{e.apellidos}</span>
+                        <span className="block truncate text-muted">
+                          {nombresDePila(e.apellidos, e.nombres)}
+                        </span>
+                      </span>
                     </button>
                   </td>
                   {ordenadas.map((s) => {
@@ -192,6 +212,21 @@ export default function Planilla({
         cuenta como ausencia. Toque una casilla para marcar.
       </p>
 
+      {columnaMenu && (
+        <MenuColumna
+          sesion={sesionDe(columnaMenu)!}
+          vacias={
+            estudiantes.filter((e) => !sesionDe(columnaMenu)?.estudiantes?.[e.studentId]).length
+          }
+          total={estudiantes.length}
+          onElegir={(estado) => {
+            onLlenarColumna(columnaMenu, estado);
+            setColumnaMenu(null);
+          }}
+          onCerrar={() => setColumnaMenu(null)}
+        />
+      )}
+
       {celda && (
         <MenuMarcas
           nombre={(() => {
@@ -216,6 +251,83 @@ export default function Planilla({
         matriculas={matriculas}
         asignatura={asignatura}
       />
+    </div>
+  );
+}
+
+/**
+ * Llenado por defecto de una columna — el atajo que de verdad ahorra tiempo al docente.
+ *
+ * Los dos usos reales, dichos por Julian:
+ *   "hoy vinieron casi todos"  -> llenar asistencia y corregir a los tres que faltaron;
+ *   a principio de ano          -> llenar ausencia y pasar uno por uno, que obliga a
+ *                                  mirarles la cara mientras los conoce.
+ *
+ * Solo toca las casillas VACIAS. Por eso el boton dice cuantas son: si el docente ya
+ * marco veinte, tiene que ver que este atajo no las va a tocar.
+ */
+function MenuColumna({
+  sesion,
+  vacias,
+  total,
+  onElegir,
+  onCerrar,
+}: {
+  sesion: Session;
+  vacias: number;
+  total: number;
+  onElegir: (estado: MarkCode) => void;
+  onCerrar: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+      onClick={onCerrar}
+    >
+      <div
+        className="w-full max-w-md rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <p className="text-sm font-semibold text-strong">
+          Llenar la columna del {sesion.fecha}, bloque {sesion.bloque}
+        </p>
+        <p className="mb-3 text-xs text-muted">
+          {vacias === 0 ? (
+            <>Ya están marcados los {total}. No queda ninguna casilla vacía que llenar.</>
+          ) : (
+            <>
+              Se llenarán las <b>{vacias}</b> casillas vacías de {total}. Lo ya marcado{' '}
+              <b>no se toca</b>.
+            </>
+          )}
+        </p>
+
+        {vacias > 0 && (
+          <div className="grid gap-1.5">
+            {MARKS.map((m) => (
+              <button
+                key={m.code}
+                onClick={() => onElegir(m.code)}
+                className="flex items-center gap-2 rounded-lg border border-line p-2 text-left hover:bg-hover"
+              >
+                <span
+                  className={`grid h-7 w-9 place-items-center rounded text-xs font-bold ${CLASE_MARCA[m.code]}`}
+                >
+                  {SIGLA[m.code]}
+                </span>
+                <span className="grow text-sm text-strong">Todos a «{m.label}»</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button
+          onClick={onCerrar}
+          className="mt-3 w-full rounded-lg border border-line p-2 text-sm text-soft"
+        >
+          Cancelar
+        </button>
+      </div>
     </div>
   );
 }
@@ -343,4 +455,5 @@ function Resumen({
     </div>
   );
 }
+
 

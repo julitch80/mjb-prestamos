@@ -432,6 +432,54 @@ export async function marcarEstudiante(
   await updateDoc(ref, cambios);
 }
 
+/**
+ * Llena de golpe las casillas VACÍAS de una sesión con la misma marca.
+ *
+ * Es el flujo real del docente: "hoy vinieron casi todos" → llenar asistencia y corregir
+ * los tres que faltaron; o al principio del año → llenar ausencia y pasar uno por uno,
+ * que obliga a mirarles la cara mientras los conoce.
+ *
+ * SOLO toca las vacías, nunca pisa lo ya marcado. Si sobreescribiera, un toque
+ * accidental borraría el trabajo de media clase, y además cada sobreescritura contaría
+ * como corrección en el historial.
+ *
+ * Va en UNA sola escritura con rutas de campo puntuales para los 33 estudiantes: una
+ * evaluación de regla en vez de 33, que es justamente para lo que existe el modelo de
+ * un documento por sesión con los estudiantes dentro.
+ */
+export async function llenarColumna(
+  sessionIdDoc: string,
+  studentIds: string[],
+  estado: MarkCode,
+): Promise<number> {
+  const autor = await exigirAutor();
+  const ref = doc(baseDatos(), 'asistenciaSessions', sessionIdDoc);
+
+  const actual = await getDoc(ref);
+  if (!actual.exists()) throw new Error('La sesión ya no existe.');
+  const yaMarcados = (actual.data().estudiantes ?? {}) as Record<string, unknown>;
+
+  const vacios = studentIds.filter((id) => !yaMarcados[id]);
+  if (vacios.length === 0) return 0;
+
+  const cambios: Record<string, unknown> = {
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  };
+  for (const id of vacios) {
+    cambios[`estudiantes.${id}.estado`] = estado;
+    cambios[`estudiantes.${id}.registradoPor`] = autor;
+    cambios[`estudiantes.${id}.registradoEn`] = serverTimestamp();
+    cambios[`estudiantes.${id}.motivo`] = null;
+    cambios[`estudiantes.${id}.observacion`] = null;
+    cambios[`estudiantes.${id}.modificadoPor`] = null;
+    cambios[`estudiantes.${id}.modificadoEn`] = null;
+  }
+
+  await updateDoc(ref, cambios);
+  return vacios.length;
+}
+
 /** Cierre manual y explícito. Las casillas vacías NO se convierten en nada. */
 export async function cerrarSesion(sessionIdDoc: string): Promise<void> {
   const autor = await exigirAutor();
