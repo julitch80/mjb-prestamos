@@ -13,11 +13,17 @@ import type { Student } from './domain/types';
  */
 export default function Ficha({
   studentId,
-  puedeEditar,
+  rol,
+  slotId,
+  directores,
   onVolver,
 }: {
   studentId: string;
-  puedeEditar: boolean;
+  rol: string | null;
+  /** slotId del usuario, para compararlo con el mapa de directores. */
+  slotId: string | null;
+  /** Mapa grado -> slotId, el mismo documento espejo que consultan las reglas. */
+  directores: Record<string, string>;
   onVolver: () => void;
 }) {
   const [est, setEst] = useState<Student | null>(null);
@@ -37,6 +43,13 @@ export default function Ficha({
   }, [studentId]);
 
   if (!est) return <p className="p-3 text-sm text-muted">Cargando ficha…</p>;
+
+  // Se compara contra el grado DEL ESTUDIANTE, no contra el grupo que el docente tenga
+  // abierto en la planilla: son cosas distintas y confundirlas daba permisos erráticos.
+  // Es el mismo criterio que aplican las reglas, así que la interfaz y el servidor
+  // dicen lo mismo.
+  const esDirector = Boolean(slotId && directores[est.gradoActual] === slotId);
+  const puedeEditar = rol === 'coordinador' || rol === 'superusuario' || esDirector;
 
   async function guardarFoto(blob: Blob) {
     setCamara(false);
@@ -78,7 +91,7 @@ export default function Ficha({
                 {iniciales}
               </div>
             )}
-            {puedeEditar && (
+            {puedeEditar ? (
               <button
                 onClick={() => setCamara(true)}
                 disabled={progreso !== null}
@@ -90,6 +103,8 @@ export default function Ficha({
                     ? 'Cambiar foto'
                     : 'Tomar foto'}
               </button>
+            ) : (
+              <p className="mt-1 text-[0.65rem] leading-tight text-muted">Sin permiso de edición</p>
             )}
           </div>
 
@@ -134,6 +149,38 @@ export default function Ficha({
           <div className="mt-3 rounded-lg border border-danger-soft bg-danger-soft p-2 text-sm text-danger-soft-fg">
             {error}
           </div>
+        )}
+
+        {/*
+          Cuando no se puede editar, decir POR QUE. La versión anterior solo recitaba
+          quién sí podía, que no le sirve a nadie para desatascarse: el dato que falta
+          es contra qué está comparando el servidor.
+        */}
+        {!puedeEditar && (
+          <details className="mt-3 rounded-lg border border-line p-2 text-xs text-muted">
+            <summary className="cursor-pointer">¿Por qué no puedo editar esta ficha?</summary>
+            <p className="mt-1">
+              La edición es de coordinación y del director del grupo del estudiante. Ser
+              director no depende de su rol: sale del documento{' '}
+              <code>asistenciaConfig/directores</code>, que asigna cada grado a un puesto.
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              <li>
+                Grado del estudiante: <b>{est.gradoActual}</b>
+              </li>
+              <li>
+                Su puesto (slotId): <b>{slotId ?? '—'}</b>
+              </li>
+              <li>
+                Director registrado para ese grado:{' '}
+                <b>{directores[est.gradoActual] ?? 'ninguno'}</b>
+              </li>
+            </ul>
+            <p className="mt-1">
+              Si los dos últimos deberían coincidir, hay que sincronizar el documento de
+              directores desde el panel del superusuario.
+            </p>
+          </details>
         )}
       </div>
 

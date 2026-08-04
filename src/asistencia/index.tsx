@@ -215,11 +215,12 @@ export default function Asistencia() {
   if (fichaAbierta) {
     // Editar la ficha lo decide el servidor: director del grupo, coordinacion o
     // superusuario. Aqui solo se evita ofrecer botones que fallarian.
-    const esDirector = Boolean(cruce && directores[cruce.grado] === slotId);
     return (
       <Ficha
         studentId={fichaAbierta}
-        puedeEditar={rol === 'coordinador' || esDirector}
+        rol={rol}
+        slotId={slotId}
+        directores={directores}
         onVolver={() => setFichaAbierta(null)}
       />
     );
