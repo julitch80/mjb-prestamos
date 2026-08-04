@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { mapaDirectores, sincronizarAutoridadSede, sincronizarDirectores } from '../data/directoresSync';
+import { sincronizarCuentasUsuarios } from '../data/usuariosSync';
 import { useAppStore } from '../data/store';
 import { firebaseConfigurado, functions, db } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -79,6 +80,8 @@ export default function PanelSuperusuario() {
   // Espejo de directores de grupo para las reglas de asistencia.
   const [sincronizandoDir, setSincronizandoDir] = useState(false);
   const [mensajeDir, setMensajeDir] = useState<Mensaje | null>(null);
+  const [sincronizandoCuentas, setSincronizandoCuentas] = useState(false);
+  const [mensajeCuentas, setMensajeCuentas] = useState<Mensaje | null>(null);
 
   // Auditoría
   const [logs, setLogs] = useState<LogAuditoria[] | null>(null);
@@ -300,6 +303,25 @@ export default function PanelSuperusuario() {
     }
   }
 
+  async function handleSincronizarCuentas() {
+    setSincronizandoCuentas(true);
+    setMensajeCuentas(null);
+    try {
+      const { creadas } = await sincronizarCuentasUsuarios();
+      setMensajeCuentas({
+        tipo: 'ok',
+        texto:
+          creadas.length === 0
+            ? 'Todos los correos de USUARIOS ya tenían cuenta. No había nada que crear.'
+            : `${creadas.length} cuenta(s) nueva(s), ya activas: ${creadas.join(', ')}.`,
+      });
+    } catch (e: any) {
+      setMensajeCuentas({ tipo: 'error', texto: e?.message || 'No se pudo sincronizar.' });
+    } finally {
+      setSincronizandoCuentas(false);
+    }
+  }
+
   if (!firebaseConfigurado) {
     return (
       <div className="space-y-5">
@@ -347,6 +369,34 @@ export default function PanelSuperusuario() {
         {mensajeDir && (
           <p className={'text-xs ' + (mensajeDir.tipo === 'ok' ? 'text-success-soft-fg' : 'text-danger')}>
             {mensajeDir.texto}
+          </p>
+        )}
+      </div>
+
+      {/* Cuentas de acceso: agregar a alguien en USUARIOS (código) no le da
+          acceso a la app por sí solo — hace falta este paso aparte en
+          Firestore. Antes requería el panel uno por uno o una clave de
+          servicio; esto lo deja en un clic. Solo CREA, nunca sobreescribe
+          una cuenta que ya existe. */}
+      <div className="rounded-xl border border-line bg-card p-3 space-y-2">
+        <div>
+          <h3 className="text-strong text-sm font-semibold">Cuentas de acceso</h3>
+          <p className="text-muted text-xs mt-0.5 leading-snug">
+            Crea la cuenta de Firestore de cualquier correo de USUARIOS (maestros.ts) que todavía no
+            pueda entrar a la app. Úsalo después de agregar docentes nuevos al código — por ejemplo,
+            al incorporar una sede completa. No toca cuentas que ya existen.
+          </p>
+        </div>
+        <button
+          onClick={handleSincronizarCuentas}
+          disabled={sincronizandoCuentas}
+          className="px-3 py-2 rounded-lg bg-elevated hover:bg-hover text-soft hover:text-strong text-xs font-medium transition disabled:opacity-50"
+        >
+          {sincronizandoCuentas ? 'Sincronizando…' : 'Crear cuentas faltantes'}
+        </button>
+        {mensajeCuentas && (
+          <p className={'text-xs ' + (mensajeCuentas.tipo === 'ok' ? 'text-success-soft-fg' : 'text-danger')}>
+            {mensajeCuentas.texto}
           </p>
         )}
       </div>
