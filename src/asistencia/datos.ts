@@ -352,9 +352,16 @@ export async function abrirSesion(input: {
   const id = construirSessionId(input.sede, input.grado, input.fecha, input.bloque);
   const ref = doc(baseDatos(), 'asistenciaSessions', id);
 
-  const existente = await getDoc(ref);
-  if (existente.exists()) return existente.data() as Session;
-
+  // ⚠️ NO comprobar la existencia con un getDoc previo.
+  //
+  // La regla de lectura evalua `resource.data.slotId`, y en un documento que NO EXISTE
+  // `resource` es null: la regla revienta y devuelve permission-denied. Es decir, el
+  // intento de comprobar si la sesion existe fallaba SIEMPRE cuando no existia, que es
+  // justo el caso normal al abrir la primera del dia. El error que veia el docente
+  // hablaba de permisos y no tenia nada que ver con permisos.
+  //
+  // Se escribe directo: si el documento ya existe, la escritura falla y AHI si se lee,
+  // porque a esas alturas el documento existe y la regla puede evaluarse.
   const nueva = {
     sessionId: id,
     ...input,
@@ -370,11 +377,13 @@ export async function abrirSesion(input: {
 
   try {
     await setDoc(ref, nueva);
-  } catch {
-    // Perdió la carrera contra otro dispositivo: la sesión ya existe, se reutiliza.
-    const otra = await getDoc(ref);
-    if (otra.exists()) return otra.data() as Session;
-    throw new Error('No fue posible abrir la sesión de clase.');
+  } catch (e) {
+    // O la sesión ya existía (la abrió otro, o el mismo docente antes), o de verdad no
+    // tiene permiso. Se distingue leyendo: si el documento existe y puede leerlo, se
+    // reutiliza; si no, el error original es el bueno.
+    const otra = await getDoc(ref).catch(() => null);
+    if (otra?.exists()) return otra.data() as Session;
+    throw e;
   }
   return { ...nueva, createdAt: Date.now(), ultimaEscrituraEn: Date.now() } as Session;
 }
