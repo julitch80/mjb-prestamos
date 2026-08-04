@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { urlDeFoto } from './fotos';
+import { iniciales } from './domain/nombres';
 import type { Student } from './domain/types';
 
 /**
@@ -56,8 +57,7 @@ export default function Avatar({
     );
   }
 
-  const iniciales =
-    (estudiante.nombres[0] ?? '').toUpperCase() + (estudiante.apellidos[0] ?? '').toUpperCase();
+  const letras = iniciales(estudiante);
 
   return (
     <span
@@ -66,7 +66,7 @@ export default function Avatar({
       title={estudiante.fotoPath ? 'Cargando fotografía…' : 'Sin fotografía cargada'}
       aria-hidden
     >
-      {iniciales}
+      {letras}
     </span>
   );
 }

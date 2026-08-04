@@ -7,6 +7,7 @@ import {
   resolverLlegadaTarde,
 } from './datos';
 import { toDateKey } from './domain/ids';
+import { nombreCompleto } from './domain/nombres';
 import { EXCUSE_REASONS, LATE_ARRIVAL_STATES, type ExcuseReason } from './domain/marks';
 import type { LateArrival, Student } from './domain/types';
 
@@ -60,7 +61,7 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
         setCandidatos(r);
         setNombres((p) => {
           const n = { ...p };
-          for (const e of r) n[e.studentId] = `${e.apellidos}, ${e.nombres}`;
+          for (const e of r) n[e.studentId] = nombreCompleto(e);
           return n;
         });
       });
@@ -85,7 +86,7 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
         bloqueIngreso: 2,
         estado: conExcusa ? 'pendiente_verificacion' : 'sin_justificar',
       });
-      setAviso(`${e.apellidos}, ${e.nombres} — registrado a las ${hora}.`);
+      setAviso(`${nombreCompleto(e)} — registrado a las ${hora}.`);
       setBusqueda('');
       setCandidatos([]);
       await cargar();
@@ -172,7 +173,7 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
               >
                 <span className="grow text-sm">
                   <b className="text-strong">
-                    {e.apellidos}, {e.nombres}
+                    {nombreCompleto(e)}
                   </b>
                   <span className="ml-2 text-xs text-muted">{e.gradoActual}</span>
                 </span>

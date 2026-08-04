@@ -14,6 +14,11 @@
  */
 
 import { findMark, isJustified } from './marks';
+// El nombre se compone en un solo sitio (`./nombres`), porque Master2000 repite los
+// apellidos dentro del campo de nombres y esa correccion debe verse igual en todas las
+// pantallas. Tenerla duplicada aqui fue justo lo que hizo que la ficha mostrara el
+// apellido dos veces cuando la planilla ya estaba bien.
+import { nombreCompleto } from './nombres';
 import type { Jornada, LateArrival, Session, Student } from './types';
 
 export interface FilaAusente {
@@ -56,10 +61,6 @@ export interface EntradaReporte {
   students: Student[];
   /** Grados que se esperan en esa jornada, para detectar los que no reportaron. */
   gradosEsperados: string[];
-}
-
-function nombreCompleto(s: Student): string {
-  return `${s.apellidos}, ${s.nombres}`;
 }
 
 export function construirReporteTerceraHora(e: EntradaReporte): ReporteTerceraHora {

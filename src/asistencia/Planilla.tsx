@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import Avatar from './Avatar';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
-import { nombresDePila } from './domain/nombres';
+import { nombreCompleto, nombresDePila } from './domain/nombres';
 import { computeStats, conDenominador } from './domain/stats';
 import type { Enrollment, Session, Student } from './domain/types';
 
@@ -164,7 +164,7 @@ export default function Planilla({
                     <button
                       onClick={() => onAbrirFicha(e.studentId)}
                       className="flex w-full items-center gap-2 text-left"
-                      title={`${e.apellidos}, ${e.nombres}`}
+                      title={nombreCompleto(e)}
                     >
                       <Avatar estudiante={e} tamano={30} />
                       <span className="min-w-0 truncate text-xs leading-tight text-strong">
@@ -231,7 +231,7 @@ export default function Planilla({
         <MenuMarcas
           nombre={(() => {
             const a = alumnoDe(celda.studentId);
-            return a ? `${a.apellidos}, ${a.nombres}` : celda.studentId;
+            return a ? nombreCompleto(a) : celda.studentId;
           })()}
           detalle={(() => {
             const s = sesionDe(celda.sessionId);
@@ -432,7 +432,7 @@ function Resumen({
             {filas.slice(0, 10).map(({ e, r }) => (
               <tr key={e.studentId} className="border-t border-line">
                 <td className="p-1 text-strong">
-                  {e.apellidos}, {e.nombres}
+                  {nombreCompleto(e)}
                 </td>
                 <td className="p-1 text-right font-semibold text-strong">{r.aMaster2000}</td>
                 <td className="p-1 text-right text-soft">

@@ -7,6 +7,8 @@
  */
 
 import { findMark, MARKS, type MarkCode } from './marks';
+// Un solo sitio compone el nombre: ver la nota en `./nombres`.
+import { nombreCompleto } from './nombres';
 import { computeStats, sesionesRelevantes } from './stats';
 import type { Enrollment, LateArrival, Session, Student } from './types';
 
@@ -16,8 +18,6 @@ export interface Hoja {
   filas: (string | number)[][];
   notas: string[];
 }
-
-const nombreCompleto = (s: Student) => `${s.apellidos}, ${s.nombres}`;
 
 /** Abreviatura de cada marca para que la planilla exportada quepa. */
 const SIGLA: Record<MarkCode, string> = {

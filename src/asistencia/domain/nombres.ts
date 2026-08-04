@@ -44,3 +44,13 @@ export function nombresDePila(apellidos: string, nombres: string): string {
 export function nombreCompleto(e: { apellidos: string; nombres: string }): string {
   return `${e.apellidos}, ${nombresDePila(e.apellidos, e.nombres)}`;
 }
+
+/**
+ * Iniciales para el avatar sin foto. Tambien tiene que pasar por `nombresDePila`: si no,
+ * el estudiante cuyo campo de nombres repite el apellido sale con la misma letra dos
+ * veces ("BB" en vez de "BS").
+ */
+export function iniciales(e: { apellidos: string; nombres: string }): string {
+  const pila = nombresDePila(e.apellidos, e.nombres);
+  return (pila[0] ?? '').toUpperCase() + (e.apellidos[0] ?? '').toUpperCase();
+}

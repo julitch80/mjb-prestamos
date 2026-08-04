@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { actualizarFicha, leerEstudiante } from './datos';
 import { subirFoto, urlDeFoto } from './fotos';
+import { iniciales, nombreCompleto } from './domain/nombres';
 import type { Student } from './domain/types';
 
 /**
@@ -67,8 +68,7 @@ export default function Ficha({
     }
   }
 
-  const iniciales =
-    (est.nombres[0] ?? '').toUpperCase() + (est.apellidos[0] ?? '').toUpperCase();
+  const letras = iniciales(est);
 
   return (
     <div className="space-y-3">
@@ -88,7 +88,7 @@ export default function Ficha({
               />
             ) : (
               <div className="grid h-28 w-[5.25rem] place-items-center rounded-lg border border-dashed border-line-strong bg-elevated text-lg font-bold text-muted">
-                {iniciales}
+                {letras}
               </div>
             )}
             {puedeEditar ? (
@@ -109,9 +109,7 @@ export default function Ficha({
           </div>
 
           <div className="min-w-[12rem] grow">
-            <h2 className="text-base font-semibold text-strong">
-              {est.apellidos}, {est.nombres}
-            </h2>
+            <h2 className="text-base font-semibold text-strong">{nombreCompleto(est)}</h2>
             <p className="text-xs text-muted">
               {est.gradoActual} · {est.sede.replace('_', ' ')}
               {!est.activo && ' · retirado'}
@@ -230,7 +228,7 @@ function ModalQr({ estudiante, onCerrar }: { estudiante: Student; onCerrar: () =
   return (
     <Modal onCerrar={onCerrar}>
       <h3 className="text-sm font-semibold text-strong">
-        {estudiante.apellidos}, {estudiante.nombres}
+        {nombreCompleto(estudiante)}
       </h3>
       <p className="text-xs text-muted">{estudiante.gradoActual}</p>
       <div className="my-3 grid place-items-center">
