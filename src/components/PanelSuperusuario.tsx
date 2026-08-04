@@ -307,13 +307,22 @@ export default function PanelSuperusuario() {
     setSincronizandoCuentas(true);
     setMensajeCuentas(null);
     try {
-      const { creadas } = await sincronizarCuentasUsuarios();
+      const { creadas, reparadas } = await sincronizarCuentasUsuarios();
+      const partes: string[] = [];
+      if (creadas.length > 0) partes.push(`${creadas.length} cuenta(s) nueva(s): ${creadas.join(', ')}`);
+      if (reparadas.length > 0) {
+        partes.push(
+          `Puesto repuesto a ${reparadas.length}: ` +
+            reparadas.map((r) => `${r.correo} → ${r.slotId}`).join(', ') +
+            '. Quien estuviera afectado debe cerrar sesión y volver a entrar.',
+        );
+      }
       setMensajeCuentas({
         tipo: 'ok',
         texto:
-          creadas.length === 0
-            ? 'Todos los correos de USUARIOS ya tenían cuenta. No había nada que crear.'
-            : `${creadas.length} cuenta(s) nueva(s), ya activas: ${creadas.join(', ')}.`,
+          partes.length === 0
+            ? 'Todo al día: ninguna cuenta faltaba y ninguna tenía el puesto vacío.'
+            : partes.join(' · '),
       });
     } catch (e: any) {
       setMensajeCuentas({ tipo: 'error', texto: e?.message || 'No se pudo sincronizar.' });
@@ -383,8 +392,10 @@ export default function PanelSuperusuario() {
           <h3 className="text-strong text-sm font-semibold">Cuentas de acceso</h3>
           <p className="text-muted text-xs mt-0.5 leading-snug">
             Crea la cuenta de Firestore de cualquier correo de USUARIOS (maestros.ts) que todavía no
-            pueda entrar a la app. Úsalo después de agregar docentes nuevos al código — por ejemplo,
-            al incorporar una sede completa. No toca cuentas que ya existen.
+            pueda entrar a la app, y repone el <b>puesto</b> a las cuentas activas que lo tengan
+            vacío. Sin el puesto, el servidor no reconoce a un docente como director de su grupo
+            aunque la app sí lo muestre: no puede subir fotos ni editar fichas. No pisa ningún dato
+            que ya esté puesto.
           </p>
         </div>
         <button
@@ -392,7 +403,7 @@ export default function PanelSuperusuario() {
           disabled={sincronizandoCuentas}
           className="px-3 py-2 rounded-lg bg-elevated hover:bg-hover text-soft hover:text-strong text-xs font-medium transition disabled:opacity-50"
         >
-          {sincronizandoCuentas ? 'Sincronizando…' : 'Crear cuentas faltantes'}
+          {sincronizandoCuentas ? 'Sincronizando…' : 'Crear y reparar cuentas'}
         </button>
         {mensajeCuentas && (
           <p className={'text-xs ' + (mensajeCuentas.tipo === 'ok' ? 'text-success-soft-fg' : 'text-danger')}>
