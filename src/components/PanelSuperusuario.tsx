@@ -4,7 +4,7 @@ import { sincronizarCuentasUsuarios } from '../data/usuariosSync';
 import { useAppStore } from '../data/store';
 import { firebaseConfigurado, functions, db } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import {
   listarUsuarios,
   crearDocente,
@@ -82,6 +82,9 @@ export default function PanelSuperusuario() {
   const [mensajeDir, setMensajeDir] = useState<Mensaje | null>(null);
   const [sincronizandoCuentas, setSincronizandoCuentas] = useState(false);
   const [mensajeCuentas, setMensajeCuentas] = useState<Mensaje | null>(null);
+  const [espejoDirectores, setEspejoDirectores] = useState<Record<string, string> | null>(null);
+  const [cargandoEspejo, setCargandoEspejo] = useState(false);
+  const [errorEspejo, setErrorEspejo] = useState<string | null>(null);
 
   // Auditoría
   const [logs, setLogs] = useState<LogAuditoria[] | null>(null);
@@ -331,6 +334,36 @@ export default function PanelSuperusuario() {
     }
   }
 
+  /**
+   * Lee el espejo `asistenciaConfig/directores` TAL COMO LO VE EL SERVIDOR.
+   *
+   * Es el único lado que no se puede deducir desde el código: las reglas comparan
+   * `mapa[grado]` contra `users/{correo}.slotId`, y si ningún usuario activo tiene
+   * ese puesto, el docente queda sin poder subir fotos ni editar fichas aunque la
+   * app —que resuelve el puesto contra la lista estática— sí lo habilite.
+   */
+  async function handleCargarEspejo() {
+    setCargandoEspejo(true);
+    setErrorEspejo(null);
+    try {
+      if (!db) throw new Error('Firebase no está configurado.');
+      const snap = await getDoc(doc(db, 'asistenciaConfig', 'directores'));
+      if (!snap.exists()) {
+        setErrorEspejo(
+          'El documento asistenciaConfig/directores NO EXISTE. Sin él, ningún docente ' +
+            'es reconocido como director. Pulse «Sincronizar permisos» arriba.',
+        );
+        setEspejoDirectores(null);
+        return;
+      }
+      setEspejoDirectores((snap.data().mapa ?? {}) as Record<string, string>);
+    } catch (e: any) {
+      setErrorEspejo(e?.message || 'No se pudo leer el espejo de directores.');
+    } finally {
+      setCargandoEspejo(false);
+    }
+  }
+
   if (!firebaseConfigurado) {
     return (
       <div className="space-y-5">
@@ -458,6 +491,70 @@ export default function PanelSuperusuario() {
                 docente, el valor de Firestore es el correcto y no hay que tocarlo.
               </p>
             </details>
+          );
+        })()}
+      </div>
+
+      {/* Diagnóstico de dirección de grupo: cruza el espejo que leen las REGLAS con
+          el slotId real de cada cuenta. Si un grado apunta a un puesto que ninguna
+          cuenta activa tiene, ese director no puede subir fotos ni editar fichas,
+          aunque la app se lo ofrezca. */}
+      <div className="rounded-xl border border-line bg-card p-3 space-y-2">
+        <div>
+          <h3 className="text-strong text-sm font-semibold">Diagnóstico de dirección de grupo</h3>
+          <p className="text-muted text-xs mt-0.5 leading-snug">
+            Muestra lo que el servidor ve realmente al decidir si alguien es director: el grado, el
+            puesto registrado en el espejo, y qué cuenta activa ocupa ese puesto. Si una fila sale en
+            rojo, ese director no podrá subir fotos ni editar fichas.
+          </p>
+        </div>
+        <button
+          onClick={handleCargarEspejo}
+          disabled={cargandoEspejo}
+          className="px-3 py-2 rounded-lg bg-elevated hover:bg-hover text-soft hover:text-strong text-xs font-medium transition disabled:opacity-50"
+        >
+          {cargandoEspejo ? 'Leyendo…' : 'Revisar quién es director según el servidor'}
+        </button>
+
+        {errorEspejo && <p className="text-xs text-danger">{errorEspejo}</p>}
+
+        {espejoDirectores && (() => {
+          const activos = usuarios.filter((u) => u.active);
+          const filas = Object.entries(espejoDirectores).map(([grado, slot]) => {
+            const cuenta = activos.find((u) => u.slotId === slot);
+            return { grado, slot, correo: cuenta?.email ?? null };
+          });
+          const rotas = filas.filter((f) => !f.correo);
+          return (
+            <div className="space-y-2">
+              <p className={'text-xs ' + (rotas.length === 0 ? 'text-success-soft-fg' : 'text-danger')}>
+                {rotas.length === 0
+                  ? `Los ${filas.length} grados apuntan a una cuenta activa. La dirección de grupo está bien.`
+                  : `${rotas.length} de ${filas.length} grados apuntan a un puesto que NINGUNA cuenta activa tiene.`}
+              </p>
+              <div className="max-h-64 overflow-y-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="text-muted sticky top-0 bg-card">
+                    <tr>
+                      <th className="pr-2 font-medium">Grado</th>
+                      <th className="pr-2 font-medium">Puesto en el espejo</th>
+                      <th className="font-medium">Cuenta activa con ese puesto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filas
+                      .sort((a, b) => (a.correo ? 1 : 0) - (b.correo ? 1 : 0))
+                      .map((f) => (
+                        <tr key={f.grado} className={f.correo ? 'text-soft' : 'text-danger'}>
+                          <td className="pr-2 font-mono">{f.grado}</td>
+                          <td className="pr-2 font-mono">{f.slot}</td>
+                          <td>{f.correo ?? '⚠ ninguna'}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           );
         })()}
       </div>
