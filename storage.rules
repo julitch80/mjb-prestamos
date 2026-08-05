@@ -56,6 +56,29 @@ service firebase.storage {
       allow delete: if false;
     }
 
+    // Adjuntos de las tareas: guias, talleres, plantillas.
+    //
+    // LECTURA PUBLICA A PROPOSITO. La agenda del grupo se abre por QR sin
+    // contrasena, porque los estudiantes y las familias no tienen cuenta
+    // institucional. Si esto exigiera autenticacion, el destinatario no podria
+    // abrir el archivo y la funcion no serviria de nada. Decision de Julian del
+    // 5 de agosto de 2026, con la advertencia mostrada al docente al subir.
+    //
+    // ESCRITURA: cualquier docente institucional. No se puede afinar mas: las
+    // tareas viven en Google Sheets, y las reglas de Storage solo pueden
+    // consultar Firestore — no hay forma de verificar aqui quien creo la tarea.
+    // Espejar las tareas a Firestore solo para esto anadiria otra fuente que se
+    // desincroniza en silencio, que ya nos costo caro con las fotos.
+    match /tareas/{archivo} {
+      allow read: if true;
+      allow create: if isInstitutional()
+        && request.resource.size < 10 * 1024 * 1024
+        && contentTypeValido();
+      // Se sube uno nuevo, no se pisa ni se borra: la agenda ya publicada
+      // seguiria apuntando al enlace viejo.
+      allow update, delete: if false;
+    }
+
     // =========================================================================
     //  BLOQUE DE STORAGE DEL MODULO DE ASISTENCIA
     //  Integrado desde el repo de asistencia (rules/asistencia.storage.rules).

@@ -15,6 +15,18 @@ export interface Tarea {
   fechaAsignacion: FechaISO;
   fechaEntrega: FechaISO;
   estado: 'activa' | 'cancelada';
+  /** Indicaciones breves para el estudiante. Opcional. */
+  descripcion?: string;
+  /**
+   * Enlace de descarga del archivo adjunto, si lo hay.
+   * OJO: la agenda del grupo es pública (sin login), así que este enlace queda
+   * accesible para cualquiera que lo tenga. Es una decisión tomada, no un
+   * descuido: los estudiantes no tienen cuenta institucional. La advertencia se
+   * muestra al docente en el momento de subir.
+   */
+  adjuntoUrl?: string;
+  /** Nombre original del archivo, para mostrarlo en la agenda. */
+  adjuntoNombre?: string;
 }
 
 // Cesión de momentos entre asignaturas: directa entre docentes,

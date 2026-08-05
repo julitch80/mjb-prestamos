@@ -268,6 +268,9 @@ export async function crearTarea(
     momentos: String(t.momentos),
     fechaAsignacion: t.fechaAsignacion,
     fechaEntrega: t.fechaEntrega,
+    descripcion: t.descripcion ?? '',
+    adjuntoUrl: t.adjuntoUrl ?? '',
+    adjuntoNombre: t.adjuntoNombre ?? '',
   });
 }
 

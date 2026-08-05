@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CopyPlus, Gift, HandCoins, Loader2, QrCode, Settings2, Trash2, X } from 'lucide-react';
+import { CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CopyPlus, Gift, Paperclip, HandCoins, Loader2, QrCode, Settings2, Trash2, X } from 'lucide-react';
 import AgendaGrupo from './AgendaGrupo';
 import ModalReplicarTarea from './ModalReplicarTarea';
+import { subirAdjuntoTarea } from '../data/tareas/adjuntos';
 import { useAppStore } from '../data/store';
 import {
   getDatosTareas, crearTarea, cancelarTarea, crearCesion,
@@ -52,6 +53,78 @@ function gridMes(year: number, month: number): (FechaISO | null)[][] {
 }
 
 // Modal reutilizable con la agenda del grupo (día + semana + QR).
+type AdjuntoTareaDato = { url: string; nombre: string };
+
+/**
+ * Subida del archivo de una tarea.
+ *
+ * La advertencia de visibilidad NO es decorativa y por eso está siempre visible,
+ * no escondida tras un icono: la agenda del grupo se abre por QR sin contraseña,
+ * así que lo que se suba aquí queda al alcance de cualquiera con el enlace. El
+ * riesgo real no es técnico, es que alguien publique ahí algo con datos de
+ * estudiantes creyendo que es un espacio cerrado.
+ */
+function AdjuntoTarea({
+  adjunto,
+  onCambiar,
+}: {
+  adjunto: AdjuntoTareaDato | null;
+  onCambiar: (a: AdjuntoTareaDato | null) => void;
+}) {
+  const [subiendo, setSubiendo] = useState(false);
+  const [pct, setPct] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  async function elegir(ev: React.ChangeEvent<HTMLInputElement>) {
+    const file = ev.target.files?.[0];
+    // Se limpia el input para que volver a elegir el MISMO archivo dispare el
+    // evento otra vez; si no, corregirlo y reintentar parece no hacer nada.
+    ev.target.value = '';
+    if (!file) return;
+    setError(null);
+    setSubiendo(true);
+    setPct(0);
+    try {
+      onCambiar(await subirAdjuntoTarea(file, setPct));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo subir el archivo.');
+    } finally {
+      setSubiendo(false);
+    }
+  }
+
+  return (
+    <div className="w-full">
+      <label className="text-[11px] text-muted block mb-1">
+        Archivo adjunto <span className="opacity-70">(opcional, máx. 10 MB)</span>
+      </label>
+      {adjunto ? (
+        <div className="flex items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-2">
+          <Paperclip size={14} className="text-muted shrink-0" />
+          <span className="text-xs text-strong truncate flex-1">{adjunto.nombre}</span>
+          <button
+            onClick={() => onCambiar(null)}
+            className="text-[11px] text-muted hover:text-danger transition"
+          >
+            Quitar
+          </button>
+        </div>
+      ) : (
+        <label className="inline-flex items-center gap-2 cursor-pointer rounded-xl border border-line bg-elevated px-3 py-2 text-xs text-soft hover:text-strong transition">
+          <Paperclip size={14} />
+          {subiendo ? `Subiendo… ${pct}%` : 'Seleccionar archivo…'}
+          <input type="file" hidden disabled={subiendo} onChange={elegir} />
+        </label>
+      )}
+      {error && <p className="text-[11px] text-danger mt-1">{error}</p>}
+      <p className="text-[11px] text-warning mt-1 leading-snug">
+        La agenda del grupo se abre con el código QR, sin contraseña. Lo que adjunte aquí lo podrá
+        ver <b>cualquiera que tenga ese enlace</b>: no suba nada con datos personales de estudiantes.
+      </p>
+    </div>
+  );
+}
+
 function ModalAgenda({ grupo, tareas, onClose }: { grupo: string; tareas: Tarea[]; onClose: () => void }) {
   return (
     <motion.div
@@ -99,6 +172,8 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
   const grupoInfo = misGrupos.find(g => g.grupo === grupo);
   const [asignaturaId, setAsignaturaId] = useState(grupoInfo?.asignaturaIds[0] ?? '');
   const [titulo, setTitulo] = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [adjunto, setAdjunto] = useState<AdjuntoTareaDato | null>(null);
   const [momentos, setMomentos] = useState(1);
   const [fechaEntrega, setFechaEntrega] = useState<FechaISO | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -193,11 +268,15 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
     const r = await crearTarea({
       grupo, asignaturaId: asignaturaActiva, docenteId: userId,
       titulo: titulo.trim(), momentos, fechaAsignacion: hoy, fechaEntrega,
+      descripcion: descripcion.trim() || undefined,
+      adjuntoUrl: adjunto?.url,
+      adjuntoNombre: adjunto?.nombre,
     });
     setGuardando(false);
     if (r.ok) {
       setAviso({ tipo: 'ok', texto: 'Tarea publicada. La agenda del grupo ya se actualizó.' });
       setTitulo(''); setFechaEntrega(null); setMomentos(1);
+      setDescripcion(''); setAdjunto(null);
       qc.invalidateQueries({ queryKey: ['datosTareas'] });
     } else {
       setAviso({ tipo: 'error', texto: r.error ?? 'No se pudo guardar la tarea.' });
@@ -287,6 +366,22 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
               className="w-full px-3 py-2 rounded-xl bg-elevated border border-line text-sm text-strong placeholder:text-muted focus:outline-none focus:border-line-strong"
             />
           </div>
+          <div className="w-full">
+            <label className="text-[11px] text-muted block mb-1">
+              Indicaciones para el estudiante <span className="opacity-70">(opcional)</span>
+            </label>
+            <textarea
+              value={descripcion}
+              onChange={e => setDescripcion(e.target.value.slice(0, 500))}
+              rows={2}
+              placeholder="Qué deben hacer, con qué material, cómo se entrega…"
+              className="w-full px-3 py-2 rounded-xl bg-elevated border border-line text-sm text-strong placeholder:text-muted focus:outline-none focus:border-line-strong resize-y"
+            />
+            <div className="flex items-center justify-between gap-2 mt-1">
+              <span className="text-[10px] text-muted">{descripcion.length}/500</span>
+            </div>
+          </div>
+          <AdjuntoTarea adjunto={adjunto} onCambiar={setAdjunto} />
           <div>
             <label className="text-[11px] text-muted block mb-1">
               Momentos ({momentos * config.duracionMomentoMin} min)

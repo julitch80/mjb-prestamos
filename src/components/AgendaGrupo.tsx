@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, QrCode as QrIcon } from 'lucide-react';
+import { BookOpen, Paperclip, QrCode as QrIcon } from 'lucide-react';
 import QRCode from 'qrcode';
 import { colorGrado, DIRECTORES_MANANA, DIRECTORES_TARDE, USUARIOS } from '../data/maestros';
 import { getAsignatura } from '../data/asignacionAcademica';
@@ -160,6 +160,20 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true }: {
                   <span className="text-[11px] text-muted">{b.momentos} momento{b.momentos > 1 ? 's' : ''} · {b.momentos * config.duracionMomentoMin} min</span>
                 </div>
                 <div className="text-sm text-strong">{t.titulo}</div>
+                {t.descripcion && (
+                  <p className="text-xs text-soft mt-1 whitespace-pre-line leading-snug">{t.descripcion}</p>
+                )}
+                {t.adjuntoUrl && (
+                  <a
+                    href={t.adjuntoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 mt-1.5 text-[11px] text-accent hover:underline"
+                  >
+                    <Paperclip size={12} />
+                    {t.adjuntoNombre || 'Archivo adjunto'}
+                  </a>
+                )}
                 <div className="text-[11px] text-muted mt-0.5">entrega: {fechaLegible(t.fechaEntrega)}</div>
               </div>
             ))

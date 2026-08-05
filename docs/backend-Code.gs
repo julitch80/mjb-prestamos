@@ -31,7 +31,10 @@ const DOC_AVISOS_ID = '1Z4ZPgkm5ognsKMwc8fizRTxIS2YWVyQFyzbkQ6QKEUk';
 const RESERVAS_HEADERS    = ['id','recurso','fecha','bloque','solicitante','proposito','equipos','estado','motivo','timestamp'];
 const NOTIF_HEADERS       = ['id','destinatario','tipo','mensaje','leida','timestamp'];
 const SUGERENCIAS_HEADERS = ['id','autor','texto','timestamp','estado','clasificacion','nota','vinculo','relacionadas','resueltoPor','resueltoEn','avisadoEn'];
-const TAREAS_HEADERS      = ['id','grupo','asignaturaId','docenteId','titulo','momentos','fechaAsignacion','fechaEntrega','estado','timestamp'];
+// Las tres ultimas columnas se agregaron en agosto de 2026 (descripcion y
+// adjunto). Van AL FINAL a proposito: asegurarEncabezados_ solo anade lo que
+// falta, asi que las filas viejas siguen leyendose sin tocar la hoja a mano.
+const TAREAS_HEADERS      = ['id','grupo','asignaturaId','docenteId','titulo','momentos','fechaAsignacion','fechaEntrega','estado','timestamp','descripcion','adjuntoUrl','adjuntoNombre'];
 const CESIONES_HEADERS    = ['id','grupo','periodo','asignaturaOrigenId','asignaturaDestinoId','docenteOrigenId','momentos','timestamp'];
 const SOLICITUDES_HEADERS = ['id','grupo','periodo','asignaturaCedenteId','asignaturaDestinoId','docenteCedenteId','docenteSolicitanteId','momentos','estado','timestamp'];
 const CUPOS_HEADERS       = ['nivel','asignaturaId','momentos','timestamp'];
@@ -575,11 +578,13 @@ function crearTarea(p) {
     return { ok: false, error: 'Faltan datos de la tarea' };
   }
   const sheet = getSheet('Tareas', TAREAS_HEADERS);
+  asegurarEncabezados_(sheet, TAREAS_HEADERS);
   const id = 'TAR-' + new Date().getTime();
   sheet.appendRow([
     id, p.grupo, p.asignaturaId, p.docenteId, p.titulo,
     Number(p.momentos) || 1, p.fechaAsignacion || '', p.fechaEntrega,
     'activa', new Date().toISOString(),
+    p.descripcion || '', p.adjuntoUrl || '', p.adjuntoNombre || '',
   ]);
   fijarGrupoComoTexto(sheet, 2, p.grupo);
   return { ok: true, id: id };
