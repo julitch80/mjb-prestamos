@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Gift, HandCoins, Loader2, QrCode, Settings2, Trash2, X } from 'lucide-react';
+import { CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CopyPlus, Gift, HandCoins, Loader2, QrCode, Settings2, Trash2, X } from 'lucide-react';
 import AgendaGrupo from './AgendaGrupo';
+import ModalReplicarTarea from './ModalReplicarTarea';
 import { useAppStore } from '../data/store';
 import {
   getDatosTareas, crearTarea, cancelarTarea, crearCesion,
@@ -105,6 +106,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
   const [mostrarCesion, setMostrarCesion] = useState(false);
   const [mostrarSolicitud, setMostrarSolicitud] = useState(false);
   const [agendaAbierta, setAgendaAbierta] = useState(false);
+  const [replicando, setReplicando] = useState<Tarea | null>(null);
 
   const asignaturaActiva = grupoInfo?.asignaturaIds.includes(asignaturaId)
     ? asignaturaId
@@ -496,6 +498,13 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
               </div>
             </div>
             <button
+              onClick={() => setReplicando(t)}
+              title="Replicar a otros grupos"
+              className="p-1.5 rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
+            >
+              <CopyPlus size={14} />
+            </button>
+            <button
               onClick={() => cancelar(t.id)}
               title="Cancelar tarea"
               className="p-1.5 rounded-lg text-muted hover:text-danger hover:bg-danger-soft transition"
@@ -507,6 +516,17 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
       </section>
 
       <AnimatePresence>
+        {replicando && (
+          <ModalReplicarTarea
+            original={replicando}
+            tareas={tareas}
+            cesiones={cesiones}
+            cuposOverride={cuposOverride}
+            hoy={hoy}
+            onClose={() => setReplicando(null)}
+            onCreadas={() => qc.invalidateQueries({ queryKey: ['datosTareas'] })}
+          />
+        )}
         {agendaAbierta && grupo && (
           <ModalAgenda grupo={grupo} tareas={tareas} onClose={() => setAgendaAbierta(false)} />
         )}
