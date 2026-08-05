@@ -46,7 +46,26 @@ Actualmente la app se empaqueta en un solo archivo `prestamo_mjb.html` que se su
 | App en producción | `https://julitch80.github.io/mjb-prestamos/prestamo_mjb.html` |
 | Repositorio GitHub | `github.com/julitch80/mjb-prestamos` (usuario: julitch80) |
 | Apps Script backend | `https://script.google.com/macros/s/AKfycbyIxTCPm0PvibDjbqYYv6gYgJtc6MqL-2NVzdEaRLsMO2nAasseQgDO0UUixkeX4X4zZA/exec` |
+| Apps Script **editor** | `https://script.google.com/home/projects/1qQV5LLRHhdncMjEuhi_ic1merMNpGkAVADo7m-NzspPLWnncPPmqWjlF/edit` |
 | Google Sheets ID | `1fg73CZ0mdM6lQD7TXXxxxi3zbCyT4RbVJxg4KjagTsg` |
+
+> El editor y el backend son URLs **distintas y no derivables entre sí**: el código
+> `AKfycby...` del `/exec` es un id de *despliegue*, no del proyecto. Por eso hay que
+> anotar las dos.
+>
+> El script es **independiente**, no está vinculado a la hoja de cálculo (usa
+> `SpreadsheetApp.openById`), así que **no aparece** en *Extensiones → Apps Script*
+> del Google Sheets. Solo se llega por el enlace del editor.
+
+### Redesplegar el backend
+
+Al cambiar `docs/backend-Code.gs` hay que publicarlo a mano:
+
+1. Abrir el **editor** (enlace de arriba) y pegar el contenido del archivo.
+2. **Implementar → Administrar implementaciones → ✏️ editar → Nueva versión → Implementar**.
+
+⚠️ Debe ser **nueva versión sobre el despliegue existente**, nunca un despliegue nuevo:
+uno nuevo genera otra URL `/exec` y la app se quedaría hablándole al backend viejo.
 
 ---
 
