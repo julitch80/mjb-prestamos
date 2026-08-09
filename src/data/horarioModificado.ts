@@ -389,7 +389,64 @@ export function aplicarModificacionesAlDia(
     });
   }
 
+  reasignarAulasDelDia(resultado, dia, jornada, horarioBase);
+
   return resultado.sort((a, b) => a.bloque - b.bloque);
+}
+
+/**
+ * Corrige el aula de las entradas movidas de bloque (esModificada === true):
+ * el aula que traían es la del bloque ORIGINAL, no la del bloque nuevo. Regla:
+ * 1) preferir el aula que ese mismo docente usa normalmente en ese bloque/día
+ *    (buscada en horarioBase, cualquier grupo);
+ * 2) si esa aula ya está ocupada en el bloque nuevo, usar cualquier aula libre
+ *    conocida de esa jornada;
+ * 3) si no hay ninguna libre, conservar el aula original (comportamiento previo).
+ * Las entradas sin modificar no se tocan.
+ */
+function reasignarAulasDelDia(
+  resultado: EntradaEfectiva[],
+  dia: string,
+  jornada: 'manana' | 'tarde',
+  horarioBase: EntradaHorarioBase[],
+): void {
+  const aulasJornada = Array.from(new Set(
+    horarioBase.filter(e => e.jornada === jornada).map(e => e.aula)
+  )).filter(a => a && a !== 'Patio');
+
+  const porBloque = new Map<number, EntradaEfectiva[]>();
+  resultado.forEach(e => {
+    (porBloque.get(e.bloque) ?? porBloque.set(e.bloque, []).get(e.bloque)!).push(e);
+  });
+
+  porBloque.forEach((entradasBloque, bloque) => {
+    const ocupadas = new Set(
+      entradasBloque.filter(e => !e.esModificada).map(e => e.aula)
+    );
+
+    const movidas = entradasBloque
+      .filter(e => e.esModificada)
+      .sort((a, b) => a.docente.localeCompare(b.docente));
+
+    for (const entrada of movidas) {
+      const preferida = horarioBase.find(e =>
+        e.jornada === jornada && e.dia === dia && e.bloque === bloque && e.docente === entrada.docente
+      )?.aula;
+
+      let aulaElegida: string | undefined;
+      if (preferida && !ocupadas.has(preferida)) {
+        aulaElegida = preferida;
+      } else {
+        aulaElegida = aulasJornada.find(a => !ocupadas.has(a));
+      }
+
+      if (aulaElegida) {
+        entrada.aula = aulaElegida;
+        ocupadas.add(aulaElegida);
+      }
+      // Si no hay ninguna disponible, se conserva el aula original ya asignada.
+    }
+  });
 }
 
 /** Lista las modificaciones guardadas vigentes hoy o en el futuro próximo. */
