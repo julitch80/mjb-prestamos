@@ -18,6 +18,7 @@ import TerceraHora from './TerceraHora';
 import LlegadasTarde from './LlegadasTarde';
 import {
   abrirSesion,
+  buscarEstudiantes,
   cerrarSesion as cerrarSesionRemota,
   leerDirectores,
   leerGrupo,
@@ -27,11 +28,13 @@ import {
   type AlcanceLectura,
 } from './datos';
 import { toDateKey } from './domain/ids';
+import { nombreCompleto } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import type { MarkCode } from './domain/marks';
 import type { Enrollment, Session, Student } from './domain/types';
 import { firebaseConfigurado } from '../lib/firebase';
 import { useAppStore } from '../data/store';
+import { estiloEtiqueta, guardarColor, leerMapa, resolverColor, type MapaColores } from './domain/colores';
 
 /**
  * Componente raiz del modulo de asistencia. ESTE es el punto de pegado.
@@ -69,6 +72,10 @@ export default function Asistencia() {
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
   const [directores, setDirectores] = useState<Record<string, string>>({});
   const [vista, setVista] = useState<'planilla' | 'tercera_hora' | 'llegadas'>('planilla');
+
+  // Preferencia visual del dispositivo, no un dato del colegio: se lee una sola vez del
+  // almacen local (ver domain/colores.ts) y de ahi en adelante vive en memoria.
+  const [mapaColores, setMapaColores] = useState<MapaColores>(() => leerMapa());
 
   /** Cruces (grado + asignatura) que aparecen en las sesiones del usuario. */
   const cruces = useMemo(() => {
@@ -202,11 +209,31 @@ export default function Asistencia() {
 
   // El superusuario no registra asistencia (su clave es transferible) ni lee el detalle
   // de las sesiones: las reglas se lo impiden. Lo suyo es cargar los datos base.
+  //
+  // Pero SI puede ver fichas: `asistenciaStudents` se lee con `isActiveUser()`. Antes
+  // esta pantalla era solo el importador, y el resultado era absurdo — quien carga dos
+  // mil estudiantes no podia mirar ni uno para comprobar que quedaron bien. Tambien
+  // dejaba sin forma de probar los permisos de fotografia con una cuenta distinta a la
+  // del docente, que es lo que hizo falta al depurar.
   if (rol === 'superusuario') {
+    if (fichaAbierta) {
+      return (
+        <Ficha
+          studentId={fichaAbierta}
+          rol={rol}
+          slotId={slotId}
+          directores={directores}
+          onVolver={() => setFichaAbierta(null)}
+        />
+      );
+    }
     return (
-      <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando importación…</p>}>
-        <Importar />
-      </Suspense>
+      <div className="space-y-4">
+        <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando importación…</p>}>
+          <Importar />
+        </Suspense>
+        <BuscadorFichas sede={sede} onAbrir={setFichaAbierta} />
+      </div>
     );
   }
 
@@ -284,15 +311,24 @@ export default function Asistencia() {
             <div className="flex flex-wrap gap-1.5">
               {cruces.map((c) => {
                 const activo = cruce?.grado === c.grado && cruce?.subjectId === c.subjectId;
+                const colorPestana = resolverColor(mapaColores, c.grado, c.subjectId);
                 return (
                   <button
                     key={`${c.grado}|${c.subjectId}`}
                     onClick={() => setCruce(c)}
+                    style={estiloEtiqueta(colorPestana)}
                     className={[
                       'rounded-full border px-3 py-1 text-sm',
+                      // El color de grupo va por `style` (arriba); aqui solo se decide si
+                      // la pestana activa se distingue de las inactivas cuando NO hay
+                      // color propio, con un borde mas marcado.
                       activo
-                        ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
-                        : 'border-line text-soft',
+                        ? colorPestana
+                          ? 'border-2 font-semibold'
+                          : 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                        : colorPestana
+                          ? 'border font-normal'
+                          : 'border-line text-soft',
                     ].join(' ')}
                   >
                     {c.grado} · {c.subjectId}
@@ -315,11 +351,84 @@ export default function Asistencia() {
               onAbrirFicha={setFichaAbierta}
               onLlenarColumna={llenar}
               onNuevaSesion={nuevaSesion}
+              color={resolverColor(mapaColores, cruce.grado, cruce.subjectId)}
+              onElegirColor={(colorId) =>
+                setMapaColores((m) => guardarColor(m, cruce.grado, cruce.subjectId, colorId))
+              }
             />
           )}
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Buscador de fichas para el superusuario.
+ *
+ * No duplica la planilla: no lee sesiones (las reglas se lo niegan), solo estudiantes,
+ * que `isActiveUser()` si le permite. Sirve para comprobar que una importacion quedo
+ * bien —el momento en que mas falta hace mirar una ficha— y para probar permisos de
+ * fotografia con una cuenta que no sea la del docente.
+ */
+function BuscadorFichas({
+  sede,
+  onAbrir,
+}: {
+  sede: string;
+  onAbrir: (studentId: string) => void;
+}) {
+  const [texto, setTexto] = useState('');
+  const [resultados, setResultados] = useState<Student[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (texto.trim().length < 2) {
+      setResultados([]);
+      return;
+    }
+    // Con retardo: se teclea mas rapido de lo que conviene consultar.
+    const t = setTimeout(() => {
+      void buscarEstudiantes(sede, texto)
+        .then((r) => {
+          setResultados(r);
+          setError(null);
+        })
+        .catch((e) => setError(mensajeDeError(e)));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [texto, sede]);
+
+  return (
+    <section className="rounded-xl border border-line bg-card p-3">
+      <h3 className="text-sm font-semibold text-strong">Consultar una ficha</h3>
+      <p className="text-xs text-muted">
+        Para comprobar que la importación quedó bien. No registra asistencia.
+      </p>
+      <input
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        placeholder="Apellido o nombre…"
+        className="mt-2 w-full rounded-lg border border-line bg-elevated px-2 py-2 text-base text-strong"
+      />
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+      {texto.trim().length >= 2 && resultados.length === 0 && !error && (
+        <p className="mt-2 text-sm text-muted">Ningún estudiante coincide.</p>
+      )}
+      <ul className="mt-2 space-y-1">
+        {resultados.map((e) => (
+          <li key={e.studentId}>
+            <button
+              onClick={() => onAbrir(e.studentId)}
+              className="w-full rounded-lg border border-line p-2 text-left text-sm text-strong"
+            >
+              {nombreCompleto(e)}
+              <span className="ml-2 text-xs text-muted">{e.gradoActual}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

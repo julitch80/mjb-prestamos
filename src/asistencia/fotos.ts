@@ -116,9 +116,21 @@ export async function urlDeFoto(studentId: string): Promise<string | null> {
 function traducirError(e: unknown): Error {
   const codigo = (e as { code?: string })?.code ?? '';
   if (codigo.includes('unauthorized')) {
+    // Este mensaje se gano a pulso. Si la aplicacion mostro el boton "Tomar foto", ya
+    // considero que quien lo pulsa PUEDE hacerlo — y aun asi el servidor rechazo. Eso
+    // no es "no tiene permiso": es que las dos mitades resuelven el puesto en sitios
+    // distintos. La interfaz lo saca de la lista estatica USUARIOS; las reglas, de
+    // `users/{correo}.slotId` en Firestore. Cuando ese campo esta vacio, discrepan en
+    // silencio.
+    //
+    // Repetir aqui "solo pueden el director y coordinacion" era exactamente lo inutil:
+    // se lo decia a la persona que SI es el director. Mejor nombrar la causa y la
+    // salida, que es un boton concreto del panel del superusuario.
     return new Error(
-      'No tiene permiso para cambiar esta fotografía. Solo pueden hacerlo el director ' +
-        'del grupo, coordinación y el superusuario.',
+      'El servidor no reconoce su puesto, aunque la aplicación sí lo muestre como ' +
+        'director del grupo. Falta el campo «puesto» en su cuenta de Firestore. ' +
+        'Solución: en el panel del superusuario, pulse «Crear y reparar cuentas» y ' +
+        'luego cierre sesión y vuelva a entrar.',
     );
   }
   if (codigo.includes('canceled')) return new Error('Subida cancelada.');

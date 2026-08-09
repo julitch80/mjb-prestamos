@@ -1,9 +1,16 @@
 /**
  * Emparejamiento de importación — §8 del manual.
  *
- * El documento de identidad es el único identificador estable compartido con
- * Master2000, pero es dato sensible de menores: NUNCA se almacena en claro. Aquí solo
- * circula el `docHash` (HMAC-SHA256 calculado server-side, §8 y functions/src/index.ts).
+ * El documento de identidad es el único identificador estable compartido con Master2000.
+ *
+ * El EMPAREJAMIENTO se hace siempre por `docHash` (HMAC-SHA256 calculado server-side),
+ * nunca por el número en claro: así el criterio de identidad no cambia si algún día se
+ * decide dejar de guardar el número.
+ *
+ * Desde 2026-08-04 el número TAMBIÉN se guarda en claro, por decisión de Julián como
+ * responsable del dato: en una urgencia médica el 123 y la EPS lo piden para atender al
+ * estudiante, y hoy eso obliga a ir hasta secretaría. Los dos campos conviven y no son
+ * intercambiables — ver la nota en `types.ts`.
  *
  * Regla dura: JAMÁS emparejar por nombre automáticamente. El nombre solo sirve para
  * SOSPECHAR un duplicado y mandarlo a revisión humana — es donde nacen los duplicados
@@ -16,11 +23,14 @@ import type { DocType, Student } from './types';
 export interface IncomingRow {
   nombres: string;
   apellidos: string;
-  /** Hash del documento; el número en claro nunca sale de la Cloud Function. */
+  /** Hash del documento. Es lo ÚNICO por lo que se empareja. */
   docHash: string;
+  /** Número en claro, solo para persistirlo. No se usa para emparejar. */
+  docNumber: string;
   docType: DocType;
   grado: string;
   acudiente: string;
+  parentesco: string;
   telefonos: string[];
 }
 

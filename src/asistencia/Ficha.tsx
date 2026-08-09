@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { actualizarFicha, leerEstudiante } from './datos';
+import { actualizarFicha, leerEstudiante, leerMiCuenta, type MiCuenta } from './datos';
 import { subirFoto, urlDeFoto } from './fotos';
 import { iniciales, nombreCompleto } from './domain/nombres';
 import type { Student } from './domain/types';
@@ -34,12 +34,15 @@ export default function Ficha({
   const [editando, setEditando] = useState(false);
   const [verQr, setVerQr] = useState(false);
   const [camara, setCamara] = useState(false);
+  const [cuenta, setCuenta] = useState<MiCuenta | null>(null);
 
   useEffect(() => {
     void (async () => {
       const e = await leerEstudiante(studentId);
       setEst(e);
       if (e) setFoto(await urlDeFoto(studentId));
+      // El puesto segun el SERVIDOR, que es contra el que evaluan las reglas.
+      setCuenta(await leerMiCuenta());
     })();
   }, [studentId]);
 
@@ -51,6 +54,12 @@ export default function Ficha({
   // dicen lo mismo.
   const esDirector = Boolean(slotId && directores[est.gradoActual] === slotId);
   const puedeEditar = rol === 'coordinador' || rol === 'superusuario' || esDirector;
+
+  // El puesto que ve el servidor. Si difiere del que resuelve la interfaz, la app
+  // habilita botones que las reglas rechazan: es el fallo mas confuso del sistema,
+  // porque todo en pantalla dice que si y el servidor dice que no.
+  const puestoServidor = cuenta?.slotId ?? null;
+  const discrepa = cuenta !== null && esDirector && puestoServidor !== slotId;
 
   async function guardarFoto(blob: Blob) {
     setCamara(false);
@@ -116,11 +125,41 @@ export default function Ficha({
             </p>
 
             <dl className="mt-2 space-y-1 text-sm">
-              <Dato termino="Acudiente" valor={est.acudiente} />
+              {/*
+                El parentesco va pegado al nombre, no en su propia fila: quien llama a
+                una familia necesita saber "a quien" y "que es del estudiante" de un
+                golpe, y son la misma pregunta. Si la ficha se importo antes de que
+                existiera el campo, simplemente no aparece el parentesis.
+              */}
+              <Dato
+                termino="Acudiente"
+                valor={
+                  est.parentesco?.trim()
+                    ? `${est.acudiente} (${est.parentesco.trim()})`
+                    : est.acudiente
+                }
+              />
               <Dato termino="Teléfonos" valor={est.telefonos.join(' · ')} />
+              {/*
+                El caso de uso es una urgencia: el estudiante se lastimo y en la llamada
+                al 123 o a la EPS piden el documento. Por eso va en cifra grande y
+                tabular (para dictarlo sin equivocarse) y con un boton de copiar, en vez
+                de un renglon mas de texto corrido.
+              */}
               <Dato
                 termino="Documento"
-                valor={`${est.docType} — el número no se almacena en claro`}
+                valor={
+                  est.docNumber ? (
+                    <span className="flex flex-wrap items-center gap-2">
+                      <b className="font-mono text-base tabular-nums tracking-wide text-strong">
+                        {est.docType} {est.docNumber}
+                      </b>
+                      <BotonCopiar valor={est.docNumber} />
+                    </span>
+                  ) : (
+                    `${est.docType} — sin registrar (vuelva a importar el grupo)`
+                  )
+                }
               />
             </dl>
 
@@ -150,13 +189,32 @@ export default function Ficha({
         )}
 
         {/*
-          Cuando no se puede editar, decir POR QUE. La versión anterior solo recitaba
-          quién sí podía, que no le sirve a nadie para desatascarse: el dato que falta
-          es contra qué está comparando el servidor.
+          Aviso de discrepancia. Va SIEMPRE visible y en rojo, no escondido en un
+          desplegable: cuando ocurre, la persona esta a punto de pulsar un boton que va a
+          fallar, y el mensaje del fallo llega demasiado tarde y sin la causa.
         */}
-        {!puedeEditar && (
-          <details className="mt-3 rounded-lg border border-line p-2 text-xs text-muted">
-            <summary className="cursor-pointer">¿Por qué no puedo editar esta ficha?</summary>
+        {discrepa && (
+          <div className="mt-3 rounded-lg border border-warning-soft bg-warning-soft p-2 text-xs text-warning-soft-fg">
+            <b>Sus permisos van a fallar aunque los botones estén activos.</b> La
+            aplicación lo reconoce como director de {est.gradoActual} con el puesto{' '}
+            <b>{slotId}</b>, pero en el servidor su cuenta tiene el puesto{' '}
+            <b>{puestoServidor ?? 'vacío'}</b>. Las reglas usan el del servidor.
+            <br />
+            Solución: el superusuario debe pulsar <b>«Crear y reparar cuentas»</b> en su
+            panel; después cierre sesión y vuelva a entrar.
+          </div>
+        )}
+
+        {/*
+          El diagnostico va SIEMPRE, no solo cuando `!puedeEditar`. Estaba condicionado a
+          no poder editar, que es justo el caso en que NO se necesita: el fallo real es
+          creer que se puede y que el servidor lo niegue. Escondido asi, no sirvio de nada
+          durante toda una sesion de busqueda.
+        */}
+        <details className="mt-3 rounded-lg border border-line p-2 text-xs text-muted">
+          <summary className="cursor-pointer">
+            {puedeEditar ? 'Ver contra qué comprueba el servidor' : '¿Por qué no puedo editar esta ficha?'}
+          </summary>
             <p className="mt-1">
               La edición es de coordinación y del director del grupo del estudiante. Ser
               director no depende de su rol: sale del documento{' '}
@@ -167,19 +225,32 @@ export default function Ficha({
                 Grado del estudiante: <b>{est.gradoActual}</b>
               </li>
               <li>
-                Su puesto (slotId): <b>{slotId ?? '—'}</b>
-              </li>
-              <li>
                 Director registrado para ese grado:{' '}
                 <b>{directores[est.gradoActual] ?? 'ninguno'}</b>
               </li>
+              <li>
+                Su puesto <i>según la aplicación</i>: <b>{slotId ?? '—'}</b>
+              </li>
+              {/*
+                La linea que faltaba. Sin ella no habia forma de ver, desde la propia
+                aplicacion, que los dos lados estaban leyendo el puesto de sitios
+                distintos.
+              */}
+              <li>
+                Su puesto <i>según el servidor</i> (es el que mandan las reglas):{' '}
+                <b>{cuenta === null ? 'consultando…' : (puestoServidor ?? 'vacío')}</b>
+              </li>
+              <li>
+                Su cuenta: <b>{cuenta?.rol ?? '—'}</b>
+                {cuenta && !cuenta.activo && ' · INACTIVA'}
+              </li>
             </ul>
             <p className="mt-1">
-              Si los dos últimos deberían coincidir, hay que sincronizar el documento de
-              directores desde el panel del superusuario.
+              Los dos últimos deben coincidir. Si el del servidor está vacío, el
+              superusuario tiene que pulsar «Crear y reparar cuentas». Si el director
+              registrado no es el que debería, hay que pulsar «Sincronizar permisos».
             </p>
-          </details>
-        )}
+        </details>
       </div>
 
       {verQr && <ModalQr estudiante={est} onCerrar={() => setVerQr(false)} />}
@@ -190,11 +261,11 @@ export default function Ficha({
         <ModalContacto
           estudiante={est}
           onCerrar={() => setEditando(false)}
-          onGuardar={async (acudiente, telefonos) => {
+          onGuardar={async (acudiente, parentesco, telefonos) => {
             setError(null);
             try {
-              await actualizarFicha(studentId, { acudiente, telefonos });
-              setEst((p) => (p ? { ...p, acudiente, telefonos } : p));
+              await actualizarFicha(studentId, { acudiente, parentesco, telefonos });
+              setEst((p) => (p ? { ...p, acudiente, parentesco, telefonos } : p));
               setEditando(false);
             } catch (e) {
               setError((e as Error).message);
@@ -206,12 +277,41 @@ export default function Ficha({
   );
 }
 
-function Dato({ termino, valor }: { termino: string; valor: string }) {
+function Dato({ termino, valor }: { termino: string; valor: React.ReactNode }) {
   return (
     <div className="flex gap-2">
       <dt className="w-24 shrink-0 text-xs text-muted">{termino}</dt>
       <dd className="text-sm text-soft">{valor || <span className="text-muted">sin registrar</span>}</dd>
     </div>
+  );
+}
+
+/**
+ * Copiar al portapapeles con confirmacion visible.
+ *
+ * El aviso de "copiado" no es adorno: en una urgencia hay que poder pegar el numero en
+ * la app del telefono sin volver a mirar la pantalla para comprobar que sirvio. Si el
+ * navegador niega el portapapeles (pasa sin HTTPS), se dice, en vez de fingir que
+ * funciono.
+ */
+function BotonCopiar({ valor }: { valor: string }) {
+  const [estado, setEstado] = useState<'listo' | 'copiado' | 'error'>('listo');
+
+  return (
+    <button
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(valor);
+          setEstado('copiado');
+        } catch {
+          setEstado('error');
+        }
+        setTimeout(() => setEstado('listo'), 2000);
+      }}
+      className="rounded-lg border border-line px-2 py-0.5 text-xs text-strong"
+    >
+      {estado === 'copiado' ? '✓ Copiado' : estado === 'error' ? 'No se pudo copiar' : 'Copiar'}
+    </button>
   );
 }
 
@@ -351,9 +451,10 @@ function ModalContacto({
 }: {
   estudiante: Student;
   onCerrar: () => void;
-  onGuardar: (acudiente: string, telefonos: string[]) => Promise<void>;
+  onGuardar: (acudiente: string, parentesco: string, telefonos: string[]) => Promise<void>;
 }) {
   const [acudiente, setAcudiente] = useState(estudiante.acudiente);
+  const [parentesco, setParentesco] = useState(estudiante.parentesco ?? '');
   const [tel, setTel] = useState(estudiante.telefonos.join(', '));
 
   return (
@@ -368,6 +469,17 @@ function ModalContacto({
         onChange={(e) => setAcudiente(e.target.value)}
         className="mb-2 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm"
       />
+      {/*
+        Texto libre a proposito: la afinidad viene tal cual de Master2000 y el catalogo
+        real que usa el colegio es mas ancho que cualquier lista que se escriba aqui.
+      */}
+      <label className="block text-xs text-muted">Parentesco (madre, padre, tía…)</label>
+      <input
+        value={parentesco}
+        onChange={(e) => setParentesco(e.target.value)}
+        placeholder="Sin registrar"
+        className="mb-2 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm"
+      />
       <label className="block text-xs text-muted">Teléfonos (separados por coma)</label>
       <input
         value={tel}
@@ -379,6 +491,7 @@ function ModalContacto({
           onClick={() =>
             void onGuardar(
               acudiente.trim(),
+              parentesco.trim(),
               tel.split(',').map((t) => t.trim()).filter(Boolean),
             )
           }

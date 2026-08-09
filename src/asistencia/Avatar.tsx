@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { urlDeFoto } from './fotos';
 import { iniciales } from './domain/nombres';
 import type { Student } from './domain/types';
@@ -19,9 +19,12 @@ const CACHE = new Map<string, string | null>();
 export default function Avatar({
   estudiante,
   tamano = 32,
+  style,
 }: {
   estudiante: Pick<Student, 'studentId' | 'nombres' | 'apellidos' | 'fotoPath'>;
   tamano?: number;
+  /** Anillo del color de grupo (`estiloAnillo`). Opcional: sin color no hay anillo. */
+  style?: CSSProperties;
 }) {
   const [url, setUrl] = useState<string | null>(
     () => CACHE.get(estudiante.studentId) ?? null,
@@ -43,7 +46,7 @@ export default function Avatar({
     };
   }, [estudiante.studentId, estudiante.fotoPath]);
 
-  const estilo = { width: tamano, height: tamano };
+  const estilo = { width: tamano, height: tamano, ...style };
 
   if (url) {
     return (

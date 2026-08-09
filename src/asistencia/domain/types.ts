@@ -68,10 +68,42 @@ export interface Student {
   studentId: string;
   nombres: string;
   apellidos: string;
-  /** HMAC del documento. El numero en claro no se almacena jamas. */
+  /**
+   * HMAC del documento. Es la identidad tecnica del estudiante: por esto —y solo por
+   * esto— se empareja al reimportar. Nunca se recalcula ni se sobrescribe.
+   */
   docHash: string;
+  /**
+   * Numero de documento en claro.
+   *
+   * Se guarda por decision expresa de Julian (2026-08-04) como responsable del dato: en
+   * una urgencia medica el 123 y la EPS lo exigen para atender al estudiante, y sin el a
+   * la mano hay que ir hasta secretaria mientras el muchacho espera. El costo de no
+   * tenerlo es inmediato y recae sobre el menor; el de tenerlo es un riesgo de custodia
+   * que el colegio ya asume con el resto de su archivo.
+   *
+   * NO es intercambiable con `docHash`: emparejar por este campo haria que corregir un
+   * digito mal digitado partiera al estudiante en dos personas. Por eso las reglas lo
+   * blindan contra la escritura del cliente — solo lo escribe la Cloud Function de
+   * importacion, junto con el hash que le corresponde.
+   *
+   * Opcional: las fichas importadas antes de esta decision no lo tienen hasta que se
+   * reimporte el archivo. No se puede reconstruir del hash.
+   */
+  docNumber?: string;
   docType: DocType;
   acudiente: string;
+  /**
+   * Parentesco del acudiente ("Madre", "Tio", "Vecino"). Viene de la columna AFINIDAD de
+   * Master2000 y se guarda TAL CUAL, sin normalizar a un catalogo: la relacion real de un
+   * estudiante con quien responde por el no siempre cabe en una lista cerrada, y para lo
+   * que sirve —saber a quien se esta llamando— el texto del colegio es mejor que una
+   * categoria inventada aqui.
+   *
+   * Opcional en la practica: las fichas importadas antes de que existiera este campo no
+   * lo tienen hasta la siguiente importacion.
+   */
+  parentesco?: string;
   telefonos: string[];
   fotoPath: string | null;
   qrToken: string;

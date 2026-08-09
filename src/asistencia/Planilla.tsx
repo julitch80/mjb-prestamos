@@ -3,6 +3,7 @@ import Avatar from './Avatar';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
 import { nombreCompleto, nombresDePila } from './domain/nombres';
 import { computeStats, conDenominador } from './domain/stats';
+import { COLORES_GRUPO, estiloAnillo, estiloBorde, type ColorGrupo } from './domain/colores';
 import type { Enrollment, Session, Student } from './domain/types';
 
 /**
@@ -58,6 +59,11 @@ export interface PlanillaProps {
   onNuevaSesion: () => void;
   /** Llena de golpe las casillas vacías de una columna. */
   onLlenarColumna: (sessionId: string, estado: MarkCode) => void;
+  /** Color identificativo del cruce grado+asignatura, elegido por el docente. Solo ayuda
+   * visual: nunca reemplaza el nombre del grupo ni toca el color de las marcas. */
+  color: ColorGrupo | null;
+  /** Guarda (o borra, con `null`) el color del cruce activo. El mapa vive en index.tsx. */
+  onElegirColor: (colorId: string | null) => void;
 }
 
 export default function Planilla({
@@ -72,9 +78,12 @@ export default function Planilla({
   onAbrirFicha,
   onNuevaSesion,
   onLlenarColumna,
+  color,
+  onElegirColor,
 }: PlanillaProps) {
   const [celda, setCelda] = useState<{ sessionId: string; studentId: string } | null>(null);
   const [columnaMenu, setColumnaMenu] = useState<string | null>(null);
+  const [selectorColor, setSelectorColor] = useState(false);
 
   const ordenadas = useMemo(
     () =>
@@ -97,19 +106,56 @@ export default function Planilla({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-base font-semibold text-strong">
+        <h2 className="shrink-0 text-base font-semibold text-strong">
           {grado} · {asignatura}
         </h2>
-        <span className="text-xs text-muted">
+        {/* Selector de color del grupo: solo ayuda visual para quien lleva varios grupos
+            a la vez, por eso va pegado al nombre y no compite con las marcas de asistencia. */}
+        {/* El punto se ve pequeno pero la zona pulsable es de 36 px: un boton de 20 px es
+            imposible de acertar con el dedo, y esta pantalla se usa de pie y con prisa.
+            Y lleva `aria-label` porque no tiene texto: sin el, quien use lector de
+            pantalla oye "boton" y nada mas. El `title` no sirve — en el movil no hay
+            puntero que lo dispare. */}
+        <button
+          onClick={() => setSelectorColor(true)}
+          aria-label={
+            color
+              ? `Color del grupo: ${color.nombre}. Pulse para cambiarlo`
+              : 'Elegir un color para este grupo'
+          }
+          title={color ? `Color del grupo: ${color.nombre}` : 'Elegir un color para este grupo'}
+          className="grid h-9 w-9 shrink-0 place-items-center"
+        >
+          <span
+            style={color ? { backgroundColor: color.hex } : {}}
+            className={[
+              'block h-5 w-5 rounded-full',
+              color ? '' : 'border-2 border-dashed border-line-strong',
+            ].join(' ')}
+          />
+        </button>
+        <span className="shrink-0 text-xs text-muted">
           {ordenadas.length === 0
             ? 'Sin sesiones registradas en este periodo'
             : `${ordenadas.length} sesiones registradas`}
         </span>
+        {/* Convenciones siempre visibles: el docente no debe tener que recordar las siglas
+            ni abrir nada para saber que significa una marca en la planilla. */}
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+          {MARKS.map((m) => (
+            <span key={m.code} className="flex shrink-0 items-center gap-1 text-xs text-muted">
+              <span className={`font-bold ${CLASE_MARCA[m.code]} rounded px-1`}>
+                {SIGLA[m.code]}
+              </span>
+              {m.label}
+            </span>
+          ))}
+        </div>
         <span className="grow" />
         {puedeRegistrar && (
           <button
             onClick={onNuevaSesion}
-            className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
+            className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
           >
             + Sesión de hoy
           </button>
@@ -122,11 +168,17 @@ export default function Planilla({
           sesión de hoy para empezar a registrar.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-line bg-card">
+        <div
+          className="overflow-x-auto rounded-xl border border-line bg-card"
+          style={estiloBorde(color)}
+        >
           <table className="w-max min-w-full border-collapse">
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 min-w-[9.5rem] max-w-[9.5rem] border-b border-r border-line bg-card p-2 text-left text-xs font-semibold text-muted">
+                {/* El ancho debe coincidir EXACTO con el de la celda de la fila: son dos
+                    elementos sticky distintos y, si difieren, la columna fija se parte al
+                    desplazar la tabla de lado. */}
+                <th className="sticky left-0 z-10 min-w-[10.5rem] max-w-[10.5rem] border-b border-r border-line bg-card p-2 text-left text-xs font-semibold text-muted">
                   Estudiante ({estudiantes.length})
                 </th>
                 {ordenadas.map((s) => (
@@ -160,13 +212,13 @@ export default function Planilla({
             <tbody>
               {estudiantes.map((e) => (
                 <tr key={e.studentId}>
-                  <td className="sticky left-0 z-10 min-w-[9.5rem] max-w-[9.5rem] border-b border-r border-line bg-card p-2">
+                  <td className="sticky left-0 z-10 min-w-[10.5rem] max-w-[10.5rem] border-b border-r border-line bg-card p-1.5">
                     <button
                       onClick={() => onAbrirFicha(e.studentId)}
                       className="flex w-full items-center gap-2 text-left"
                       title={nombreCompleto(e)}
                     >
-                      <Avatar estudiante={e} tamano={30} />
+                      <Avatar estudiante={e} tamano={44} style={estiloAnillo(color)} />
                       <span className="min-w-0 truncate text-xs leading-tight text-strong">
                         <span className="block truncate font-semibold">{e.apellidos}</span>
                         <span className="block truncate text-muted">
@@ -212,6 +264,17 @@ export default function Planilla({
         cuenta como ausencia. Toque una casilla para marcar.
       </p>
 
+      {selectorColor && (
+        <SelectorColor
+          actual={color}
+          onElegir={(colorId) => {
+            onElegirColor(colorId);
+            setSelectorColor(false);
+          }}
+          onCerrar={() => setSelectorColor(false)}
+        />
+      )}
+
       {columnaMenu && (
         <MenuColumna
           sesion={sesionDe(columnaMenu)!}
@@ -227,12 +290,9 @@ export default function Planilla({
         />
       )}
 
-      {celda && (
+      {celda && alumnoDe(celda.studentId) && (
         <MenuMarcas
-          nombre={(() => {
-            const a = alumnoDe(celda.studentId);
-            return a ? nombreCompleto(a) : celda.studentId;
-          })()}
+          estudiante={alumnoDe(celda.studentId)!}
           detalle={(() => {
             const s = sesionDe(celda.sessionId);
             return s ? `${s.fecha}, bloque ${s.bloque}` : '';
@@ -266,6 +326,68 @@ export default function Planilla({
  * Solo toca las casillas VACIAS. Por eso el boton dice cuantas son: si el docente ya
  * marco veinte, tiene que ver que este atajo no las va a tocar.
  */
+/**
+ * Menu de color del grupo. Mismo patron de hoja modal que `MenuColumna`: no se inventa
+ * otro mecanismo de seleccion solo porque esta elige un color en vez de una marca.
+ */
+function SelectorColor({
+  actual,
+  onElegir,
+  onCerrar,
+}: {
+  actual: ColorGrupo | null;
+  onElegir: (colorId: string | null) => void;
+  onCerrar: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+      onClick={onCerrar}
+    >
+      <div
+        className="w-full max-w-md rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <p className="mb-3 text-sm font-semibold text-strong">Color de este grupo</p>
+        <div className="grid grid-cols-4 gap-2">
+          {COLORES_GRUPO.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => onElegir(c.id)}
+              title={c.nombre}
+              className="flex flex-col items-center gap-1 rounded-lg border border-line p-2 hover:bg-hover"
+            >
+              <span
+                style={{ backgroundColor: c.hex }}
+                className={[
+                  'h-7 w-7 rounded-full',
+                  actual?.id === c.id ? 'ring-2 ring-offset-2 ring-line-strong' : '',
+                ].join(' ')}
+              />
+              <span className="truncate text-[0.65rem] text-muted">{c.nombre}</span>
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => onElegir(null)}
+          className={[
+            'mt-3 w-full rounded-lg border border-line p-2 text-sm text-soft',
+            actual === null ? 'font-semibold text-strong' : '',
+          ].join(' ')}
+        >
+          Sin color
+        </button>
+        <button
+          onClick={onCerrar}
+          className="mt-2 w-full rounded-lg border border-line p-2 text-sm text-soft"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MenuColumna({
   sesion,
   vacias,
@@ -333,12 +455,12 @@ function MenuColumna({
 }
 
 function MenuMarcas({
-  nombre,
+  estudiante,
   detalle,
   onElegir,
   onCerrar,
 }: {
-  nombre: string;
+  estudiante: Student;
   detalle: string;
   onElegir: (estado: MarkCode) => void;
   onCerrar: () => void;
@@ -352,27 +474,46 @@ function MenuMarcas({
         className="w-full max-w-md rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
         onClick={(ev) => ev.stopPropagation()}
       >
-        <p className="text-sm font-semibold text-strong">{nombre}</p>
-        <p className="mb-3 text-xs text-muted">{detalle}</p>
-        <div className="grid gap-1.5">
+        {/* Foto grande: el docente confirma que es el estudiante correcto antes de marcar,
+            que es justo el momento en que mas se confunden nombres parecidos. */}
+        <div className="flex flex-col items-center gap-1">
+          <Avatar estudiante={estudiante} tamano={110} />
+          <p className="text-lg font-semibold text-strong">{nombreCompleto(estudiante)}</p>
+          <p className="text-xs text-muted">{detalle}</p>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
           {MARKS.map((m) => (
             <button
               key={m.code}
               onClick={() => onElegir(m.code)}
-              className="flex items-center gap-2 rounded-lg border border-line p-2 text-left hover:bg-hover"
+              className="relative flex flex-col items-center gap-1 rounded-lg border border-line p-2 text-center hover:bg-hover"
             >
+              {m.goesToMaster2000 && (
+                <span
+                  className="absolute right-1 top-1 text-[0.6rem] text-muted"
+                  title="Esta marca se transcribe a Master2000"
+                >
+                  M
+                </span>
+              )}
               <span
                 className={`grid h-7 w-9 place-items-center rounded text-xs font-bold ${CLASE_MARCA[m.code]}`}
               >
                 {SIGLA[m.code]}
               </span>
-              <span className="grow text-sm text-strong">{m.label}</span>
-              {m.goesToMaster2000 && (
-                <span className="text-[0.65rem] text-muted">va a Master2000</span>
-              )}
+              <span className="text-xs leading-tight text-strong">{m.label}</span>
             </button>
           ))}
         </div>
+        {/* La "M" de las esquinas se explica AQUI y no solo en un `title`: esta pantalla
+            se usa sobre todo desde el celular, donde no hay puntero y el tooltip no
+            existe. Un indicador que solo se entiende con raton es un indicador invisible
+            para quien de verdad pasa lista. */}
+        <p className="mt-2 text-center text-[0.65rem] text-muted">
+          Las marcas con <b className="text-soft">M</b> son las que se transcriben a
+          Master2000.
+        </p>
         <button
           onClick={onCerrar}
           className="mt-3 w-full rounded-lg border border-line p-2 text-sm text-soft"

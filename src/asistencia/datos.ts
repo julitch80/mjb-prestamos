@@ -312,6 +312,48 @@ export async function leerDirectores(): Promise<Record<string, string>> {
   return snap.exists() ? ((snap.data().mapa ?? {}) as Record<string, string>) : {};
 }
 
+export interface MiCuenta {
+  correo: string;
+  /**
+   * Si el documento `users/{correo}` EXISTE. Se distingue de "existe pero inactivo"
+   * porque son fallas distintas: una es una cuenta que nadie creo (o creada con otra
+   * combinacion de mayusculas, que para Firestore es otro documento), la otra es una
+   * cuenta desactivada a proposito.
+   */
+  existe: boolean;
+  /** El puesto TAL COMO LO VE EL SERVIDOR. Puede diferir del que resuelve la interfaz. */
+  slotId: string | null;
+  rol: string | null;
+  activo: boolean;
+}
+
+/**
+ * Lee la propia cuenta de Firestore.
+ *
+ * POR QUE EXISTE: el puesto (`slotId`) se resuelve en DOS sitios. La interfaz lo saca de
+ * la lista estatica de MJB; las reglas, de este documento. Cuando el campo esta vacio,
+ * la app ofrece "Tomar foto" y el servidor la rechaza — y el docente se queda sin
+ * entender nada, porque en pantalla todo indica que si es el director.
+ *
+ * Esto trae el valor del servidor para poder ENSENAR la discrepancia en vez de deducirla.
+ * Nadie deberia tener que abrir la consola de Firebase para saber por que no puede
+ * trabajar.
+ */
+export async function leerMiCuenta(): Promise<MiCuenta | null> {
+  if (!(await listo())) return null;
+  const correo = await exigirAutor();
+  const snap = await getDoc(doc(baseDatos(), 'users', correo));
+  if (!snap.exists()) return { correo, existe: false, slotId: null, rol: null, activo: false };
+  const d = snap.data();
+  return {
+    correo,
+    existe: true,
+    slotId: (d.slotId as string | null) ?? null,
+    rol: (d.role as string | null) ?? null,
+    activo: d.active === true,
+  };
+}
+
 export async function leerEstudiante(studentId: string): Promise<Student | null> {
   if (!(await listo())) return null;
   const snap = await getDoc(doc(baseDatos(), 'asistenciaStudents', studentId));
@@ -328,7 +370,12 @@ export async function leerEstudiante(studentId: string): Promise<Student | null>
  */
 export async function actualizarFicha(
   studentId: string,
-  cambios: { acudiente?: string; telefonos?: string[]; fotoPath?: string | null },
+  cambios: {
+    acudiente?: string;
+    parentesco?: string;
+    telefonos?: string[];
+    fotoPath?: string | null;
+  },
 ): Promise<void> {
   await exigirAutor();
   await updateDoc(doc(baseDatos(), 'asistenciaStudents', studentId), cambios);

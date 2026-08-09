@@ -173,6 +173,7 @@ export default function Importar() {
             docType: 'TI',
             grado: gradoDeFila(f).grado,
             acudiente: f.acudiente,
+            parentesco: f.afinidad,
             telefonos: f.telefonos,
           })),
       });
