@@ -35,6 +35,7 @@ import {
   formatearFechaLegible,
   diaDeSemana,
   esFichaAusenteAhora,
+  esFichaDeAusente,
   docentesLibresEn,
   generarPropuestasAsistente,
   generarResumenDifusion,
@@ -51,6 +52,7 @@ import type {
   NivelPropuesta,
   ResumenDifusion,
   Acompanante,
+  AusenciaDocente,
 } from '../data/horarioModificado';
 import { generarPublicacionDeModificacion } from '../data/publicacion';
 import type { PublicacionPendiente } from '../data/publicacion';
@@ -286,18 +288,23 @@ function CeldaDroppable({
 // ── Slot pendiente (también droppable a "pendientes") ────────────────────────
 
 function PendientesDroppable({
-  fichas, modo, onEliminar,
+  fichas, modo, ausencias, onEliminar,
 }: {
-  fichas: FichaEditor[]; modo: ModoEditor; onEliminar: (id: string) => void;
+  fichas: FichaEditor[]; modo: ModoEditor; ausencias: AusenciaDocente[]; onEliminar: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: '__pendientes__' });
+  // Las del ausente no bloquean guardar (ver esFichaDeAusente): se muestran
+  // aparte para que quede claro por qué el botón puede estar habilitado
+  // aunque esta bandeja no esté vacía.
+  const bloqueantes = fichas.filter(f => !esFichaDeAusente(f, ausencias));
+  const delAusente = fichas.filter(f => esFichaDeAusente(f, ausencias));
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
         'rounded-2xl border p-3 transition-colors',
-        fichas.length > 0
+        bloqueantes.length > 0
           ? 'border-orange-500/50 bg-orange-950/30'
           : 'border-line bg-elevated/50',
         isOver && 'ring-2 ring-accent bg-info-soft'
@@ -308,8 +315,17 @@ function PendientesDroppable({
           <span className="text-base">⚠</span>
           Pendientes
           <span className="text-orange-400/70 font-normal">
-            {fichas.length === 0 ? 'nada por reubicar' : `${fichas.length} por reubicar`}
+            {fichas.length === 0
+              ? 'nada por reubicar'
+              : bloqueantes.length > 0
+              ? `${bloqueantes.length} por reubicar`
+              : 'nada por reubicar'}
           </span>
+          {delAusente.length > 0 && (
+            <span className="text-muted font-normal" title="Clases del docente ausente: se pierden, no hace falta reubicarlas para guardar.">
+              · {delAusente.length} del ausente (no bloquean)
+            </span>
+          )}
         </div>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -323,7 +339,7 @@ function PendientesDroppable({
               <FichaArrastrable
                 ficha={f}
                 modo={modo}
-                esAusente={false}
+                esAusente={esFichaDeAusente(f, ausencias)}
                 esTaller={false}
                 docentesLibres={[]}
                 onEliminar={() => onEliminar(f.id)}
@@ -484,6 +500,11 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   }, [fichas, modo]);
 
   const pendientes = fichas.filter(f => f.ubicacion.tipo === 'pendiente');
+  // Bloquean el guardado solo los pendientes que SÍ hay que reubicar. Los que
+  // son la clase de un docente ausente no: esa clase se pierde porque no
+  // vino, no porque falte organizarla — exigir que se reubique es imposible
+  // por definición, y el guardado quedaba trabado sin salida.
+  const pendientesBloqueantes = pendientes.filter(f => !esFichaDeAusente(f, borrador.ausencias));
 
   // Lista de docentes candidatos para "libres en" — todos los de la jornada
   const candidatosLibres = useMemo(
@@ -697,7 +718,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   }
 
   function guardar() {
-    if (pendientes.length > 0) return;
+    if (pendientesBloqueantes.length > 0) return;
     const modificaciones = fichasAModificaciones(fichas);
     actualizarHorarioModificado(borrador.id, {
       modificaciones,
@@ -846,14 +867,14 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
               </button>
               <button
                 onClick={guardar}
-                disabled={pendientes.length > 0}
+                disabled={pendientesBloqueantes.length > 0}
                 className={cn(
                   'px-4 py-2 rounded-xl text-strong text-xs font-semibold transition shadow-lg',
-                  pendientes.length > 0
+                  pendientesBloqueantes.length > 0
                     ? 'bg-gray-700 cursor-not-allowed shadow-none'
                     : 'bg-accent hover:bg-accent/85 shadow-accent/30'
                 )}
-                title={pendientes.length > 0 ? 'Reubica los pendientes antes de guardar' : 'Guardar cambios'}
+                title={pendientesBloqueantes.length > 0 ? 'Reubica los pendientes antes de guardar' : 'Guardar cambios'}
               >
                 Guardar
               </button>
@@ -1037,7 +1058,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
         </div>
 
         {/* Pendientes */}
-        <PendientesDroppable fichas={pendientes} modo={modo} onEliminar={eliminarFicha} />
+        <PendientesDroppable fichas={pendientes} modo={modo} ausencias={borrador.ausencias} onEliminar={eliminarFicha} />
 
         {/* Tabla editable */}
         <div className="overflow-x-auto rounded-2xl border border-line bg-white/2">

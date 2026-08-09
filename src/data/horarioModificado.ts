@@ -453,6 +453,29 @@ export function esFichaAusenteAhora(
 }
 
 /**
+ * Devuelve true si la ficha ES la clase de un docente ausente en su bloque
+ * ORIGINAL, sin importar dónde esté ubicada ahora.
+ *
+ * Distinta de `esFichaAusenteAhora` a propósito: esa solo reconoce la ficha
+ * mientras sigue 'colocada'. En cuanto el coordinador arrastra otra cosa a su
+ * sitio y la ficha cae a "pendientes", `esFichaAusenteAhora` deja de verla —
+ * y el conteo que bloquea el guardado la trataba como un conflicto real sin
+ * resolver, cuando en realidad es una clase que se pierde porque el profesor
+ * no viene, no algo que haya que reubicar. Reportado por Janneth el 6 de
+ * agosto de 2026: "el sistema no debería restringir el guardado por esas
+ * clases [del ausente]... esa restricción sí debe permanecer con las clases
+ * que se movieron para organizar y se deben volver a reorganizar".
+ */
+export function esFichaDeAusente(
+  ficha: FichaEditor,
+  ausencias: AusenciaDocente[]
+): boolean {
+  const aus = ausencias.find(a => a.docenteId === ficha.origen.docente);
+  if (!aus) return false;
+  return aus.bloques.includes(ficha.origen.bloque);
+}
+
+/**
  * Lista de docentes libres en un (dia, bloque) específico:
  *   - no tienen clase en horarioBase a esa hora
  *   - no están en ausencias declaradas para ese bloque
@@ -903,17 +926,19 @@ export function generarResumenDifusion(
     (fichasPorGrupo[f.origen.grupo] ??= []).push(f);
   });
 
-  // Detectar grupos afectados (los que tuvieron al menos una modificación)
+  // Detectar grupos afectados (los que tuvieron al menos una modificación).
+  //
+  // CORREGIDO — antes solo marcaba un grupo si tenía clase con un docente
+  // AUSENTE en ese bloque, así que un grupo movido como efecto secundario
+  // (p. ej. correr a 11.2 para poder desplazar a Adolfo y así cubrir a
+  // Beatriz) quedaba fuera del resumen aunque su horario del día sí cambió.
+  // Reportado por Janneth el 6 de agosto de 2026.
+  //
+  // El criterio correcto es "¿tuvo algún cambio real?", que ya usa
+  // ModalDiaModificado.tsx de la misma forma: a partir de las modificaciones
+  // efectivamente guardadas (fichasAModificaciones), no de las ausencias.
   const gruposAfectados = new Set<string>();
-  const ausenteIdsPorBloque: Record<string, Set<number>> = {};
-  borrador.ausencias.forEach(a => {
-    ausenteIdsPorBloque[a.docenteId] = new Set(a.bloques);
-  });
-  fichas.forEach(f => {
-    if (ausenteIdsPorBloque[f.origen.docente]?.has(f.origen.bloque)) {
-      gruposAfectados.add(f.origen.grupo);
-    }
-  });
+  fichasAModificaciones(fichas).forEach(m => gruposAfectados.add(m.grupo));
 
   // ── HTML ─────────────────────────────────────────────────────────────────
   const htmlPartes: string[] = [];
