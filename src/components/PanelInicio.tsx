@@ -2,6 +2,7 @@
 // cambios de horario, próxima clase (docentes), agenda institucional del día,
 // accesos rápidos por rol y un resumen de chat (solo modo google + Firebase).
 import { useEffect, useMemo, useState } from 'react';
+import MiDiaModificado from './MiDiaModificado';
 import { motion } from 'motion/react';
 import { useAppStore } from '../data/store';
 import { useChatStore } from '../data/chatStore';
@@ -21,6 +22,7 @@ import {
   fechaHoyLocal,
   diaDeSemana,
   formatearFechaLegible,
+  docentesAfectadosConDia,
 } from '../data/horarioModificado';
 import { AGENDA_ACTUAL } from '../data/agendaSemanal';
 import {
@@ -85,11 +87,24 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   const modsProximas = useMemo(() => modificacionesProximas(horariosModificados, 14), [horariosModificados]);
   const jornadasProximas = useMemo(() => jornadasReducidasProximas(jornadasReducidas, 14), [jornadasReducidas]);
   const hoy = fechaHoyLocal();
-  const modHoy = modsProximas.find((m) => m.fecha === hoy);
   const modFuturas = modsProximas.filter((m) => m.fecha !== hoy).slice(0, 2);
   const jornadaHoy = jornadasProximas.find((j) => j.fecha === hoy);
 
   const esDocente = rol === 'docente';
+  const [verMiDiaHoy, setVerMiDiaHoy] = useState(false);
+
+  // ── Mi día efectivo de hoy (solo si el docente logueado específicamente
+  //    tiene bloques alterados; no basta con que exista un HorarioModificado
+  //    cualquiera para hoy) ────────────────────────────────────────────────
+  const jornadaEfectivaHoy = jornada === 'ambas' ? 'manana' : (jornada as 'manana' | 'tarde' | null);
+  const miDiaHoy = useMemo(() => {
+    if (!userId || !jornadaEfectivaHoy) return null;
+    const dias = docentesAfectadosConDia(hoy, jornadaEfectivaHoy, horarioBase as any, horariosModificados);
+    const propio = dias.find((d) => d.docenteId === userId);
+    if (!propio) return null;
+    const tieneCambio = propio.bloques.some((b) => b.estado !== 'normal' && b.estado !== 'libre');
+    return tieneCambio ? propio : null;
+  }, [userId, jornadaEfectivaHoy, hoy, horariosModificados]);
 
   // ── Próxima clase de hoy (solo docentes) ────────────────────────────────
   const proximaClase = useMemo(() => {
@@ -176,14 +191,15 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
     });
   }
 
-  if (modHoy) {
+  if (miDiaHoy) {
+    const bloquesAlterados = miDiaHoy.bloques.filter((b) => b.estado !== 'normal' && b.estado !== 'libre').length;
     avisos.push({
       id: 'mod-hoy',
       color: '#fbbf24',
       Icono: IconoHorario,
       titulo: 'Tu horario cambió hoy',
-      detalle: `${formatearFechaLegible(modHoy.fecha)} · ${modHoy.ausencias.length} docente${modHoy.ausencias.length === 1 ? '' : 's'} ausente${modHoy.ausencias.length === 1 ? '' : 's'}`,
-      accion: { label: 'Ver detalle', onClick: () => setVistaActual('horario' as never) },
+      detalle: `${formatearFechaLegible(hoy)} · ${bloquesAlterados} bloque${bloquesAlterados === 1 ? '' : 's'} alterado${bloquesAlterados === 1 ? '' : 's'}`,
+      accion: { label: 'Ver mi día', onClick: () => setVerMiDiaHoy(true) },
     });
   }
 
@@ -330,6 +346,16 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
 
       {/* ── Bloque C: Chat ────────────────────────────────────────────────── */}
       <ChatResumen />
+
+      {verMiDiaHoy && userId && jornadaEfectivaHoy && (
+        <MiDiaModificado
+          docenteId={userId}
+          fecha={hoy}
+          jornada={jornadaEfectivaHoy}
+          horariosModificados={horariosModificados}
+          onClose={() => setVerMiDiaHoy(false)}
+        />
+      )}
     </div>
   );
 }

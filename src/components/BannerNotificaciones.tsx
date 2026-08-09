@@ -1,6 +1,10 @@
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useAppStore } from '../data/store';
 import { marcarLeida, marcarTodasLeidas } from '../data/api';
+import { parseHorarioModificadoDeNotificacion } from '../data/horarioModificado';
+import type { HorarioModificadoRef } from '../data/horarioModificado';
+import MiDiaModificado from './MiDiaModificado';
 import { cn } from '@/lib/utils';
 
 const TIPO_CONFIG = {
@@ -27,11 +31,12 @@ function tiempoRelativo(iso: string): string {
 export default function BannerNotificaciones() {
   const { notificaciones, userId, marcarNotifLeida, marcarTodasLeidas: marcarTodasStore } =
     useAppStore();
+  const horariosModificados = useAppStore((s) => s.horariosModificados);
+  const [miDia, setMiDia] = useState<HorarioModificadoRef | null>(null);
 
   // Solo se muestran las NO leídas. Al marcarlas, desaparecen y el banner se
   // cierra solo; no vuelve a salir hasta que llegue una notificación nueva.
   const noLeidas = notificaciones.filter((n) => !n.leida);
-  if (noLeidas.length === 0) return null;
 
   async function descartar(id: string) {
     if (!userId) return;
@@ -43,6 +48,20 @@ export default function BannerNotificaciones() {
     if (!userId) return;
     marcarTodasStore();
     await marcarTodasLeidas(userId).catch(() => {});
+  }
+
+  // El modal "Mi día" puede quedar abierto aunque el banner desaparezca
+  // (p. ej. tras "Descartar todas"), por eso se renderiza fuera del guard.
+  if (noLeidas.length === 0) {
+    return miDia && userId ? (
+      <MiDiaModificado
+        docenteId={userId}
+        fecha={miDia.fecha}
+        jornada={miDia.jornada}
+        horariosModificados={horariosModificados}
+        onClose={() => setMiDia(null)}
+      />
+    ) : null;
   }
 
   return (
@@ -67,6 +86,9 @@ export default function BannerNotificaciones() {
           <AnimatePresence initial={false}>
             {noLeidas.map((n) => {
               const cfg = TIPO_CONFIG[n.tipo];
+              const { mensajeLimpio, ref } = n.tipo === 'horario_modificado'
+                ? parseHorarioModificadoDeNotificacion(n.mensaje)
+                : { mensajeLimpio: n.mensaje, ref: null };
               return (
                 <motion.div
                   key={n.id}
@@ -83,7 +105,15 @@ export default function BannerNotificaciones() {
                       <p className={cn('text-[11px] font-semibold', cfg.fg)}>{cfg.label}</p>
                       <span className="text-[10px] text-muted">{tiempoRelativo(n.timestamp)}</span>
                     </div>
-                    <p className="text-sm text-strong mt-0.5">{n.mensaje}</p>
+                    <p className="text-sm text-strong mt-0.5">{mensajeLimpio}</p>
+                    {ref && (
+                      <button
+                        onClick={() => setMiDia(ref)}
+                        className="mt-1.5 text-xs font-medium text-info-soft-fg hover:underline"
+                      >
+                        Ver mi día →
+                      </button>
+                    )}
                   </div>
                   <button
                     onClick={() => descartar(n.id)}
@@ -99,6 +129,16 @@ export default function BannerNotificaciones() {
           </AnimatePresence>
         </div>
       </div>
+
+      {miDia && userId && (
+        <MiDiaModificado
+          docenteId={userId}
+          fecha={miDia.fecha}
+          jornada={miDia.jornada}
+          horariosModificados={horariosModificados}
+          onClose={() => setMiDia(null)}
+        />
+      )}
     </div>
   );
 }

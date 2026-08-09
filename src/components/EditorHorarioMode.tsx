@@ -43,6 +43,7 @@ import {
   docentesAfectadosConDia,
   mensajeNotificacionDocente,
   mensajeNotificacionAcompanante,
+  agregarSufijoHorarioModificado,
   TIPO_APOYO_LABEL,
 } from '../data/horarioModificado';
 import type {
@@ -772,6 +773,12 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
           } else {
             items.push({ destinatario: ac.docenteId, tipo: 'horario_modificado', mensaje: mensajeAcomp });
           }
+        });
+        // El sufijo se agrega al final, después de fusionar la frase de
+        // acompañante (si la hubo), para que "Mi día" pueda reabrirse
+        // sin necesidad de ampliar el backend/esquema de Sheets.
+        items.forEach(it => {
+          it.mensaje = agregarSufijoHorarioModificado(it.mensaje, borrador.fecha, borrador.jornada);
         });
         if (items.length > 0) {
           await crearNotificacionesLote(items).catch(() => {});

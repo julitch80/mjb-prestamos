@@ -1476,6 +1476,45 @@ export function mensajeNotificacionAcompanante(
   return acompanante.nota ? `${base} (${acompanante.nota})` : base;
 }
 
+// ── Enlace notificación → "Mi día" (sin tocar el backend) ────────────────────
+//
+// El backend/Sheets no se puede tocar sin redespliegue manual y no vale la
+// pena ampliar el esquema de Notificacion solo para esto. En vez de eso se
+// codifica fecha+jornada como un sufijo reconocible dentro del propio
+// `mensaje`, que se oculta al mostrar el texto y se recupera con
+// `parseHorarioModificadoDeNotificacion`.
+const SUFIJO_HORARIO_RE = /\n?\[\[horario:(\d{4}-\d{2}-\d{2}):(manana|tarde)\]\]$/;
+
+export interface HorarioModificadoRef {
+  fecha: string;
+  jornada: 'manana' | 'tarde';
+}
+
+/** Añade el sufijo parseable al mensaje de una notificación `horario_modificado`. */
+export function agregarSufijoHorarioModificado(
+  mensaje: string,
+  fecha: string,
+  jornada: 'manana' | 'tarde',
+): string {
+  return `${mensaje}\n[[horario:${fecha}:${jornada}]]`;
+}
+
+/**
+ * Extrae fecha+jornada del sufijo (si existe) y devuelve el mensaje sin él.
+ * Mensajes sin sufijo (notificaciones antiguas u otros tipos) devuelven
+ * `ref: null` y el mensaje intacto.
+ */
+export function parseHorarioModificadoDeNotificacion(
+  mensaje: string,
+): { mensajeLimpio: string; ref: HorarioModificadoRef | null } {
+  const match = mensaje.match(SUFIJO_HORARIO_RE);
+  if (!match) return { mensajeLimpio: mensaje, ref: null };
+  return {
+    mensajeLimpio: mensaje.slice(0, match.index).trimEnd(),
+    ref: { fecha: match[1], jornada: match[2] as 'manana' | 'tarde' },
+  };
+}
+
 export function fichasAModificaciones(fichas: FichaEditor[]): ModificacionBloque[] {
   const mods: ModificacionBloque[] = [];
   fichas.forEach(f => {
