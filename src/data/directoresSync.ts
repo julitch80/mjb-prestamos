@@ -9,7 +9,7 @@
 // Se escribe desde la app (superusuario) y no con un script de servidor: las
 // reglas ya permiten a isSuper() escribir en asistenciaConfig, así que no hace
 // falta descargar la clave de servicio cada vez que cambie un director.
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { AUTORIDAD_SEDE, DIRECTORES_MANANA, DIRECTORES_TARDE, SEDES, USUARIOS, type SedeId } from './maestros';
 
@@ -55,23 +55,38 @@ export function mapaDirectores(): Record<string, string> {
  * `mapa` se conserva: las reglas de Firestore sí tienen presupuesto para resolver el
  * puesto, y ahí el `slotId` es preferible porque sobrevive al reemplazo de un docente.
  */
-export function mapaFotosPorGrado(): Record<string, string[]> {
+export function mapaFotosPorGrado(directivos: string[]): Record<string, string[]> {
   const correoDe = (id: string) =>
     USUARIOS.find((u) => u.id === id)?.correo?.toLowerCase() ?? '';
 
-  // Mismo alcance que la regla anterior, que autorizaba a cualquier coordinador sin
-  // acotar por sede. Al cambiar de mecanismo no se amplía nada.
-  const directivos = USUARIOS.filter(
-    (u) => (u.rol === 'coordinador' || u.rol === 'superusuario') && u.correo,
-  ).map((u) => u.correo!.toLowerCase());
-
   const out: Record<string, string[]> = {};
   for (const [grado, slotId] of Object.entries(mapaDirectores())) {
-    // Se filtran las vacías: una cadena vacía en la lista casaría con cualquier fallo
-    // de resolución del correo y otorgaría permiso por accidente.
+    // Se filtran las vacías: una cadena vacía en la lista casaría con cualquier fallo de
+    // resolución del correo y otorgaría el permiso por accidente.
     out[grado] = [...new Set([correoDe(slotId), ...directivos].filter(Boolean))];
   }
   return out;
+}
+
+/**
+ * Correos de quienes mandan en cualquier grado: coordinación y superusuario.
+ *
+ * Salen de Firestore y NO de `USUARIOS`, por dos razones. La primera es que el rol
+ * `superusuario` ni siquiera existe en el tipo de la lista estática — vive solo en
+ * `users/{correo}.role`, que es lo que lee `authStore`. La segunda es que así se respeta
+ * `active`: una cuenta desactivada no entra en la lista.
+ *
+ * El alcance es el mismo que tenía la regla anterior, que autorizaba a cualquier
+ * coordinador sin acotar por sede. Al cambiar de mecanismo no se amplía nada.
+ */
+async function correosDirectivos(): Promise<string[]> {
+  if (!db) return [];
+  const snap = await getDocs(collection(db, 'users'));
+  return snap.docs
+    .map((d) => d.data())
+    .filter((u) => u.active === true && (u.role === 'superusuario' || u.role === 'coordinador'))
+    .map((u) => String(u.email ?? '').toLowerCase())
+    .filter(Boolean);
 }
 
 /**
@@ -89,7 +104,7 @@ export async function sincronizarDirectores(): Promise<number> {
     mapa,
     // Lo consumen las reglas de Storage, que no tienen presupuesto de consultas para
     // resolver el puesto. Ver `mapaFotosPorGrado()`.
-    fotos: mapaFotosPorGrado(),
+    fotos: mapaFotosPorGrado(await correosDirectivos()),
     actualizadoPor: auth.currentUser.email?.toLowerCase() ?? '',
     actualizadoEn: serverTimestamp(),
   });
