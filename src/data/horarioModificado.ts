@@ -287,6 +287,33 @@ export interface EntradaEfectiva {
 }
 
 /**
+ * Encuentra el HorarioModificado 'guardado' vigente para una fecha+jornada.
+ *
+ * CORREGIDO: si el coordinador reabre y vuelve a guardar el mismo día varias
+ * veces (cada guardado puede crear un id nuevo en vez de reemplazar uno
+ * existente), pueden acumularse varios registros para la misma fecha+jornada
+ * en el backend. Antes se tomaba el primero que apareciera en el array
+ * (`.find`), que resultaba ser el más VIEJO por el orden de llegada del
+ * backend — así que un guardado de prueba temprano seguía "ganando" sobre
+ * el guardado real y correcto de después. Ahora se toma el más reciente por
+ * `timestamp`. Reportado por Julián el 9 de agosto de 2026: "Mi día" seguía
+ * vacío para un docente pese a que el guardado correcto sí llegó al servidor.
+ */
+function horarioModificadoVigente(
+  fecha: string,
+  jornada: 'manana' | 'tarde',
+  horariosModificados: HorarioModificado[],
+): HorarioModificado | undefined {
+  const candidatos = horariosModificados.filter(h =>
+    h.fecha === fecha && h.jornada === jornada && h.estado === 'guardado'
+  );
+  if (candidatos.length === 0) return undefined;
+  return candidatos.reduce((mas, actual) =>
+    actual.timestamp > mas.timestamp ? actual : mas
+  );
+}
+
+/**
  * Cruza horarioBase con las modificaciones guardadas para una fecha+jornada
  * específicas y devuelve las entradas efectivas del día (clases que sí ocurren),
  * marcando cuáles fueron movidas, cancelaciones y talleres.
@@ -298,9 +325,7 @@ export function aplicarModificacionesAlDia(
   horariosModificados: HorarioModificado[],
 ): EntradaEfectiva[] {
   const dia = diaDeSemana(fecha);
-  const hm = horariosModificados.find(h =>
-    h.fecha === fecha && h.jornada === jornada && h.estado === 'guardado'
-  );
+  const hm = horarioModificadoVigente(fecha, jornada, horariosModificados);
 
   const entradasBase = horarioBase
     .filter(e => e.jornada === jornada && e.dia === dia)
@@ -1318,9 +1343,7 @@ export function docentesAfectadosConDia(
   horariosModificados: HorarioModificado[],
 ): DocenteDiaEfectivo[] {
   const dia = diaDeSemana(fecha);
-  const hm = horariosModificados.find(h =>
-    h.fecha === fecha && h.jornada === jornada && h.estado === 'guardado'
-  );
+  const hm = horarioModificadoVigente(fecha, jornada, horariosModificados);
   if (!hm) return [];
 
   const entradas = aplicarModificacionesAlDia(fecha, jornada, horarioBase, horariosModificados);

@@ -159,9 +159,19 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
       presenteEnColegio: presentePorDocente[id] ?? true,
     }));
 
-    // ¿Ya existe un borrador para esta fecha+jornada+autor?
-    const existente = horariosModificados.find(h =>
-      h.fecha === fecha && h.jornada === jornada && h.estado === 'borrador' && h.autor === userId
+    // ¿Ya existe un registro para esta fecha+jornada+autor? CORREGIDO: antes
+    // solo se reconocía uno en estado 'borrador', así que reabrir el
+    // asistente para un día YA publicado ('guardado') no lo encontraba y
+    // creaba un id nuevo — acumulando varios HorarioModificado para el mismo
+    // día en el backend, y "Mi día"/las notificaciones tomaban el más viejo
+    // en vez del vigente. Ahora se reutiliza cualquier registro propio de
+    // ese día, sin importar su estado (si hay más de uno por duplicados
+    // previos, el más reciente).
+    const propios = horariosModificados.filter(h =>
+      h.fecha === fecha && h.jornada === jornada && h.autor === userId
+    );
+    const existente = propios.length === 0 ? undefined : propios.reduce((mas, actual) =>
+      actual.timestamp > mas.timestamp ? actual : mas
     );
 
     const apoyosLimpios = apoyos.filter(a => a.nombre.trim() && a.bloques.length > 0);
