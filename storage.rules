@@ -136,11 +136,31 @@ service firebase.storage {
       return firestore.get(/databases/(default)/documents/asistenciaStudents/$(studentId)).data.gradoActual;
     }
 
-    function asisEsDirectorDe(studentId) {
-      return asisGradoDe(studentId) in
-          firestore.get(/databases/(default)/documents/asistenciaConfig/directores).data.mapa
-        && firestore.get(/databases/(default)/documents/asistenciaConfig/directores).data.mapa[asisGradoDe(studentId)]
-           == asisUserDoc().slotId;
+    // ⚠️ TOPE DE DOS CONSULTAS A FIRESTORE POR PETICION.
+    //
+    // MEDIDO contra produccion el 2026-08-05, bisecando despliegue a despliegue: con 1 y
+    // con 2 consultas la subida pasa; con 3 falla. Y falla con "Permission denied.", que
+    // es indistinguible de un rechazo legitimo.
+    //
+    // NI el simulador de la consola NI el emulador aplican ese tope. Por eso la version
+    // anterior —que gastaba SEIS lecturas: la cuenta del usuario cinco veces, el espejo
+    // dos y la ficha dos— pasaba todas las pruebas y fallaba solo en produccion, y solo
+    // para el director: el superusuario y el coordinador salian antes por el `||` y no
+    // llegaban al tope. Costo dos sesiones enteras de depuracion.
+    //
+    // CONSECUENCIA DE DISENO: no queda presupuesto para leer `users/{correo}`, asi que la
+    // autorizacion NO se compara contra el `slotId`. El espejo trae los CORREOS ya
+    // resueltos, en su campo `fotos` (ver `mapaFotosPorGrado()` en directoresSync.ts).
+    // Es la misma conclusion que ya estaba escrita alli para la autoridad por sede: en
+    // las reglas la identidad garantizada es el correo del token.
+    //
+    // PRESUPUESTO: asisGradoDe (1) + el espejo (1) = 2. Ni una mas. CONTAR antes de
+    // anadir cualquier condicion que lea Firestore.
+    function asisPuedeEditarFotoDe(studentId) {
+      return firestore.get(/databases/(default)/documents/asistenciaConfig/directores).data
+          .get('fotos', {})
+          .get(asisGradoDe(studentId), [])
+          .hasAny([asisCaller()]);
     }
 
     // ---------- Fotografias de estudiantes ----------
@@ -160,16 +180,24 @@ service firebase.storage {
       // la autorizacion de tratamiento, pero conviene que el colegio lo sepa.
       allow read: if asisActivo() && archivo.matches('.*[.]jpg');
 
-      // Escritura: superusuario, coordinador o el director del grupo del estudiante. Es la
-      // misma lista que puede editar la ficha.
+      // Escritura: quien figure en `fotos[grado]` del espejo — el director de ese grupo,
+      // los coordinadores y el superusuario. La lista la construye `directoresSync.ts`;
+      // aqui solo se compara contra el correo del token.
+      //
       // CORREGIDO al integrar: era `allow write`, que en Storage incluye delete. Como las
       // reglas se evaluan en union, el `allow delete: if false` de abajo no revocaba nada y
       // el borrado quedaba permitido. Con create/update la intencion se cumple de verdad.
-      allow create, update: if asisActivo()
+      //
+      // NO se llama a `asisActivo()` ni se lee el rol: no hay presupuesto de consultas
+      // (ver el tope arriba). No es un agujero, pero SI una concesion que hay que
+      // conocer: desactivar una cuenta ya no basta para quitarle la foto — hay que
+      // resincronizar el espejo, que es lo que la saca de la lista.
+      //
+      // PRESUPUESTO: asisPuedeEditarFotoDe gasta las 2 consultas. Cualquier condicion
+      // nueva que lea Firestore rompe esto en produccion sin que ninguna prueba lo vea.
+      allow create, update: if asisEsInstitucional()
         && archivo.matches('.*[.]jpg')
-        && (asisRol() == 'superusuario'
-            || asisRol() == 'coordinador'
-            || asisEsDirectorDe(archivo.split('[.]')[0]))
+        && asisPuedeEditarFotoDe(archivo.split('[.]')[0])
         && request.resource.size < 2 * 1024 * 1024
         && request.resource.contentType.matches('image/jpeg');
 

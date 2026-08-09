@@ -41,6 +41,40 @@ export function mapaDirectores(): Record<string, string> {
 }
 
 /**
+ * Mapa grado → CORREOS que pueden cambiar la fotografía de un estudiante de ese grado:
+ * su director de grupo, los coordinadores y el superusuario.
+ *
+ * POR QUÉ CORREOS Y NO `slotId`, teniendo ya `mapa`: las reglas de Cloud Storage solo
+ * admiten DOS consultas a Firestore por petición (medido contra producción el
+ * 2026-08-05: con 2 pasa, con 3 falla). La regla gasta una en la ficha del estudiante
+ * —para saber su grado— y otra en este documento. No queda ninguna para leer
+ * `users/{correo}` y traducir el puesto, así que la traducción se hace aquí.
+ *
+ * Es la misma razón por la que `mapaAutoridadSede()` guarda correos, escrita arriba.
+ *
+ * `mapa` se conserva: las reglas de Firestore sí tienen presupuesto para resolver el
+ * puesto, y ahí el `slotId` es preferible porque sobrevive al reemplazo de un docente.
+ */
+export function mapaFotosPorGrado(): Record<string, string[]> {
+  const correoDe = (id: string) =>
+    USUARIOS.find((u) => u.id === id)?.correo?.toLowerCase() ?? '';
+
+  // Mismo alcance que la regla anterior, que autorizaba a cualquier coordinador sin
+  // acotar por sede. Al cambiar de mecanismo no se amplía nada.
+  const directivos = USUARIOS.filter(
+    (u) => (u.rol === 'coordinador' || u.rol === 'superusuario') && u.correo,
+  ).map((u) => u.correo!.toLowerCase());
+
+  const out: Record<string, string[]> = {};
+  for (const [grado, slotId] of Object.entries(mapaDirectores())) {
+    // Se filtran las vacías: una cadena vacía en la lista casaría con cualquier fallo
+    // de resolución del correo y otorgaría permiso por accidente.
+    out[grado] = [...new Set([correoDe(slotId), ...directivos].filter(Boolean))];
+  }
+  return out;
+}
+
+/**
  * Sincroniza el espejo con lo que dice maestros.ts. Idempotente: se puede
  * volver a correr cuando cambie un director de grupo.
  * Devuelve cuántos grupos quedaron registrados.
@@ -53,6 +87,9 @@ export async function sincronizarDirectores(): Promise<number> {
   // anidada: el punto es el separador de rutas en Firestore.
   await setDoc(doc(db, 'asistenciaConfig', 'directores'), {
     mapa,
+    // Lo consumen las reglas de Storage, que no tienen presupuesto de consultas para
+    // resolver el puesto. Ver `mapaFotosPorGrado()`.
+    fotos: mapaFotosPorGrado(),
     actualizadoPor: auth.currentUser.email?.toLowerCase() ?? '',
     actualizadoEn: serverTimestamp(),
   });
