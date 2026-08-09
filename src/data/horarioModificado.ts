@@ -626,23 +626,31 @@ export function generarPropuestasAsistente(
     // no pierda ninguna clase. Si la encuentra, propone aplicarla en bloque.
     const cascadas = buscarCompactacionCascadaMultiple(fichas, borrador, grupo, 3);
     cascadas.forEach((cascada, idx) => {
-      // Texto descriptivo: agrupar movimientos por docente
-      const porDocente = new Map<string, Array<{ desde: number; hasta: number }>>();
+      // Texto descriptivo: agrupar movimientos por docente. Si un movimiento
+      // es de un grupo secundario (el salto para liberar al que cubre), se
+      // marca explícitamente — el coordinador debe saber que esto también
+      // toca a otro grupo, no solo al ausente.
+      const porDocente = new Map<string, Array<{ desde: number; hasta: number; grupo: string }>>();
+      const gruposSecundarios = new Set<string>();
       cascada.forEach(m => {
         const ficha = fichas.find(f => f.id === m.fichaId)!;
+        if (ficha.origen.grupo !== grupo) gruposSecundarios.add(ficha.origen.grupo);
         const arr = porDocente.get(ficha.origen.docente) ?? [];
-        arr.push({ desde: m.desdeBloque, hasta: m.hastaBloque });
+        arr.push({ desde: m.desdeBloque, hasta: m.hastaBloque, grupo: ficha.origen.grupo });
         porDocente.set(ficha.origen.docente, arr);
       });
       const lineas = Array.from(porDocente.entries()).map(([docId, movs]) => {
         const nombre = USUARIO_NOMBRE_FN ? USUARIO_NOMBRE_FN(docId) : docId;
         const detalle = movs
           .sort((a, b) => a.desde - b.desde)
-          .map(m => `${m.desde}.ª → ${m.hasta}.ª`)
+          .map(m => `${m.desde}.ª → ${m.hasta}.ª${m.grupo !== grupo ? ` (${m.grupo})` : ''}`)
           .join(', ');
         return `${nombre}: ${detalle}`;
       });
       const sufijoOpcion = cascadas.length > 1 ? ` — opción ${idx + 1}` : '';
+      const avisoSecundarios = gruposSecundarios.size > 0
+        ? ` También reorganiza a ${Array.from(gruposSecundarios).join(', ')} para liberar al docente que cubre.`
+        : '';
       propuestas.push({
         id: `cascada_${grupo}_${idx}`,
         tipo: 'compactar',
@@ -650,7 +658,7 @@ export function generarPropuestasAsistente(
         prioridad: idx,
         grupo,
         titulo: `Reorganizar el día de ${grupo} (${cascada.length} ${cascada.length === 1 ? 'movimiento' : 'movimientos'})${sufijoOpcion}`,
-        descripcion: `El grupo no pierde ninguna clase. Cadena de intercambios: ${lineas.join(' · ')}.`,
+        descripcion: `El grupo no pierde ninguna clase. Cadena de intercambios: ${lineas.join(' · ')}.${avisoSecundarios}`,
         clasesPerdidas: 0,
         cambios: cascada.map(m => ({
           fichaId: m.fichaId,
@@ -1183,6 +1191,18 @@ interface MovCascada {
  * backtracking (con memoización por estado, igual que antes) hasta acumular
  * hasta `maxSoluciones` cadenas DISTINTAS (distintas en el conjunto final de
  * fichaId→bloque), o hasta agotar el árbol de búsqueda / el cap de profundidad.
+ *
+ * CORREGIDO: antes solo consideraba movibles las fichas del grupo afectado
+ * por la ausencia; las clases de esos mismos docentes con OTROS grupos se
+ * trataban como fijas, así que si liberar al docente que cubre exigía
+ * reubicar también una de esas clases, el algoritmo nunca encontraba la
+ * cadena. Caso real: para cubrir a Beatriz moviendo a Adolfo, hubo que
+ * mover también la clase de Adolfo con 11-2 en ese mismo bloque — un grupo
+ * sin relación directa con la ausencia. Reportado por Janneth el 6 de
+ * agosto de 2026. Ahora las clases de los docentes del grupo afectado en
+ * OTROS grupos también entran al backtracking como movibles (un solo
+ * salto — no se persigue la cadena más allá de ese segundo grupo, para
+ * acotar la explosión combinatoria).
  */
 function buscarCompactacionCascadaMultiple(
   fichas: FichaEditor[],
@@ -1195,31 +1215,45 @@ function buscarCompactacionCascadaMultiple(
     bloquesAusentesPorDoc[a.docenteId] = new Set(a.bloques);
   });
 
-  // Fichas del grupo cuyas ubicaciones pueden cambiar durante la búsqueda
-  const fichasGrupo = fichas.filter(f =>
+  // Fichas del grupo afectado cuyas ubicaciones pueden cambiar
+  const fichasGrupoPrincipal = fichas.filter(f =>
     f.origen.grupo === grupo &&
     (f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller')
   );
-  if (fichasGrupo.length === 0) return [];
+  if (fichasGrupoPrincipal.length === 0) return [];
 
-  // Ubicación inicial de cada ficha del grupo
+  // Salto único a un grupo secundario: las clases de los docentes del grupo
+  // afectado con OTROS grupos también son movibles.
+  const docentesGrupo = new Set(fichasGrupoPrincipal.map(f => f.origen.docente));
+  const fichasSecundarias = fichas.filter(f =>
+    f.origen.grupo !== grupo &&
+    docentesGrupo.has(f.origen.docente) &&
+    (f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller')
+  );
+  const fichasGrupo = [...fichasGrupoPrincipal, ...fichasSecundarias];
+
+  // Ubicación inicial de cada ficha movible
   const ubicacionInicial: Record<string, number> = {};
   fichasGrupo.forEach(f => {
     ubicacionInicial[f.id] = f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller'
       ? f.ubicacion.bloque : 0;
   });
 
-  // Fichas iniciales por mover: aquellas en bloques ausentes de su docente
-  const iniciales = fichasGrupo.filter(f => {
+  // Fichas iniciales por mover: aquellas del grupo afectado en bloques
+  // ausentes de su docente (el salto a un grupo secundario nunca arranca la
+  // búsqueda por sí solo, solo participa como consecuencia de una cadena).
+  const iniciales = fichasGrupoPrincipal.filter(f => {
     const b = ubicacionInicial[f.id];
     return bloquesAusentesPorDoc[f.origen.docente]?.has(b);
   });
   if (iniciales.length === 0) return [];
 
-  // Fichas "fijas" (no pertenecen al grupo): mapa docente → set de bloques ocupados
+  // Fichas "fijas" (fuera del grupo principal y del secundario de un salto):
+  // mapa docente → set de bloques ocupados
+  const idsMovibles = new Set(fichasGrupo.map(f => f.id));
   const ocupacionFijaPorDoc: Record<string, Set<number>> = {};
   fichas.forEach(f => {
-    if (f.origen.grupo === grupo) return;
+    if (idsMovibles.has(f.id)) return;
     if (f.ubicacion.tipo !== 'colocada' && f.ubicacion.tipo !== 'taller') return;
     const b = f.ubicacion.bloque;
     (ocupacionFijaPorDoc[f.origen.docente] ??= new Set()).add(b);
@@ -1227,8 +1261,14 @@ function buscarCompactacionCascadaMultiple(
 
   function huecosDocente(docenteId: string, ubicaciones: Record<string, number>): number[] {
     const ocupados = new Set<number>(ocupacionFijaPorDoc[docenteId] ?? []);
+    // Solo se pre-excluyen las OTRAS clases del docente en el grupo
+    // PRINCIPAL (comportamiento original). Sus clases en el grupo
+    // secundario (el salto) NO se excluyen aquí: quedan como huecos
+    // "condicionales" que, si se eligen, arrastran esa ficha a porMover vía
+    // el chequeo de ocupante de abajo — así el backtracking puede decidir
+    // moverla en vez de descartar el bloque de entrada.
     fichasGrupo.forEach(f => {
-      if (f.origen.docente !== docenteId) return;
+      if (f.origen.docente !== docenteId || f.origen.grupo !== grupo) return;
       const b = ubicaciones[f.id];
       if (b > 0) ocupados.add(b);
     });
@@ -1272,9 +1312,16 @@ function buscarCompactacionCascadaMultiple(
       // Si el nuevo bloque es el mismo que el actual, no es un movimiento real
       if (ubicaciones[f.id] === h) continue;
 
-      // ¿Hay otra ficha del grupo ya en h?
+      // ¿Hay otra ficha movible ya en h que entre en conflicto con este
+      // movimiento? Dos motivos posibles: es del MISMO grupo que f (un
+      // grupo no puede tener dos clases a la vez), o es del MISMO docente
+      // que f aunque sea de otro grupo (nadie da dos clases a la vez —
+      // este es el caso del salto a un grupo secundario: huecosDocente ya
+      // no excluye ese bloque de antemano, así que aquí es donde se
+      // detecta y se arrastra esa ficha a la cadena de movimientos).
       const ocupante = fichasGrupo.find(x =>
-        x.id !== f.id && ubicaciones[x.id] === h
+        x.id !== f.id && ubicaciones[x.id] === h &&
+        (x.origen.grupo === f.origen.grupo || x.origen.docente === f.origen.docente)
       );
 
       const nuevasUbicaciones = { ...ubicaciones, [f.id]: h };
