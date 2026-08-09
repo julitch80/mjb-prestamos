@@ -7,17 +7,24 @@ import type { HorarioModificado, JornadaReducida } from './horarioModificado';
 
 /** Sube un HorarioModificado al backend. Solo se envían los que ya están
  * 'guardado' — los borradores son trabajo en curso del coordinador y no
- * deben propagarse a los docentes. Fire-and-forget: nunca lanza. */
-export function pushModificacion(hm: HorarioModificado): void {
-  if (hm.estado !== 'guardado') return;
-  guardarSyncEditor({
-    id: hm.id,
-    tipo: 'modificacion',
-    fecha: hm.fecha,
-    jornada: hm.jornada,
-    estado: hm.estado,
-    json: JSON.stringify(hm),
-  }).catch(() => {});
+ * deben propagarse a los docentes. Devuelve si el envío tuvo éxito: antes
+ * era fire-and-forget y un fallo quedaba invisible para el coordinador
+ * (ver nota en api.ts junto a guardarSyncEditor). */
+export async function pushModificacion(hm: HorarioModificado): Promise<boolean> {
+  if (hm.estado !== 'guardado') return true;
+  try {
+    const res = await guardarSyncEditor({
+      id: hm.id,
+      tipo: 'modificacion',
+      fecha: hm.fecha,
+      jornada: hm.jornada,
+      estado: hm.estado,
+      json: JSON.stringify(hm),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 /** Sube una JornadaReducida al backend. Fire-and-forget. */

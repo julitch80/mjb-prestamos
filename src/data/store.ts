@@ -307,7 +307,7 @@ export const useAppStore = create<AppState>()(
       // Horarios modificados
       agregarHorarioModificado: (hm) => {
         set((s) => ({ horariosModificados: [hm, ...s.horariosModificados] }));
-        pushModificacion(hm);
+        void pushModificacion(hm);
       },
 
       actualizarHorarioModificado: (id, cambios) => {
@@ -317,7 +317,7 @@ export const useAppStore = create<AppState>()(
           ),
         }));
         const actualizado = useAppStore.getState().horariosModificados.find((h) => h.id === id);
-        if (actualizado) pushModificacion(actualizado);
+        if (actualizado) void pushModificacion(actualizado);
       },
 
       eliminarHorarioModificado: (id) => {

@@ -15,6 +15,7 @@ import { CSS } from '@dnd-kit/utilities';
 
 import { useAppStore } from '../data/store';
 import { enviarCorreoMasivo, crearNotificacionesLote } from '../data/api';
+import { pushModificacion } from '../data/syncEditor';
 import type { ResultadoCorreoMasivo } from '../data/api';
 import {
   USUARIOS,
@@ -402,6 +403,11 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   const [resultadoCorreo, setResultadoCorreo] = useState<ResultadoCorreoMasivo | null>(null);
   const [envioAutomaticoHecho, setEnvioAutomaticoHecho] = useState(false);
   const [toastNotificacion, setToastNotificacion] = useState<string | null>(null);
+  // No se auto-oculta como el toast: un fallo de publicación deja a los
+  // docentes sin ver el cambio (ver nota junto a guardarSyncEditor en
+  // api.ts), así que debe quedar visible hasta que el coordinador reintente.
+  const [errorPublicacion, setErrorPublicacion] = useState<HorarioModificado | null>(null);
+  const [reintentando, setReintentando] = useState(false);
 
   // ── Acompañantes ─────────────────────────────────────────────────────────
   // Docentes que no tienen ningún bloque alterado (su horario sigue igual)
@@ -718,6 +724,16 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     }
   }
 
+  // Reintento manual desde el aviso de error — reenvía el mismo borrador
+  // guardado, sin repetir notificaciones ni el resto del flujo de guardar().
+  async function reintentarPublicacion() {
+    if (!errorPublicacion) return;
+    setReintentando(true);
+    const ok = await pushModificacion(errorPublicacion);
+    setReintentando(false);
+    if (ok) setErrorPublicacion(null);
+  }
+
   function guardar() {
     if (pendientesBloqueantes.length > 0) return;
     const modificaciones = fichasAModificaciones(fichas);
@@ -728,6 +744,13 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
       timestamp: new Date().toISOString(),
     });
     const borradorGuardado: HorarioModificado = { ...borrador, modificaciones, acompanantes, estado: 'guardado' };
+    setErrorPublicacion(null);
+    // El intento de actualizarHorarioModificado ya dispara un push interno
+    // (fire-and-forget, idempotente); este es el que sí se espera para poder
+    // avisar si falla — sin esto el coordinador no se enteraba nunca.
+    pushModificacion(borradorGuardado).then(ok => {
+      if (!ok) setErrorPublicacion(borradorGuardado);
+    });
 
     // Generar resumen para difundir
     const usuariosMinimos = USUARIOS.map(u => ({
@@ -1212,6 +1235,34 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                 className="text-success-soft-fg hover:text-strong text-sm leading-none p-0.5"
                 aria-label="Cerrar"
               >✕</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Aviso persistente: la publicación no llegó al servidor. No se
+          auto-oculta — si el coordinador lo pierde de vista, los docentes
+          se quedan sin ver el cambio (ver nota junto a guardarSyncEditor). */}
+      <AnimatePresence>
+        {errorPublicacion && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md z-40 bg-danger-soft border border-danger rounded-2xl px-4 py-3 text-danger-soft-fg text-sm shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-base leading-none mt-0.5">⚠</span>
+              <div className="flex-1 space-y-2">
+                <p>No se pudo publicar en el servidor. Los docentes no verán este cambio hasta que se reintente.</p>
+                <button
+                  onClick={reintentarPublicacion}
+                  disabled={reintentando}
+                  className="text-xs font-semibold underline disabled:opacity-50"
+                >
+                  {reintentando ? 'Reintentando…' : 'Reintentar'}
+                </button>
+              </div>
             </div>
           </motion.div>
         )}

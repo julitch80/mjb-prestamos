@@ -38,6 +38,28 @@ async function callApi<T>(params: Record<string, string>): Promise<T> {
   return jsonpFallback<T>(params);
 }
 
+// Variante POST — para payloads que no caben en una URL de GET (p. ej. el
+// JSON completo de un HorarioModificado con varios docentes/grupos movidos).
+// Apps Script popula `e.parameter` igual desde form-urlencoded en el body,
+// así que el backend no necesita ningún cambio. Sin respaldo JSONP posible
+// (es solo GET): si falla, se propaga el error en vez de tragarlo, para que
+// quien llame pueda avisar en vez de creer que se publicó.
+async function callApiPost<T>(params: Record<string, string>): Promise<T> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      signal: ctrl.signal,
+      body: new URLSearchParams(params),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 // Respaldo JSONP — para navegadores donde el fetch con CORS no esté disponible.
 // Callback único (contador + timestamp) y timeout para no quedar colgado.
 let _jsonpSeq = 0;
@@ -374,9 +396,17 @@ export interface PublicacionResultado {
 }
 
 // ── Sincronización del editor de horario ────────────────────────────────────
-// NOTA: json puede ser largo (una jornada con varias fichas movidas). callApi
-// usa GET con URLSearchParams; Apps Script acepta URLs largas (~8KB seguras).
-// Los HorarioModificado/JornadaReducida típicos (<20 fichas) caben con margen.
+// CORREGIDO: json puede ser largo (una jornada con varios docentes y grupos
+// movidos). Se asumía que un GET con URLSearchParams cabía con margen
+// (~8KB "seguros"), pero un día con varias reubicaciones en cadena (ej.
+// Beatriz ausente → se mueve a Adolfo → para eso se mueve 11-2 también)
+// superó ese margen y la petición fallaba en silencio: el coordinador veía
+// todo guardado (mensaje y resumen se calculan en memoria, no dependen de
+// esto) pero el registro nunca llegaba a la hoja EditorSync, así que ningún
+// docente lo veía después. Reportado por Julián el 9 de agosto de 2026, tras
+// una publicación real con varios grupos movidos. Ahora va por POST — sin
+// límite práctico de tamaño y sin cambios en el backend (doPost ya usa el
+// mismo manejador que doGet, `e.parameter` se llena igual desde el body).
 
 export interface ItemSyncEditor {
   id: string;
@@ -396,7 +426,7 @@ export async function guardarSyncEditor(item: {
   estado: string;
   json: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  return callApi({
+  return callApiPost({
     action: 'guardarSyncEditor',
     id: item.id,
     tipo: item.tipo,
