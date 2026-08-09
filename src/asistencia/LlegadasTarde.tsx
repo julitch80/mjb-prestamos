@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   buscarEstudiantes,
+  buscarPorQrToken,
   ConflictoError,
   leerLlegadasTarde,
   registrarLlegadaTarde,
   resolverLlegadaTarde,
 } from './datos';
-import { toDateKey } from './domain/ids';
+import Avatar from './Avatar';
+import EscanerQr from './EscanerQr';
+import { jornadaDeGrado, toDateKey } from './domain/ids';
+import { bloqueDeHora } from './domain/bloques';
 import { nombreCompleto } from './domain/nombres';
 import { EXCUSE_REASONS, LATE_ARRIVAL_STATES, type ExcuseReason } from './domain/marks';
 import type { LateArrival, Student } from './domain/types';
+import { BLOQUES_MANANA, BLOQUES_TARDE } from '../data/maestros';
 
 /**
  * Llegadas tarde a la institucion — pantalla de porteria del coordinador.
@@ -35,6 +40,7 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
   const [nombres, setNombres] = useState<Record<string, string>>({});
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [escaneando, setEscaneando] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -74,6 +80,11 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
     setError(null);
     const ahora = new Date();
     const hora = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+    // Antes quedaba fijo en el bloque 2 ("el caso normal es que entre a segunda hora"),
+    // lo cual era inexacto para quien llega a media manana o media tarde: el bloque real
+    // se calcula con la hora de llegada y la jornada del estudiante.
+    const bloques = jornadaDeGrado(e.gradoActual) === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
+    const bloqueIngreso = bloqueDeHora(bloques, hora);
     try {
       await registrarLlegadaTarde({
         studentId: e.studentId,
@@ -81,9 +92,7 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
         sede,
         fecha,
         horaLlegada: hora,
-        // Bloque 2: el caso normal es que espere en el hall y entre a segunda hora.
-        // Si llegó más tarde, se corrige desde la lista de abajo.
-        bloqueIngreso: 2,
+        bloqueIngreso,
         estado: conExcusa ? 'pendiente_verificacion' : 'sin_justificar',
       });
       setAviso(`${nombreCompleto(e)} — registrado a las ${hora}.`);
@@ -96,26 +105,64 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
     }
   }
 
-  async function resolver(r: LateArrival) {
-    const opciones = EXCUSE_REASONS.map((m, i) => `${i + 1}. ${m.label}`).join('\n');
-    const elegido = window.prompt(
-      `Justificar la llegada tarde.\n\n${opciones}\n\nEscriba el número, o 0 para dejarla sin justificar:`,
-      '1',
-    );
-    if (elegido === null) return;
-    const idx = Number(elegido) - 1;
+  // Al leer un QR NO se registra automaticamente: se deja como unico candidato para que
+  // aparezca su FOTO GRANDE (el mismo control de identidad que usa la busqueda por
+  // nombre) y el coordinador confirme con los botones de siempre. La camara enfoca
+  // rapido y sin esa pausa se corre el riesgo de registrar a quien no es.
+  async function leerQr(texto: string) {
+    setAviso(null);
+    setError(null);
     try {
-      if (idx < 0) {
-        await resolverLlegadaTarde(r.lateArrivalId, 'sin_justificar', null, null);
+      const { estudiante, otraSede } = await buscarPorQrToken(sede, texto);
+      if (estudiante) {
+        setEscaneando(false);
+        setBusqueda('');
+        setCandidatos([estudiante]);
+        setNombres((p) => ({ ...p, [estudiante.studentId]: nombreCompleto(estudiante) }));
+      } else if (otraSede) {
+        setAviso('Ese código pertenece a un estudiante de otra sede.');
       } else {
-        const motivo = EXCUSE_REASONS[idx]?.reason as ExcuseReason | undefined;
-        if (!motivo) return;
-        const obs = window.prompt('Observación (opcional):', '') ?? '';
-        await resolverLlegadaTarde(r.lateArrivalId, 'justificada', motivo, obs || null);
+        setAviso('Código no reconocido. Puede registrar buscando al estudiante por nombre.');
       }
+    } catch (e) {
+      setError(`No fue posible resolver el código: ${(e as Error).message}`);
+    }
+  }
+
+  // Reemplaza al `window.prompt` de antes: en la puerta del colegio no hay tiempo ni
+  // manos libres para teclear un numero, y un botón grande de una sola pulsación es
+  // mucho más rápido de acertar que un input de texto libre.
+  const [aResolver, setAResolver] = useState<LateArrival | null>(null);
+
+  async function aplicarResolucion(motivo: ExcuseReason | null, observacion: string | null) {
+    if (!aResolver) return;
+    try {
+      if (motivo === null) {
+        await resolverLlegadaTarde(aResolver.lateArrivalId, 'sin_justificar', null, null);
+      } else {
+        await resolverLlegadaTarde(aResolver.lateArrivalId, 'justificada', motivo, observacion);
+      }
+      setAResolver(null);
       await cargar();
     } catch (e) {
       setError(`No fue posible actualizar: ${(e as Error).message}`);
+    }
+  }
+
+  // El servidor no permite borrar (`allow delete: if false`), a propósito: borrar un
+  // registro destruiría la evidencia de lo ocurrido. Si quedó mal asignado, se corrige
+  // marcándolo "justificada" con una observación que deja rastro — así deja de contar
+  // para las alertas pero el historial no desaparece.
+  async function corregir(r: LateArrival) {
+    const nombre = nombres[r.studentId] ?? r.studentId;
+    if (!window.confirm(`¿Corregir el registro de ${nombre}? Se marcará como registro erróneo.`)) {
+      return;
+    }
+    try {
+      await resolverLlegadaTarde(r.lateArrivalId, 'justificada', null, 'Registro erróneo: no corresponde a este estudiante');
+      await cargar();
+    } catch (e) {
+      setError(`No fue posible corregir: ${(e as Error).message}`);
     }
   }
 
@@ -162,6 +209,17 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
               className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-2 text-base text-strong"
             />
           </label>
+          {/*
+            Siempre visible junto al buscador: en la fila de la puerta el estudiante ya
+            trae el QR en la mano (impreso o en el celular) y es mas rapido que teclear
+            el apellido.
+          */}
+          <button
+            onClick={() => setEscaneando(true)}
+            className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-strong"
+          >
+            Escanear código
+          </button>
         </div>
 
         {candidatos.length > 0 && (
@@ -171,11 +229,27 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
                 key={e.studentId}
                 className="flex flex-wrap items-center gap-2 rounded-lg border border-line p-2"
               >
+                {/*
+                  LA FOTO NO ES DECORACION: es el unico control de identidad que hay aqui.
+                  Quien registra no siempre conoce al estudiante —a veces es un auxiliar a
+                  quien coordinacion le delego la tarea—, y sin la cara basta con dar el
+                  nombre de otro para que la llegada tarde le quede al companero. Es un
+                  fraude facil, silencioso y que perjudica a un tercero.
+
+                  Por eso va grande (56 px) y ANTES del nombre: se ve primero la cara y
+                  despues se lee, que es el orden en que uno reconoce a alguien.
+                */}
+                <Avatar estudiante={e} tamano={56} />
                 <span className="grow text-sm">
-                  <b className="text-strong">
-                    {nombreCompleto(e)}
-                  </b>
-                  <span className="ml-2 text-xs text-muted">{e.gradoActual}</span>
+                  <b className="block text-strong">{nombreCompleto(e)}</b>
+                  <span className="text-xs text-muted">{e.gradoActual}</span>
+                  {!e.fotoPath && (
+                    // Sin foto cargada no hay verificacion posible. Decirlo, en vez de
+                    // mostrar unas iniciales que aparentan una comprobacion que no existe.
+                    <span className="block text-[0.65rem] text-warning-soft-fg">
+                      Sin fotografía: no se puede verificar la identidad
+                    </span>
+                  )}
                 </span>
                 <button
                   onClick={() => void registrar(e, false)}
@@ -242,10 +316,17 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
                   {etiqueta(r.estado)}
                 </span>
                 <button
-                  onClick={() => void resolver(r)}
+                  onClick={() => setAResolver(r)}
                   className="rounded-lg border border-line px-2 py-1 text-xs text-strong"
                 >
                   {r.estado === 'justificada' ? 'Cambiar' : 'Justificar'}
+                </button>
+                <button
+                  onClick={() => void corregir(r)}
+                  className="rounded-lg border border-line px-2 py-1 text-xs text-muted"
+                  title="El registro no se borra: queda justificado con nota de que fue un error"
+                >
+                  Corregir
                 </button>
               </li>
             ))}
@@ -258,6 +339,81 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
           tanto, registra y firma.
         </p>
       </section>
+
+      {aResolver && (
+        <MenuExcusas
+          nombre={nombres[aResolver.studentId] ?? aResolver.studentId}
+          onElegir={aplicarResolucion}
+          onCerrar={() => setAResolver(null)}
+        />
+      )}
+
+      {escaneando && <EscanerQr onLeer={(t) => void leerQr(t)} onCerrar={() => setEscaneando(false)} />}
+    </div>
+  );
+}
+
+/**
+ * Hoja de opciones para justificar una llegada tarde: un botón grande por motivo, una
+ * sola pulsación. Reemplaza al `window.prompt` de números, que en la puerta del colegio
+ * —de pie, con prisa, con una fila de estudiantes— era lento y facil de teclear mal.
+ * Sigue el mismo patrón visual que `MenuMarcas` en Planilla.tsx.
+ */
+function MenuExcusas({
+  nombre,
+  onElegir,
+  onCerrar,
+}: {
+  nombre: string;
+  onElegir: (motivo: ExcuseReason | null, observacion: string | null) => void;
+  onCerrar: () => void;
+}) {
+  const [observacion, setObservacion] = useState('');
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+      onClick={onCerrar}
+    >
+      <div
+        className="w-full max-w-md rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <p className="text-center text-lg font-semibold text-strong">{nombre}</p>
+        <p className="text-center text-xs text-muted">Justificar la llegada tarde</p>
+
+        <div className="mt-3 space-y-1.5">
+          {EXCUSE_REASONS.map((m) => (
+            <button
+              key={m.reason}
+              onClick={() => onElegir(m.reason, observacion || null)}
+              className="w-full rounded-lg border border-line p-3 text-left text-sm text-strong hover:bg-hover"
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        <label className="mt-3 block text-xs text-muted">
+          Observación (opcional)
+          <textarea
+            value={observacion}
+            onChange={(ev) => setObservacion(ev.target.value)}
+            rows={2}
+            className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong"
+          />
+        </label>
+
+        <button
+          onClick={() => onElegir(null, null)}
+          className="mt-3 w-full rounded-lg border border-line p-2 text-sm text-warning-soft-fg"
+        >
+          Dejar sin justificar
+        </button>
+        <button onClick={onCerrar} className="mt-2 w-full rounded-lg border border-line p-2 text-sm text-soft">
+          Cancelar
+        </button>
+      </div>
     </div>
   );
 }

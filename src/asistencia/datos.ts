@@ -205,6 +205,35 @@ export async function leerLlegadasTarde(input: {
   );
 }
 
+/**
+ * Resuelve el codigo QR de un estudiante.
+ *
+ * Consulta SOLO por `qrToken` y comprueba la sede despues, en memoria. Podria filtrarse
+ * por las dos cosas a la vez, pero eso exigiria un indice compuesto — y un indice que
+ * falta no devuelve vacio: revienta la consulta con un error que parece de permisos. Ya
+ * nos costo una tarde. Con un solo campo, el indice es automatico.
+ *
+ * Devuelve `null` si el codigo no corresponde a nadie, y lanza si el estudiante existe
+ * pero es de otra sede: son dos situaciones distintas y quien registra necesita
+ * distinguirlas. Un codigo desconocido puede ser un QR ajeno al colegio; un estudiante de
+ * otra sede es un caso real que hay que resolver de otra manera.
+ */
+export async function buscarPorQrToken(
+  sede: string,
+  token: string,
+): Promise<{ estudiante: Student | null; otraSede: boolean }> {
+  if (!(await listo()) || !token.trim()) return { estudiante: null, otraSede: false };
+  const encontrados = aLista<Student>(
+    await getDocs(
+      query(collection(baseDatos(), 'asistenciaStudents'), where('qrToken', '==', token.trim())),
+    ),
+  );
+  const e = encontrados.find((x) => x.activo) ?? null;
+  if (!e) return { estudiante: null, otraSede: false };
+  if (e.sede !== sede) return { estudiante: null, otraSede: true };
+  return { estudiante: e, otraSede: false };
+}
+
 /** Busca estudiantes por apellido o nombre dentro de una sede. */
 export async function buscarEstudiantes(sede: string, texto: string): Promise<Student[]> {
   if (!(await listo()) || texto.trim().length < 2) return [];
