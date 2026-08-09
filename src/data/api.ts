@@ -426,15 +426,32 @@ export async function guardarSyncEditor(item: {
   estado: string;
   json: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  return callApiPost({
-    action: 'guardarSyncEditor',
-    id: item.id,
-    tipo: item.tipo,
-    fecha: item.fecha,
-    jornada: item.jornada,
-    estado: item.estado,
-    json: item.json,
-  });
+  // CORREGIDO: Apps Script responde con un 302 hacia
+  // script.googleusercontent.com para servir el contenido real, y leer esa
+  // respuesta tras el redirect resultó poco confiable para un POST (a
+  // diferencia de un GET, que ya se usaba en toda la app sin problemas).
+  // El guardado en sí SÍ llega al backend en cuanto se envía el POST — se
+  // confirmó escribiendo directo — el problema era solo de lectura de la
+  // confirmación. Por eso ya no se confía en la respuesta del propio POST:
+  // se dispara y luego se verifica con un GET (getSyncEditor), que es el
+  // mismo mecanismo con el que después se leerá el dato de verdad.
+  try {
+    await callApiPost({
+      action: 'guardarSyncEditor',
+      id: item.id,
+      tipo: item.tipo,
+      fecha: item.fecha,
+      jornada: item.jornada,
+      estado: item.estado,
+      json: item.json,
+    });
+  } catch {
+    // Puede fallar solo al leer la respuesta del redirect; no descarta que
+    // el guardado haya llegado. La verificación de abajo decide de verdad.
+  }
+  const items = await getSyncEditor();
+  const ok = items.some(i => i.id === item.id && i.estado === item.estado);
+  return ok ? { ok: true } : { ok: false, error: 'No se pudo confirmar el guardado en el servidor.' };
 }
 
 export async function borrarSyncEditor(id: string): Promise<{ ok: boolean; error?: string }> {
