@@ -230,14 +230,23 @@ export function recalcularBloquesAcortados(
   if (minutosClases < minMinutos) {
     return { error: `La jornada es demasiado corta para ${n} clase${n === 1 ? '' : 's'} con los descansos configurados.` };
   }
-  const duracionClase = Math.floor(minutosClases / n);
-  // Repartir minutos residuales: dar el extra a las primeras clases
-  const sobrante = minutosClases - duracionClase * n;
+  // Las duraciones deben ser múltiplos de 5 (el timbre del colegio no admite
+  // otra cosa). Se redondea el tiempo disponible hacia abajo al múltiplo de 5
+  // más cercano y se reparte en "unidades de 5 minutos" entre los bloques,
+  // dando el escalón extra a los primeros -- así una jornada de 6 bloques con
+  // 260 min de clase da 4 bloques de 45 y 2 de 40, no una mezcla arbitraria.
+  const minutosClases5 = Math.floor(minutosClases / 5) * 5;
+  const unidades = minutosClases5 / 5;
+  const unidadesBase = Math.floor(unidades / n);
+  const unidadesSobrantes = unidades % n;
+  if (unidadesBase < 1) {
+    return { error: `La jornada es demasiado corta para ${n} clase${n === 1 ? '' : 's'} con los descansos configurados.` };
+  }
 
   const bloques: BloqueRecalculado[] = [];
   let cursor = inicioMin;
   for (let i = 1; i <= n; i++) {
-    const dur = duracionClase + (i <= sobrante ? 1 : 0);
+    const dur = (unidadesBase + (i <= unidadesSobrantes ? 1 : 0)) * 5;
     const inicio = cursor;
     const fin = cursor + dur;
     const descansoDespues = descansoPorBloque.get(i);
