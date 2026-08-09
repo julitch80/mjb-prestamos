@@ -58,8 +58,11 @@ export default function Asistencia() {
   const puedeRegistrar = rol !== 'rectora' && rol !== 'superusuario';
 
   const alcance: AlcanceLectura = useMemo(
-    () => (rol === 'coordinador' ? { tipo: 'coordinador' } : { tipo: 'docente', slotId: slotId ?? '' }),
-    [rol, slotId],
+    () =>
+      rol === 'coordinador'
+        ? { tipo: 'coordinador', sede }
+        : { tipo: 'docente', slotId: slotId ?? '' },
+    [rol, slotId, sede],
   );
 
   const [cargando, setCargando] = useState(true);

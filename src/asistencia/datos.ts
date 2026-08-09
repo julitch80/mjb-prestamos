@@ -67,7 +67,16 @@ function aLista<T>(snap: { docs: { data: () => unknown }[] }): T[] {
 export type AlcanceLectura =
   | { tipo: 'docente'; slotId: string }
   | { tipo: 'director'; grado: string }
-  | { tipo: 'coordinador' };
+  /**
+   * El coordinador TAMBIEN tiene que acotar, y por sede. Estaba sin filtro, y por eso su
+   * planilla fallaba entera con permission-denied: la regla solo le permite las sesiones
+   * de las sedes donde tiene autoridad, y Firestore rechaza la consulta completa si no
+   * puede demostrar de antemano que TODO el resultado sera legible.
+   *
+   * El sintoma era enganoso: al fallar la consulta no llegaban sesiones, y la pantalla
+   * ofrecia "Abrir la primera sesion" como si el colegio no tuviera ninguna.
+   */
+  | { tipo: 'coordinador'; sede: string };
 
 export async function leerSesiones(
   alcance: AlcanceLectura,
@@ -78,6 +87,7 @@ export async function leerSesiones(
   const cons: QueryConstraint[] = [];
   if (alcance.tipo === 'docente') cons.push(where('slotId', '==', alcance.slotId));
   if (alcance.tipo === 'director') cons.push(where('grado', '==', alcance.grado));
+  if (alcance.tipo === 'coordinador') cons.push(where('sede', '==', alcance.sede));
   if (filtro.subjectId) cons.push(where('subjectId', '==', filtro.subjectId));
   if (filtro.desde) cons.push(where('fecha', '>=', filtro.desde));
   if (filtro.hasta) cons.push(where('fecha', '<=', filtro.hasta));
