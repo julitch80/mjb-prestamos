@@ -365,7 +365,16 @@ service cloud.firestore {
       allow update: if (isSuper() || asisCoordinaSede(resource.data.sede) || asisIsDirectorOf(resource.data.gradoActual))
         && request.resource.data.docHash == resource.data.docHash
         && request.resource.data.qrToken == resource.data.qrToken
-        && request.resource.data.gradoActual == resource.data.gradoActual;
+        && request.resource.data.gradoActual == resource.data.gradoActual
+        // El numero de documento lo escribe UNICAMENTE la Cloud Function de importacion,
+        // junto al hash que sale de el. Si un cliente pudiera corregirlo, el numero y el
+        // hash dejarian de corresponder y la siguiente importacion veria a ese estudiante
+        // como una persona nueva, duplicandolo.
+        //
+        // Se comprueba con affectedKeys y no con igualdad directa porque las fichas
+        // importadas antes de que el campo existiera NO lo tienen, y comparar un campo
+        // ausente reventaria la evaluacion en esos documentos.
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['docNumber']);
 
       allow delete: if false;   // baja logica con activo:false
 
