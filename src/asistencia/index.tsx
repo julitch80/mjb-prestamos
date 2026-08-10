@@ -14,6 +14,7 @@ import Planilla from './Planilla';
  */
 const Importar = lazy(() => import('./Importar'));
 import Ficha from './Ficha';
+import PanelEstudiante from './PanelEstudiante';
 import TerceraHora from './TerceraHora';
 import LlegadasTarde from './LlegadasTarde';
 import {
@@ -22,6 +23,7 @@ import {
   cerrarSesion as cerrarSesionRemota,
   leerDirectores,
   leerGrupo,
+  leerLlegadasTardePorGrado,
   llenarColumna,
   leerSesiones,
   marcarEstudiante,
@@ -31,7 +33,7 @@ import { toDateKey } from './domain/ids';
 import { nombreCompleto } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import type { MarkCode } from './domain/marks';
-import type { Enrollment, Session, Student } from './domain/types';
+import type { Enrollment, LateArrival, Session, Student } from './domain/types';
 import { firebaseConfigurado } from '../lib/firebase';
 import { useAppStore } from '../data/store';
 import { estiloEtiqueta, guardarColor, leerMapa, resolverColor, type MapaColores } from './domain/colores';
@@ -87,6 +89,15 @@ export default function Asistencia() {
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
   const [directores, setDirectores] = useState<Record<string, string>>({});
   const [vista, setVista] = useState<'planilla' | 'tercera_hora' | 'llegadas'>('planilla');
+
+  /** Panel de estadísticas de un estudiante (pastilla de la columna "Faltas"). */
+  const [panelAbierto, setPanelAbierto] = useState<string | null>(null);
+  /** Sesiones de TODAS las asignaturas del grado, agrupadas por subjectId. Solo llega
+   * más de una clave si el usuario dirige el grupo (ver efecto más abajo). */
+  const [sesionesPorAsignatura, setSesionesPorAsignatura] = useState<Record<string, Session[]>>({});
+  /** Llegadas tarde a la institución del grado. Vacío si el usuario no dirige el grupo:
+   * es autoridad de coordinación y el director de grupo, nadie más. */
+  const [llegadasTarde, setLlegadasTarde] = useState<LateArrival[]>([]);
 
   // Preferencia visual del dispositivo, no un dato del colegio: se lee una sola vez del
   // almacen local (ver domain/colores.ts) y de ahi en adelante vive en memoria.
@@ -144,6 +155,68 @@ export default function Asistencia() {
         : [],
     [sesiones, cruce],
   );
+
+  // El usuario dirige el grupo si su slotId coincide con el director de ese grado en el
+  // documento espejo que consultan las reglas.
+  const esDirector = useMemo(
+    () => !!cruce && directores[cruce.grado] === slotId,
+    [cruce, directores, slotId],
+  );
+
+  /**
+   * Insumos del panel de estudiante: sesiones de las demás asignaturas y llegadas tarde.
+   *
+   * SOLO se piden si el usuario dirige el grupo. Si no, pedir las sesiones de otra
+   * asignatura haría que el servidor rechace la consulta ENTERA (la regla de sesiones
+   * solo deja pasar `slotId == propio` o `grado == el que dirige`), y no hay que ofrecer
+   * en el panel datos que se sabe de antemano que van a fallar.
+   *
+   * Envuelto en try/catch por separado: el panel es un extra, la planilla es el trabajo.
+   * Si esto falla, la planilla debe seguir funcionando con lo que ya tenía.
+   */
+  useEffect(() => {
+    if (!cruce) {
+      setSesionesPorAsignatura({});
+      setLlegadasTarde([]);
+      return;
+    }
+    if (!esDirector) {
+      setSesionesPorAsignatura({ [cruce.subjectId]: sesionesDelCruce });
+      setLlegadasTarde([]);
+      return;
+    }
+    let vivo = true;
+    void (async () => {
+      let todasLasDelGrado: Session[] = sesionesDelCruce;
+      try {
+        todasLasDelGrado = await leerSesiones({ tipo: 'director', grado: cruce.grado });
+        if (!vivo) return;
+        const agrupadas: Record<string, Session[]> = {};
+        for (const s of todasLasDelGrado) {
+          (agrupadas[s.subjectId] ??= []).push(s);
+        }
+        setSesionesPorAsignatura(agrupadas);
+      } catch {
+        if (!vivo) return;
+        setSesionesPorAsignatura({ [cruce.subjectId]: sesionesDelCruce });
+      }
+      try {
+        // Periodo visible: el que cubren las sesiones ya cargadas del grado. Sin
+        // sesiones aún no hay nada que acotar; se usa hoy como rango minimo.
+        const fechas = todasLasDelGrado.map((s) => s.fecha);
+        const hoy = toDateKey(new Date());
+        const desde = fechas.length ? fechas.reduce((a, b) => (a < b ? a : b)) : hoy;
+        const hasta = fechas.length ? fechas.reduce((a, b) => (a > b ? a : b)) : hoy;
+        const llegadas = await leerLlegadasTardePorGrado({ grado: cruce.grado, desde, hasta });
+        if (vivo) setLlegadasTarde(llegadas);
+      } catch {
+        if (vivo) setLlegadasTarde([]);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [cruce, esDirector, sesionesDelCruce]);
 
   async function marcar(sessionIdDoc: string, studentId: string, estado: MarkCode) {
     setError(null);
@@ -376,10 +449,12 @@ export default function Asistencia() {
               estudiantes={estudiantes}
               sesiones={sesionesDelCruce}
               matriculas={matriculas}
+              llegadasTarde={llegadasTarde}
               puedeRegistrar={puedeRegistrar}
               onMarcar={marcar}
               onCerrarSesion={cerrar}
               onAbrirFicha={setFichaAbierta}
+              onAbrirPanel={setPanelAbierto}
               onLlenarColumna={llenar}
               onNuevaSesion={nuevaSesion}
               color={resolverColor(mapaColores, cruce.grado, cruce.subjectId)}
@@ -389,6 +464,17 @@ export default function Asistencia() {
             />
           )}
         </>
+      )}
+
+      {panelAbierto && cruce && estudiantes.find((e) => e.studentId === panelAbierto) && (
+        <PanelEstudiante
+          estudiante={estudiantes.find((e) => e.studentId === panelAbierto)!}
+          asignaturaActual={cruce.subjectId}
+          sesionesPorAsignatura={sesionesPorAsignatura}
+          matriculas={matriculas}
+          llegadasTarde={llegadasTarde}
+          onCerrar={() => setPanelAbierto(null)}
+        />
       )}
     </div>
   );

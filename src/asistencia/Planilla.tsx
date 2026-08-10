@@ -3,8 +3,9 @@ import Avatar from './Avatar';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
 import { nombreCompleto, nombresDePila } from './domain/nombres';
 import { computeStats, conDenominador } from './domain/stats';
+import { resumenPastilla } from './domain/panel';
 import { COLORES_GRUPO, estiloAnillo, estiloBorde, type ColorGrupo } from './domain/colores';
-import type { Enrollment, Session, Student } from './domain/types';
+import type { Enrollment, LateArrival, Session, Student } from './domain/types';
 
 /**
  * Planilla del docente, al estilo del cuaderno de Additio.
@@ -51,11 +52,19 @@ export interface PlanillaProps {
   estudiantes: Student[];
   sesiones: Session[];
   matriculas: Enrollment[];
+  /**
+   * Llegadas tarde a la institución del grado, solo para la pastilla de la columna
+   * "Faltas". Llega vacía cuando el usuario no dirige el grupo: pedirlas igual haría
+   * que el servidor rechace la consulta entera (ver index.tsx).
+   */
+  llegadasTarde: LateArrival[];
   /** Solo lectura cuando el usuario no puede registrar (p. ej. la rectora). */
   puedeRegistrar: boolean;
   onMarcar: (sessionId: string, studentId: string, estado: MarkCode) => void;
   onCerrarSesion: (sessionId: string, sinRegistrar: number) => void;
   onAbrirFicha: (studentId: string) => void;
+  /** Abre el panel de estadísticas del estudiante (pastilla de la columna "Faltas"). */
+  onAbrirPanel: (studentId: string) => void;
   onNuevaSesion: () => void;
   /** Llena de golpe las casillas vacías de una columna. */
   onLlenarColumna: (sessionId: string, estado: MarkCode) => void;
@@ -72,10 +81,12 @@ export default function Planilla({
   estudiantes,
   sesiones,
   matriculas,
+  llegadasTarde,
   puedeRegistrar,
   onMarcar,
   onCerrarSesion,
   onAbrirFicha,
+  onAbrirPanel,
   onNuevaSesion,
   onLlenarColumna,
   color,
@@ -207,6 +218,11 @@ export default function Planilla({
                     </span>
                   </th>
                 ))}
+                {/* Misma regla que la columna del nombre: el ancho del <th> y el del <td>
+                    deben coincidir EXACTO, o esta columna fija se parte al desplazar. */}
+                <th className="sticky right-0 z-10 min-w-[4.5rem] max-w-[4.5rem] border-b border-l border-line bg-card p-2 text-center text-xs font-semibold text-muted">
+                  Faltas
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -252,6 +268,16 @@ export default function Planilla({
                       </td>
                     );
                   })}
+                  <td className="sticky right-0 z-10 min-w-[4.5rem] max-w-[4.5rem] border-b border-l border-line bg-card p-1">
+                    <PastillaEstudiante
+                      estudiante={e}
+                      sesiones={sesiones}
+                      matriculas={matriculas.filter((m) => m.studentId === e.studentId)}
+                      asignatura={asignatura}
+                      llegadasTarde={llegadasTarde}
+                      onAbrir={onAbrirPanel}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -312,6 +338,70 @@ export default function Planilla({
         asignatura={asignatura}
       />
     </div>
+  );
+}
+
+/**
+ * Pastilla de la columna fija "Faltas": lo único visible sin abrir el panel.
+ *
+ * Usa `resumenPastilla` (domain/panel.ts), que ya decide qué cifra importa y cuándo no
+ * hay nada que medir. Aquí solo se traduce esa decisión a color y texto.
+ */
+function PastillaEstudiante({
+  estudiante,
+  sesiones,
+  matriculas,
+  asignatura,
+  llegadasTarde,
+  onAbrir,
+}: {
+  estudiante: Student;
+  sesiones: Session[];
+  matriculas: Enrollment[];
+  asignatura: string;
+  llegadasTarde: LateArrival[];
+  onAbrir: (studentId: string) => void;
+}) {
+  const stats = computeStats({
+    studentId: estudiante.studentId,
+    sessions: sesiones,
+    enrollments: matriculas,
+    subjectId: asignatura,
+  });
+  const llegadasDelEstudiante = llegadasTarde.filter(
+    (la) => la.studentId === estudiante.studentId,
+  ).length;
+  const resumen = resumenPastilla(stats, llegadasDelEstudiante);
+
+  return (
+    <button
+      onClick={() => onAbrir(estudiante.studentId)}
+      aria-label={`Ver panel de ${nombreCompleto(estudiante)}`}
+      title={
+        resumen.sinDatos
+          ? 'Sin sesiones registradas todavía: no hay nada que medir.'
+          : undefined
+      }
+      className={[
+        'flex h-9 w-full items-center justify-center gap-1 rounded-lg text-sm font-bold',
+        resumen.sinDatos
+          ? 'text-muted'
+          : resumen.aMaster2000 > 0
+            ? 'bg-danger-soft text-danger-soft-fg'
+            : 'text-strong',
+      ].join(' ')}
+    >
+      {resumen.sinDatos ? '–' : resumen.aMaster2000}
+      {/* Aviso de retrasos o llegadas tarde: NO se suma a la cifra de faltas, son otro
+          fenomeno. Solo un punto que dice "hay algo mas que mirar". */}
+      {resumen.hayAvisos && (
+        <span
+          className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning-soft-fg"
+          aria-hidden
+          title="Hay retrasos o llegadas tarde registrados"
+        />
+      )}
+    </button>
   );
 }
 

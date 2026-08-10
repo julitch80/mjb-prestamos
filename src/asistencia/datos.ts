@@ -206,6 +206,34 @@ export async function leerLlegadasTarde(input: {
 }
 
 /**
+ * Llegadas tarde de un GRADO, para el panel del estudiante.
+ *
+ * Se acota por `grado` y no por `sede` porque es lo que la regla le permite al director
+ * de grupo: `asisIsDirectorOf(resource.data.grado)`. Con el filtro por sede, un director
+ * que no es coordinador veria la consulta rechazada entera — no vacia, rechazada.
+ *
+ * El indice `(grado, fecha)` ya esta desplegado. Si algun dia se anade otra condicion
+ * aqui, hay que anadir tambien su indice: sin el, Firestore no devuelve vacio, falla.
+ */
+export async function leerLlegadasTardePorGrado(input: {
+  grado: string;
+  desde: string;
+  hasta: string;
+}): Promise<LateArrival[]> {
+  if (!(await listo())) return [];
+  return aLista<LateArrival>(
+    await getDocs(
+      query(
+        collection(baseDatos(), 'asistenciaLateArrivals'),
+        where('grado', '==', input.grado),
+        where('fecha', '>=', input.desde),
+        where('fecha', '<=', input.hasta),
+      ),
+    ),
+  );
+}
+
+/**
  * Resuelve el codigo QR de un estudiante.
  *
  * Consulta SOLO por `qrToken` y comprueba la sede despues, en memoria. Podria filtrarse
