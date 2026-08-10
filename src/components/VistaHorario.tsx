@@ -1210,7 +1210,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
 // ── Componente principal ─────────────────────────────────────────────────────
 
 export default function VistaHorario() {
-  const { jornada, rol, userId, horariosModificados, jornadasReducidas, publicacionesPendientes } = useAppStore();
+  const { jornada, rol, userId, horariosModificados, jornadasReducidas, publicacionesPendientes, eliminarHorarioModificado } = useAppStore();
   const defaultJornada: 'manana' | 'tarde' = jornada === 'tarde' ? 'tarde' : 'manana';
 
   const [modo, setModo]               = useState<Modo>('docente');
@@ -1225,6 +1225,7 @@ export default function VistaHorario() {
   const [editandoBorrador, setEditandoBorrador] = useState<HorarioModificado | null>(null);
   const [verDetalleMod, setVerDetalleMod] = useState<HorarioModificado | null>(null);
   const [acortarAbierto, setAcortarAbierto] = useState(false);
+  const [confirmarEliminarMod, setConfirmarEliminarMod] = useState<string | null>(null);
   const [verDetalleJr, setVerDetalleJr] = useState<JornadaReducida | null>(null);
   const [revisarPub, setRevisarPub] = useState<PublicacionPendiente | null>(null);
 
@@ -1298,19 +1299,50 @@ export default function VistaHorario() {
             {proximasMods.map(m => {
               const ausentes = m.ausencias.length;
               const docNombres = m.ausencias.map(a => USUARIOS.find(u => u.id === a.docenteId)?.nombreCorto ?? a.docenteId).join(', ');
+              // Borrar solo lo propio: el coordinador únicamente sobre su
+              // jornada, para no dejar a nadie eliminar el horario del otro
+              // coordinador por error. Pedido de Julián el 9 de agosto de
+              // 2026 tras acumular varios guardados de prueba para el mismo
+              // día que no tenía cómo quitar.
+              const puedeEliminar = rol === 'coordinador' && m.jornada === jornadaPropia;
               return (
-                <button
+                <div
                   key={m.id}
-                  onClick={() => setVerDetalleMod(m)}
-                  className="text-left px-3 py-2 rounded-xl bg-elevated hover:bg-hover border border-line transition flex-1 min-w-[220px]"
+                  className="relative flex-1 min-w-[220px] rounded-xl bg-elevated hover:bg-hover border border-line transition"
                 >
-                  <div className="text-xs font-semibold text-strong">{formatearFechaLegible(m.fecha)}</div>
-                  <div className="text-[11px] text-soft mt-0.5">
-                    Jornada {m.jornada === 'manana' ? 'mañana' : 'tarde'} · {ausentes} {ausentes === 1 ? 'ausente' : 'ausentes'}
-                    {docNombres && `: ${docNombres}`}
-                  </div>
-                  <div className="text-[10px] text-info-soft-fg mt-1">Ver detalle →</div>
-                </button>
+                  <button
+                    onClick={() => setVerDetalleMod(m)}
+                    className="w-full text-left px-3 py-2"
+                  >
+                    <div className="text-xs font-semibold text-strong pr-5">{formatearFechaLegible(m.fecha)}</div>
+                    <div className="text-[11px] text-soft mt-0.5">
+                      Jornada {m.jornada === 'manana' ? 'mañana' : 'tarde'} · {ausentes} {ausentes === 1 ? 'ausente' : 'ausentes'}
+                      {docNombres && `: ${docNombres}`}
+                    </div>
+                    <div className="text-[10px] text-info-soft-fg mt-1">Ver detalle →</div>
+                  </button>
+                  {puedeEliminar && (
+                    confirmarEliminarMod === m.id ? (
+                      <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+                        <button
+                          onClick={() => { eliminarHorarioModificado(m.id); setConfirmarEliminarMod(null); }}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-danger text-white hover:opacity-90"
+                        >Eliminar</button>
+                        <button
+                          onClick={() => setConfirmarEliminarMod(null)}
+                          className="px-1.5 py-0.5 rounded text-[10px] text-muted hover:text-strong"
+                        >Cancelar</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmarEliminarMod(m.id)}
+                        title="Eliminar esta modificación"
+                        className="absolute top-1.5 right-1.5 text-muted hover:text-danger text-sm leading-none p-0.5"
+                        aria-label="Eliminar"
+                      >✕</button>
+                    )
+                  )}
+                </div>
               );
             })}
           </div>
