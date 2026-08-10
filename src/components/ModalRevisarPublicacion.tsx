@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../data/store';
-import { publicarAviso } from '../data/api';
+import { publicarAviso, retirarAviso } from '../data/api';
 import { htmlEfectivo, URL_SITE_HORARIOS } from '../data/publicacion';
 import type { PublicacionPendiente } from '../data/publicacion';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,9 @@ export default function ModalRevisarPublicacion({ publicacion, onClose }: Props)
   const [publicando, setPublicando] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string; url?: string } | null>(null);
   const [confirmDescartar, setConfirmDescartar] = useState(false);
+  const [avisoIdPublicado, setAvisoIdPublicado] = useState<string | undefined>(undefined);
+  const [retirando, setRetirando] = useState(false);
+  const [retirado, setRetirado] = useState(false);
 
   useEffect(() => {
     if (publicacion) {
@@ -27,6 +30,9 @@ export default function ModalRevisarPublicacion({ publicacion, onClose }: Props)
       setPestana('previa');
       setResultado(null);
       setConfirmDescartar(false);
+      setAvisoIdPublicado(publicacion.avisoId);
+      setRetirando(false);
+      setRetirado(false);
     }
   }, [publicacion]);
 
@@ -52,7 +58,9 @@ export default function ModalRevisarPublicacion({ publicacion, onClose }: Props)
           estado: 'aprobada_publicada',
           htmlEditado: huboEdicion ? htmlBorrador : undefined,
           timestampPublicacion: new Date().toISOString(),
+          avisoId: res.id,
         });
+        setAvisoIdPublicado(res.id);
         setResultado({
           ok: true,
           mensaje: 'Publicado correctamente en la página del colegio.',
@@ -71,6 +79,33 @@ export default function ModalRevisarPublicacion({ publicacion, onClose }: Props)
       });
     } finally {
       setPublicando(false);
+    }
+  }
+
+  async function retirar() {
+    if (!publicacion || !avisoIdPublicado) return;
+    setRetirando(true);
+    try {
+      const res = await retirarAviso(avisoIdPublicado);
+      if (res.ok) {
+        setRetirado(true);
+        setResultado(prev => prev && ({
+          ...prev,
+          mensaje: '✓ Aviso retirado de la página del colegio.',
+        }));
+      } else {
+        setResultado(prev => prev && ({
+          ...prev,
+          mensaje: res.error ?? 'No se pudo retirar el aviso. Vuelve a intentar.',
+        }));
+      }
+    } catch {
+      setResultado(prev => prev && ({
+        ...prev,
+        mensaje: 'Error de red al retirar el aviso. Vuelve a intentar.',
+      }));
+    } finally {
+      setRetirando(false);
     }
   }
 
@@ -233,12 +268,34 @@ export default function ModalRevisarPublicacion({ publicacion, onClose }: Props)
               </div>
 
               {resultado?.ok ? (
-                <button
-                  onClick={onClose}
-                  className="px-5 py-2 rounded-xl bg-accent hover:bg-accent/85 text-accent-fg text-sm font-semibold transition"
-                >
-                  Cerrar
-                </button>
+                <div className="flex gap-2">
+                  {!retirado && (
+                    <button
+                      onClick={retirar}
+                      disabled={retirando || !avisoIdPublicado}
+                      title={!avisoIdPublicado ? 'No se pudo identificar el aviso publicado' : undefined}
+                      className={cn(
+                        'px-4 py-2 rounded-xl bg-danger-soft border border-danger text-danger-soft-fg text-xs font-semibold transition flex items-center gap-2',
+                        (retirando || !avisoIdPublicado) && 'opacity-60 cursor-not-allowed'
+                      )}
+                    >
+                      {retirando ? (
+                        <>
+                          <span className="w-3 h-3 border-2 border-danger-soft-fg border-t-transparent rounded-full animate-spin" />
+                          Retirando…
+                        </>
+                      ) : (
+                        <>Retirar aviso</>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    onClick={onClose}
+                    className="px-5 py-2 rounded-xl bg-accent hover:bg-accent/85 text-accent-fg text-sm font-semibold transition"
+                  >
+                    Cerrar
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={aprobarYPublicar}

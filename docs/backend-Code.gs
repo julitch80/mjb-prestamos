@@ -24,9 +24,6 @@ const CONFIG = {
   FIREBASE_DOMAIN:  'iemanueljbetancur.edu.co',
 };
 
-// ID del Google Doc "Avisos vigentes MJB" embebido en el Google Site
-const DOC_AVISOS_ID = '1Z4ZPgkm5ognsKMwc8fizRTxIS2YWVyQFyzbkQ6QKEUk';
-
 // Esquemas de las hojas (se crean solas si no existen)
 const RESERVAS_HEADERS    = ['id','recurso','fecha','bloque','solicitante','proposito','equipos','estado','motivo','timestamp'];
 const NOTIF_HEADERS       = ['id','destinatario','tipo','mensaje','leida','timestamp'];
@@ -41,7 +38,12 @@ const CUPOS_HEADERS       = ['nivel','asignaturaId','momentos','timestamp'];
 const EDITOR_SYNC_HEADERS = ['id','tipo','fecha','jornada','estado','json','timestamp'];
 
 // ── PUNTO DE ENTRADA (JSONP por GET) ─────────────────────────
-function doGet(e)  { return manejar(e); }
+function doGet(e) {
+  if (e && e.parameter && e.parameter.vista === 'avisoPublico') {
+    return servirAvisoPublico();
+  }
+  return manejar(e);
+}
 function doPost(e) { return manejar(e); }
 
 // Etapa 2 (Firebase, opcional): valida un idToken de Firebase Auth contra el
@@ -98,6 +100,7 @@ function manejar(e) {
       case 'enviarCorreo':       resultado = enviarCorreoAccion(p); break;
       case 'enviarCorreoMasivo': resultado = enviarCorreoMasivo(p); break;
       case 'publicarAviso':      resultado = publicarAviso(p);      break;
+      case 'retirarAviso':       resultado = retirarAviso(p);       break;
       case 'crearSugerencia':    resultado = crearSugerencia(p);    break;
       // ⚠ CAMBIO: requiere redespliegue
       case 'getSugerencias':     resultado = getSugerencias();      break;
@@ -417,7 +420,7 @@ function enviarCorreoMasivo(p) {
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
-// ── PUBLICACIÓN WEB (Google Doc embebido en el Site) ─────────
+// ── PUBLICACIÓN WEB (página HTML propia embebida en el Google Site) ──
 function publicarAviso(p) {
   try {
     const ss = getSS();
@@ -425,22 +428,44 @@ function publicarAviso(p) {
     if (!sheet) { sheet = ss.insertSheet('Avisos'); sheet.appendRow(['id','creado','fecha_aviso','jornada','tipo','autor','titulo','html','estado']); }
     const id = 'av_' + new Date().getTime() + '_' + Math.random().toString(36).slice(2, 6);
     sheet.appendRow([id, new Date().toISOString(), p.fecha||'', p.jornada||'', p.tipo||'', p.autor||'', p.titulo||'', p.html||'', 'publicado']);
-
-    const doc = DocumentApp.openById(DOC_AVISOS_ID);
-    const body = doc.getBody();
-    body.clear();
-    body.appendParagraph(p.titulo || 'Aviso').setHeading(DocumentApp.ParagraphHeading.HEADING1);
-    body.appendParagraph('Publicado ' + new Date().toLocaleString('es-CO')).setItalic(true).setForegroundColor('#6b7280');
-    body.appendParagraph('');
-    const texto = String(p.html || '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<table[\s\S]*?<\/table>/gi, function(t){ return t.replace(/<\/tr>/gi,'\n').replace(/<\/(th|td)>/gi,' | ').replace(/<[^>]+>/g,'').replace(/\s+\|/g,' |').trim(); })
-      .replace(/<br\s*\/?>/gi,'\n').replace(/<\/p>/gi,'\n\n').replace(/<\/h[1-6]>/gi,'\n\n')
-      .replace(/<[^>]+>/g,'').replace(/\n{3,}/g,'\n\n').trim();
-    body.appendParagraph(texto);
-    doc.saveAndClose();
-    return { ok: true, id: id, url: 'https://docs.google.com/document/d/' + DOC_AVISOS_ID };
+    return { ok: true, id: id, url: ScriptApp.getService().getUrl() + '?vista=avisoPublico' };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+// Marca un aviso previamente publicado como 'retirado' (no se borra la fila,
+// queda como historial). No afecta filas con otro estado.
+function retirarAviso(p) {
+  try {
+    const sheet = getSheet('Avisos', ['id','creado','fecha_aviso','jornada','tipo','autor','titulo','html','estado']);
+    const ok = actualizarFila(sheet, 'id', p.id, { estado: 'retirado' });
+    if (!ok) return { ok: false, error: 'No se encontró el aviso con id ' + p.id };
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+// Sirve el último aviso publicado (estado === 'publicado') como página HTML
+// para que el Google Site lo incruste en un iframe. El html ya viene bien
+// formado desde el frontend (generarResumenDifusion / publicacion.ts) — no
+// se toca aquí.
+function servirAvisoPublico() {
+  const sheet = getSheet('Avisos', ['id','creado','fecha_aviso','jornada','tipo','autor','titulo','html','estado']);
+  const avisos = hojaAObjetos(sheet)
+    .filter(function(a) { return a.estado === 'publicado'; })
+    .sort(function(a, b) { return String(a.creado).localeCompare(String(b.creado)); });
+  const ultimo = avisos.length ? avisos[avisos.length - 1] : null;
+
+  const contenido = ultimo
+    ? String(ultimo.html || '')
+    : '<p style="font-family:sans-serif;color:#374151;padding:24px;text-align:center;">No hay avisos de horario vigentes en este momento.</p>';
+
+  const htmlCompleto = '<!DOCTYPE html><html lang="es"><head>' +
+    '<meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>Avisos MJB</title>' +
+    '</head><body style="margin:0;padding:0;">' + contenido + '</body></html>';
+
+  return HtmlService.createHtmlOutput(htmlCompleto)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 // ── TAREAS (módulo de momentos) ──────────────────────────────

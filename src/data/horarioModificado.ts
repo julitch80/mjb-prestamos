@@ -1038,12 +1038,22 @@ export function generarResumenDifusion(
   // efectivamente guardadas (fichasAModificaciones), no de las ausencias.
   const gruposAfectados = new Set<string>();
   fichasAModificaciones(fichas).forEach(m => gruposAfectados.add(m.grupo));
+  const gruposOrdenados = Array.from(gruposAfectados).sort(compararGrupos);
 
-  // ── HTML ─────────────────────────────────────────────────────────────────
+  // ── HTML (mobile-first: lo que ve una familia desde el celular) ───────────
   const htmlPartes: string[] = [];
-  htmlPartes.push(`<div style="font-family:Arial,sans-serif;max-width:600px;color:#1f2937">`);
-  htmlPartes.push(`<h2 style="margin:0 0 4px 0;color:#1e3a8a">I.E. Manuel J. Betancur — Modificación de horario</h2>`);
-  htmlPartes.push(`<p style="margin:0 0 16px 0;color:#475569"><strong>${fechaLegible}</strong> · Jornada ${jornadaTxt}</p>`);
+  htmlPartes.push(`<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;padding:16px">`);
+  htmlPartes.push(`<h2 style="margin:0 0 6px 0;color:#1e3a8a;font-size:20px;font-weight:800;line-height:1.2">I.E. Manuel J. Betancur — Modificación de horario</h2>`);
+  htmlPartes.push(`<p style="margin:0 0 12px 0;color:#1f2937;font-size:17px;font-weight:700">${fechaLegible} · Jornada ${jornadaTxt}</p>`);
+
+  if (gruposOrdenados.length > 0) {
+    htmlPartes.push(`<p style="margin:0 0 8px 0;font-size:12px;font-weight:600;color:#1e3a8a;text-transform:uppercase;letter-spacing:.03em">Grupos afectados</p>`);
+    htmlPartes.push(`<div style="margin:0 0 16px 0;display:flex;flex-wrap:wrap;gap:6px">`);
+    gruposOrdenados.forEach(grupo => {
+      htmlPartes.push(`<span style="display:inline-block;padding:4px 10px;border-radius:999px;background:#dbeafe;color:#1e3a8a;font-size:13px;font-weight:700">${grupo}</span>`);
+    });
+    htmlPartes.push(`</div>`);
+  }
 
   const textoPartes: string[] = [];
   textoPartes.push(`*MJB — Modificación de horario*`);
@@ -1051,7 +1061,7 @@ export function generarResumenDifusion(
   textoPartes.push('');
 
   // Por cada grupo afectado, listar el horario resultante
-  Array.from(gruposAfectados).sort(compararGrupos).forEach(grupo => {
+  gruposOrdenados.forEach(grupo => {
     const colocadas = (fichasPorGrupo[grupo] ?? [])
       .filter(f => f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller')
       .sort((a, b) => {
@@ -1089,17 +1099,11 @@ export function generarResumenDifusion(
       }
     }
 
-    // HTML
-    htmlPartes.push(`<h3 style="margin:16px 0 6px 0;color:#1f2937;border-bottom:1px solid #e5e7eb;padding-bottom:4px">${grupo}</h3>`);
+    // HTML — layout apilado (1 bloque = 1 fila de texto, sin tabla ancha)
+    htmlPartes.push(`<h3 style="margin:18px 0 8px 0;color:#1f2937;font-size:16px;font-weight:700;border-bottom:1px solid #e5e7eb;padding-bottom:4px">${grupo}</h3>`);
     if (avisoJornada) {
       htmlPartes.push(`<p style="margin:0 0 8px 0;padding:6px 10px;background:#fef3c7;border-left:3px solid #d97706;color:#92400e;font-size:13px;font-weight:600">${avisoJornada}</p>`);
     }
-    htmlPartes.push(`<table style="width:100%;border-collapse:collapse;font-size:13px">`);
-    htmlPartes.push(`<thead><tr style="background:#f3f4f6">`);
-    htmlPartes.push(`<th style="text-align:left;padding:6px 8px;border:1px solid #e5e7eb">Hora</th>`);
-    htmlPartes.push(`<th style="text-align:left;padding:6px 8px;border:1px solid #e5e7eb">Docente</th>`);
-    htmlPartes.push(`<th style="text-align:left;padding:6px 8px;border:1px solid #e5e7eb">Aula</th>`);
-    htmlPartes.push(`</tr></thead><tbody>`);
 
     colocadas.forEach(f => {
       const bloque = f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller' ? f.ubicacion.bloque : 0;
@@ -1112,14 +1116,12 @@ export function generarResumenDifusion(
         ? `Taller dejado por ${docente}${supervisor ? ` · supervisa ${supervisor}` : ''}`
         : docente;
       const movida = bloque !== f.origen.bloque;
-      const estilo = esTaller ? 'background:#fef3c7' : movida ? 'background:#dbeafe' : '';
-      htmlPartes.push(`<tr style="${estilo}">`);
-      htmlPartes.push(`<td style="padding:6px 8px;border:1px solid #e5e7eb">${bloque}.ª (${hora})</td>`);
-      htmlPartes.push(`<td style="padding:6px 8px;border:1px solid #e5e7eb">${docTexto}</td>`);
-      htmlPartes.push(`<td style="padding:6px 8px;border:1px solid #e5e7eb">${f.origen.aula}</td>`);
-      htmlPartes.push(`</tr>`);
+      const fondo = esTaller ? '#fef3c7' : movida ? '#dbeafe' : '#f9fafb';
+      htmlPartes.push(`<div style="margin:0 0 6px 0;padding:8px 10px;border-radius:8px;background:${fondo};display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline;font-size:14px">`);
+      htmlPartes.push(`<span style="font-weight:700;color:#1f2937">${bloque}.ª (${hora})</span>`);
+      htmlPartes.push(`<span style="color:#1f2937">${docTexto} · ${f.origen.aula}</span>`);
+      htmlPartes.push(`</div>`);
     });
-    htmlPartes.push(`</tbody></table>`);
     if (eliminadas.length > 0) {
       htmlPartes.push(`<p style="margin:6px 0 0 0;color:#b91c1c;font-size:12px"><strong>Bloques sin clase:</strong> ${eliminadas.map(b => `${b}.ª`).join(', ')}</p>`);
     }
@@ -1154,7 +1156,7 @@ export function generarResumenDifusion(
   // cada grupo, aunque no haya ningún bloque "movido" que listar arriba.
   const acompanantes = borrador.acompanantes ?? [];
   if (acompanantes.length > 0) {
-    htmlPartes.push(`<h3 style="margin:16px 0 6px 0;color:#1f2937;border-bottom:1px solid #e5e7eb;padding-bottom:4px">Acompañantes</h3>`);
+    htmlPartes.push(`<h3 style="margin:18px 0 8px 0;color:#1f2937;font-size:16px;font-weight:700;border-bottom:1px solid #e5e7eb;padding-bottom:4px">Acompañantes</h3>`);
     htmlPartes.push(`<ul style="margin:0;padding-left:18px;font-size:13px;color:#1f2937">`);
     textoPartes.push('*Acompañantes*');
     acompanantes.forEach(ac => {
@@ -1169,7 +1171,10 @@ export function generarResumenDifusion(
     textoPartes.push('');
   }
 
-  htmlPartes.push(`<p style="margin-top:20px;font-size:11px;color:#94a3b8">Generado por MJB Préstamos</p>`);
+  const autorNombre = usuarios.find(u => u.id === borrador.autor)?.nombreCorto;
+  const publicadoPor = autorNombre ? `Publicado por ${autorNombre}` : 'Generado por MJB Préstamos';
+  const fechaPublicacion = new Date().toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
+  htmlPartes.push(`<p style="margin-top:20px;font-size:11px;color:#94a3b8">${publicadoPor} · ${fechaPublicacion}</p>`);
   htmlPartes.push(`</div>`);
   textoPartes.push('— MJB Préstamos');
 

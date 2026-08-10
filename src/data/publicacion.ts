@@ -38,6 +38,7 @@ export interface PublicacionPendiente {
   htmlEditado?: string;                // HTML modificado por el coordinador
   estado: EstadoPublicacion;
   timestampPublicacion?: string;       // cuándo se publicó (si aplica)
+  avisoId?: string;                    // id que devuelve el backend al publicar (res.id) — necesario para retirarAviso
 }
 
 export function generarIdPublicacion(): string {
@@ -93,27 +94,28 @@ export function generarPublicacionDeJornadaReducida(
 function generarHtmlJornadaReducida(jr: JornadaReducida): string {
   const fechaLegible = formatearFechaLegible(jr.fecha);
   const jornadaTxt = jr.jornada === 'manana' ? 'mañana' : 'tarde';
-  const partes: string[] = [];
-  partes.push(`<div style="font-family:Arial,sans-serif;max-width:600px;color:#1f2937">`);
-  partes.push(`<h2 style="margin:0 0 4px 0;color:#b45309">I.E. Manuel J. Betancur — Jornada acortada</h2>`);
-  partes.push(`<p style="margin:0 0 16px 0;color:#475569"><strong>${fechaLegible}</strong> · Jornada ${jornadaTxt}</p>`);
   const numBloques = jr.numBloques ?? jr.bloques.length ?? 6;
-  partes.push(`<p style="margin:0 0 4px 0"><strong>Motivo:</strong> ${jr.motivo}</p>`);
-  partes.push(`<p style="margin:0 0 16px 0"><strong>Horario:</strong> entrada ${jr.horaInicio} · salida ${jr.horaFin} · ${numBloques} hora${numBloques === 1 ? '' : 's'} de clase</p>`);
-  partes.push(`<h3 style="margin:8px 0 6px 0;color:#1f2937">Bloques del día</h3>`);
-  partes.push(`<table style="width:100%;border-collapse:collapse;font-size:13px">`);
-  partes.push(`<thead><tr style="background:#fef3c7">`);
-  partes.push(`<th style="text-align:left;padding:6px 8px;border:1px solid #fcd34d">Hora</th>`);
-  partes.push(`<th style="text-align:left;padding:6px 8px;border:1px solid #fcd34d">Horario</th>`);
-  partes.push(`</tr></thead><tbody>`);
+  const partes: string[] = [];
+  partes.push(`<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;padding:16px">`);
+  partes.push(`<h2 style="margin:0 0 6px 0;color:#b45309;font-size:20px;font-weight:800;line-height:1.2">I.E. Manuel J. Betancur — Jornada acortada</h2>`);
+  partes.push(`<p style="margin:0 0 12px 0;color:#1f2937;font-size:17px;font-weight:700">${fechaLegible} · Jornada ${jornadaTxt}</p>`);
+
+  // A quién afecta: la jornada completa (no hay grupos individuales aquí).
+  partes.push(`<p style="margin:0 0 16px 0;padding:8px 10px;border-radius:8px;background:#fef3c7;color:#92400e;font-size:14px;font-weight:600">Afecta a todos los grupos de la jornada ${jornadaTxt}</p>`);
+
+  partes.push(`<p style="margin:0 0 4px 0;font-size:14px"><strong>Motivo:</strong> ${jr.motivo}</p>`);
+  partes.push(`<p style="margin:0 0 16px 0;font-size:14px"><strong>Horario:</strong> entrada ${jr.horaInicio} · salida ${jr.horaFin} · ${numBloques} hora${numBloques === 1 ? '' : 's'} de clase</p>`);
+
+  partes.push(`<h3 style="margin:18px 0 8px 0;color:#1f2937;font-size:16px;font-weight:700;border-bottom:1px solid #e5e7eb;padding-bottom:4px">Bloques del día</h3>`);
   jr.bloques.forEach(b => {
-    partes.push(`<tr>`);
-    partes.push(`<td style="padding:6px 8px;border:1px solid #fcd34d">${b.id}.ª hora</td>`);
-    partes.push(`<td style="padding:6px 8px;border:1px solid #fcd34d">${b.inicio} – ${b.fin}</td>`);
-    partes.push(`</tr>`);
+    partes.push(`<div style="margin:0 0 6px 0;padding:8px 10px;border-radius:8px;background:#f9fafb;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline;font-size:14px">`);
+    partes.push(`<span style="font-weight:700;color:#1f2937">${b.id}.ª hora</span>`);
+    partes.push(`<span style="color:#1f2937">${b.inicio} – ${b.fin}</span>`);
+    partes.push(`</div>`);
   });
-  partes.push(`</tbody></table>`);
-  partes.push(`<p style="margin-top:20px;font-size:11px;color:#94a3b8">Generado por MJB Préstamos</p>`);
+
+  const fechaPublicacion = new Date().toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
+  partes.push(`<p style="margin-top:20px;font-size:11px;color:#94a3b8">Generado por MJB Préstamos · ${fechaPublicacion}</p>`);
   partes.push(`</div>`);
   return partes.join('\n');
 }

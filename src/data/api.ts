@@ -485,3 +485,7 @@ export async function publicarAviso(
     autor,
   });
 }
+
+export async function retirarAviso(id: string): Promise<{ ok: boolean; error?: string }> {
+  return callApi({ action: 'retirarAviso', id });
+}
