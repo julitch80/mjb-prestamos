@@ -67,6 +67,10 @@ import { cn } from '@/lib/utils';
 
 type ModoEditor = 'docente' | 'grupo';
 
+// Umbral de horas de clase por debajo (o igual) del cual se avisa que un
+// grupo queda con muy poca actividad ese día.
+const UMBRAL_POCAS_HORAS = 3;
+
 interface Props {
   borrador: HorarioModificado;
   onSalir: () => void;
@@ -109,6 +113,23 @@ function detectarColisionesAula(lista: FichaEditor[]): string[] {
     });
   });
   return avisos;
+}
+
+/**
+ * Cuenta, por grupo, las horas de clase activas (colocada o taller) tras los
+ * movimientos actuales del borrador. Devuelve solo los grupos que quedan en
+ * o por debajo de UMBRAL_POCAS_HORAS — es solo informativo, no bloquea nada.
+ */
+function detectarGruposPocasHoras(lista: FichaEditor[]): { grupo: string; horas: number }[] {
+  const conteo: Record<string, number> = {};
+  lista.forEach(f => {
+    if (f.ubicacion.tipo !== 'colocada' && f.ubicacion.tipo !== 'taller') return;
+    conteo[f.origen.grupo] = (conteo[f.origen.grupo] ?? 0) + 1;
+  });
+  return Object.entries(conteo)
+    .filter(([, horas]) => horas <= UMBRAL_POCAS_HORAS)
+    .map(([grupo, horas]) => ({ grupo, horas }))
+    .sort((a, b) => compararGrupos(a.grupo, b.grupo));
 }
 
 // ── Ficha arrastrable ────────────────────────────────────────────────────────
@@ -401,6 +422,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   const [confirmDescartar, setConfirmDescartar] = useState(false);
   const [errorMovimiento, setErrorMovimiento] = useState<string | null>(null);
   const [avisoColision, setAvisoColision] = useState<string[] | null>(null);
+  const [avisoPocasHorasDescartado, setAvisoPocasHorasDescartado] = useState(false);
   const [verTodoElHorario, setVerTodoElHorario] = useState(false);
   const [asistenteAbierto, setAsistenteAbierto] = useState(false);
   const [resumenDifusion, setResumenDifusion] = useState<ResumenDifusion | null>(null);
@@ -513,6 +535,15 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     });
     return map;
   }, [fichas, modo]);
+
+  // ── Grupos que quedan con pocas horas de clase tras los movimientos ────────
+  const gruposPocasHoras = useMemo(() => detectarGruposPocasHoras(fichas), [fichas]);
+
+  function noCitarGrupo(grupo: string) {
+    fichas
+      .filter(f => f.origen.grupo === grupo && (f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller'))
+      .forEach(f => eliminarFicha(f.id));
+  }
 
   const pendientes = fichas.filter(f => f.ubicacion.tipo === 'pendiente');
   // Bloquean el guardado solo los pendientes que SÍ hay que reubicar. Los que
@@ -1094,6 +1125,46 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
             </div>
           )}
         </div>
+
+        {/* Aviso: grupos que quedan con pocas horas de clase.
+            Solo informativo — no bloquea guardar. Se puede descartar sin
+            cancelar nada, por si el coordinador decide dejarlo así a
+            propósito. Pedido de Janneth el 11 de agosto de 2026. */}
+        {gruposPocasHoras.length > 0 && !avisoPocasHorasDescartado && (
+          <div className="rounded-2xl border border-warning bg-warning-soft p-3 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-warning-soft-fg">
+                <span className="text-base">⚠</span>
+                {gruposPocasHoras.length === 1
+                  ? 'Un grupo queda con pocas horas de clase'
+                  : `${gruposPocasHoras.length} grupos quedan con pocas horas de clase`}
+              </div>
+              <button
+                onClick={() => setAvisoPocasHorasDescartado(true)}
+                className="text-warning-soft-fg hover:text-strong text-sm leading-none p-0.5 flex-shrink-0"
+                aria-label="Ignorar aviso"
+                title="Ignorar (no cancela nada)"
+              >✕</button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {gruposPocasHoras.map(({ grupo, horas }) => (
+                <div
+                  key={grupo}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-elevated border border-line text-xs"
+                >
+                  <span className="font-semibold text-strong">{grupo}</span>
+                  <span className="text-muted">{horas} {horas === 1 ? 'hora' : 'horas'} de clase</span>
+                  <button
+                    onClick={() => noCitarGrupo(grupo)}
+                    className="px-2 py-1 rounded-lg bg-danger-soft border border-danger text-danger-soft-fg font-medium hover:opacity-90 transition"
+                  >
+                    No citar al grupo
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Pendientes */}
         <PendientesDroppable fichas={pendientes} modo={modo} ausencias={borrador.ausencias} onEliminar={eliminarFicha} />

@@ -11,6 +11,7 @@ export const URL_SITE_HORARIOS = 'https://sites.google.com/iemanueljbetancur.edu
 import {
   formatearFechaLegible,
   generarResumenDifusion,
+  reconstruirResumenHtml,
 } from './horarioModificado';
 import type {
   HorarioModificado,
@@ -39,6 +40,16 @@ export interface PublicacionPendiente {
   estado: EstadoPublicacion;
   timestampPublicacion?: string;       // cuándo se publicó (si aplica)
   avisoId?: string;                    // id que devuelve el backend al publicar (res.id) — necesario para retirarAviso
+  // Casillas por grupo (ver ModalRevisarPublicacion): solo presentes cuando
+  // la publicación viene de una modificación de horario (no jornada reducida,
+  // que no tiene noción de "grupos" individuales).
+  gruposDisponibles?: string[];
+  gruposExcluidos?: string[];
+  resumenEstructurado?: {
+    cabeceraHtml: string;
+    gruposHtml: Record<string, string>;
+    pieHtml: string;
+  };
 }
 
 export function generarIdPublicacion(): string {
@@ -48,6 +59,27 @@ export function generarIdPublicacion(): string {
 /** HTML final efectivo: el editado si existe, sino el original. */
 export function htmlEfectivo(p: PublicacionPendiente): string {
   return p.htmlEditado ?? p.htmlOriginal;
+}
+
+/**
+ * HTML final teniendo en cuenta también las casillas de grupos incluidos.
+ * Prioridad: edición manual de HTML (htmlEditado) > reconstrucción por
+ * grupos (resumenEstructurado + gruposExcluidos) > htmlEfectivo tal cual.
+ */
+export function htmlEfectivoFiltrado(p: PublicacionPendiente): string {
+  if (p.htmlEditado) return p.htmlEditado;
+  if (p.resumenEstructurado) {
+    const incluidos = (p.gruposDisponibles ?? []).filter(
+      g => !(p.gruposExcluidos ?? []).includes(g)
+    );
+    return reconstruirResumenHtml(
+      p.resumenEstructurado.cabeceraHtml,
+      p.resumenEstructurado.gruposHtml,
+      incluidos,
+      p.resumenEstructurado.pieHtml,
+    );
+  }
+  return htmlEfectivo(p);
 }
 
 // ── Generadores de publicaciones ────────────────────────────────────────────
@@ -70,6 +102,12 @@ export function generarPublicacionDeModificacion(
     titulo: `Modificación de horario — ${formatearFechaLegible(hm.fecha)}`,
     htmlOriginal: resumen.html,
     estado: 'pendiente_revision',
+    gruposDisponibles: Object.keys(resumen.gruposHtml),
+    resumenEstructurado: {
+      cabeceraHtml: resumen.cabeceraHtml,
+      gruposHtml: resumen.gruposHtml,
+      pieHtml: resumen.pieHtml,
+    },
   };
 }
 

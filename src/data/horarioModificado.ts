@@ -1007,6 +1007,14 @@ export interface ResumenDifusion {
   html: string;
   texto: string;
   docentesAfectados: DocenteAfectadoResumen[];
+  // Fragmentos del mismo HTML/texto ya generado, recortados por sección, para
+  // poder reconstruir un subconjunto de grupos sin volver a tocar
+  // fichas/horarioBase (ver reconstruirResumenHtml). No duplican lógica: son
+  // capturas de los mismos htmlPartes/textoPartes que arma esta función.
+  gruposHtml: Record<string, string>;
+  gruposTexto: Record<string, string>;
+  cabeceraHtml: string;
+  pieHtml: string;
 }
 
 export function generarResumenDifusion(
@@ -1060,8 +1068,17 @@ export function generarResumenDifusion(
   textoPartes.push(`${fechaLegible} · Jornada ${jornadaTxt}`);
   textoPartes.push('');
 
+  // A partir de aquí todo lo que se empuja en htmlPartes/textoPartes es
+  // cabecera; lo que sigue (dentro del forEach) se captura por grupo.
+  const cabeceraHtmlIdx = htmlPartes.length;
+
+  const gruposHtml: Record<string, string> = {};
+  const gruposTexto: Record<string, string> = {};
+
   // Por cada grupo afectado, listar el horario resultante
   gruposOrdenados.forEach(grupo => {
+    const inicioHtml = htmlPartes.length;
+    const inicioTexto = textoPartes.length;
     const colocadas = (fichasPorGrupo[grupo] ?? [])
       .filter(f => f.ubicacion.tipo === 'colocada' || f.ubicacion.tipo === 'taller')
       .sort((a, b) => {
@@ -1148,7 +1165,15 @@ export function generarResumenDifusion(
       textoPartes.push(`❌ Sin clase: ${eliminadas.map(b => `${b}.ª`).join(', ')}`);
     }
     textoPartes.push('');
+
+    gruposHtml[grupo] = htmlPartes.slice(inicioHtml).join('\n');
+    gruposTexto[grupo] = textoPartes.slice(inicioTexto).join('\n');
   });
+
+  const cabeceraHtml = htmlPartes.slice(0, cabeceraHtmlIdx).join('\n');
+  // El pie arranca justo donde terminó el último grupo (o donde arrancaría
+  // el primero si no hay ninguno) y cubre acompañantes + firma/fecha.
+  const pieHtmlIdx = htmlPartes.length;
 
   // ── Acompañantes ───────────────────────────────────────────────────────────
   // No son reubicaciones: su horario no cambia, pero van con su grupo a una
@@ -1230,11 +1255,33 @@ export function generarResumenDifusion(
     }
   });
 
+  const pieHtml = htmlPartes.slice(pieHtmlIdx).join('\n');
+
   return {
     html: htmlPartes.join('\n'),
     texto: textoPartes.join('\n'),
     docentesAfectados: Array.from(docentesAfectadosMap.values()),
+    gruposHtml,
+    gruposTexto,
+    cabeceraHtml,
+    pieHtml,
   };
+}
+
+/**
+ * Reconstruye el HTML de difusión a partir de los fragmentos capturados por
+ * generarResumenDifusion, incluyendo solo los grupos indicados (en el orden
+ * dado). No vuelve a tocar fichas/horarioBase — opera solo sobre texto ya
+ * generado, así que sirve para "excluir grupos" en el modal de revisión sin
+ * recalcular nada.
+ */
+export function reconstruirResumenHtml(
+  cabeceraHtml: string,
+  gruposHtml: Record<string, string>,
+  gruposIncluidos: string[],
+  pieHtml: string,
+): string {
+  return cabeceraHtml + gruposIncluidos.map(g => gruposHtml[g] ?? '').join('') + pieHtml;
 }
 
 interface MovCascada {

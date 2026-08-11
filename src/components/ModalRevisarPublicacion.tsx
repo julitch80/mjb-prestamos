@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../data/store';
 import { publicarAviso, retirarAviso } from '../data/api';
-import { htmlEfectivo, URL_SITE_HORARIOS } from '../data/publicacion';
+import { htmlEfectivo, htmlEfectivoFiltrado, URL_SITE_HORARIOS } from '../data/publicacion';
 import type { PublicacionPendiente } from '../data/publicacion';
 import { cn } from '@/lib/utils';
 
@@ -23,6 +23,9 @@ export default function ModalRevisarPublicacion({ publicacion, onClose }: Props)
   const [avisoIdPublicado, setAvisoIdPublicado] = useState<string | undefined>(undefined);
   const [retirando, setRetirando] = useState(false);
   const [retirado, setRetirado] = useState(false);
+  // Casillas de grupos incluidos/excluidos (ver B3 en CLAUDE.md): independiente
+  // de la edición manual de HTML, que sigue teniendo prioridad si se usa.
+  const [gruposExcluidos, setGruposExcluidos] = useState<string[]>([]);
 
   useEffect(() => {
     if (publicacion) {
@@ -33,30 +36,46 @@ export default function ModalRevisarPublicacion({ publicacion, onClose }: Props)
       setAvisoIdPublicado(publicacion.avisoId);
       setRetirando(false);
       setRetirado(false);
+      setGruposExcluidos(publicacion.gruposExcluidos ?? []);
     }
   }, [publicacion]);
 
   if (!publicacion) return <AnimatePresence>{null}</AnimatePresence>;
 
   const huboEdicion = htmlBorrador !== publicacion.htmlOriginal;
+  // HTML que refleja las casillas de grupos, sin tocar el flujo de edición
+  // manual (que sigue viviendo en htmlBorrador / htmlOriginal).
+  const htmlFiltradoPorGrupos = htmlEfectivoFiltrado({ ...publicacion, gruposExcluidos });
+  // Lo que se muestra en "Vista previa": si hubo edición manual gana esa;
+  // si no, se recalcula con las casillas actuales.
+  const htmlVistaPrevia = huboEdicion ? htmlBorrador : htmlFiltradoPorGrupos;
+
+  function toggleGrupo(g: string) {
+    setGruposExcluidos(prev =>
+      prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]
+    );
+  }
 
   async function aprobarYPublicar() {
     if (!publicacion) return;
     setPublicando(true);
     setResultado(null);
+    // Prioridad: HTML editado a mano > casillas de grupos > original sin filtrar.
+    const htmlAPublicar = huboEdicion ? htmlBorrador : htmlFiltradoPorGrupos;
     try {
       const res = await publicarAviso(
         publicacion.fecha,
         publicacion.jornada,
         publicacion.tipo,
         publicacion.titulo,
-        htmlBorrador,
+        htmlAPublicar,
         publicacion.autor,
       );
       if (res.ok) {
         actualizarPublicacionPendiente(publicacion.id, {
           estado: 'aprobada_publicada',
           htmlEditado: huboEdicion ? htmlBorrador : undefined,
+          gruposExcluidos: huboEdicion ? publicacion.gruposExcluidos : gruposExcluidos,
           timestampPublicacion: new Date().toISOString(),
           avisoId: res.id,
         });
@@ -190,10 +209,35 @@ export default function ModalRevisarPublicacion({ publicacion, onClose }: Props)
             {/* Contenido */}
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {pestana === 'previa' ? (
-                <div
-                  className="bg-white rounded-xl border border-line p-4 text-gray-900"
-                  dangerouslySetInnerHTML={{ __html: htmlBorrador }}
-                />
+                <div className="space-y-3">
+                  {publicacion.gruposDisponibles && publicacion.gruposDisponibles.length > 0 && (
+                    <div className="rounded-xl border border-line bg-elevated p-3 space-y-2">
+                      <div className="text-xs font-semibold text-soft">Grupos incluidos</div>
+                      {huboEdicion && (
+                        <div className="text-[11px] text-warning-soft-fg bg-warning-soft border border-warning rounded-lg px-2 py-1">
+                          Editaste el HTML a mano: estas casillas ya no afectan lo que se publica.
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                        {publicacion.gruposDisponibles.map(g => (
+                          <label key={g} className="flex items-center gap-1.5 text-xs text-strong cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={!gruposExcluidos.includes(g)}
+                              onChange={() => toggleGrupo(g)}
+                              className="w-3.5 h-3.5 rounded border-line accent-current"
+                            />
+                            {g}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div
+                    className="bg-white rounded-xl border border-line p-4 text-gray-900"
+                    dangerouslySetInnerHTML={{ __html: htmlVistaPrevia }}
+                  />
+                </div>
               ) : (
                 <div className="space-y-2">
                   <label className="block text-xs text-soft">
