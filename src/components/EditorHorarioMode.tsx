@@ -204,24 +204,32 @@ function FichaArrastrable({
           : textoAbajo}
       </span>
 
-      {/* Botones de acción */}
+      {/* Botones de acción.
+          CORREGIDO: el "×" para eliminar la clase solo se dibujaba con el
+          docente ausente — un coordinador no tenía forma de cancelar la
+          clase de un docente presente por decisión propia (ej. un grupo que
+          queda con una sola hora y se decide no citarlo). eliminarFicha() ya
+          no validaba ausencia por dentro, era solo un candado de la UI.
+          Reportado por Janneth el 11 de agosto de 2026. El botón "T" (taller)
+          sigue exigiendo ausencia: solo tiene sentido cubrir la clase de
+          alguien que no está. */}
       {esAusente && !esTaller && (
-        <>
-          <button
-            onClick={(e) => { e.stopPropagation(); onMarcarTaller(); }}
-            className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-warning hover:bg-warning/85 text-strong text-[9px] font-bold leading-none flex items-center justify-center shadow"
-            title="Queda con actividad/taller"
-          >
-            T
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onEliminar(); }}
-            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-danger hover:bg-danger/85 text-strong text-[10px] font-bold leading-none flex items-center justify-center shadow"
-            title="Eliminar"
-          >
-            ×
-          </button>
-        </>
+        <button
+          onClick={(e) => { e.stopPropagation(); onMarcarTaller(); }}
+          className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-warning hover:bg-warning/85 text-strong text-[9px] font-bold leading-none flex items-center justify-center shadow"
+          title="Queda con actividad/taller"
+        >
+          T
+        </button>
+      )}
+      {!esTaller && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onEliminar(); }}
+          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-danger hover:bg-danger/85 text-strong text-[10px] font-bold leading-none flex items-center justify-center shadow"
+          title={esAusente ? 'Eliminar' : 'Cancelar esta clase'}
+        >
+          ×
+        </button>
       )}
       {esTaller && (
         <>
