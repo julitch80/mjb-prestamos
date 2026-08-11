@@ -7,6 +7,7 @@ import { resumenPastilla } from './domain/panel';
 import { alertaPorcentajePeriodo, alertaRacha } from './domain/alertas';
 import { COLORES_GRUPO, estiloAnillo, estiloBorde, type ColorGrupo } from './domain/colores';
 import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './domain/types';
+import { getAsignatura } from '../data/asignacionAcademica';
 
 /**
  * Planilla del docente, al estilo del cuaderno de Additio.
@@ -145,7 +146,10 @@ export default function Planilla({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="shrink-0 text-base font-semibold text-strong">
-          {grado} · {asignatura}
+          {/* `?? asignatura`: sesiones ya existentes en produccion se guardaron con
+              codigos escritos a mano que no estan en el catalogo, y deben seguir
+              viendose en vez de desaparecer. */}
+          {grado} · {getAsignatura(asignatura)?.nombre ?? asignatura}
         </h2>
         {/* Selector de color del grupo: solo ayuda visual para quien lleva varios grupos
             a la vez, por eso va pegado al nombre y no compite con las marcas de asistencia. */}

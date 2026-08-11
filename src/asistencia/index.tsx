@@ -18,8 +18,10 @@ import PanelEstudiante from './PanelEstudiante';
 import TerceraHora from './TerceraHora';
 import LlegadasTarde from './LlegadasTarde';
 import Eventos from './Eventos';
+import MisGrupos from './MisGrupos';
 import {
   abrirSesion,
+  borrarSesionesDeCruce,
   buscarEstudiantes,
   cerrarSesion as cerrarSesionRemota,
   crearEstudianteManual,
@@ -31,6 +33,7 @@ import {
   leerSesiones,
   marcarEstudiante,
   type AlcanceLectura,
+  type ResumenBorradoCruce,
 } from './datos';
 import type { NuevoEstudianteInput } from './Planilla';
 import { toDateKey } from './domain/ids';
@@ -42,6 +45,7 @@ import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './d
 import { firebaseConfigurado } from '../lib/firebase';
 import { useAppStore } from '../data/store';
 import { estiloEtiqueta, guardarColor, leerMapa, resolverColor, type MapaColores } from './domain/colores';
+import { ASIGNATURAS, getAsignatura } from '../data/asignacionAcademica';
 
 /**
  * Navegacion interna del modulo. `eventos` esta disponible para cualquier rol que llegue
@@ -101,6 +105,22 @@ export default function Asistencia() {
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
   const [directores, setDirectores] = useState<Record<string, string>>({});
   const [vista, setVista] = useState<VistaAsistencia>('planilla');
+
+  /**
+   * Cruce grado+asignatura ya elegido (desde "Mis grupos" o desde "nueva sesión" sobre
+   * el cruce activo) que solo le falta el BLOQUE para convertirse en una sesión. Separado
+   * de `cruce`: este es un cruce todavía sin sesión de hoy, `cruce` es el que ya tiene
+   * planilla abierta.
+   */
+  const [bloqueParaAbrir, setBloqueParaAbrir] = useState<{ grado: string; subjectId: string } | null>(
+    null,
+  );
+  /** "Mis grupos" como overlay, para abrir un cruce que el docente aún no ha usado este
+   * periodo sin perder la planilla que ya tiene abierta. Solo tiene sentido cuando ya
+   * existe al menos una sesión (si no, "Mis grupos" ES la pantalla principal). */
+  const [mostrarMisGrupos, setMostrarMisGrupos] = useState(false);
+  /** Formulario manual de respaldo: docentes de apoyo, o asignación aún no cargada. */
+  const [formularioManual, setFormularioManual] = useState(false);
 
   /** Panel de estadísticas de un estudiante (pastilla de la columna "Faltas"). */
   const [panelAbierto, setPanelAbierto] = useState<string | null>(null);
@@ -297,31 +317,41 @@ export default function Asistencia() {
     setMatriculas(mat);
   }
 
-  async function nuevaSesion() {
+  // Reemplaza al `window.prompt` de antes: en una pantalla que se usa de pie, un prompt
+  // de numeros es lento y facil de teclear mal (mismo cambio ya hecho en
+  // LlegadasTarde.tsx). Solo PIDE el bloque; quien crea la sesion es `abrirCruce`.
+  function nuevaSesion() {
     if (!cruce) return;
-    const respuesta = window.prompt('¿En qué bloque es la clase de hoy? (1 a 6)', '1');
-    if (!respuesta) return;
-    const bloque = Number(respuesta);
-    if (!Number.isInteger(bloque) || bloque < 1 || bloque > 6) {
-      setError('El bloque debe ser un número entre 1 y 6.');
-      return;
-    }
-    setError(null);
-    try {
-      await abrirSesion({
-        sede,
-        grado: cruce.grado,
-        jornada: jornadaDeGrado(cruce.grado),
-        fecha: toDateKey(new Date()),
-        bloque,
-        subjectId: cruce.subjectId,
-        slotId: slotId ?? '',
-      });
-      await cargarSesiones();
-    } catch (e) {
-      setError(mensajeDeError(e));
-    }
+    setBloqueParaAbrir({ grado: cruce.grado, subjectId: cruce.subjectId });
   }
+
+  /**
+   * Crea la sesion de hoy para un cruce grado+asignatura ya elegido. Punto unico: lo usan
+   * "Mis grupos" (primera sesion o grupo nuevo), "nueva sesion" sobre el cruce activo, y
+   * el formulario manual de respaldo — los tres terminan aqui para no triplicar el
+   * try/catch ni el calculo de jornada/fecha.
+   */
+  const abrirCruce = useCallback(
+    async (grado: string, subjectId: string, bloque: number) => {
+      setError(null);
+      try {
+        await abrirSesion({
+          sede,
+          grado,
+          jornada: jornadaDeGrado(grado),
+          fecha: toDateKey(new Date()),
+          bloque,
+          subjectId,
+          slotId: slotId ?? '',
+        });
+        setCruce({ grado, subjectId });
+        await cargarSesiones();
+      } catch (e) {
+        setError(mensajeDeError(e));
+      }
+    },
+    [sede, slotId, cargarSesiones],
+  );
 
   if (!firebaseConfigurado) {
     return (
@@ -358,6 +388,7 @@ export default function Asistencia() {
           <Importar />
         </Suspense>
         <BuscadorFichas sede={sede} onAbrir={setFichaAbierta} />
+        <LimpiezaPlanillas />
       </div>
     );
   }
@@ -439,32 +470,23 @@ export default function Asistencia() {
       )}
 
       {cruces.length === 0 ? (
-        <PrimeraSesion
-          puedeRegistrar={puedeRegistrar}
-          onAbrir={async (grado, subjectId, bloque) => {
-            setError(null);
-            try {
-              await abrirSesion({
-                sede,
-                grado,
-                jornada: jornadaDeGrado(grado),
-                fecha: toDateKey(new Date()),
-                bloque,
-                subjectId,
-                slotId: slotId ?? '',
-              });
-              setCruce({ grado, subjectId });
-              await cargarSesiones();
-            } catch (e) {
-              setError(mensajeDeError(e));
-            }
-          }}
-        />
+        puedeRegistrar ? (
+          <MisGrupos
+            slotId={slotId}
+            onElegir={(grado, subjectId) => setBloqueParaAbrir({ grado, subjectId })}
+            onSinAsignacion={() => setFormularioManual(true)}
+          />
+        ) : (
+          <p className="rounded-xl border border-line bg-card p-3 text-sm text-muted">
+            No hay sesiones de clase registradas todavía. Aparecerán aquí cuando los
+            docentes empiecen a pasar lista.
+          </p>
+        )
       ) : (
         <>
-          {cruces.length > 1 && (
-            <div className="flex flex-wrap gap-1.5">
-              {cruces.map((c) => {
+          <div className="flex flex-wrap items-center gap-1.5">
+            {cruces.length > 1 &&
+              cruces.map((c) => {
                 const activo = cruce?.grado === c.grado && cruce?.subjectId === c.subjectId;
                 const colorPestana = resolverColor(mapaColores, c.grado, c.subjectId);
                 return (
@@ -486,12 +508,22 @@ export default function Asistencia() {
                           : 'border-line text-soft',
                     ].join(' ')}
                   >
-                    {c.grado} · {c.subjectId}
+                    {c.grado} · {getAsignatura(c.subjectId)?.nombre ?? c.subjectId}
                   </button>
                 );
               })}
-            </div>
-          )}
+            {/* Para abrir un grupo de la asignacion que este periodo aun no ha usado, sin
+                perder la planilla que ya tiene abierta. Solo el que registra lo necesita:
+                la rectora consulta, no abre sesiones nuevas. */}
+            {puedeRegistrar && (
+              <button
+                onClick={() => setMostrarMisGrupos(true)}
+                className="rounded-full border border-dashed border-line px-3 py-1 text-sm text-muted"
+              >
+                + Grupo
+              </button>
+            )}
+          </div>
 
           {cruce && (
             <Planilla
@@ -518,6 +550,63 @@ export default function Asistencia() {
             />
           )}
         </>
+      )}
+
+      {mostrarMisGrupos && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+          onClick={() => setMostrarMisGrupos(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-strong">Mis grupos</h3>
+              <button
+                onClick={() => setMostrarMisGrupos(false)}
+                aria-label="Cerrar"
+                className="min-h-[36px] rounded-lg border border-line px-2 py-1 text-xs text-muted"
+              >
+                Cerrar
+              </button>
+            </div>
+            <MisGrupos
+              slotId={slotId}
+              onElegir={(grado, subjectId) => {
+                setMostrarMisGrupos(false);
+                setBloqueParaAbrir({ grado, subjectId });
+              }}
+              onSinAsignacion={() => {
+                setMostrarMisGrupos(false);
+                setFormularioManual(true);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {bloqueParaAbrir && (
+        <MenuBloque
+          grado={bloqueParaAbrir.grado}
+          subjectId={bloqueParaAbrir.subjectId}
+          onElegir={(bloque) => {
+            const p = bloqueParaAbrir;
+            setBloqueParaAbrir(null);
+            void abrirCruce(p.grado, p.subjectId, bloque);
+          }}
+          onCerrar={() => setBloqueParaAbrir(null)}
+        />
+      )}
+
+      {formularioManual && (
+        <FormularioManual
+          onAbrir={async (grado, subjectId, bloque) => {
+            setFormularioManual(false);
+            await abrirCruce(grado, subjectId, bloque);
+          }}
+          onCerrar={() => setFormularioManual(false)}
+        />
       )}
 
       {panelAbierto && cruce && estudiantes.find((e) => e.studentId === panelAbierto) && (
@@ -605,93 +694,309 @@ function BuscadorFichas({
 }
 
 /**
- * Arranque en frio: sin ninguna sesion registrada, la planilla no tiene de donde sacar
- * los grados ni las asignaturas —los deduce de las sesiones existentes—, asi que sin
- * esta pantalla no habria forma de crear la primera. Callejon sin salida clasico del
- * primer dia.
+ * Limpieza de planillas de prueba, para el superusuario.
+ *
+ * Durante el desarrollo se registraron marcas de asistencia inventadas sobre estudiantes
+ * reales, para probar la planilla. Esas marcas no deben quedarse: no por espacio, sino
+ * porque son datos de asistencia FALSOS sobre menores identificables.
+ *
+ * Flujo en dos pasos obligatorios: primero se pide "ver qué se borraría" (no toca nada),
+ * y solo con ese resultado a la vista aparece el botón de borrar de verdad, que además
+ * exige volver a escribir el grado. La asignatura es texto libre A PROPÓSITO: lo que hay
+ * que poder borrar son justo los códigos escritos a mano en las pruebas, que nunca
+ * estuvieron en el catálogo cerrado de asignaturas.
  */
-function PrimeraSesion({
-  puedeRegistrar,
-  onAbrir,
-}: {
-  puedeRegistrar: boolean;
-  onAbrir: (grado: string, subjectId: string, bloque: number) => Promise<void>;
-}) {
+function LimpiezaPlanillas() {
   const [grado, setGrado] = useState('');
   const [asignatura, setAsignatura] = useState('');
-  const [bloque, setBloque] = useState(1);
-  const [enviando, setEnviando] = useState(false);
+  const [resumen, setResumen] = useState<ResumenBorradoCruce | null>(null);
+  const [confirmacion, setConfirmacion] = useState('');
+  const [verificando, setVerificando] = useState(false);
+  const [borrando, setBorrando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
-  if (!puedeRegistrar) {
-    return (
-      <p className="rounded-xl border border-line bg-card p-3 text-sm text-muted">
-        No hay sesiones de clase registradas todavía. Aparecerán aquí cuando los docentes
-        empiecen a pasar lista.
-      </p>
-    );
+  const listoParaVerificar = grado.trim() !== '' && asignatura.trim() !== '';
+
+  async function verVerificacion() {
+    setError(null);
+    setAviso(null);
+    setResumen(null);
+    setVerificando(true);
+    try {
+      const r = await borrarSesionesDeCruce({
+        grado: grado.trim(),
+        subjectId: asignatura.trim(),
+        dryRun: true,
+      });
+      setResumen(r);
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally {
+      setVerificando(false);
+    }
   }
 
-  const listo = grado.trim() !== '' && asignatura.trim() !== '';
+  async function borrarDeVerdad() {
+    setError(null);
+    setBorrando(true);
+    try {
+      const r = await borrarSesionesDeCruce({
+        grado: grado.trim(),
+        subjectId: asignatura.trim(),
+        dryRun: false,
+      });
+      setAviso(`Se borraron ${r.total} ${r.total === 1 ? 'clase registrada' : 'clases registradas'}.`);
+      setGrado('');
+      setAsignatura('');
+      setResumen(null);
+      setConfirmacion('');
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally {
+      setBorrando(false);
+    }
+  }
 
   return (
-    <div className="rounded-xl border border-line bg-card p-3">
-      <h3 className="text-sm font-semibold text-strong">Abrir la primera sesión</h3>
-      <p className="mb-2 text-xs text-muted">
-        Todavía no hay ninguna sesión registrada. Cree la de hoy y la planilla aparecerá
-        con los estudiantes del grupo. Mientras no exista la sesión, ese día no existe
-        para la estadística.
+    <section className="rounded-xl border border-danger-soft bg-danger-soft p-3">
+      <h3 className="text-sm font-semibold text-danger-soft-fg">Limpiar planillas de prueba</h3>
+      <p className="mt-1 text-xs text-danger-soft-fg">
+        Borra únicamente las clases de asistencia registradas para un grado y una materia.
+        <b> No borra estudiantes, ni matrículas, ni fotos</b> — solo las clases de ese
+        grado con esa materia.
       </p>
 
-      <div className="flex flex-wrap items-end gap-2">
+      <div className="mt-2 grid grid-cols-2 gap-2">
         <label className="text-xs text-muted">
           Grado
           <input
             value={grado}
-            onChange={(e) => setGrado(e.target.value)}
+            onChange={(e) => {
+              setGrado(e.target.value);
+              setResumen(null);
+              setAviso(null);
+            }}
             placeholder="11.2"
-            className="mt-0.5 block w-24 rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+            className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-2 text-base text-strong"
           />
         </label>
         <label className="text-xs text-muted">
-          Asignatura
+          Materia (tal como se escribió)
           <input
             value={asignatura}
-            onChange={(e) => setAsignatura(e.target.value.toUpperCase())}
-            placeholder="MAT"
-            className="mt-0.5 block w-28 rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+            onChange={(e) => {
+              setAsignatura(e.target.value);
+              setResumen(null);
+              setAviso(null);
+            }}
+            placeholder="ej. mate11"
+            className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-2 text-base text-strong"
           />
         </label>
-        <label className="text-xs text-muted">
-          Bloque
-          <select
-            value={bloque}
-            onChange={(e) => setBloque(Number(e.target.value))}
-            className="mt-0.5 block rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+      </div>
+
+      <button
+        disabled={!listoParaVerificar || verificando}
+        onClick={() => void verVerificacion()}
+        className="mt-3 min-h-[36px] w-full rounded-lg border border-danger-soft bg-card px-3 py-2 text-sm font-medium text-danger-soft-fg disabled:opacity-50"
+      >
+        {verificando ? 'Consultando…' : 'Ver qué se borraría'}
+      </button>
+
+      {error && <p className="mt-2 text-xs text-danger-soft-fg">{error}</p>}
+      {aviso && <p className="mt-2 text-xs font-semibold text-danger-soft-fg">{aviso}</p>}
+
+      {resumen && resumen.total === 0 && (
+        <p className="mt-2 text-sm text-strong">
+          No hay clases registradas para ese grado y esa materia. No hay nada que borrar.
+        </p>
+      )}
+
+      {resumen && resumen.total > 0 && (
+        <div className="mt-3 rounded-lg border border-danger-soft bg-card p-2">
+          <p className="text-sm text-strong">
+            Hay <b>{resumen.total}</b> {resumen.total === 1 ? 'clase registrada' : 'clases registradas'}
+            {resumen.primera && resumen.ultima && (
+              <>
+                {' '}
+                entre el <b>{resumen.primera}</b> y el <b>{resumen.ultima}</b>
+              </>
+            )}
+            .
+          </p>
+
+          <label className="mt-2 block text-xs text-muted">
+            Para borrar de verdad, escriba el grado tal como lo escribió arriba ({grado}):
+            <input
+              value={confirmacion}
+              onChange={(e) => setConfirmacion(e.target.value)}
+              disabled={borrando}
+              className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-2 text-base text-strong"
+            />
+          </label>
+
+          <button
+            disabled={confirmacion !== grado || borrando}
+            onClick={() => void borrarDeVerdad()}
+            className="mt-2 min-h-[36px] w-full rounded-lg bg-danger px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-50"
           >
-            {[1, 2, 3, 4, 5, 6].map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </select>
-        </label>
+            {borrando ? 'Borrando…' : 'Borrar estas clases definitivamente'}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Respaldo manual: docentes de apoyo o cuya asignación aún no se cargó no aparecen en
+ * "Mis grupos", y sin esta salida se quedarían sin forma de abrir una sesión. La
+ * asignatura ya NO es texto libre — sale del catálogo cerrado `ASIGNATURAS`, que es el
+ * punto de todo este cambio: tres docentes de la misma materia deben producir el MISMO
+ * id, no tres códigos distintos que le parten la estadística al sistema.
+ */
+function FormularioManual({
+  onAbrir,
+  onCerrar,
+}: {
+  onAbrir: (grado: string, subjectId: string, bloque: number) => Promise<void>;
+  onCerrar: () => void;
+}) {
+  const [grado, setGrado] = useState('');
+  const [subjectId, setSubjectId] = useState('');
+  const [bloque, setBloque] = useState(1);
+  const [enviando, setEnviando] = useState(false);
+
+  const listo = grado.trim() !== '' && subjectId !== '';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+      onClick={onCerrar}
+    >
+      <div
+        className="w-full max-w-md rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <h3 className="text-sm font-semibold text-strong">Abrir sesión sin asignación</h3>
+        <p className="mb-2 text-xs text-muted">
+          Solo para cuando el grupo no aparece en "Mis grupos" — cargo de apoyo, o
+          asignación de este periodo aún no cargada.
+        </p>
+
+        <div className="space-y-2">
+          <label className="block text-xs text-muted">
+            Grado
+            <input
+              value={grado}
+              onChange={(e) => setGrado(e.target.value)}
+              placeholder="11.2"
+              className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-2 text-base text-strong"
+            />
+          </label>
+          <label className="block text-xs text-muted">
+            Asignatura
+            <select
+              value={subjectId}
+              onChange={(e) => setSubjectId(e.target.value)}
+              className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-2 text-base text-strong"
+            >
+              <option value="">Seleccione…</option>
+              {ASIGNATURAS.filter((a) => a.id !== 'ci').map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-xs text-muted">
+            Bloque
+            <select
+              value={bloque}
+              onChange={(e) => setBloque(Number(e.target.value))}
+              className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-2 text-base text-strong"
+            >
+              {[1, 2, 3, 4, 5, 6].map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <p className="mt-2 text-xs text-muted">
+          El grado va tal como lo escribe el colegio: <b>11.2</b> en la mañana, <b>6º1</b>{' '}
+          en la tarde. La <b>º</b> es lo que distingue la jornada, así que no la cambie.
+        </p>
+
         <button
           disabled={!listo || enviando}
           onClick={async () => {
             setEnviando(true);
-            await onAbrir(grado.trim(), asignatura.trim(), bloque);
+            await onAbrir(grado.trim(), subjectId, bloque);
             setEnviando(false);
           }}
-          className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-50"
+          className="mt-3 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-50"
         >
           {enviando ? 'Abriendo…' : 'Abrir sesión de hoy'}
         </button>
+        <button onClick={onCerrar} className="mt-2 w-full rounded-lg border border-line p-2 text-sm text-soft">
+          Cancelar
+        </button>
       </div>
+    </div>
+  );
+}
 
-      <p className="mt-2 text-xs text-muted">
-        El grado va tal como lo escribe el colegio: <b>11.2</b> en la mañana, <b>6º1</b> en
-        la tarde. La <b>º</b> es lo que distingue la jornada, así que no la cambie.
-      </p>
+/**
+ * Selector de bloque (1 a 6): reemplaza al `window.prompt` numérico de antes. Sigue el
+ * mismo patrón de hoja modal que `MenuExcusas` en LlegadasTarde.tsx — un botón grande por
+ * opción, sin teclear nada, pensado para usarse de pie y con prisa.
+ */
+function MenuBloque({
+  grado,
+  subjectId,
+  onElegir,
+  onCerrar,
+}: {
+  grado: string;
+  subjectId: string;
+  onElegir: (bloque: number) => void;
+  onCerrar: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+      onClick={onCerrar}
+    >
+      <div
+        className="w-full max-w-md rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <p className="text-center text-lg font-semibold text-strong">{grado}</p>
+        <p className="text-center text-xs text-muted">
+          {getAsignatura(subjectId)?.nombre ?? subjectId} · ¿En qué bloque es la clase de
+          hoy?
+        </p>
+
+        <div className="mt-3 grid grid-cols-3 gap-1.5">
+          {[1, 2, 3, 4, 5, 6].map((b) => (
+            <button
+              key={b}
+              onClick={() => onElegir(b)}
+              className="rounded-lg border border-line p-3 text-center text-lg font-semibold text-strong hover:bg-hover"
+            >
+              {b}
+            </button>
+          ))}
+        </div>
+
+        <button onClick={onCerrar} className="mt-3 w-full rounded-lg border border-line p-2 text-sm text-soft">
+          Cancelar
+        </button>
+      </div>
     </div>
   );
 }

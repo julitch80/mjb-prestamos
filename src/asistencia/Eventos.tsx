@@ -37,6 +37,8 @@ export default function Eventos({
   const [creando, setCreando] = useState(false);
   const [eventoAbierto, setEventoAbierto] = useState<Event | null>(null);
   const [miCorreo, setMiCorreo] = useState<string | null>(null);
+  /** Confirmación de un borrado: la pantalla que lo hizo ya no existe cuando llega. */
+  const [aviso, setAviso] = useState<string | null>(null);
 
   async function cargar() {
     setError(null);
@@ -64,6 +66,11 @@ export default function Eventos({
           setEventoAbierto(null);
           void cargar();
         }}
+        onEliminado={(mensaje) => {
+          setAviso(mensaje);
+          setEventoAbierto(null);
+          void cargar();
+        }}
       />
     );
   }
@@ -87,6 +94,12 @@ export default function Eventos({
         Ferias, centros de interés, salidas: un grupo de estudiantes que no es un curso,
         con su propia planilla por fecha.
       </p>
+
+      {aviso && (
+        <div className="rounded-xl border border-info-soft bg-info-soft p-3 text-sm text-info-soft-fg">
+          {aviso}
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-danger-soft bg-danger-soft p-3 text-sm text-danger-soft-fg">

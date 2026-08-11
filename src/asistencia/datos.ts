@@ -749,6 +749,50 @@ export async function actualizarIntegrantes(eventId: string, miembros: string[])
   await updateDoc(doc(baseDatos(), 'asistenciaEvents', eventId), { miembros });
 }
 
+/**
+ * Elimina el evento y TODAS sus sesiones, de verdad y para siempre.
+ *
+ * Pasa por Cloud Function y no por `deleteDoc` por dos razones que no son de comodidad:
+ * las reglas dicen `allow delete: if false` en todo el modulo —asi ningun error del
+ * cliente puede destruir datos por accidente—, y borrar un documento en Firestore NO
+ * borra su subcoleccion: las sesiones quedarian huerfanas, invisibles pero presentes.
+ * El servidor las borra en cascada y deja constancia en la auditoria.
+ *
+ * Solo el creador. La funcion rechaza a los demas con un mensaje que se puede mostrar.
+ */
+export async function eliminarEvento(eventId: string): Promise<{ sesionesBorradas: number }> {
+  if (!functions) throw new Error('Firebase no está configurado en esta instalación.');
+  const llamar = httpsCallable(functions, 'eliminarEvento');
+  const r = await llamar({ eventId });
+  return r.data as { sesionesBorradas: number };
+}
+
+export interface ResumenBorradoCruce {
+  dryRun: boolean;
+  total: number;
+  primera: string | null;
+  ultima: string | null;
+}
+
+/**
+ * Borra las SESIONES de un cruce grado+asignatura. No toca estudiantes ni matriculas.
+ *
+ * Con `dryRun: true` no borra nada: devuelve cuantas sesiones hay y entre que fechas.
+ * La interfaz DEBE llamar primero asi y enseñar el resultado antes de confirmar — es
+ * irreversible y sobre produccion, y una cifra a la vista es lo unico que distingue
+ * "borre la planilla de prueba" de "borre el periodo entero de un grupo real".
+ */
+export async function borrarSesionesDeCruce(input: {
+  grado: string;
+  subjectId: string;
+  dryRun: boolean;
+}): Promise<ResumenBorradoCruce> {
+  if (!functions) throw new Error('Firebase no está configurado en esta instalación.');
+  const llamar = httpsCallable(functions, 'borrarSesionesDeCruce');
+  const r = await llamar(input);
+  return r.data as ResumenBorradoCruce;
+}
+
 /** Baja logica. Nunca se borra. */
 export async function desactivarEvento(eventId: string): Promise<void> {
   await exigirAutor();

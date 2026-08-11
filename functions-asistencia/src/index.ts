@@ -304,8 +304,9 @@ interface NuevoEstudianteManualPayload {
 // el servicio en "Requiere autenticación" (IAM) en vez de acceso público — la
 // petición del navegador nunca llega al código (que sí exige por dentro estar
 // autenticado), Cloud Run la rechaza antes con un error genérico. Mismo
-// problema y misma causa que en functions/src/index.ts (replaceTeacher),
-// detectado el 10 de agosto de 2026 al desplegar este codebase por primera vez.
+// problema y misma causa que en mjb-prestamos/functions/src/index.ts
+// (replaceTeacher), detectado el 10 de agosto de 2026 al desplegar el
+// codebase asistencia por primera vez en mjb-prestamos.
 export const crearEstudianteManual = onCall(
   { region: REGION, secrets: [DOC_HASH_KEY], cors: true, invoker: 'public' },
   async (request) => {
@@ -373,6 +374,126 @@ export const crearEstudianteManual = onCall(
     return { studentId };
   },
 );
+
+// ---------------------------------------------------------------------------
+//  Borrado — el UNICO camino por el que algo desaparece de verdad
+// ---------------------------------------------------------------------------
+//
+// Las reglas de Firestore dicen `allow delete: if false` en TODAS las colecciones del
+// modulo, y asi se quedan. El borrado vive aqui, en el Admin SDK, por dos razones:
+//
+//  1. Ningun error de programacion en el cliente puede destruir datos por accidente. No
+//     existe un camino desde el navegador que borre; solo existe pedirlo por aqui.
+//  2. Todo borrado queda en `auditLogs` con quien lo hizo, cuando y cuanto borro. Un
+//     `allow delete` en las reglas no deja rastro de nada.
+
+/**
+ * Elimina un evento y TODAS sus sesiones.
+ *
+ * `recursiveDelete` no es un lujo: en Firestore borrar un documento NO borra sus
+ * subcolecciones. Sin esto, las sesiones del evento quedarian huerfanas —invisibles en
+ * la interfaz, pero presentes en la base de datos y accesibles por ruta directa—, que es
+ * justo lo contrario de lo que pide quien borra un evento con datos de menores.
+ *
+ * Solo el CREADOR. Un evento se comparte para registrar, no para destruir: si cualquiera
+ * de la lista pudiera borrarlo, el trabajo de todos dependeria del peor criterio del
+ * grupo. Es la misma logica del candado que impide cambiar la lista de docentes.
+ */
+// `invoker: 'public'` es OBLIGATORIO en funciones nuevas: ver la nota junto a
+// crearEstudianteManual mas arriba. Sin esto, la primera vez que se despliega
+// esta funcion Cloud Run la deja en "Requiere autenticacion" (IAM) y el
+// navegador nunca llega al codigo.
+export const eliminarEvento = onCall({ region: REGION, cors: true, invoker: 'public' }, async (request) => {
+  const email = await requireRole(request.auth, ['docente', 'coordinador', 'superusuario']);
+  const { eventId } = request.data as { eventId: string };
+  if (!eventId) throw new HttpsError('invalid-argument', 'Falta el evento.');
+
+  const ref = db.doc(`asistenciaEvents/${eventId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Ese evento ya no existe.');
+
+  const evento = snap.data()!;
+  if (evento.creadoPor !== email) {
+    throw new HttpsError(
+      'permission-denied',
+      'Solo quien creó el evento puede eliminarlo. Puede pedirle que lo haga, o salirse de la lista.',
+    );
+  }
+
+  // Se cuenta ANTES de borrar: despues no hay a que preguntarle, y el registro de
+  // auditoria sin la magnitud de lo borrado no sirve para reconstruir que paso.
+  const sesiones = await ref.collection('sesiones').count().get();
+
+  await db.recursiveDelete(ref);
+  await audit({
+    action: 'eliminarEvento',
+    executedBy: email,
+    eventId,
+    nombre: evento.nombre ?? null,
+    sesionesBorradas: sesiones.data().count,
+    integrantes: (evento.miembros as string[] | undefined)?.length ?? 0,
+    status: 'ok',
+  });
+  return { sesionesBorradas: sesiones.data().count };
+});
+
+/**
+ * Borra las SESIONES de un cruce grado+asignatura. No toca estudiantes ni matriculas.
+ *
+ * Para que existe: durante el desarrollo se registraron planillas de prueba sobre
+ * estudiantes reales. Esas marcas son falsas y no deben quedarse — no por espacio, sino
+ * porque son datos de asistencia inventados sobre menores identificables.
+ *
+ * NO borra el grupo. Un grupo no es un objeto que se pueda borrar: es el conjunto de
+ * estudiantes matriculados, y esas fichas son reales. Ademas volverian en la siguiente
+ * importacion de Master2000, asi que borrarlas no lograria nada y perderia las fotos.
+ *
+ * `dryRun` es obligatorio en la practica: la interfaz debe llamar primero sin borrar,
+ * enseñar cuantas sesiones y de que fechas, y solo entonces confirmar. Es una operacion
+ * irreversible sobre produccion y no se lanza a ciegas.
+ */
+// `invoker: 'public'` es OBLIGATORIO en funciones nuevas: misma razon que en
+// eliminarEvento, arriba.
+export const borrarSesionesDeCruce = onCall({ region: REGION, cors: true, invoker: 'public' }, async (request) => {
+  const email = await requireRole(request.auth, ['superusuario']);
+  const { grado, subjectId, dryRun } = request.data as {
+    grado: string;
+    subjectId: string;
+    dryRun: boolean;
+  };
+  if (!grado || !subjectId) {
+    throw new HttpsError('invalid-argument', 'Hacen falta el grado y la asignatura.');
+  }
+
+  const encontradas = await db
+    .collection('asistenciaSessions')
+    .where('grado', '==', grado)
+    .where('subjectId', '==', subjectId)
+    .get();
+
+  const fechas = encontradas.docs.map((d) => d.data().fecha as string).sort();
+  const resumen = {
+    total: encontradas.size,
+    primera: fechas[0] ?? null,
+    ultima: fechas[fechas.length - 1] ?? null,
+  };
+
+  if (dryRun) return { dryRun: true, ...resumen };
+
+  // Una por una con recursiveDelete y no un batch: cada sesion arrastra su subcoleccion
+  // `historial`, que un `batch.delete()` dejaria huerfana.
+  for (const d of encontradas.docs) await db.recursiveDelete(d.ref);
+
+  await audit({
+    action: 'borrarSesionesDeCruce',
+    executedBy: email,
+    grado,
+    subjectId,
+    ...resumen,
+    status: 'ok',
+  });
+  return { dryRun: false, ...resumen };
+});
 
 // ---------------------------------------------------------------------------
 //  Rotacion anual de tokens QR (el studentId NO cambia: el historico se conserva)

@@ -7,6 +7,7 @@ import {
   abrirSesionEvento,
   buscarPorQrToken,
   compartirEvento,
+  eliminarEvento,
   leerEstudiantesDeSede,
   leerSesionesEvento,
   marcarEnEvento,
@@ -33,6 +34,7 @@ export default function PlanillaEvento({
   miCorreo,
   puedeRegistrar,
   onVolver,
+  onEliminado,
 }: {
   evento: Event;
   miCorreo: string;
@@ -43,6 +45,8 @@ export default function PlanillaEvento({
    */
   puedeRegistrar: boolean;
   onVolver: () => void;
+  /** Se eliminó el evento: esta pantalla ya no existe, el aviso lo da la lista. */
+  onEliminado: (mensaje: string) => void;
 }) {
   const [pestana, setPestana] = useState<Pestana>('registro');
   const [fecha, setFecha] = useState(toDateKey(new Date()));
@@ -282,13 +286,16 @@ export default function PlanillaEvento({
       {pestana === 'estadisticas' && <EstadisticasEvento miembros={miembros} sesiones={sesiones} />}
 
       {pestana === 'compartir' && evento.creadoPor === miCorreo && (
-        <CompartirEvento
-          eventId={evento.eventId}
-          docentesIniciales={evento.docentes}
-          creadoPor={evento.creadoPor}
-          onAviso={setAviso}
-          onError={setError}
-        />
+        <div className="space-y-4">
+          <CompartirEvento
+            eventId={evento.eventId}
+            docentesIniciales={evento.docentes}
+            creadoPor={evento.creadoPor}
+            onAviso={setAviso}
+            onError={setError}
+          />
+          <ZonaEliminarEvento evento={evento} onError={setError} onEliminado={onEliminado} />
+        </div>
       )}
 
       {escaneando && <EscanerQr onLeer={(t) => void leerQr(t)} onCerrar={() => setEscaneando(false)} />}
@@ -537,6 +544,138 @@ function CompartirEvento({
       >
         {guardando ? 'Guardando…' : 'Guardar cambios'}
       </button>
+    </div>
+  );
+}
+
+/**
+ * Borrado del evento. Separada visualmente de "Compartir" con los tokens de peligro:
+ * es la unica accion de esta pantalla que no se puede deshacer.
+ *
+ * El boton abre una hoja aparte en vez de un `window.confirm`: un confirm se acepta por
+ * reflejo, y esto se lleva por delante todas las sesiones registradas del evento.
+ */
+function ZonaEliminarEvento({
+  evento,
+  onError,
+  onEliminado,
+}: {
+  evento: Event;
+  onError: (m: string) => void;
+  /**
+   * Se avisa hacia ARRIBA en vez de con un `window.alert`: esta pantalla desaparece justo
+   * despues de borrar, asi que el mensaje tiene que sobrevivirla y salir en la lista de
+   * eventos. Y el resto del modulo avisa con bandas dentro de la pagina, no con dialogos
+   * del navegador, que en el movil tapan todo y se cierran de un toque sin leerse.
+   */
+  onEliminado: (mensaje: string) => void;
+}) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
+
+  async function confirmarBorrado() {
+    setEliminando(true);
+    try {
+      const { sesionesBorradas } = await eliminarEvento(evento.eventId);
+      onEliminado(
+        `Se eliminó «${evento.nombre}» y ${sesionesBorradas} ${
+          sesionesBorradas === 1 ? 'sesión registrada' : 'sesiones registradas'
+        }.`,
+      );
+    } catch (e) {
+      // El mensaje ya viene redactado para una persona (por ejemplo, cuando quien pulsa
+      // no es el creador): se muestra tal cual, sin reformular.
+      onError((e as Error).message);
+      setConfirmando(false);
+      setEliminando(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-danger-soft bg-danger-soft p-3">
+      <p className="text-sm font-semibold text-danger-soft-fg">Zona de eliminación</p>
+      <p className="mt-1 text-xs text-danger-soft-fg">
+        Elimina el evento completo y todas sus sesiones registradas. No se puede deshacer.
+      </p>
+      <button
+        onClick={() => setConfirmando(true)}
+        className="mt-3 min-h-[36px] w-full rounded-lg border border-danger-soft bg-card px-3 py-2 text-sm font-medium text-danger-soft-fg"
+      >
+        Eliminar este evento
+      </button>
+
+      {confirmando && (
+        <ConfirmarEliminarEvento
+          evento={evento}
+          eliminando={eliminando}
+          onConfirmar={() => void confirmarBorrado()}
+          onCerrar={() => setConfirmando(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Exige escribir el nombre exacto del evento para habilitar el botón: un clic aceptado
+ * por reflejo no debería poder borrar datos de asistencia de menores.
+ */
+function ConfirmarEliminarEvento({
+  evento,
+  eliminando,
+  onConfirmar,
+  onCerrar,
+}: {
+  evento: Event;
+  eliminando: boolean;
+  onConfirmar: () => void;
+  onCerrar: () => void;
+}) {
+  const [texto, setTexto] = useState('');
+  const habilitado = texto === evento.nombre;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+      onClick={eliminando ? undefined : onCerrar}
+    >
+      <div
+        className="w-full max-w-md rounded-t-2xl border border-danger-soft bg-card p-4 sm:rounded-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <p className="text-lg font-semibold text-danger-soft-fg">Eliminar «{evento.nombre}»</p>
+        <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-strong">
+          <li>{evento.miembros.length} integrantes perderán su registro en este evento.</li>
+          <li>Se borrarán TODAS las sesiones de asistencia ya registradas.</li>
+          <li>Esta acción no se puede deshacer.</li>
+        </ul>
+
+        <label className="mt-3 block text-xs text-muted">
+          Para confirmar, escriba el nombre del evento tal como aparece arriba:
+          <input
+            value={texto}
+            onChange={(ev) => setTexto(ev.target.value)}
+            placeholder={evento.nombre}
+            disabled={eliminando}
+            className="mt-1 block w-full rounded-lg border border-line bg-elevated px-2 py-2 text-base text-strong"
+          />
+        </label>
+
+        <button
+          disabled={!habilitado || eliminando}
+          onClick={onConfirmar}
+          className="mt-3 min-h-[36px] w-full rounded-lg bg-danger px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-50"
+        >
+          {eliminando ? 'Eliminando…' : 'Eliminar definitivamente'}
+        </button>
+        <button
+          disabled={eliminando}
+          onClick={onCerrar}
+          className="mt-2 w-full rounded-lg border border-line p-2 text-sm text-soft disabled:opacity-50"
+        >
+          Cancelar
+        </button>
+      </div>
     </div>
   );
 }
