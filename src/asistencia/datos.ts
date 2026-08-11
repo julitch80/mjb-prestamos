@@ -36,7 +36,16 @@ import { httpsCallable } from 'firebase/functions';
 import { db, esperarAuth, functions } from '../lib/firebase';
 import { sessionId as construirSessionId } from './domain/ids';
 import type { MarkCode } from './domain/marks';
-import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './domain/types';
+import type {
+  AlertConfig,
+  Enrollment,
+  Event,
+  EventMemberSource,
+  EventSession,
+  LateArrival,
+  Session,
+  Student,
+} from './domain/types';
 import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
 import { exigirAutor } from './identidad';
 
@@ -657,5 +666,193 @@ export async function cerrarSesion(sessionIdDoc: string): Promise<void> {
     ultimaEscrituraPor: autor,
     ultimaEscrituraEn: serverTimestamp(),
   });
+}
+
+// ---------- Eventos: grupos temporales ----------
+//
+// A diferencia del resto del modulo, aqui la autoridad es la lista `docentes` del propio
+// evento, no el puesto (`slotId`) ni la sede. Ver rules/asistencia.rules, "Eventos: grupos
+// temporales", para el porque.
+
+/**
+ * Eventos en los que participa el usuario.
+ *
+ * La regla solo permite leer si `callerEmail() in resource.data.docentes`, asi que el
+ * filtro `array-contains` es OBLIGATORIO: sin el, Firestore rechaza la consulta entera
+ * con permission-denied, no devuelve vacio.
+ *
+ * Se ordena por `desde` descendente EN MEMORIA, no en la consulta: pedirle a Firestore
+ * que ordene exigiria un indice compuesto (array-contains + orderBy), y un indice que
+ * falta no devuelve vacio — revienta la consulta con un error que parece de permisos. Ya
+ * nos costo una tarde en este proyecto con `buscarPorQrToken`.
+ */
+export async function leerMisEventos(): Promise<Event[]> {
+  if (!(await listo())) return [];
+  const correo = await exigirAutor();
+  const eventos = aLista<Event>(
+    await getDocs(
+      query(collection(baseDatos(), 'asistenciaEvents'), where('docentes', 'array-contains', correo)),
+    ),
+  );
+  return eventos.sort((a, b) => (a.desde < b.desde ? 1 : a.desde > b.desde ? -1 : 0));
+}
+
+/** Crea un evento nuevo. El creador queda dentro de `docentes`: la regla lo exige. */
+export async function crearEvento(input: {
+  nombre: string;
+  sede: string;
+  desde: string;
+  hasta: string;
+  miembros: string[];
+  origenMiembros: EventMemberSource;
+}): Promise<Event> {
+  const autor = await exigirAutor();
+  const ref = doc(collection(baseDatos(), 'asistenciaEvents'));
+  const nuevo = {
+    eventId: ref.id,
+    nombre: input.nombre,
+    sede: input.sede,
+    desde: input.desde,
+    hasta: input.hasta,
+    creadoPor: autor,
+    docentes: [autor],
+    miembros: input.miembros,
+    origenMiembros: input.origenMiembros,
+    creadoEn: serverTimestamp(),
+    activo: true,
+  };
+  await setDoc(ref, nuevo);
+  return { ...nuevo, creadoEn: Date.now() } as Event;
+}
+
+/**
+ * Comparte el evento. Solo el creador puede: la regla lo impone
+ * (`callerEmail() == resource.data.creadoPor` es la unica via para cambiar `docentes`).
+ *
+ * Recibe la lista COMPLETA, no un correo a añadir, porque tambien sirve para quitar a
+ * alguien. Normaliza a minusculas y deduplica porque la identidad del modulo es el
+ * correo en minusculas; y la regla exige que el creador siga dentro de la lista.
+ */
+export async function compartirEvento(eventId: string, correos: string[]): Promise<void> {
+  const autor = await exigirAutor();
+  const normalizados = [...new Set(correos.map((c) => c.trim().toLowerCase()))];
+  if (!normalizados.includes(autor)) normalizados.push(autor);
+  await updateDoc(doc(baseDatos(), 'asistenciaEvents', eventId), { docentes: normalizados });
+}
+
+/**
+ * Refresca la foto fija de integrantes. Accion manual y explicita: `miembros` no se
+ * recalcula solo, ver el comentario en `domain/types.ts` sobre por que es una foto fija.
+ */
+export async function actualizarIntegrantes(eventId: string, miembros: string[]): Promise<void> {
+  await exigirAutor();
+  await updateDoc(doc(baseDatos(), 'asistenciaEvents', eventId), { miembros });
+}
+
+/** Baja logica. Nunca se borra. */
+export async function desactivarEvento(eventId: string): Promise<void> {
+  await exigirAutor();
+  await updateDoc(doc(baseDatos(), 'asistenciaEvents', eventId), { activo: false });
+}
+
+/**
+ * Sesiones de un evento. Sin filtro extra: la regla las hace legibles por estar dentro de
+ * la ruta del evento (`asisEnEvento(eventId)` mira al documento padre, no a un campo
+ * propio de la sesion), asi que la consulta es demostrable sin `where` ni indice.
+ */
+export async function leerSesionesEvento(eventId: string): Promise<EventSession[]> {
+  if (!(await listo())) return [];
+  return aLista<EventSession>(
+    await getDocs(collection(baseDatos(), 'asistenciaEvents', eventId, 'sesiones')),
+  );
+}
+
+/**
+ * Abre la sesion del evento para una fecha, o devuelve la existente. El id es la propia
+ * `fecha`, determinista, igual que en `abrirSesion`.
+ *
+ * Se escribe DIRECTO, sin comprobar antes si existe. Aqui un getDoc previo si seria
+ * seguro —la regla mira al evento padre, no a campos del propio documento, asi que no
+ * revienta sobre un documento inexistente como le pasaba a `abrirSesion`—, pero seria una
+ * lectura de mas en cada apertura para no averiguar nada: el id es determinista, asi que
+ * si dos docentes del evento abren la misma fecha a la vez es el MISMO documento.
+ *
+ * Si la escritura falla, ENTONCES se lee, para distinguir "ya existia" (se reutiliza) de
+ * "no tiene permiso" (se propaga el error original, que es el bueno).
+ */
+export async function abrirSesionEvento(eventId: string, fecha: string): Promise<EventSession> {
+  const autor = await exigirAutor();
+  const ref = doc(baseDatos(), 'asistenciaEvents', eventId, 'sesiones', fecha);
+
+  const nueva = {
+    eventId,
+    fecha,
+    estudiantes: {},
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  };
+
+  try {
+    await setDoc(ref, nueva);
+  } catch (e) {
+    const otra = await getDoc(ref).catch(() => null);
+    if (otra?.exists()) return otra.data() as EventSession;
+    throw e;
+  }
+  return { ...nueva, ultimaEscrituraEn: Date.now() } as EventSession;
+}
+
+/**
+ * Marca a UN estudiante en la sesion del evento. Mismo patron que `marcarEstudiante`:
+ * rutas de campo puntuales para que dos docentes que comparten el evento no se pisen, y
+ * la autoria original (`registradoPor`/`registradoEn`) es inmutable una vez puesta.
+ */
+export async function marcarEnEvento(
+  eventId: string,
+  fecha: string,
+  studentId: string,
+  estado: MarkCode,
+): Promise<void> {
+  const autor = await exigirAutor();
+  const ref = doc(baseDatos(), 'asistenciaEvents', eventId, 'sesiones', fecha);
+  const base = `estudiantes.${studentId}`;
+
+  const previo = await getDoc(ref);
+  const yaTenia = Boolean(previo.exists() && (previo.data().estudiantes ?? {})[studentId]);
+
+  const cambios: Record<string, unknown> = {
+    [`${base}.estado`]: estado,
+    [`${base}.motivo`]: null,
+    [`${base}.observacion`]: null,
+    // La regla exige `asisAuthorStamp()`, que valida estos dos campos en toda escritura.
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  };
+
+  if (yaTenia) {
+    cambios[`${base}.modificadoPor`] = autor;
+    cambios[`${base}.modificadoEn`] = serverTimestamp();
+  } else {
+    cambios[`${base}.registradoPor`] = autor;
+    cambios[`${base}.registradoEn`] = serverTimestamp();
+    cambios[`${base}.modificadoPor`] = null;
+    cambios[`${base}.modificadoEn`] = null;
+  }
+
+  await updateDoc(ref, cambios);
+}
+
+/**
+ * Universo de estudiantes de una sede, para armar los integrantes de un evento. Es el
+ * `candidatos` que consume `resolverIntegrantes` de `domain/eventos.ts`.
+ *
+ * Solo activos: uno dado de baja no debe poder elegirse en un evento nuevo.
+ */
+export async function leerEstudiantesDeSede(sede: string): Promise<Student[]> {
+  if (!(await listo())) return [];
+  const todos = aLista<Student>(
+    await getDocs(query(collection(baseDatos(), 'asistenciaStudents'), where('sede', '==', sede))),
+  );
+  return todos.filter((e) => e.activo);
 }
 

@@ -436,6 +436,95 @@ service cloud.firestore {
         || (docId == 'umbralesPorDocente' && asisCanRecord());
     }
 
+    // ---------- Eventos: grupos temporales ----------
+    //
+    // Una feria, un centro de interes, una salida: un conjunto de estudiantes que NO es un
+    // curso, con su propia planilla por fecha. Existe para no tener que construir un modulo
+    // nuevo por cada actividad especial del colegio.
+    //
+    // La autoridad aqui NO se parece a la del resto del modulo, y es a proposito (requisito
+    // de Julian, 2026-08-11): un evento lo ve y lo registra UNICAMENTE la lista de docentes
+    // con quienes se compartio. Ni el coordinador ni la rectora ni el superusuario entran,
+    // aunque en las sesiones de clase si lo hagan.
+    //
+    // ⚠️ CONSECUENCIA QUE HAY QUE CONFIRMAR CON JULIAN: nadie de coordinacion puede auditar
+    // lo que se registra en un evento. Para asistencia de clase eso seria inaceptable —son
+    // datos de menores—, pero un evento es una lista de participacion, no el registro
+    // oficial. Si algun dia se decide que coordinacion debe poder consultar, se anade
+    // `|| asisCoordinaSede(resource.data.sede)` a la lectura y nada mas.
+    //
+    // El evento es la unica fuente de verdad de quien puede entrar. La lista NO se copia a
+    // las sesiones: si se copiara, compartir el evento obligaria a reescribir todas las
+    // sesiones ya existentes, y un fallo a mitad de camino dejaria a alguien con acceso a
+    // unas fechas y no a otras.
+    function asisEventoDe(eventId) {
+      return get(/databases/$(database)/documents/asistenciaEvents/$(eventId)).data;
+    }
+    function asisEnEvento(eventId) {
+      return isActiveUser() && callerEmail() in asisEventoDe(eventId).docentes;
+    }
+
+    match /asistenciaEvents/{eventId} {
+
+      // OJO EN EL CLIENTE: la consulta DEBE ir con
+      // where('docentes','array-contains', <su correo>). Firestore rechaza la consulta
+      // entera si no puede probar de antemano que todo el resultado sera legible; sin ese
+      // filtro falla con permission-denied aunque tuviera derecho a cada documento.
+      allow read: if isActiveUser() && callerEmail() in resource.data.docentes;
+
+      // Cualquier docente que pueda registrar puede crear un evento (requisito explicito:
+      // no se limita al superusuario ni a coordinacion). Quedan fuera el superusuario y la
+      // rectora, por las mismas razones que en las sesiones de clase.
+      //
+      // Se exige que el creador quede dentro de `docentes` para que no pueda fabricar un
+      // evento al que el mismo no tenga acceso — un documento invisible para todos, que
+      // nadie podria corregir ni dar de baja despues.
+      allow create: if asisCanRecord()
+        && request.resource.data.creadoPor == callerEmail()
+        && callerEmail() in request.resource.data.docentes
+        && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
+        && request.resource.data.desde <= request.resource.data.hasta;
+
+      // Editar el evento: cualquiera de sus docentes. Con dos candados:
+      //
+      //  1. La autoria original es inmutable. Documenta un hecho ocurrido.
+      //  2. La lista de docentes SOLO la cambia el creador, y no puede sacarse a si mismo.
+      //     Sin esto, alguien con quien se compartio el evento podria expulsar al resto y
+      //     quedarse con el — incluido el creador, que perderia el acceso a algo suyo.
+      allow update: if isActiveUser()
+        && callerEmail() in resource.data.docentes
+        && request.resource.data.creadoPor == resource.data.creadoPor
+        && resource.data.creadoPor in request.resource.data.docentes
+        && (
+          callerEmail() == resource.data.creadoPor
+          || request.resource.data.docentes == resource.data.docentes
+        );
+
+      allow delete: if false;   // baja logica con activo:false, como en todo el modulo
+
+      // Las sesiones van como SUBCOLECCION, no sueltas. La razon es de demostrabilidad:
+      // aqui el `eventId` viene en la RUTA, asi que la regla puede ir a buscar la lista de
+      // docentes al documento padre sin mirar ningun campo del propio documento. Eso hace
+      // que la consulta sea demostrable sin filtros extra y sin indice compuesto.
+      //
+      // Sueltas en una coleccion propia, la regla tendria que leer `resource.data.eventId`,
+      // y entonces Firestore exigiria que la consulta filtrara por ese campo... y aun asi no
+      // podria resolver el get() del padre. Habria obligado a duplicar la lista de docentes
+      // en cada sesion.
+      match /sesiones/{fecha} {
+        allow read: if asisEnEvento(eventId);
+
+        // Se escribe con rutas de campo puntuales (`estudiantes.est_0412.estado`), igual que
+        // las sesiones de clase: varios docentes comparten el evento y pueden estar marcando
+        // a la vez. Reemplazar el mapa completo borraria el trabajo del otro.
+        allow create, update: if asisEnEvento(eventId)
+          && asisCanRecord()
+          && asisAuthorStamp();
+
+        allow delete: if false;
+      }
+    }
+
     // ---------- Tokens QR ----------
     // El token es la unica carga util del QR: una cadena opaca sin datos personales.
     match /asistenciaQrTokens/{token} {

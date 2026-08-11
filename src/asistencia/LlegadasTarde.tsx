@@ -11,8 +11,8 @@ import {
   registrarLlegadaTarde,
   resolverLlegadaTarde,
 } from './datos';
-import Avatar from './Avatar';
 import EscanerQr from './EscanerQr';
+import VerificacionFoto from './VerificacionFoto';
 import { addDays, jornadaDeGrado, toDateKey } from './domain/ids';
 import { bloqueDeHora } from './domain/bloques';
 import { nombreCompleto } from './domain/nombres';
@@ -353,59 +353,40 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
         {candidatos.length > 0 && (
           <ul className="mt-2 space-y-1">
             {candidatos.map((e) => (
-              <li
+              <VerificacionFoto
                 key={e.studentId}
-                className="flex flex-wrap items-center gap-2 rounded-lg border border-line p-2"
-              >
-                {/*
-                  LA FOTO NO ES DECORACION: es el unico control de identidad que hay aqui.
-                  Quien registra no siempre conoce al estudiante —a veces es un auxiliar a
-                  quien coordinacion le delego la tarea—, y sin la cara basta con dar el
-                  nombre de otro para que la llegada tarde le quede al companero. Es un
-                  fraude facil, silencioso y que perjudica a un tercero.
-
-                  Por eso va grande (56 px) y ANTES del nombre: se ve primero la cara y
-                  despues se lee, que es el orden en que uno reconoce a alguien.
-                */}
-                <Avatar estudiante={e} tamano={56} />
-                <span className="grow text-sm">
-                  <b className="block text-strong">{nombreCompleto(e)}</b>
-                  <span className="text-xs text-muted">{e.gradoActual}</span>
-                  {(() => {
-                    const paso = pasoLlegadasTarde(conteoAnual[e.studentId] ?? 0, config);
-                    return (
-                      paso && (
-                        <span
-                          className="mt-0.5 inline-block rounded-full border px-1.5 py-0.5 text-[0.65rem] font-semibold"
-                          style={estiloAlerta(paso.color)}
-                        >
-                          {paso.mensaje}
-                        </span>
-                      )
-                    );
-                  })()}
-                  {!e.fotoPath && (
-                    // Sin foto cargada no hay verificacion posible. Decirlo, en vez de
-                    // mostrar unas iniciales que aparentan una comprobacion que no existe.
-                    <span className="block text-[0.65rem] text-warning-soft-fg">
-                      Sin fotografía: no se puede verificar la identidad
-                    </span>
-                  )}
-                </span>
-                <button
-                  onClick={() => void registrar(e, false)}
-                  className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-fg"
-                >
-                  Registrar
-                </button>
-                <button
-                  onClick={() => void registrar(e, true)}
-                  className="rounded-lg border border-line px-3 py-2 text-sm text-strong"
-                  title="Dice tener excusa pero no la trae: queda pendiente de verificar con el acudiente"
-                >
-                  Dice traer excusa
-                </button>
-              </li>
+                estudiante={e}
+                extra={(() => {
+                  const paso = pasoLlegadasTarde(conteoAnual[e.studentId] ?? 0, config);
+                  return (
+                    paso && (
+                      <span
+                        className="mt-0.5 inline-block rounded-full border px-1.5 py-0.5 text-[0.65rem] font-semibold"
+                        style={estiloAlerta(paso.color)}
+                      >
+                        {paso.mensaje}
+                      </span>
+                    )
+                  );
+                })()}
+                acciones={
+                  <>
+                    <button
+                      onClick={() => void registrar(e, false)}
+                      className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-fg"
+                    >
+                      Registrar
+                    </button>
+                    <button
+                      onClick={() => void registrar(e, true)}
+                      className="rounded-lg border border-line px-3 py-2 text-sm text-strong"
+                      title="Dice tener excusa pero no la trae: queda pendiente de verificar con el acudiente"
+                    >
+                      Dice traer excusa
+                    </button>
+                  </>
+                }
+              />
             ))}
           </ul>
         )}

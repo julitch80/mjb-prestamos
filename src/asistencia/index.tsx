@@ -17,6 +17,7 @@ import Ficha from './Ficha';
 import PanelEstudiante from './PanelEstudiante';
 import TerceraHora from './TerceraHora';
 import LlegadasTarde from './LlegadasTarde';
+import Eventos from './Eventos';
 import {
   abrirSesion,
   buscarEstudiantes,
@@ -41,6 +42,13 @@ import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './d
 import { firebaseConfigurado } from '../lib/firebase';
 import { useAppStore } from '../data/store';
 import { estiloEtiqueta, guardarColor, leerMapa, resolverColor, type MapaColores } from './domain/colores';
+
+/**
+ * Navegacion interna del modulo. `eventos` esta disponible para cualquier rol que llegue
+ * hasta aqui (coordinador o docente) porque cualquier docente puede crear un evento; las
+ * otras tres pestanas quedan filtradas por rol dentro de `Pestanas`.
+ */
+type VistaAsistencia = 'planilla' | 'tercera_hora' | 'llegadas' | 'eventos';
 
 /**
  * Componente raiz del modulo de asistencia. ESTE es el punto de pegado.
@@ -92,7 +100,7 @@ export default function Asistencia() {
   /** Navegacion interna: por estado, nunca por URL (contrato, seccion 6). */
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
   const [directores, setDirectores] = useState<Record<string, string>>({});
-  const [vista, setVista] = useState<'planilla' | 'tercera_hora' | 'llegadas'>('planilla');
+  const [vista, setVista] = useState<VistaAsistencia>('planilla');
 
   /** Panel de estadísticas de un estudiante (pastilla de la columna "Faltas"). */
   const [panelAbierto, setPanelAbierto] = useState<string | null>(null);
@@ -375,7 +383,7 @@ export default function Asistencia() {
   if (rol === 'coordinador' && vista === 'tercera_hora') {
     return (
       <div className="space-y-3">
-        <Pestanas vista={vista} onCambiar={setVista} />
+        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
         <TerceraHora sede={sede} />
       </div>
     );
@@ -385,15 +393,29 @@ export default function Asistencia() {
   if (rol === 'coordinador' && vista === 'llegadas') {
     return (
       <div className="space-y-3">
-        <Pestanas vista={vista} onCambiar={setVista} />
+        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
         <LlegadasTarde sede={sede} />
+      </div>
+    );
+  }
+
+  // Eventos es para cualquier docente, no solo coordinacion: por eso NO va detras de un
+  // `rol === 'coordinador'` como las dos pestanas anteriores.
+  if (vista === 'eventos') {
+    return (
+      <div className="space-y-3">
+        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
+        {/* La rectora consulta pero no registra: puede entrar a un evento que le hayan
+            compartido, pero no crearlo ni marcar. El servidor ya lo impide
+            (`asisCanRecord`); esto solo evita ofrecerle botones que fallarian. */}
+        <Eventos sede={sede} puedeRegistrar={puedeRegistrar} />
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      {rol === 'coordinador' && <Pestanas vista={vista} onCambiar={setVista} />}
+      <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
 
       {/* Va ANTES del error y siempre visible: cuando se simula a otra persona, casi
           cualquier fallo de permisos de este modulo se explica por aqui, y el mensaje
@@ -677,9 +699,13 @@ function PrimeraSesion({
 function Pestanas({
   vista,
   onCambiar,
+  rol,
 }: {
-  vista: 'planilla' | 'tercera_hora' | 'llegadas';
-  onCambiar: (v: 'planilla' | 'tercera_hora' | 'llegadas') => void;
+  vista: VistaAsistencia;
+  onCambiar: (v: VistaAsistencia) => void;
+  /** "Tercera hora" y "Llegadas tarde" son autoridad exclusiva del coordinador; el resto
+   * de roles que llegan hasta aqui (docente) solo ven Planillas y Eventos. */
+  rol: string | null;
 }) {
   const clase = (activa: boolean) =>
     [
@@ -693,14 +719,21 @@ function Pestanas({
       <button className={clase(vista === 'planilla')} onClick={() => onCambiar('planilla')}>
         Planillas
       </button>
-      <button
-        className={clase(vista === 'tercera_hora')}
-        onClick={() => onCambiar('tercera_hora')}
-      >
-        Reporte de tercera hora
-      </button>
-      <button className={clase(vista === 'llegadas')} onClick={() => onCambiar('llegadas')}>
-        Llegadas tarde
+      {rol === 'coordinador' && (
+        <>
+          <button
+            className={clase(vista === 'tercera_hora')}
+            onClick={() => onCambiar('tercera_hora')}
+          >
+            Reporte de tercera hora
+          </button>
+          <button className={clase(vista === 'llegadas')} onClick={() => onCambiar('llegadas')}>
+            Llegadas tarde
+          </button>
+        </>
+      )}
+      <button className={clase(vista === 'eventos')} onClick={() => onCambiar('eventos')}>
+        Eventos
       </button>
     </div>
   );

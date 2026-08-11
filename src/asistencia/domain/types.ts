@@ -235,3 +235,56 @@ export interface AlertConfig {
    *  alertan al coordinador para verificar con la familia. */
   diasSinAsistir: number;
 }
+
+// ---------------------------------------------------------------------------
+//  Eventos — grupos temporales (feria, centro de interes, salida), asistencia
+//  totalmente independiente de la asistencia por asignatura.
+// ---------------------------------------------------------------------------
+
+/** Como se armo el conjunto de integrantes. Se guarda para poder auditar y reconstruir. */
+export interface EventMemberSource {
+  grados: string[];        // grados literales completos
+  jornadas: Jornada[];     // jornadas enteras
+  individuales: string[];  // studentIds sueltos
+}
+
+export interface Event {
+  eventId: string;
+  nombre: string;
+  sede: Sede;
+  desde: string;           // 'YYYY-MM-DD' inclusivo
+  hasta: string;           // 'YYYY-MM-DD' inclusivo
+  creadoPor: string;       // correo en minusculas
+  /**
+   * Guarda CORREOS, no `slotId`. En el resto del modulo los docentes se referencian por
+   * puesto porque los horarios son del puesto, no de la persona (un docente puede
+   * cambiar y el horario sigue). Compartir un evento es distinto: es un acto entre
+   * personas concretas, y la unica identidad que las reglas de Firestore pueden
+   * garantizar en la escritura es `callerEmail()`, no un `slotId` inventado para algo
+   * que no tiene puesto.
+   *
+   * SIEMPRE incluye al creador: las reglas lo exigen al crear y al compartir, para que
+   * nadie pueda fabricar —ni quedarse con— un evento al que su autor no tenga acceso.
+   */
+  docentes: string[];
+  /**
+   * FOTO FIJA resuelta al crear el evento, no una consulta viva. Si "11.2 completo"
+   * fuera dinamico, un estudiante matriculado en octubre apareceria retroactivamente en
+   * las sesiones de agosto y la estadistica cambiaria sola, sin que nadie la haya
+   * tocado. Por eso `miembros` se congela al crear y solo se mueve con la accion manual
+   * de "actualizar integrantes", cuando alguien decide explicitamente refrescarla.
+   */
+  miembros: string[];      // studentIds ya resueltos (foto fija, ver comentario)
+  origenMiembros: EventMemberSource;
+  creadoEn: number;
+  activo: boolean;
+}
+
+/** Una sesion del evento. Subcoleccion `asistenciaEvents/{eventId}/sesiones/{fecha}`. */
+export interface EventSession {
+  eventId: string;
+  fecha: string;
+  estudiantes: Record<string, StudentMark>;  // reusa StudentMark, que ya lleva registradoPor
+  ultimaEscrituraPor: string;
+  ultimaEscrituraEn: number;
+}

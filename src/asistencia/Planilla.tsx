@@ -25,8 +25,12 @@ import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './d
  * usuario por callbacks. Asi se puede ver y probar sin Firestore detras.
  */
 
-/** Clases por token. Escritas completas para que Tailwind las detecte al compilar. */
-const CLASE_MARCA: Record<MarkCode, string> = {
+/**
+ * Clases por token. Escritas completas para que Tailwind las detecte al compilar.
+ * Exportado para que PlanillaEvento.tsx no duplique la tabla: dos copias se
+ * desincronizarian el dia que se ajuste un color.
+ */
+export const CLASE_MARCA: Record<MarkCode, string> = {
   asistencia: 'bg-success-soft text-success-soft-fg',
   ausencia: 'bg-danger-soft text-danger-soft-fg',
   retraso: 'bg-warning-soft text-warning-soft-fg',
@@ -36,8 +40,8 @@ const CLASE_MARCA: Record<MarkCode, string> = {
   ausencia_autorizada: 'bg-info-soft text-info-soft-fg',
 };
 
-/** Sigla corta para que la celda quepa en movil. */
-const SIGLA: Record<MarkCode, string> = {
+/** Sigla corta para que la celda quepa en movil. Exportado, ver nota de CLASE_MARCA. */
+export const SIGLA: Record<MarkCode, string> = {
   asistencia: 'A',
   ausencia: 'F',
   retraso: 'R',
