@@ -21,6 +21,8 @@ import {
   abrirSesion,
   buscarEstudiantes,
   cerrarSesion as cerrarSesionRemota,
+  crearEstudianteManual,
+  leerConfigAlertas,
   leerDirectores,
   leerGrupo,
   leerLlegadasTardePorGrado,
@@ -29,11 +31,13 @@ import {
   marcarEstudiante,
   type AlcanceLectura,
 } from './datos';
+import type { NuevoEstudianteInput } from './Planilla';
 import { toDateKey } from './domain/ids';
 import { nombreCompleto } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
+import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
 import type { MarkCode } from './domain/marks';
-import type { Enrollment, LateArrival, Session, Student } from './domain/types';
+import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './domain/types';
 import { firebaseConfigurado } from '../lib/firebase';
 import { useAppStore } from '../data/store';
 import { estiloEtiqueta, guardarColor, leerMapa, resolverColor, type MapaColores } from './domain/colores';
@@ -102,6 +106,17 @@ export default function Asistencia() {
   // Preferencia visual del dispositivo, no un dato del colegio: se lee una sola vez del
   // almacen local (ver domain/colores.ts) y de ahi en adelante vive en memoria.
   const [mapaColores, setMapaColores] = useState<MapaColores>(() => leerMapa());
+
+  /**
+   * Umbrales de alerta (`asistenciaConfig/alertas`). Cualquier cuenta activa puede
+   * leerlos (incluido el superusuario, aunque no los use), asi que se carga aparte de
+   * `cargarSesiones` y sin filtrar por rol.
+   */
+  const [alertConfig, setAlertConfig] = useState<AlertConfig>(ALERT_CONFIG_POR_DEFECTO);
+  useEffect(() => {
+    if (!firebaseConfigurado) return;
+    void leerConfigAlertas().then(setAlertConfig);
+  }, []);
 
   /** Cruces (grado + asignatura) que aparecen en las sesiones del usuario. */
   const cruces = useMemo(() => {
@@ -258,6 +273,20 @@ export default function Asistencia() {
     } catch (e) {
       setError(mensajeDeError(e));
     }
+  }
+
+  /**
+   * Alta de un estudiante que no vino de Master2000. `crearEstudianteManual` puede
+   * rechazar la creación (documento ya registrado en otra ficha); se deja propagar el
+   * error para que el modal de Planilla lo muestre tal cual, con el nombre de quién ya
+   * existe.
+   */
+  async function agregarEstudiante(input: NuevoEstudianteInput) {
+    if (!cruce) return;
+    await crearEstudianteManual({ ...input, grado: cruce.grado, sede });
+    const { estudiantes: al, matriculas: mat } = await leerGrupo(cruce.grado);
+    setEstudiantes(al);
+    setMatriculas(mat);
   }
 
   async function nuevaSesion() {
@@ -461,6 +490,9 @@ export default function Asistencia() {
               onElegirColor={(colorId) =>
                 setMapaColores((m) => guardarColor(m, cruce.grado, cruce.subjectId, colorId))
               }
+              alertConfig={alertConfig}
+              puedeAgregarEstudiante={esDirector || rol === 'coordinador'}
+              onAgregarEstudiante={agregarEstudiante}
             />
           )}
         </>
@@ -473,6 +505,7 @@ export default function Asistencia() {
           sesionesPorAsignatura={sesionesPorAsignatura}
           matriculas={matriculas}
           llegadasTarde={llegadasTarde}
+          alertConfig={alertConfig}
           onCerrar={() => setPanelAbierto(null)}
         />
       )}

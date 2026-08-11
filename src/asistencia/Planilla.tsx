@@ -4,8 +4,9 @@ import { MARKS, findMark, type MarkCode } from './domain/marks';
 import { nombreCompleto, nombresDePila } from './domain/nombres';
 import { computeStats, conDenominador } from './domain/stats';
 import { resumenPastilla } from './domain/panel';
+import { alertaPorcentajePeriodo, alertaRacha } from './domain/alertas';
 import { COLORES_GRUPO, estiloAnillo, estiloBorde, type ColorGrupo } from './domain/colores';
-import type { Enrollment, LateArrival, Session, Student } from './domain/types';
+import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './domain/types';
 
 /**
  * Planilla del docente, al estilo del cuaderno de Additio.
@@ -73,6 +74,24 @@ export interface PlanillaProps {
   color: ColorGrupo | null;
   /** Guarda (o borra, con `null`) el color del cruce activo. El mapa vive en index.tsx. */
   onElegirColor: (colorId: string | null) => void;
+  /** Umbrales de alerta (racha y % de faltas del periodo). `asistenciaConfig/alertas`. */
+  alertConfig: AlertConfig;
+  /** Solo el director del grupo o coordinación pueden dar de alta un estudiante nuevo
+   * que no vino de Master2000 — la misma autoridad que ya decide quién edita una ficha. */
+  puedeAgregarEstudiante: boolean;
+  /** Crea el estudiante (vía Cloud Function, ver datos.ts) y recarga el grupo. Puede
+   * rechazar (p. ej. documento ya existente): el modal muestra el error tal cual. */
+  onAgregarEstudiante: (input: NuevoEstudianteInput) => Promise<void>;
+}
+
+export interface NuevoEstudianteInput {
+  nombres: string;
+  apellidos: string;
+  docType: string;
+  docNumber: string;
+  acudiente: string;
+  parentesco: string;
+  telefonos: string[];
 }
 
 export default function Planilla({
@@ -91,10 +110,14 @@ export default function Planilla({
   onLlenarColumna,
   color,
   onElegirColor,
+  alertConfig,
+  puedeAgregarEstudiante,
+  onAgregarEstudiante,
 }: PlanillaProps) {
   const [celda, setCelda] = useState<{ sessionId: string; studentId: string } | null>(null);
   const [columnaMenu, setColumnaMenu] = useState<string | null>(null);
   const [selectorColor, setSelectorColor] = useState(false);
+  const [agregando, setAgregando] = useState(false);
 
   const ordenadas = useMemo(
     () =>
@@ -275,6 +298,7 @@ export default function Planilla({
                       matriculas={matriculas.filter((m) => m.studentId === e.studentId)}
                       asignatura={asignatura}
                       llegadasTarde={llegadasTarde}
+                      alertConfig={alertConfig}
                       onAbrir={onAbrirPanel}
                     />
                   </td>
@@ -289,6 +313,28 @@ export default function Planilla({
         La casilla con «·» está <strong className="text-soft">sin registrar</strong>: no
         cuenta como ausencia. Toque una casilla para marcar.
       </p>
+
+      {/* Al final de la lista, no mezclado con las filas: dar de alta a alguien no es
+          una acción de pasar lista y no debe competir visualmente con las que sí lo son. */}
+      {puedeAgregarEstudiante && (
+        <button
+          onClick={() => setAgregando(true)}
+          className="w-full rounded-xl border border-dashed border-line-strong bg-card p-3 text-sm font-medium text-accent"
+        >
+          + Agregar estudiante nuevo a {grado}
+        </button>
+      )}
+
+      {agregando && (
+        <ModalNuevoEstudiante
+          grado={grado}
+          onGuardar={async (input) => {
+            await onAgregarEstudiante(input);
+            setAgregando(false);
+          }}
+          onCerrar={() => setAgregando(false)}
+        />
+      )}
 
       {selectorColor && (
         <SelectorColor
@@ -353,6 +399,7 @@ function PastillaEstudiante({
   matriculas,
   asignatura,
   llegadasTarde,
+  alertConfig,
   onAbrir,
 }: {
   estudiante: Student;
@@ -360,35 +407,52 @@ function PastillaEstudiante({
   matriculas: Enrollment[];
   asignatura: string;
   llegadasTarde: LateArrival[];
+  alertConfig: AlertConfig;
   onAbrir: (studentId: string) => void;
 }) {
-  const stats = computeStats({
+  const statsInput = {
     studentId: estudiante.studentId,
     sessions: sesiones,
     enrollments: matriculas,
     subjectId: asignatura,
-  });
+  };
+  const stats = computeStats(statsInput);
   const llegadasDelEstudiante = llegadasTarde.filter(
     (la) => la.studentId === estudiante.studentId,
   ).length;
   const resumen = resumenPastilla(stats, llegadasDelEstudiante);
+
+  // Alertas de docente (domain/alertas.ts): racha sin explicar y % del periodo. NO se
+  // mezclan con `hayAvisos` (retrasos/llegadas tarde) porque son de otra gravedad — a
+  // esta el docente le debe registrar un aviso a la familia, no solo mirarla.
+  const racha = alertaRacha(statsInput, alertConfig);
+  const periodo = alertaPorcentajePeriodo(stats, alertConfig);
+  const alerta = racha.activa || periodo.activa;
 
   return (
     <button
       onClick={() => onAbrir(estudiante.studentId)}
       aria-label={`Ver panel de ${nombreCompleto(estudiante)}`}
       title={
-        resumen.sinDatos
-          ? 'Sin sesiones registradas todavía: no hay nada que medir.'
-          : undefined
+        alerta
+          ? [
+              racha.activa ? `${racha.racha} faltas seguidas sin explicar` : null,
+              periodo.activa ? `${periodo.porcentaje}% de inasistencia sin explicar` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : resumen.sinDatos
+            ? 'Sin sesiones registradas todavía: no hay nada que medir.'
+            : undefined
       }
       className={[
-        'flex h-9 w-full items-center justify-center gap-1 rounded-lg text-sm font-bold',
+        'relative flex h-9 w-full items-center justify-center gap-1 rounded-lg text-sm font-bold',
         resumen.sinDatos
           ? 'text-muted'
           : resumen.aMaster2000 > 0
             ? 'bg-danger-soft text-danger-soft-fg'
             : 'text-strong',
+        alerta ? 'ring-2 ring-danger-soft-fg' : '',
       ].join(' ')}
     >
       {resumen.sinDatos ? '–' : resumen.aMaster2000}
@@ -400,6 +464,16 @@ function PastillaEstudiante({
           aria-hidden
           title="Hay retrasos o llegadas tarde registrados"
         />
+      )}
+      {/* La alerta seria (racha o % del periodo) es un anillo, no un punto mas: tiene
+          que distinguirse a simple vista del aviso leve de arriba. */}
+      {alerta && (
+        <span
+          className="absolute -right-1 -top-1 grid h-3.5 w-3.5 place-items-center rounded-full bg-danger text-[0.55rem] text-accent-fg"
+          aria-hidden
+        >
+          !
+        </span>
       )}
     </button>
   );
@@ -607,6 +681,165 @@ function MenuMarcas({
         <button
           onClick={onCerrar}
           className="mt-3 w-full rounded-lg border border-line p-2 text-sm text-soft"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Alta de un estudiante que no vino de Master2000. El grado y la sede NO se piden: son
+ * los del grupo donde se está parado, no algo que se pueda elegir mal por descuido.
+ *
+ * El envío puede ser rechazado por el servidor (documento ya registrado en otra ficha):
+ * el error se muestra tal cual, porque nombra a quién ya existe y con eso basta para
+ * saber qué hacer (trasladar, no duplicar).
+ */
+function ModalNuevoEstudiante({
+  grado,
+  onGuardar,
+  onCerrar,
+}: {
+  grado: string;
+  onGuardar: (input: NuevoEstudianteInput) => Promise<void>;
+  onCerrar: () => void;
+}) {
+  const [nombres, setNombres] = useState('');
+  const [apellidos, setApellidos] = useState('');
+  const [docType, setDocType] = useState('TI');
+  const [docNumber, setDocNumber] = useState('');
+  const [acudiente, setAcudiente] = useState('');
+  const [parentesco, setParentesco] = useState('');
+  const [tel, setTel] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const listo = nombres.trim() !== '' && apellidos.trim() !== '' && docNumber.trim() !== '';
+
+  async function enviar() {
+    setError(null);
+    setEnviando(true);
+    try {
+      await onGuardar({
+        nombres: nombres.trim(),
+        apellidos: apellidos.trim(),
+        docType,
+        docNumber: docNumber.trim(),
+        acudiente: acudiente.trim(),
+        parentesco: parentesco.trim(),
+        telefonos: tel.split(',').map((t) => t.trim()).filter(Boolean),
+      });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+      onClick={onCerrar}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-md overflow-auto rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <p className="text-lg font-semibold text-strong">Agregar estudiante nuevo</p>
+        <p className="mb-2 text-xs text-muted">
+          Se matricula en <b>{grado}</b>. Para trasladar a alguien que ya está en el
+          sistema, use el cambio de grado en su ficha en vez de crearlo de nuevo.
+        </p>
+
+        <div className="grid grid-cols-2 gap-2">
+          <label className="text-xs text-muted">
+            Nombres
+            <input
+              value={nombres}
+              onChange={(e) => setNombres(e.target.value)}
+              className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+            />
+          </label>
+          <label className="text-xs text-muted">
+            Apellidos
+            <input
+              value={apellidos}
+              onChange={(e) => setApellidos(e.target.value)}
+              className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+            />
+          </label>
+        </div>
+
+        <div className="mt-2 grid grid-cols-[5rem_1fr] gap-2">
+          <label className="text-xs text-muted">
+            Tipo
+            <select
+              value={docType}
+              onChange={(e) => setDocType(e.target.value)}
+              className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+            >
+              {['RC', 'TI', 'CC', 'PPT', 'otro'].map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs text-muted">
+            Número de documento
+            <input
+              value={docNumber}
+              onChange={(e) => setDocNumber(e.target.value)}
+              inputMode="numeric"
+              className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+            />
+          </label>
+        </div>
+
+        <label className="mt-2 block text-xs text-muted">
+          Acudiente
+          <input
+            value={acudiente}
+            onChange={(e) => setAcudiente(e.target.value)}
+            className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+          />
+        </label>
+        <label className="mt-2 block text-xs text-muted">
+          Parentesco (madre, padre, tía…)
+          <input
+            value={parentesco}
+            onChange={(e) => setParentesco(e.target.value)}
+            placeholder="Sin registrar"
+            className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+          />
+        </label>
+        <label className="mt-2 block text-xs text-muted">
+          Teléfonos (separados por coma)
+          <input
+            value={tel}
+            onChange={(e) => setTel(e.target.value)}
+            className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+          />
+        </label>
+
+        {error && (
+          <div className="mt-3 rounded-lg border border-danger-soft bg-danger-soft p-2 text-sm text-danger-soft-fg">
+            {error}
+          </div>
+        )}
+
+        <button
+          disabled={!listo || enviando}
+          onClick={() => void enviar()}
+          className="mt-3 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-50"
+        >
+          {enviando ? 'Guardando…' : 'Agregar estudiante'}
+        </button>
+        <button
+          onClick={onCerrar}
+          className="mt-2 w-full rounded-lg border border-line p-2 text-sm text-soft"
         >
           Cancelar
         </button>

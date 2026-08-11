@@ -31,11 +31,13 @@ import {
   where,
   type QueryConstraint,
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 
-import { db, esperarAuth } from '../lib/firebase';
+import { db, esperarAuth, functions } from '../lib/firebase';
 import { sessionId as construirSessionId } from './domain/ids';
 import type { MarkCode } from './domain/marks';
-import type { Enrollment, LateArrival, Session, Student } from './domain/types';
+import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './domain/types';
+import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
 import { exigirAutor } from './identidad';
 
 /** El servidor rechazo la escritura porque alguien sincronizo primero. */
@@ -419,6 +421,57 @@ export async function leerMiCuenta(): Promise<MiCuenta | null> {
     rol: (d.role as string | null) ?? null,
     activo: d.active === true,
   };
+}
+
+/**
+ * Umbrales de alerta institucionales (`asistenciaConfig/alertas`).
+ *
+ * `read: if isActiveUser()` en las reglas: cualquier docente activo puede leerlos, para
+ * saber contra que umbral se mide su racha o su porcentaje. Si el documento no existe
+ * todavia (colegio recien arrancado, nadie lo ha guardado), se cae en el valor por
+ * defecto en vez de fallar — el modulo no puede quedar sin alertas solo porque nadie
+ * abrio la pantalla de configuracion.
+ */
+export async function leerConfigAlertas(): Promise<AlertConfig> {
+  if (!(await listo())) return ALERT_CONFIG_POR_DEFECTO;
+  const snap = await getDoc(doc(baseDatos(), 'asistenciaConfig', 'alertas'));
+  return snap.exists() ? (snap.data() as AlertConfig) : ALERT_CONFIG_POR_DEFECTO;
+}
+
+/**
+ * Guarda los umbrales. La regla solo lo permite a superusuario o coordinador
+ * (`docId == 'alertas' && asisIsCoordinador()`): es institucional, no de cada docente.
+ */
+export async function guardarConfigAlertas(config: AlertConfig): Promise<void> {
+  await exigirAutor();
+  await setDoc(doc(baseDatos(), 'asistenciaConfig', 'alertas'), config);
+}
+
+/**
+ * Alta de un estudiante que NO viene de Master2000: se registra directo desde la
+ * planilla. Pasa por la Cloud Function `crearEstudianteManual` porque el hash del
+ * documento se calcula con una clave que solo existe ahí — así, si este mismo
+ * estudiante aparece en una futura importación, el sistema lo reconoce como la misma
+ * persona en vez de duplicarlo.
+ *
+ * La función rechaza la creación (error `already-exists`) si el documento ya pertenece
+ * a otro estudiante: puede ser alguien que ya está en otro grado o sede.
+ */
+export async function crearEstudianteManual(input: {
+  nombres: string;
+  apellidos: string;
+  docNumber: string;
+  docType: string;
+  grado: string;
+  sede: string;
+  acudiente: string;
+  parentesco: string;
+  telefonos: string[];
+}): Promise<{ studentId: string }> {
+  if (!functions) throw new Error('Firebase no está configurado en esta instalación.');
+  const llamar = httpsCallable(functions, 'crearEstudianteManual');
+  const resultado = await llamar({ ...input, anio: new Date().getFullYear() });
+  return resultado.data as { studentId: string };
 }
 
 export async function leerEstudiante(studentId: string): Promise<Student | null> {

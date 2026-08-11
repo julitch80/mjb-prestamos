@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import Avatar from './Avatar';
 import { filasDelPanel, textoDenominador } from './domain/panel';
+import { alertaPorcentajePeriodo, alertaRacha } from './domain/alertas';
 import { nombreCompleto } from './domain/nombres';
 import { computeStats } from './domain/stats';
-import type { Enrollment, LateArrival, Session, Student } from './domain/types';
+import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './domain/types';
 
 /**
  * Panel de estadísticas de un estudiante. Modal, no una pantalla nueva: se abre desde
@@ -19,6 +20,7 @@ export default function PanelEstudiante({
   sesionesPorAsignatura,
   matriculas,
   llegadasTarde,
+  alertConfig,
   onCerrar,
 }: {
   estudiante: Student;
@@ -27,6 +29,7 @@ export default function PanelEstudiante({
   sesionesPorAsignatura: Record<string, Session[]>;
   matriculas: Enrollment[];
   llegadasTarde: LateArrival[];
+  alertConfig: AlertConfig;
   onCerrar: () => void;
 }) {
   const asignaturas = Object.keys(sesionesPorAsignatura);
@@ -35,13 +38,16 @@ export default function PanelEstudiante({
   );
 
   const sesiones = sesionesPorAsignatura[asignatura] ?? [];
-  const stats = computeStats({
+  const statsInput = {
     studentId: estudiante.studentId,
     sessions: sesiones,
     enrollments: matriculas,
     subjectId: asignatura,
-  });
+  };
+  const stats = computeStats(statsInput);
   const filas = filasDelPanel(stats);
+  const racha = alertaRacha(statsInput, alertConfig);
+  const periodo = alertaPorcentajePeriodo(stats, alertConfig);
 
   const llegadasDelEstudiante = llegadasTarde.filter(
     (la) => la.studentId === estudiante.studentId,
@@ -100,6 +106,26 @@ export default function PanelEstudiante({
         {/* El denominador va SIEMPRE, incluso sin ninguna falta: sin él, la cifra de
             arriba no significa nada (domain/panel.ts). */}
         <p className="mt-2 text-xs text-muted">{textoDenominador(stats)}</p>
+
+        {/* Alertas del docente (domain/alertas.ts), acordadas con Julian el 2026-08-10.
+            Aparte de la pastilla: aquí sí caben el umbral y la cifra exacta, que en la
+            fila de la planilla no entran. */}
+        {(racha.activa || periodo.activa) && (
+          <div className="mt-2 rounded-lg border border-danger-soft bg-danger-soft p-2 text-xs text-danger-soft-fg">
+            {racha.activa && (
+              <p>
+                <b>{racha.racha}</b> faltas seguidas sin explicar en {asignatura} (alerta
+                desde {alertConfig.faltasConsecutivas}).
+              </p>
+            )}
+            {periodo.activa && (
+              <p>
+                <b>{periodo.porcentaje}%</b> de inasistencia sin explicar sobre lo
+                registrado (alerta desde {alertConfig.porcentajeFaltasPeriodo}%).
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Sección aparte a propósito: las llegadas tarde a la institución las registra
             coordinación, no el docente, y NO se suman a las faltas de clase — son otro

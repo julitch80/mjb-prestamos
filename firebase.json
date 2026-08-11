@@ -4,5 +4,8 @@
     { "bucket": "mjb-prestamos.firebasestorage.app", "rules": "storage.rules" },
     { "bucket": "mjb-prestamos-chat", "rules": "storage.rules" }
   ],
-  "functions": [ { "source": "functions", "codebase": "default" } ]
+  "functions": [
+    { "source": "functions", "codebase": "default" },
+    { "source": "functions-asistencia", "codebase": "asistencia" }
+  ]
 }

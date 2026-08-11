@@ -3,18 +3,48 @@ import {
   buscarEstudiantes,
   buscarPorQrToken,
   ConflictoError,
+  guardarConfigAlertas,
+  leerConfigAlertas,
+  leerEstudiante,
   leerLlegadasTarde,
+  leerSesiones,
   registrarLlegadaTarde,
   resolverLlegadaTarde,
 } from './datos';
 import Avatar from './Avatar';
 import EscanerQr from './EscanerQr';
-import { jornadaDeGrado, toDateKey } from './domain/ids';
+import { addDays, jornadaDeGrado, toDateKey } from './domain/ids';
 import { bloqueDeHora } from './domain/bloques';
 import { nombreCompleto } from './domain/nombres';
 import { EXCUSE_REASONS, LATE_ARRIVAL_STATES, type ExcuseReason } from './domain/marks';
-import type { LateArrival, Student } from './domain/types';
+import {
+  ALERT_CONFIG_POR_DEFECTO,
+  activaAlertaDiasSinAsistir,
+  diasSinAsistirConsecutivos,
+  llegadasQueAlertan,
+  pasoLlegadasTarde,
+  type ColorAlerta,
+} from './domain/alertas';
+import type { AlertConfig, LateArrival, Student } from './domain/types';
 import { BLOQUES_MANANA, BLOQUES_TARDE } from '../data/maestros';
+
+/** Colores de la escala de reincidencia. Via `style`, no clase: son tres tonos fijos de
+ * severidad, no un token de la app (mismo patron que domain/colores.ts usa para el color
+ * de grupo). */
+const COLOR_ALERTA: Record<ColorAlerta, string> = {
+  amarillo: '#eab308',
+  naranja: '#f97316',
+  rojo: '#b91c1c',
+};
+
+function estiloAlerta(color: ColorAlerta): React.CSSProperties {
+  const hex = COLOR_ALERTA[color];
+  return {
+    color: hex,
+    backgroundColor: `color-mix(in srgb, ${hex} 16%, transparent)`,
+    borderColor: `color-mix(in srgb, ${hex} 50%, transparent)`,
+  };
+}
 
 /**
  * Llegadas tarde a la institucion — pantalla de porteria del coordinador.
@@ -41,6 +71,70 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [escaneando, setEscaneando] = useState(false);
+
+  // Umbrales de alerta: institucionales, cualquier cuenta activa los puede leer.
+  const [config, setConfig] = useState<AlertConfig>(ALERT_CONFIG_POR_DEFECTO);
+  const [ajustandoConfig, setAjustandoConfig] = useState(false);
+  useEffect(() => {
+    void leerConfigAlertas().then(setConfig);
+  }, []);
+
+  // Llegadas tarde SIN JUSTIFICAR acumuladas en el año, para el color de reincidencia.
+  // Se piden aparte de `registros` (que es solo del día) porque la reincidencia es un
+  // patrón acumulado, no algo que se vea en la fila de un solo día.
+  const [conteoAnual, setConteoAnual] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const anio = fecha.slice(0, 4);
+    void leerLlegadasTarde({ sede, desde: `${anio}-01-01`, hasta: `${anio}-12-31` }).then(
+      (lista) => {
+        const conteo: Record<string, number> = {};
+        for (const l of llegadasQueAlertan(lista)) conteo[l.studentId] = (conteo[l.studentId] ?? 0) + 1;
+        setConteoAnual(conteo);
+      },
+    );
+  }, [sede, fecha]);
+
+  // Alerta institucional: estudiantes con `diasSinAsistir` o más días seguidos sin
+  // asistir a NINGUNA clase. Ventana acotada (umbral + margen) para no traer todas las
+  // sesiones de la sede desde siempre.
+  const [alertasInasistencia, setAlertasInasistencia] = useState<
+    { studentId: string; nombre: string; dias: number }[]
+  >([]);
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const desde = addDays(fecha, -(config.diasSinAsistir + 4));
+        const sesiones = await leerSesiones({ tipo: 'coordinador', sede }, { desde, hasta: fecha });
+        const idsVistos = new Set<string>();
+        for (const s of sesiones) for (const id of Object.keys(s.estudiantes ?? {})) idsVistos.add(id);
+        const candidatas = [...idsVistos]
+          .map((id) => ({ studentId: id, dias: diasSinAsistirConsecutivos(sesiones, id) }))
+          .filter((a) => activaAlertaDiasSinAsistir(a.dias, config));
+        if (!vivo) return;
+        if (candidatas.length === 0) {
+          setAlertasInasistencia([]);
+          return;
+        }
+        const fichas = await Promise.all(candidatas.map((a) => leerEstudiante(a.studentId)));
+        if (!vivo) return;
+        setAlertasInasistencia(
+          candidatas.map((a, i) => ({
+            studentId: a.studentId,
+            dias: a.dias,
+            nombre: fichas[i] ? nombreCompleto(fichas[i]!) : a.studentId,
+          })),
+        );
+      } catch {
+        // Es un aviso adicional, no el trabajo de la pantalla: si falla, la puerta del
+        // colegio sigue funcionando con lo demás.
+        if (vivo) setAlertasInasistencia([]);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [sede, fecha, config.diasSinAsistir]);
 
   const cargar = useCallback(async () => {
     try {
@@ -180,13 +274,47 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
 
   return (
     <div className="space-y-3">
-      <div>
-        <h2 className="text-base font-semibold text-strong">Llegadas tarde a la institución</h2>
-        <p className="text-xs text-muted">
-          Ingreso tardío al colegio. No es el <b>retraso</b> a una clase, que registra
-          cada docente en su llamado a lista.
-        </p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-base font-semibold text-strong">Llegadas tarde a la institución</h2>
+          <p className="text-xs text-muted">
+            Ingreso tardío al colegio. No es el <b>retraso</b> a una clase, que registra
+            cada docente en su llamado a lista.
+          </p>
+        </div>
+        <button
+          onClick={() => setAjustandoConfig(true)}
+          className="shrink-0 rounded-lg border border-line px-2 py-1 text-xs text-muted"
+        >
+          Ajustar alertas
+        </button>
       </div>
+
+      {alertasInasistencia.length > 0 && (
+        <section className="rounded-xl border border-danger-soft bg-danger-soft p-3">
+          <h3 className="text-sm font-semibold text-danger-soft-fg">
+            {alertasInasistencia.length} estudiante(s) sin asistir {config.diasSinAsistir}{' '}
+            días seguidos o más
+          </h3>
+          <p className="text-xs text-danger-soft-fg">
+            Ninguna clase, en ningún bloque. Verifique con la familia qué ha informado y si
+            hay ausencia proyectada.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {alertasInasistencia.map((a) => (
+              <li
+                key={a.studentId}
+                className="flex items-center justify-between rounded-lg border border-line bg-card p-2 text-sm"
+              >
+                <span className="text-strong">{a.nombre}</span>
+                <span className="text-xs font-semibold text-danger-soft-fg">
+                  {a.dias} días seguidos
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="rounded-xl border border-line bg-card p-3">
         <div className="flex flex-wrap items-end gap-2">
@@ -243,6 +371,19 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
                 <span className="grow text-sm">
                   <b className="block text-strong">{nombreCompleto(e)}</b>
                   <span className="text-xs text-muted">{e.gradoActual}</span>
+                  {(() => {
+                    const paso = pasoLlegadasTarde(conteoAnual[e.studentId] ?? 0, config);
+                    return (
+                      paso && (
+                        <span
+                          className="mt-0.5 inline-block rounded-full border px-1.5 py-0.5 text-[0.65rem] font-semibold"
+                          style={estiloAlerta(paso.color)}
+                        >
+                          {paso.mensaje}
+                        </span>
+                      )
+                    );
+                  })()}
                   {!e.fotoPath && (
                     // Sin foto cargada no hay verificacion posible. Decirlo, en vez de
                     // mostrar unas iniciales que aparentan una comprobacion que no existe.
@@ -312,6 +453,20 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
                   <b className="text-strong">{nombres[r.studentId] ?? r.studentId}</b>
                   <span className="ml-2 text-xs text-muted">{r.grado}</span>
                 </span>
+                {(() => {
+                  const paso = pasoLlegadasTarde(conteoAnual[r.studentId] ?? 0, config);
+                  return (
+                    paso && (
+                      <span
+                        className="rounded-full border px-1.5 py-0.5 text-[0.65rem] font-semibold"
+                        style={estiloAlerta(paso.color)}
+                        title={paso.mensaje}
+                      >
+                        {conteoAnual[r.studentId]}ª del año
+                      </span>
+                    )
+                  );
+                })()}
                 <span className={`rounded-full px-2 py-0.5 text-xs ${tono(r.estado)}`}>
                   {etiqueta(r.estado)}
                 </span>
@@ -349,6 +504,115 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
       )}
 
       {escaneando && <EscanerQr onLeer={(t) => void leerQr(t)} onCerrar={() => setEscaneando(false)} />}
+
+      {ajustandoConfig && (
+        <ModalConfigAlertas
+          config={config}
+          onGuardar={async (nueva) => {
+            try {
+              await guardarConfigAlertas(nueva);
+              setConfig(nueva);
+              setAjustandoConfig(false);
+            } catch (e) {
+              setError(`No fue posible guardar: ${(e as Error).message}`);
+            }
+          }}
+          onCerrar={() => setAjustandoConfig(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Editor de los cuatro umbrales institucionales. Solo lo pueden guardar superusuario o
+ * coordinador (regla de `asistenciaConfig/alertas`); si otra cuenta lo abriera, el
+ * guardado fallaría en el servidor con el mismo mensaje de error de siempre.
+ */
+function ModalConfigAlertas({
+  config,
+  onGuardar,
+  onCerrar,
+}: {
+  config: AlertConfig;
+  onGuardar: (config: AlertConfig) => void;
+  onCerrar: () => void;
+}) {
+  const [borrador, setBorrador] = useState(config);
+
+  function campo(
+    etiqueta: string,
+    ayuda: string,
+    valor: number,
+    onCambiar: (n: number) => void,
+  ) {
+    return (
+      <label className="block text-sm">
+        <span className="font-medium text-strong">{etiqueta}</span>
+        <input
+          type="number"
+          min={1}
+          value={valor}
+          onChange={(ev) => onCambiar(Math.max(1, Number(ev.target.value) || 1))}
+          className="mt-0.5 block w-24 rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong"
+        />
+        <span className="mt-0.5 block text-xs text-muted">{ayuda}</span>
+      </label>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+      onClick={onCerrar}
+    >
+      <div
+        className="w-full max-w-md space-y-3 rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <p className="text-lg font-semibold text-strong">Ajustar alertas</p>
+        <p className="text-xs text-muted">
+          Son institucionales: aplican a todo el colegio, no a un docente en particular.
+        </p>
+
+        {campo(
+          'Faltas seguidas sin explicar',
+          'Alerta al docente en la asignatura donde ocurren.',
+          borrador.faltasConsecutivas,
+          (n) => setBorrador({ ...borrador, faltasConsecutivas: n }),
+        )}
+        {campo(
+          '% de inasistencia del periodo',
+          'Sobre las sesiones ya registradas de la asignatura.',
+          borrador.porcentajeFaltasPeriodo,
+          (n) => setBorrador({ ...borrador, porcentajeFaltasPeriodo: n }),
+        )}
+        {campo(
+          'Llegadas tarde para el primer aviso',
+          'Amarillo al llegar aquí, naranja la siguiente, rojo de dos más en adelante.',
+          borrador.llegadasTardeUmbral,
+          (n) => setBorrador({ ...borrador, llegadasTardeUmbral: n }),
+        )}
+        {campo(
+          'Días seguidos sin asistir',
+          'Ninguna clase, en ningún bloque. Alerta al coordinador.',
+          borrador.diasSinAsistir,
+          (n) => setBorrador({ ...borrador, diasSinAsistir: n }),
+        )}
+
+        <button
+          onClick={() => onGuardar(borrador)}
+          className="w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-fg"
+        >
+          Guardar
+        </button>
+        <button
+          onClick={onCerrar}
+          className="w-full rounded-lg border border-line p-2 text-sm text-soft"
+        >
+          Cancelar
+        </button>
+      </div>
     </div>
   );
 }

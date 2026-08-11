@@ -10,6 +10,8 @@ serviceAccountKey.json
 docentes.csv
 functions/node_modules
 functions/lib
+functions-asistencia/node_modules
+functions-asistencia/lib
 .firebase/
 firebase-debug.log*
 firestore-debug.log*

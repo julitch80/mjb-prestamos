@@ -215,15 +215,23 @@ export interface FamilyContact {
   llamadoEn: number;
 }
 
-/** Umbrales de alerta. El de retrasos lo puede ajustar cada docente. */
+/**
+ * Umbrales de alerta — acordados por Julian con la coordinadora el 2026-08-10.
+ * Documento unico `asistenciaConfig/alertas`, institucional: no hay ajuste por docente,
+ * porque dos directores del mismo estudiante verian semaforos distintos si lo hubiera.
+ * Editable por superusuario o coordinador (`rules/asistencia.rules`).
+ */
 export interface AlertConfig {
-  maxAusenciasNoJustificadas: number;
-  maxRetrasos: number;
-  maxLlegadasTarde: number;
-  /** Alerta al docente cuando el estudiante acumula esta racha en su asignatura. */
+  /** Racha de faltas SIN EXPLICAR seguidas en una asignatura que alerta al docente. */
   faltasConsecutivas: number;
-  diasParaEscalar: number;
+  /** % de inasistencia SIN EXPLICAR sobre las sesiones YA ABIERTAS del periodo que
+   *  alerta al docente. Ver domain/alertas.ts sobre por que no es una proyeccion del
+   *  horario semanal. */
+  porcentajeFaltasPeriodo: number;
+  /** Llegadas tarde SIN JUSTIFICAR acumuladas en el año que activan el primer aviso
+   *  (amarillo) al coordinador. Ver `pasoLlegadasTarde` para el resto de la escala. */
+  llegadasTardeUmbral: number;
+  /** Dias consecutivos sin asistir a la institucion (ninguna sesion, ningun bloque) que
+   *  alertan al coordinador para verificar con la familia. */
+  diasSinAsistir: number;
 }
-
-/** `asistenciaConfig/umbralesPorDocente`: override por puesto docente. */
-export type TeacherThresholds = Record<string, { maxRetrasos: number }>;
