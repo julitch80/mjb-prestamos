@@ -6,7 +6,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { beforeUserCreated, beforeUserSignedIn, HttpsError } from 'firebase-functions/v2/identity';
 
 // Función de prueba del checkpoint Fase 0. Se ampliará en etapas siguientes.
-export const ping = onCall({ region: 'us-central1' }, () => {
+export const ping = onCall({ region: 'us-central1', invoker: 'public' }, () => {
   return { ok: true, ts: Date.now() };
 });
 
@@ -44,8 +44,17 @@ export const beforesignedin = beforeUserSignedIn({ region: 'us-central1' }, asyn
 // ── Etapa 5: reemplazo de docente (puesto vs persona) ───────────────────────
 // Mueve el `slotId` (puesto en el horario) del docente saliente al entrante,
 // desactiva al saliente y registra todo en `auditLogs`. Solo superusuario.
+//
+// `invoker: 'public'` es OBLIGATORIO aquí. Sin declararlo explícito, el 10 de
+// agosto de 2026 el despliegue dejó el servicio de Cloud Run en "Requiere
+// autenticación" (IAM) en vez de acceso público — la petición del navegador
+// nunca llega al código de la función (que sí exige por dentro ser
+// superusuario), Cloud Run la rechaza antes con un 401 genérico que el SDK
+// de Firebase muestra como "internal", sin ninguna pista de la causa real.
+// Redesplegar sin este campo no lo arregla: hay que fijarlo en el código para
+// que cada despliegue lo vuelva a declarar.
 export const replaceTeacher = onCall(
-  { region: 'us-central1', timeoutSeconds: 120 },
+  { region: 'us-central1', timeoutSeconds: 120, invoker: 'public' },
   async (request) => {
     // 1. Autorización: caller debe ser superusuario activo.
     const callerEmail = (request.auth?.token?.email ?? '').toLowerCase();
