@@ -191,7 +191,21 @@ interface ImportPayload {
 }
 
 export const importStudents = onCall(
-  { region: REGION, secrets: [DOC_HASH_KEY], cors: true },
+  {
+    region: REGION,
+    secrets: [DOC_HASH_KEY],
+    cors: true,
+    // El colegio entero son ~690 filas de bachillerato en una sola pasada: eso son unas
+    // 2.000 escrituras en cinco lotes, mas la lectura de todas las fichas existentes para
+    // emparejar. Con los 60 s por defecto la importacion completa queda al filo, y el
+    // cliente solo recibe un "internal" sin explicacion.
+    //
+    // El limite alto NO significa que tarde: una importacion de un grupo suelto sigue
+    // tardando segundos. Solo evita que la del colegio entero muera a mitad de camino,
+    // que es el escenario malo — deja datos escritos a medias.
+    timeoutSeconds: 540,
+    memory: '512MiB',
+  },
   async (request) => {
     const email = await requireRole(request.auth, ['superusuario']);
     const payload = request.data as ImportPayload;
