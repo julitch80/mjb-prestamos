@@ -1,5 +1,5 @@
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { clearIndexedDbPersistence, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 const DOMAIN = 'iemanueljbetancur.edu.co';
@@ -18,7 +18,19 @@ export async function loginConGoogle() {
 }
 
 export async function cerrarSesionGoogle() {
-  if (auth) await signOut(auth);
+  if (!auth) return;
+  await signOut(auth);
+  // La cache persistente (IndexedDB) sobrevive al cierre de sesion. En un
+  // telefono institucional compartido eso dejaria datos de estudiantes del
+  // docente anterior en el dispositivo para el siguiente que entre.
+  // clearIndexedDbPersistence() exige que NINGUNA pestaña tenga Firestore
+  // activo -- con persistentMultipleTabManager (necesario porque Julian usa
+  // varias pestañas) casi siempre habra otra abierta y esto fallara en
+  // silencio. Es un best-effort para el caso comun de un telefono con una
+  // sola pestaña (el de la coordinadora, por ejemplo), no una garantia.
+  if (db) {
+    try { await clearIndexedDbPersistence(db); } catch { /* ver nota arriba */ }
+  }
 }
 
 export interface PerfilFirestore { displayName: string; role: string; active: boolean; sede?: string; }
