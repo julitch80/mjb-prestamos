@@ -6,6 +6,7 @@ import { computeStats, conDenominador } from './domain/stats';
 import { resumenPastilla } from './domain/panel';
 import { alertaPorcentajePeriodo, alertaRacha } from './domain/alertas';
 import { COLORES_GRUPO, estiloAnillo, estiloBorde, type ColorGrupo } from './domain/colores';
+import { toDateKey } from './domain/ids';
 import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './domain/types';
 import { getAsignatura } from '../data/asignacionAcademica';
 
@@ -72,6 +73,8 @@ export interface PlanillaProps {
   /** Abre el panel de estadísticas del estudiante (pastilla de la columna "Faltas"). */
   onAbrirPanel: (studentId: string) => void;
   onNuevaSesion: () => void;
+  /** Abre el lector de QR para registrar en esa sesión. */
+  onEscanear: (sessionId: string) => void;
   /** Llena de golpe las casillas vacías de una columna. */
   onLlenarColumna: (sessionId: string, estado: MarkCode) => void;
   /** Color identificativo del cruce grado+asignatura, elegido por el docente. Solo ayuda
@@ -112,6 +115,7 @@ export default function Planilla({
   onAbrirFicha,
   onAbrirPanel,
   onNuevaSesion,
+  onEscanear,
   onLlenarColumna,
   color,
   onElegirColor,
@@ -123,6 +127,12 @@ export default function Planilla({
   const [columnaMenu, setColumnaMenu] = useState<string | null>(null);
   const [selectorColor, setSelectorColor] = useState(false);
   const [agregando, setAgregando] = useState(false);
+  /** Aviso de "cree la sesión de hoy primero", cuando el docente pide escanear sin
+   * tener aún ninguna columna de hoy. No es un error: solo falta el paso previo. */
+  const [avisoSinSesionHoy, setAvisoSinSesionHoy] = useState(false);
+  /** Cuando hay más de una sesión de hoy (dos bloques del mismo grupo), hay que
+   * preguntar en cuál se escanea antes de abrir la cámara. */
+  const [eligiendoSesionQr, setEligiendoSesionQr] = useState<Session[] | null>(null);
 
   const ordenadas = useMemo(
     () =>
@@ -140,6 +150,24 @@ export default function Planilla({
   function cerrar(s: Session) {
     const faltan = estudiantes.filter((e) => !s.estudiantes?.[e.studentId]).length;
     onCerrarSesion(s.sessionId, faltan);
+  }
+
+  /**
+   * Sobre qué sesión escanea: la planilla puede tener varias columnas (varias fechas y
+   * bloques), así que hay que resolver la ambigüedad en vez de adivinar. Ninguna de hoy
+   * -> no se abre la cámara, se pide crear la sesión primero. Más de una -> se pregunta
+   * el bloque. Exactamente una -> directo.
+   */
+  function manejarPasarListaQr() {
+    const hoy = toDateKey(new Date());
+    const deHoy = ordenadas.filter((s) => s.fecha === hoy);
+    if (deHoy.length === 0) {
+      setAvisoSinSesionHoy(true);
+    } else if (deHoy.length === 1) {
+      onEscanear(deHoy[0].sessionId);
+    } else {
+      setEligiendoSesionQr(deHoy);
+    }
   }
 
   return (
@@ -196,6 +224,14 @@ export default function Planilla({
         <span className="grow" />
         {puedeRegistrar && (
           <button
+            onClick={manejarPasarListaQr}
+            className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
+          >
+            Pasar lista con QR
+          </button>
+        )}
+        {puedeRegistrar && (
+          <button
             onClick={onNuevaSesion}
             className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
           >
@@ -203,6 +239,22 @@ export default function Planilla({
           </button>
         )}
       </div>
+
+      {avisoSinSesionHoy && (
+        <div className="rounded-xl border border-info-soft bg-info-soft p-3 text-sm text-info-soft-fg">
+          Todavía no hay una sesión de hoy en este grupo: cree la sesión de hoy antes de
+          escanear.
+          <button
+            onClick={() => {
+              setAvisoSinSesionHoy(false);
+              onNuevaSesion();
+            }}
+            className="ml-2 min-h-[36px] rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
+          >
+            + Sesión de hoy
+          </button>
+        </div>
+      )}
 
       {ordenadas.length === 0 ? (
         <p className="rounded-xl border border-line bg-card p-3 text-sm text-muted">
@@ -367,6 +419,17 @@ export default function Planilla({
             setColumnaMenu(null);
           }}
           onCerrar={() => setColumnaMenu(null)}
+        />
+      )}
+
+      {eligiendoSesionQr && (
+        <MenuElegirSesionQr
+          sesiones={eligiendoSesionQr}
+          onElegir={(sessionId) => {
+            setEligiendoSesionQr(null);
+            onEscanear(sessionId);
+          }}
+          onCerrar={() => setEligiendoSesionQr(null)}
         />
       )}
 
@@ -614,6 +677,54 @@ function MenuColumna({
             ))}
           </div>
         )}
+
+        <button
+          onClick={onCerrar}
+          className="mt-3 w-full rounded-lg border border-line p-2 text-sm text-soft"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Hoy hay dos bloques del mismo grupo: hay que preguntar antes de abrir la cámara, en vez
+ * de adivinar sobre cuál se está pasando lista. Mismo patrón visual que `MenuColumna`.
+ */
+function MenuElegirSesionQr({
+  sesiones,
+  onElegir,
+  onCerrar,
+}: {
+  sesiones: Session[];
+  onElegir: (sessionId: string) => void;
+  onCerrar: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+      onClick={onCerrar}
+    >
+      <div
+        className="w-full max-w-md rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <p className="text-sm font-semibold text-strong">¿En qué bloque escanea?</p>
+        <p className="mb-3 text-xs text-muted">Hoy hay más de una sesión de este grupo.</p>
+
+        <div className="grid gap-1.5">
+          {sesiones.map((s) => (
+            <button
+              key={s.sessionId}
+              onClick={() => onElegir(s.sessionId)}
+              className="rounded-lg border border-line p-3 text-left text-sm text-strong hover:bg-hover"
+            >
+              Bloque {s.bloque}
+            </button>
+          ))}
+        </div>
 
         <button
           onClick={onCerrar}

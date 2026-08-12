@@ -18,8 +18,29 @@ import { toDateKey } from './domain/ids';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
 import { nombreCompleto } from './domain/nombres';
 import type { Event, EventSession, Student } from './domain/types';
+import Ayuda from './Ayuda';
 
 type Pestana = 'registro' | 'estadisticas' | 'compartir';
+
+const PESTANAS_EVENTO: { clave: Pestana; nombre: string; descripcion: string }[] = [
+  {
+    clave: 'registro',
+    nombre: 'Registro',
+    descripcion:
+      'Marque la asistencia del día: escanee el código del estudiante y confirme con la foto, o márquelo desde la lista.',
+  },
+  {
+    clave: 'estadisticas',
+    nombre: 'Estadísticas',
+    descripcion: 'Cuánto ha asistido cada integrante, sobre el total de sesiones registradas.',
+  },
+  {
+    clave: 'compartir',
+    nombre: 'Compartir',
+    descripcion:
+      'Dé acceso a otros docentes para que también puedan registrar en este evento. Solo usted, que lo creó, puede hacerlo.',
+  },
+];
 
 /**
  * Planilla de un evento — registro, estadistica y compartir en una sola pantalla.
@@ -177,22 +198,23 @@ export default function PlanillaEvento({
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {(['registro', 'estadisticas'] as Pestana[])
-          .concat(evento.creadoPor === miCorreo ? ['compartir'] : [])
-          .map((p) => (
-            <button
-              key={p}
-              onClick={() => setPestana(p)}
-              className={[
-                'rounded-full border px-3 py-1 text-sm',
-                pestana === p
-                  ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
-                  : 'border-line text-soft',
-              ].join(' ')}
-            >
-              {p === 'registro' ? 'Registro' : p === 'estadisticas' ? 'Estadísticas' : 'Compartir'}
-            </button>
-          ))}
+        {PESTANAS_EVENTO.filter((p) => p.clave !== 'compartir' || evento.creadoPor === miCorreo).map(
+          ({ clave, nombre, descripcion }) => (
+            <Ayuda key={clave} texto={descripcion}>
+              <button
+                onClick={() => setPestana(clave)}
+                className={[
+                  'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                  pestana === clave
+                    ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                    : 'border-line text-soft',
+                ].join(' ')}
+              >
+                {nombre}
+              </button>
+            </Ayuda>
+          ),
+        )}
       </div>
 
       {aviso && (

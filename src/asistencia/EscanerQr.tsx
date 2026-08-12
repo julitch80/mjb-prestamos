@@ -14,9 +14,24 @@ import { useEffect, useRef, useState } from 'react';
 export default function EscanerQr({
   onLeer,
   onCerrar,
+  pausado = false,
 }: {
   onLeer: (texto: string) => void;
   onCerrar: () => void;
+  /**
+   * Deja de LEER, pero mantiene la camara encendida y este componente montado.
+   *
+   * Existe para poder encadenar estudiantes. Quien pasa lista con QR tiene una fila de
+   * treinta y tres delante: entre uno y otro aparece la tarjeta de verificacion con la
+   * foto, y si en ese momento se desmontara el escaner, al volver habria que tocar otra
+   * vez "Activar camara" — treinta y tres veces. Con la pausa la camara sigue viva y el
+   * siguiente escaneo es inmediato.
+   *
+   * Pausar tambien evita que la camara, que sigue apuntando a la fila, lea al SIGUIENTE
+   * estudiante mientras todavia se esta confirmando el anterior y lo sustituya en la
+   * pantalla sin que nadie lo note.
+   */
+  pausado?: boolean;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const lienzo = useRef<HTMLCanvasElement>(null);
@@ -32,6 +47,15 @@ export default function EscanerQr({
 
   const [activo, setActivo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const pausadoRef = useRef(pausado);
+  useEffect(() => {
+    pausadoRef.current = pausado;
+    // Al reanudar se olvida el ultimo codigo leido. Si no, un estudiante al que se acaba
+    // de marcar y que sigue delante de la camara no volveria a dispararse nunca, y el
+    // docente no entenderia por que el aparato lo ignora.
+    if (!pausado) ultimoLeido.current = null;
+  }, [pausado]);
 
   // Limpieza al desmontar: parar TODAS las pistas de la camara y el intervalo de
   // lectura. Una camara que se queda encendida es bateria que se vacia y una luz que no
@@ -74,6 +98,10 @@ export default function EscanerQr({
   }
 
   async function leerCuadro() {
+    // La pausa se comprueba por referencia y no por el valor capturado en el cierre: el
+    // intervalo se crea UNA vez al activar la camara, asi que el `pausado` de aquel
+    // momento se quedaria congelado para siempre.
+    if (pausadoRef.current) return;
     const v = video.current;
     if (!v || v.readyState < 2) return; // aun no hay video decodificado
 

@@ -48,6 +48,7 @@ import type {
 } from './domain/types';
 import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
 import { exigirAutor } from './identidad';
+import { registrarEnvio } from './sincronizacion';
 
 /** El servidor rechazo la escritura porque alguien sincronizo primero. */
 export class ConflictoError extends Error {
@@ -580,10 +581,17 @@ export async function marcarEstudiante(
   const ref = doc(baseDatos(), 'asistenciaSessions', sessionIdDoc);
   const base = `estudiantes.${studentId}`;
 
-  const previo = await getDoc(ref);
-  const yaTenia = Boolean(
-    previo.exists() && (previo.data().estudiantes ?? {})[studentId],
-  );
+  // Con la cache local este getDoc se resuelve del telefono sin tocar la red. Pero SIN
+  // red y sin ese documento en cache, fallaria — y es mejor seguir asumiendo "primera
+  // vez" (queda con autoria de registro) que dejar la marca sin escribirse por un dato
+  // que solo sirve para decidir que campo de autoria llenar.
+  let yaTenia = false;
+  try {
+    const previo = await getDoc(ref);
+    yaTenia = Boolean(previo.exists() && (previo.data().estudiantes ?? {})[studentId]);
+  } catch {
+    yaTenia = false;
+  }
 
   const cambios: Record<string, unknown> = {
     [`${base}.estado`]: estado,
@@ -605,7 +613,10 @@ export async function marcarEstudiante(
     cambios[`${base}.modificadoEn`] = null;
   }
 
-  await updateDoc(ref, cambios);
+  // La promesa de updateDoc es el acuse del SERVIDOR, no la escritura local: con la
+  // cache activada el cambio ya quedo aplicado en el cliente antes de esta linea.
+  // Esperarla aqui dejaria la pantalla colgada sin señal mientras no haya conexion.
+  registrarEnvio(updateDoc(ref, cambios));
 }
 
 /**
@@ -622,18 +633,20 @@ export async function marcarEstudiante(
  * Va en UNA sola escritura con rutas de campo puntuales para los 33 estudiantes: una
  * evaluación de regla en vez de 33, que es justamente para lo que existe el modelo de
  * un documento por sesión con los estudiantes dentro.
+ *
+ * Quien ya tiene marca sale de `yaMarcados` — lo que la pantalla ya tiene cargado en
+ * memoria — y no de un `getDoc` al servidor: pedirlo aquí obligaría a esperar una
+ * respuesta que sin señal no llega, para averiguar algo que la propia planilla visible
+ * ya sabe.
  */
 export async function llenarColumna(
   sessionIdDoc: string,
   studentIds: string[],
   estado: MarkCode,
+  yaMarcados: Record<string, unknown>,
 ): Promise<number> {
   const autor = await exigirAutor();
   const ref = doc(baseDatos(), 'asistenciaSessions', sessionIdDoc);
-
-  const actual = await getDoc(ref);
-  if (!actual.exists()) throw new Error('La sesión ya no existe.');
-  const yaMarcados = (actual.data().estudiantes ?? {}) as Record<string, unknown>;
 
   const vacios = studentIds.filter((id) => !yaMarcados[id]);
   if (vacios.length === 0) return 0;
@@ -652,7 +665,9 @@ export async function llenarColumna(
     cambios[`estudiantes.${id}.modificadoEn`] = null;
   }
 
-  await updateDoc(ref, cambios);
+  // Mismo motivo que en `marcarEstudiante`: esta promesa es el acuse del servidor, y
+  // esperarla dejaria colgado el boton de "llenar columna" sin señal.
+  registrarEnvio(updateDoc(ref, cambios));
   return vacios.length;
 }
 

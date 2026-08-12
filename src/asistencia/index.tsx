@@ -1,5 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import Planilla from './Planilla';
+import Planilla, { CLASE_MARCA, SIGLA } from './Planilla';
+import EscanerQr from './EscanerQr';
+import VerificacionFoto from './VerificacionFoto';
 
 /**
  * ⚠️ NO CONVERTIR EN IMPORT ESTATICO.
@@ -23,6 +25,7 @@ import {
   abrirSesion,
   borrarSesionesDeCruce,
   buscarEstudiantes,
+  buscarPorQrToken,
   cerrarSesion as cerrarSesionRemota,
   crearEstudianteManual,
   leerConfigAlertas,
@@ -40,12 +43,16 @@ import { toDateKey } from './domain/ids';
 import { nombreCompleto } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
-import type { MarkCode } from './domain/marks';
+import { MARKS, findMark, type MarkCode } from './domain/marks';
 import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './domain/types';
 import { firebaseConfigurado } from '../lib/firebase';
 import { useAppStore } from '../data/store';
-import { estiloEtiqueta, guardarColor, leerMapa, resolverColor, type MapaColores } from './domain/colores';
+import { guardarColor, leerMapa, resolverColor, type MapaColores } from './domain/colores';
+import Ayuda from './Ayuda';
 import { ASIGNATURAS, getAsignatura } from '../data/asignacionAcademica';
+import { exigirAutor } from './identidad';
+import { observarSync, type EstadoSync } from './sincronizacion';
+import type { StudentMark } from './domain/types';
 
 /**
  * Navegacion interna del modulo. `eventos` esta disponible para cualquier rol que llegue
@@ -115,12 +122,20 @@ export default function Asistencia() {
   const [bloqueParaAbrir, setBloqueParaAbrir] = useState<{ grado: string; subjectId: string } | null>(
     null,
   );
-  /** "Mis grupos" como overlay, para abrir un cruce que el docente aún no ha usado este
-   * periodo sin perder la planilla que ya tiene abierta. Solo tiene sentido cuando ya
-   * existe al menos una sesión (si no, "Mis grupos" ES la pantalla principal). */
-  const [mostrarMisGrupos, setMostrarMisGrupos] = useState(false);
   /** Formulario manual de respaldo: docentes de apoyo, o asignación aún no cargada. */
   const [formularioManual, setFormularioManual] = useState(false);
+
+  /**
+   * Sesión en la que se está escaneando (elegida en `Planilla.tsx`, que resuelve la
+   * ambigüedad de qué columna es "hoy"). Se mantiene aunque se cierre la cámara para
+   * mostrar la tarjeta de verificación, porque hace falta para volver a marcar.
+   */
+  const [escaneandoSessionId, setEscaneandoSessionId] = useState<string | null>(null);
+  /** Estudiante identificado por QR, pendiente de que la persona confirme con foto. */
+  const [candidatoQr, setCandidatoQr] = useState<Student | null>(null);
+  /** Avisos del flujo de escaneo (código no reconocido, otra sede, marcado). Aparte de
+   * `error`: la cámara cubre toda la pantalla y este aviso tiene que verse por encima. */
+  const [avisoQr, setAvisoQr] = useState<string | null>(null);
 
   /** Panel de estadísticas de un estudiante (pastilla de la columna "Faltas"). */
   const [panelAbierto, setPanelAbierto] = useState<string | null>(null);
@@ -134,6 +149,11 @@ export default function Asistencia() {
   // Preferencia visual del dispositivo, no un dato del colegio: se lee una sola vez del
   // almacen local (ver domain/colores.ts) y de ahi en adelante vive en memoria.
   const [mapaColores, setMapaColores] = useState<MapaColores>(() => leerMapa());
+
+  /** Estado de envio de las marcas: sin conexion, cuantas van pendientes de acuse del
+   *  servidor, y el ultimo rechazo si lo hubo. Ver sincronizacion.ts. */
+  const [sync, setSync] = useState<EstadoSync>({ enLinea: true, pendientes: 0, ultimoError: null });
+  useEffect(() => observarSync(setSync), []);
 
   /**
    * Umbrales de alerta (`asistenciaConfig/alertas`). Cualquier cuenta activa puede
@@ -158,7 +178,10 @@ export default function Asistencia() {
     try {
       const lista = await leerSesiones(alcance);
       setSesiones(lista);
-      setCruce((actual) => actual ?? (lista.length ? { grado: lista[0].grado, subjectId: lista[0].subjectId } : null));
+      // NO se elige un cruce automaticamente. La puerta de entrada es "Mis grupos": el
+      // docente escoge, igual que abre un cuaderno. Antes se caia directo en la planilla
+      // del primer grupo que devolviera la consulta, que no es ni el de la clase actual
+      // ni ninguno en particular — solo el primero.
     } catch (e) {
       setError(mensajeDeError(e));
     } finally {
@@ -261,26 +284,143 @@ export default function Asistencia() {
     };
   }, [cruce, esDirector, sesionesDelCruce]);
 
+  /**
+   * Marca optimista: la casilla se pinta en el acto, ANTES de que el servidor confirme
+   * nada. `marcarEstudiante` ya no espera el acuse (ver datos.ts), así que si aquí se
+   * esperara igual el resultado la pantalla se quedaría muerta sin señal — se aplica el
+   * cambio local y se deja que la escritura viaje sola.
+   */
   async function marcar(sessionIdDoc: string, studentId: string, estado: MarkCode) {
     setError(null);
+    let autor: string;
+    try {
+      autor = await exigirAutor();
+    } catch (e) {
+      setError(mensajeDeError(e));
+      return;
+    }
+    setSesiones((prev) =>
+      prev.map((s) => {
+        if (s.sessionId !== sessionIdDoc) return s;
+        const previa = s.estudiantes[studentId];
+        const marca: StudentMark = {
+          estado,
+          motivo: null,
+          observacion: null,
+          // La autoría original (registradoPor/registradoEn) es inmutable una vez
+          // puesta; solo se guarda quién y cuándo corrigió, igual que en el servidor.
+          registradoPor: previa?.registradoPor ?? autor,
+          registradoEn: previa?.registradoEn ?? Date.now(),
+          modificadoPor: previa ? autor : null,
+          modificadoEn: previa ? Date.now() : null,
+        };
+        return { ...s, estudiantes: { ...s.estudiantes, [studentId]: marca } };
+      }),
+    );
     try {
       await marcarEstudiante(sessionIdDoc, studentId, estado);
-      await cargarSesiones();
     } catch (e) {
       setError(mensajeDeError(e));
     }
   }
 
-  /** Llenado por defecto de una columna. Solo toca las casillas vacías. */
-  async function llenar(sessionIdDoc: string, estado: MarkCode) {
+  /** Abre el escáner para la sesión que `Planilla.tsx` ya resolvió. */
+  function iniciarEscaneo(sessionId: string) {
+    setError(null);
+    setAvisoQr(null);
+    setCandidatoQr(null);
+    setEscaneandoSessionId(sessionId);
+  }
+
+  function cerrarEscaneoQr() {
+    setEscaneandoSessionId(null);
+    setCandidatoQr(null);
+    setAvisoQr(null);
+  }
+
+  /**
+   * Al leer un QR NO se registra automáticamente: se muestra al estudiante con su foto
+   * (mismo control de identidad que EscanerQr usa en LlegadasTarde.tsx y PlanillaEvento.tsx)
+   * y la persona confirma tocando la marca. Sin esa pausa se registra a quien no es.
+   */
+  async function leerQr(texto: string) {
+    if (!escaneandoSessionId) return;
+    setAvisoQr(null);
     setError(null);
     try {
-      await llenarColumna(
-        sessionIdDoc,
-        estudiantes.map((e) => e.studentId),
-        estado,
-      );
-      await cargarSesiones();
+      const { estudiante, otraSede } = await buscarPorQrToken(sede, texto);
+      if (!estudiante) {
+        setAvisoQr(
+          otraSede
+            ? 'Ese código pertenece a un estudiante de otra sede.'
+            : 'Código no reconocido. Puede marcar desde la lista de la planilla.',
+        );
+        return;
+      }
+      // No pertenece al grupo de ESTA planilla: se dice con su nombre y no se ofrece
+      // marcarlo. Se comprueba contra `estudiantes`, la lista ya cargada del cruce
+      // abierto, no contra la sede entera.
+      if (!estudiantes.some((e) => e.studentId === estudiante.studentId)) {
+        setEscaneandoSessionId(null);
+        setAvisoQr(`${nombreCompleto(estudiante)} no pertenece a este grupo.`);
+        return;
+      }
+      setCandidatoQr(estudiante);
+    } catch (e) {
+      setError(mensajeDeError(e));
+    }
+  }
+
+  async function marcarDesdeQr(estado: MarkCode) {
+    if (!candidatoQr || !escaneandoSessionId) return;
+    const nombre = nombreCompleto(candidatoQr);
+    await marcar(escaneandoSessionId, candidatoQr.studentId, estado);
+    setAvisoQr(`${nombre} — marcado.`);
+    // Se vuelve a mostrar el escáner (no se cierra `escaneandoSessionId`) para encadenar
+    // el siguiente estudiante sin volver a tocar el botón de la planilla.
+    setCandidatoQr(null);
+  }
+
+  /**
+   * Llenado por defecto de una columna. Solo toca las casillas vacías, y las pinta de
+   * una vez en el estado local — mismo motivo que `marcar`: no hay que esperar al
+   * servidor para ver el resultado, y sin red ese llenado de 33 casillas tendría que
+   * verse igual de inmediato.
+   */
+  async function llenar(sessionIdDoc: string, estado: MarkCode) {
+    setError(null);
+    const sesion = sesiones.find((s) => s.sessionId === sessionIdDoc);
+    if (!sesion) return;
+    let autor: string;
+    try {
+      autor = await exigirAutor();
+    } catch (e) {
+      setError(mensajeDeError(e));
+      return;
+    }
+    const ids = estudiantes.map((e) => e.studentId);
+    const vacios = ids.filter((id) => !sesion.estudiantes[id]);
+    if (vacios.length === 0) return;
+    setSesiones((prev) =>
+      prev.map((s) => {
+        if (s.sessionId !== sessionIdDoc) return s;
+        const nuevoMapa = { ...s.estudiantes };
+        for (const id of vacios) {
+          nuevoMapa[id] = {
+            estado,
+            motivo: null,
+            observacion: null,
+            registradoPor: autor,
+            registradoEn: Date.now(),
+            modificadoPor: null,
+            modificadoEn: null,
+          };
+        }
+        return { ...s, estudiantes: nuevoMapa };
+      }),
+    );
+    try {
+      await llenarColumna(sessionIdDoc, ids, estado, sesion.estudiantes);
     } catch (e) {
       setError(mensajeDeError(e));
     }
@@ -448,6 +588,8 @@ export default function Asistencia() {
     <div className="space-y-3">
       <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
 
+      <IndicadorSync sync={sync} />
+
       {/* Va ANTES del error y siempre visible: cuando se simula a otra persona, casi
           cualquier fallo de permisos de este modulo se explica por aqui, y el mensaje
           generico manda a buscar donde no es. */}
@@ -469,61 +611,37 @@ export default function Asistencia() {
         </div>
       )}
 
-      {cruces.length === 0 ? (
-        puedeRegistrar ? (
-          <MisGrupos
-            slotId={slotId}
-            onElegir={(grado, subjectId) => setBloqueParaAbrir({ grado, subjectId })}
-            onSinAsignacion={() => setFormularioManual(true)}
-          />
-        ) : (
-          <p className="rounded-xl border border-line bg-card p-3 text-sm text-muted">
-            No hay sesiones de clase registradas todavía. Aparecerán aquí cuando los
-            docentes empiecen a pasar lista.
-          </p>
-        )
+      {/*
+        Sin cruce elegido, la pantalla es "Mis grupos". Antes habia una fila de pastillas
+        con TODOS los cruces donde el docente hubiera pasado lista alguna vez, y crecia
+        sola sin poder quitarse: no eran una preferencia, eran el reflejo de donde habia
+        sesiones. Tenia sentido cuando el sistema no sabia que grupos dictaba cada quien y
+        tenia que deducirlos de lo registrado; con la asignacion academica cargada, sobran.
+      */}
+      {!cruce ? (
+        <MisGrupos
+          slotId={slotId}
+          extras={cruces}
+          onElegir={(grado, subjectId) => {
+            const yaTieneSesiones = cruces.some(
+              (c) => c.grado === grado && c.subjectId === subjectId,
+            );
+            // Si ya hay planilla, se abre y punto. Si es la primera vez de este grupo,
+            // hay que saber en que bloque es la clase antes de crear la sesion.
+            if (yaTieneSesiones) setCruce({ grado, subjectId });
+            else if (puedeRegistrar) setBloqueParaAbrir({ grado, subjectId });
+            else setCruce({ grado, subjectId });
+          }}
+          onSinAsignacion={() => setFormularioManual(true)}
+        />
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {cruces.length > 1 &&
-              cruces.map((c) => {
-                const activo = cruce?.grado === c.grado && cruce?.subjectId === c.subjectId;
-                const colorPestana = resolverColor(mapaColores, c.grado, c.subjectId);
-                return (
-                  <button
-                    key={`${c.grado}|${c.subjectId}`}
-                    onClick={() => setCruce(c)}
-                    style={estiloEtiqueta(colorPestana)}
-                    className={[
-                      'rounded-full border px-3 py-1 text-sm',
-                      // El color de grupo va por `style` (arriba); aqui solo se decide si
-                      // la pestana activa se distingue de las inactivas cuando NO hay
-                      // color propio, con un borde mas marcado.
-                      activo
-                        ? colorPestana
-                          ? 'border-2 font-semibold'
-                          : 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
-                        : colorPestana
-                          ? 'border font-normal'
-                          : 'border-line text-soft',
-                    ].join(' ')}
-                  >
-                    {c.grado} · {getAsignatura(c.subjectId)?.nombre ?? c.subjectId}
-                  </button>
-                );
-              })}
-            {/* Para abrir un grupo de la asignacion que este periodo aun no ha usado, sin
-                perder la planilla que ya tiene abierta. Solo el que registra lo necesita:
-                la rectora consulta, no abre sesiones nuevas. */}
-            {puedeRegistrar && (
-              <button
-                onClick={() => setMostrarMisGrupos(true)}
-                className="rounded-full border border-dashed border-line px-3 py-1 text-sm text-muted"
-              >
-                + Grupo
-              </button>
-            )}
-          </div>
+          <button
+            onClick={() => setCruce(null)}
+            className="min-h-[36px] text-sm text-accent"
+          >
+            ← Mis grupos
+          </button>
 
           {cruce && (
             <Planilla
@@ -540,6 +658,7 @@ export default function Asistencia() {
               onAbrirPanel={setPanelAbierto}
               onLlenarColumna={llenar}
               onNuevaSesion={nuevaSesion}
+              onEscanear={iniciarEscaneo}
               color={resolverColor(mapaColores, cruce.grado, cruce.subjectId)}
               onElegirColor={(colorId) =>
                 setMapaColores((m) => guardarColor(m, cruce.grado, cruce.subjectId, colorId))
@@ -550,40 +669,6 @@ export default function Asistencia() {
             />
           )}
         </>
-      )}
-
-      {mostrarMisGrupos && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
-          onClick={() => setMostrarMisGrupos(false)}
-        >
-          <div
-            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
-            onClick={(ev) => ev.stopPropagation()}
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-strong">Mis grupos</h3>
-              <button
-                onClick={() => setMostrarMisGrupos(false)}
-                aria-label="Cerrar"
-                className="min-h-[36px] rounded-lg border border-line px-2 py-1 text-xs text-muted"
-              >
-                Cerrar
-              </button>
-            </div>
-            <MisGrupos
-              slotId={slotId}
-              onElegir={(grado, subjectId) => {
-                setMostrarMisGrupos(false);
-                setBloqueParaAbrir({ grado, subjectId });
-              }}
-              onSinAsignacion={() => {
-                setMostrarMisGrupos(false);
-                setFormularioManual(true);
-              }}
-            />
-          </div>
-        </div>
       )}
 
       {bloqueParaAbrir && (
@@ -620,6 +705,91 @@ export default function Asistencia() {
           onCerrar={() => setPanelAbierto(null)}
         />
       )}
+
+      {/* La cámara cubre toda la pantalla (EscanerQr es `fixed inset-0 z-50`): el aviso
+          tiene que ir por encima o desaparece detrás de ella mientras se escanea. */}
+      {avisoQr && (
+        <div className="fixed inset-x-3 top-16 z-[60] rounded-xl border border-info-soft bg-info-soft p-3 text-center text-sm text-info-soft-fg shadow-lg">
+          {avisoQr}
+        </div>
+      )}
+
+      {/* El escáner NO se desmonta al aparecer la tarjeta de verificación: se PAUSA.
+          Desmontarlo obligaba a tocar "Activar cámara" otra vez con cada estudiante —
+          treinta y tres veces en un curso—, porque iOS exige un gesto explícito para
+          encender la cámara y el componente arrancaba de cero cada vez. */}
+      {escaneandoSessionId && (
+        <EscanerQr
+          onLeer={(t) => void leerQr(t)}
+          onCerrar={cerrarEscaneoQr}
+          pausado={candidatoQr !== null}
+        />
+      )}
+
+      {candidatoQr && escaneandoSessionId && (
+        <div
+          className="fixed inset-0 z-[55] grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+          onClick={cerrarEscaneoQr}
+        >
+          <div
+            className="w-full max-w-md rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            {(() => {
+              const marcaPrevia = sesionesDelCruce.find((s) => s.sessionId === escaneandoSessionId)
+                ?.estudiantes?.[candidatoQr.studentId];
+              // Si ya tenía marca, se dice ANTES de que la persona toque nada: va a
+              // corregir, no a registrar por primera vez.
+              return (
+                marcaPrevia && (
+                  <p className="mb-2 text-xs text-warning-soft-fg">
+                    Ya estaba marcado como{' '}
+                    {findMark(marcaPrevia.estado)?.label ?? marcaPrevia.estado}.
+                  </p>
+                )
+              );
+            })()}
+            <ul>
+              <VerificacionFoto
+                estudiante={candidatoQr}
+                acciones={<BotonesMarcaQr onElegir={(m) => void marcarDesdeQr(m)} />}
+              />
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Fila de marcas para la tarjeta de verificación del escáner. "Asistencia" es el botón
+ * prominente porque es el caso normal —la clase entera pasando—; el resto queda discreto
+ * al lado, con sigla y color, para la corrección puntual.
+ */
+function BotonesMarcaQr({ onElegir }: { onElegir: (m: MarkCode) => void }) {
+  const otras = MARKS.filter((m) => m.code !== 'asistencia');
+  return (
+    <div className="flex w-full flex-col gap-2">
+      <button
+        onClick={() => onElegir('asistencia')}
+        className="min-h-[36px] w-full rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-fg"
+      >
+        Asistencia
+      </button>
+      <div className="flex flex-wrap gap-1">
+        {otras.map((m) => (
+          <button
+            key={m.code}
+            onClick={() => onElegir(m.code)}
+            aria-label={`Marcar ${m.label}`}
+            title={m.label}
+            className={`grid h-9 min-w-9 place-items-center rounded-lg px-1.5 text-xs font-bold ${CLASE_MARCA[m.code]}`}
+          >
+            {SIGLA[m.code]}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1001,6 +1171,40 @@ function MenuBloque({
   );
 }
 
+/** Las cuatro secciones del modulo, con la ayuda que aparece al pasar el raton. */
+const SECCIONES: {
+  vista: VistaAsistencia;
+  nombre: string;
+  descripcion: string;
+  soloCoordinador?: boolean;
+}[] = [
+  {
+    vista: 'planilla',
+    nombre: 'Planillas',
+    descripcion: 'Pase de lista de sus clases: escoja un grupo y marque la asistencia del día.',
+  },
+  {
+    vista: 'tercera_hora',
+    nombre: 'Reporte de tercera hora',
+    descripcion:
+      'Quiénes no vinieron hoy al colegio. Se mide después de la tercera hora, cuando ya entraron los que esperaban afuera.',
+    soloCoordinador: true,
+  },
+  {
+    vista: 'llegadas',
+    nombre: 'Llegadas tarde',
+    descripcion:
+      'Registro en la puerta de quien entra tarde al colegio. No es el retraso a una clase, que lo pone cada docente.',
+    soloCoordinador: true,
+  },
+  {
+    vista: 'eventos',
+    nombre: 'Eventos',
+    descripcion:
+      'Aquí puede crear grupos personalizados de asistencia para una actividad particular: una feria, una salida, un centro de interés. Se arma con los estudiantes que quiera, se comparte con otros docentes y lleva su propia planilla.',
+  },
+];
+
 function Pestanas({
   vista,
   onCambiar,
@@ -1012,34 +1216,58 @@ function Pestanas({
    * de roles que llegan hasta aqui (docente) solo ven Planillas y Eventos. */
   rol: string | null;
 }) {
-  const clase = (activa: boolean) =>
-    [
-      'rounded-full border px-3 py-1 text-sm',
-      activa
-        ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
-        : 'border-line text-soft',
-    ].join(' ');
+  const visibles = SECCIONES.filter((s) => !s.soloCoordinador || rol === 'coordinador');
+
   return (
     <div className="flex flex-wrap gap-1.5">
-      <button className={clase(vista === 'planilla')} onClick={() => onCambiar('planilla')}>
-        Planillas
-      </button>
-      {rol === 'coordinador' && (
-        <>
+      {visibles.map(({ vista: v, nombre, descripcion }) => (
+        <Ayuda key={v} texto={descripcion}>
           <button
-            className={clase(vista === 'tercera_hora')}
-            onClick={() => onCambiar('tercera_hora')}
+            onClick={() => onCambiar(v)}
+            className={[
+              'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+              vista === v
+                ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                : 'border-line text-soft',
+            ].join(' ')}
           >
-            Reporte de tercera hora
+            {nombre}
           </button>
-          <button className={clase(vista === 'llegadas')} onClick={() => onCambiar('llegadas')}>
-            Llegadas tarde
-          </button>
-        </>
+        </Ayuda>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Aviso del estado de envío de las marcas. Va justo debajo de las pestañas —arriba de
+ * todo, visible mientras se pasa lista, no al final de la página— porque es ahí donde el
+ * docente necesita saber si lo que está tocando de verdad se está guardando.
+ *
+ * Sin conexión y "enviando" son avisos informativos (nada se ha perdido); el último
+ * error es distinto: el servidor rechazó una marca y hay que decirlo, porque de lo
+ * contrario esa marca desaparece sin que nadie se entere.
+ */
+function IndicadorSync({ sync }: { sync: EstadoSync }) {
+  if (sync.enLinea && sync.pendientes === 0 && !sync.ultimoError) return null;
+  return (
+    <div className="space-y-1.5">
+      {!sync.enLinea && (
+        <div className="rounded-xl border border-warning-soft bg-warning-soft p-3 text-sm text-warning-soft-fg">
+          Sin conexión. Sus marcas se guardan y se enviarán solas al volver la señal. No
+          cierre la aplicación.
+        </div>
       )}
-      <button className={clase(vista === 'eventos')} onClick={() => onCambiar('eventos')}>
-        Eventos
-      </button>
+      {sync.enLinea && sync.pendientes > 0 && (
+        <div className="rounded-xl border border-info-soft bg-info-soft p-3 text-sm text-info-soft-fg">
+          Enviando {sync.pendientes} {sync.pendientes === 1 ? 'marca' : 'marcas'}…
+        </div>
+      )}
+      {sync.ultimoError && (
+        <div className="rounded-xl border border-danger-soft bg-danger-soft p-3 text-sm text-danger-soft-fg">
+          El servidor no guardó una marca: {sync.ultimoError}. Vuelva a marcar esa casilla.
+        </div>
+      )}
     </div>
   );
 }
