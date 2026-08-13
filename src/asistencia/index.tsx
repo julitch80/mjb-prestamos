@@ -15,6 +15,7 @@ import VerificacionFoto from './VerificacionFoto';
  * `import Importar from './Importar'` arriba, es una regresion: devolverlo aqui.
  */
 const Importar = lazy(() => import('./Importar'));
+import CargaFotos from './CargaFotos';
 import Ficha from './Ficha';
 import PanelEstudiante from './PanelEstudiante';
 import TerceraHora from './TerceraHora';
@@ -528,6 +529,7 @@ export default function Asistencia() {
           <Importar />
         </Suspense>
         <BuscadorFichas sede={sede} onAbrir={setFichaAbierta} />
+        <CargaFotos />
         <LimpiezaPlanillas />
       </div>
     );
@@ -752,6 +754,7 @@ export default function Asistencia() {
             <ul>
               <VerificacionFoto
                 estudiante={candidatoQr}
+                tamano={110}
                 acciones={<BotonesMarcaQr onElegir={(m) => void marcarDesdeQr(m)} />}
               />
             </ul>
@@ -1252,10 +1255,15 @@ function IndicadorSync({ sync }: { sync: EstadoSync }) {
   if (sync.enLinea && sync.pendientes === 0 && !sync.ultimoError) return null;
   return (
     <div className="space-y-1.5">
+      {/* Desde que MJB activó la caché persistente de Firestore (2026-08-11), las marcas
+          quedan guardadas EN EL DISPOSITIVO y sobreviven a cerrar la aplicación. El aviso
+          decía "no cierre la aplicación" cuando eso todavía no era cierto; mantenerlo
+          ahora sería asustar sin motivo y, peor, enseñaría al docente a desconfiar de un
+          mensaje que sí es fiable. */}
       {!sync.enLinea && (
         <div className="rounded-xl border border-warning-soft bg-warning-soft p-3 text-sm text-warning-soft-fg">
-          Sin conexión. Sus marcas se guardan y se enviarán solas al volver la señal. No
-          cierre la aplicación.
+          Sin conexión. Puede seguir pasando lista: sus marcas quedan guardadas en este
+          dispositivo y se enviarán solas cuando vuelva la señal.
         </div>
       )}
       {sync.enLinea && sync.pendientes > 0 && (

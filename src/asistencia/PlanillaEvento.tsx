@@ -259,6 +259,7 @@ export default function PlanillaEvento({
               <ul className="mt-2">
                 <VerificacionFoto
                   estudiante={candidatoQr}
+                  tamano={110}
                   acciones={<BotonesMarca onElegir={(m) => void marcarDesdeQr(m)} />}
                 />
               </ul>

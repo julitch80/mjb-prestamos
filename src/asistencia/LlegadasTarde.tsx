@@ -353,9 +353,14 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
         {candidatos.length > 0 && (
           <ul className="mt-2 space-y-1">
             {candidatos.map((e) => (
+              // Un solo candidato —lo que deja siempre el escaneo del QR, y tambien una
+              // busqueda que ya acerto— no es una lista para descartar: es una cara que
+              // hay que confirmar, y va grande. Con varios, la foto pequena deja verlos
+              // todos de un vistazo, que es lo util ahi.
               <VerificacionFoto
                 key={e.studentId}
                 estudiante={e}
+                tamano={candidatos.length === 1 ? 110 : 56}
                 extra={(() => {
                   const paso = pasoLlegadasTarde(conteoAnual[e.studentId] ?? 0, config);
                   return (
