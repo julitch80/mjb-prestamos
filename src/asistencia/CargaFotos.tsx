@@ -61,9 +61,16 @@ export default function CargaFotos() {
   }, [archivos]);
 
   async function elegirCarpeta(ev: React.ChangeEvent<HTMLInputElement>) {
-    const lista = ev.target.files;
+    // ⚠️ COPIAR LOS ARCHIVOS ANTES DE LIMPIAR EL INPUT, y no al reves.
+    //
+    // `ev.target.files` es una referencia VIVA al input, no una copia. Limpiar
+    // `ev.target.value` —que hace falta para poder volver a elegir la MISMA carpeta, o el
+    // navegador no dispara el evento la segunda vez— vacia tambien esa lista. Hacerlo en
+    // el orden contrario dejaba la funcion saliendo en silencio: ni error, ni aviso, ni
+    // fotos. Parecia que el boton no hacia nada.
+    const seleccion = Array.from(ev.target.files ?? []);
     ev.target.value = '';
-    if (!lista || lista.length === 0) return;
+    if (seleccion.length === 0) return;
 
     setError(null);
     setDecisiones({});
@@ -76,8 +83,11 @@ export default function CargaFotos() {
     // aporta nada al emparejamiento y varía según cómo se llame la carpeta en el
     // computador de turno.
     const nuevos: ArchivoFoto[] = [];
-    for (const f of Array.from(lista)) {
-      if (!f.type.startsWith('image/')) continue;
+    for (const f of seleccion) {
+      // Se filtra por EXTENSION y no solo por `type`: al elegir una carpeta hay
+      // navegadores que dejan el tipo vacio, y descartar por eso tiraria fotos buenas.
+      const esImagen = f.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(f.name);
+      if (!esImagen) continue;
       const conRaiz = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
       const partes = conRaiz.split('/');
       const rutaRelativa = partes.length > 1 ? partes.slice(1).join('/') : partes[0];
