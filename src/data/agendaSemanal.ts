@@ -475,6 +475,131 @@ export const AGENDAS: AgendaSemanal[] = [
       },
     ],
   },
+  {
+    semana: 13,
+    periodo: 2,
+    desde: '2026-08-17',
+    hasta: '2026-08-21',
+    publicadaPor: 'Equipo Técnico Institucional',
+    notaFinal: 'La agenda de profesionales (orientación escolar y programa Escuela Entorno Protector, tutoras PTA/FI/3.0, y programa UAI) viene dentro del mismo documento esta semana, aparte de la agenda institucional.',
+    dias: [
+      {
+        fecha: '2026-08-17',
+        dia: 'lunes',
+        festivo: 'Asunción de la Virgen María',
+        notas: ['Continúa proceso de autoevaluación de los estudiantes — última semana de este periodo'],
+        actividades: [],
+      },
+      {
+        fecha: '2026-08-18',
+        dia: 'martes',
+        actividades: [
+          {
+            hora: '9am a 12m',
+            actividad: 'Reunión de seguimiento proyecto CRESE del MEN',
+            asisten: 'Alexander, Sicoorientador, y Beatriz Marín, PTA',
+            lugar: 'IE Gabriela Gómez Carvajal (barrio Santa Cruz)',
+            responsables: 'MEN',
+          },
+          {
+            hora: '10 am',
+            actividad: 'Socialización y seguimiento de plan de acción de EEP',
+            asisten: 'Rectora y coordinadores',
+            lugar: 'Rectoría',
+            responsables: 'Profesional Erika de EEP',
+          },
+          {
+            hora: '11am',
+            actividad: 'Comité de alimentación escolar CAE',
+            asisten: 'Integrantes',
+            lugar: 'Biblioteca',
+            responsables: 'Secretaría de inclusión',
+          },
+          {
+            hora: '1ra hora',
+            actividad: 'Asesoría a familia: Ajustes razonables',
+            asisten: 'Docente Víctor y DAP',
+            lugar: 'Sala de Profesores',
+            responsables: 'DAP y docente',
+          },
+          {
+            hora: '2da hora',
+            actividad: 'Asesoría a familia: Ajustes razonables',
+            asisten: 'Docente Yanet y DAP',
+            lugar: 'Sala de Profesores',
+            responsables: 'DAP y docente',
+          },
+        ],
+      },
+      {
+        fecha: '2026-08-19',
+        dia: 'miercoles',
+        actividades: [
+          {
+            hora: '11am a 12:30pm',
+            actividad: 'Reunión de docentes de ambas jornadas en cada sede: organización de Aula Antioqueñidad',
+            asisten: 'Docentes de ambas jornadas',
+            lugar: 'En cada sede',
+            responsables: 'Docentes que lideran la organización de Antioqueñidad y padres del consejo',
+          },
+          {
+            hora: '10:00 am',
+            actividad: 'Formación a líderes 9°, 10° y 11°',
+            asisten: 'Representantes de grupo y mediadores escolares de cada grupo',
+            lugar: 'Auditorio',
+            responsables: 'Paola Portela y Erika Gómez',
+          },
+          {
+            hora: '12:30 pm',
+            actividad: 'Formación a líderes 8°',
+            asisten: 'Representantes de grupo y mediadores escolares de cada grupo',
+            lugar: 'Auditorio',
+            responsables: 'Paola Portela y Erika Gómez',
+          },
+          {
+            hora: '2da hora',
+            actividad: 'Asesoría a docentes: Ajustes razonables',
+            asisten: 'Docente Adolfo y DAP',
+            lugar: 'Sala de Profesores',
+            responsables: 'DAP y docente',
+          },
+        ],
+      },
+      {
+        fecha: '2026-08-20',
+        dia: 'jueves',
+        actividades: [
+          {
+            hora: '8am a 2pm',
+            actividad: 'Comité operativo del Núcleo 937',
+            asisten: 'Rectores',
+            lugar: 'IE Empresarial',
+            responsables: 'Jefe de Núcleo 937',
+          },
+        ],
+      },
+      {
+        fecha: '2026-08-21',
+        dia: 'viernes',
+        actividades: [
+          {
+            hora: '8am a 1pm',
+            actividad: 'Asamblea general de asociados a USDIDEA',
+            asisten: 'Rectora',
+            lugar: 'ITM Boston',
+            responsables: 'USDIDEA',
+          },
+          {
+            hora: '7:00am',
+            actividad: 'Encuentro con padres del grado 2° - corresponsabilidad familiar',
+            asisten: 'Padres y/o acudientes',
+            lugar: 'Sede Gustavo Rodas',
+            responsables: 'Erika Gómez',
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 /** La agenda vigente: siempre la última publicada. */
