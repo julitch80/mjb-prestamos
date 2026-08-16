@@ -8,6 +8,19 @@ la sesión para programarlo — este documento deja todo listo para que la
 próxima sesión empiece a ejecutar directamente, sin tener que re-analizar
 nada.
 
+**Modelo objetivo del asistente en ejecución: Claude Opus 5**
+(`claude-opus-5`), confirmado por Julián. Eso resuelve la pregunta 1 de la
+sección 5. Nota de costo: Opus es el nivel más caro, pero este asistente se
+usa en emergencias reales —unas pocas veces al mes, con conversaciones
+cortas—, así que el gasto es marginal y no justifica bajar de modelo en algo
+donde la calidad de la respuesta importa tanto.
+
+**Segunda pasada de análisis (Opus 5):** el repaso crítico del prompt contra
+el documento fuente encontró siete defectos concretos que la primera pasada
+no vio. Están en la sección 3.1 y **hay que corregirlos antes de
+implementar** — dos de ellos harían que el asistente falle justo en el
+momento que importa.
+
 ## 0. Lo primero que hay que saber: esto es un desarrollo desde cero
 
 Revisé el repo completo: **no existe ninguna integración con un LLM** (ni
@@ -210,8 +223,82 @@ sección 5, preguntas para Julián):
   más? El sistema ya tiene el concepto de coordinador por jornada
   (`coord_manana`, `coord_tarde` en `maestros.ts`), pero no hay overlap
   automático con "quién está de turno ahora".
-- Proveedor del LLM y quién paga la API — el prompt no lo dice, es una
-  decisión de Julián con implicación de costo recurrente.
+- Quién paga la API (el modelo ya está decidido: Opus 5).
+
+## 3.1 Fallos concretos del prompt — corregir ANTES de implementar
+
+Ninguno es un matiz de estilo. Los dos primeros harían que el asistente se
+comporte mal justo en el momento crítico.
+
+**1. ⛔ El triage tiene una pregunta con la polaridad invertida.**
+El prompt manda preguntar cuatro cosas: *«si el estudiante está consciente,
+si está convulsionando, si perdió la consciencia por un golpe, o si el
+docente no tiene claridad»*, y luego ordena: *«Si CUALQUIERA es afirmativa:
+llama al 123»*. Pero **«¿está consciente?» es la única cuya respuesta
+afirmativa es tranquilizadora**; en las otras tres, «sí» significa
+gravedad. Leído al pie de la letra, un docente que responde «sí, está
+consciente» dispara la llamada al 123. El documento fuente lista **tres**
+señales, no cuatro (Convulsión · Pérdida de consciencia por un golpe · No
+tienes claridad). Arreglo: eliminar la cuarta pregunta, o reformularla como
+*«¿está inconsciente?»* para que todas compartan polaridad.
+
+**2. ⛔ La rama emocional pide el ámbito y después no lo usa.**
+El paso 1 hace ubicar si la situación viene de dentro o fuera del colegio.
+Los pasos 2 a 7 **nunca se ramifican según esa respuesta** — el dato se
+pide y se descarta. Y con eso se pierde media sección 4.2 del documento:
+*«Dentro del colegio → además del apoyo emocional, debe procederse
+internamente: evaluar si hay personas implicadas (por ejemplo, un posible
+caso de acoso escolar)»*. Es decir, **la ruta de acoso escolar desaparece
+del asistente**. El paso 7 del prompt («informar a la familia») es en
+realidad la rama de *fuera del colegio* aplicada a todos los casos. Arreglo:
+ramificar de verdad después del paso 1, con la vía interna para el caso de
+dentro del colegio.
+
+**3. El prompt no cubre la sección 5 del documento (gestión posterior).**
+El documento define el flujo completo como *1. Triage › 2. Atención básica ›
+3. En paralelo › 4. Traslado › 5. Gestión posterior*. El prompt llega hasta
+el 4. Queda fuera: constancia de retiro (formato institucional de salida),
+informe administrativo post-accidente firmado por un directivo —con tiempo,
+modo y lugar, como antecedente ante una eventual acción judicial— y el
+seguimiento del caso en los días siguientes. Decidir si el asistente cubre
+esto o si es explícitamente otro momento/otra herramienta.
+
+**4. «El documento correspondiente» del paso 5c es ambiguo.**
+El documento menciona cuatro papeles distintos: formato de remisión del
+Fondo de Protección Escolar, constancia de estudios, formato institucional
+de salida de estudiantes, e informe administrativo post-accidente. El
+prompt manda *«hacer firmar el documento correspondiente»* sin decir cuál.
+Además hay un desfase: el prompt sitúa la firma al llegar el acudiente
+(paso 5), mientras el documento pone la constancia de retiro en la sección
+5 (gestión posterior). `escanear_documento_firmado` necesita saber qué está
+escaneando para poder etiquetarlo en el caso.
+
+**5. La Línea Naranja no tiene número en la aplicación.**
+El prompt manda llamarla «de inmediato», pero ni el documento fuente ni el
+directorio COPASST que se añadió hoy a Gestión del Riesgo
+(`src/data/emergencias.ts`) la traen con ese nombre. Lo más cercano en el
+directorio es *Línea Código Dorado / Centro Integral de Familia
+(Psicología)* y *Prevención del Suicidio (018000113113)*. Hay que confirmar
+con rectoría si «Línea Naranja» es una de esas o es otra línea distinta, y
+—una vez confirmada— **enlazar el asistente al directorio ya existente** en
+vez de repetir números sueltos dentro del prompt: la nueva pestaña de
+números de emergencia es la fuente única, y así no se desincronizan.
+
+**6. El paso 0 no contempla «ambas» ni «no sé».**
+Pregunta si es primeros auxilios o contención emocional y espera una de las
+dos. Un estudiante que se desmaya y además está en crisis, o un docente que
+no sabe clasificar lo que ve, no tienen camino. Dado que el triage manda,
+lo prudente es que «no sé» entre por la rama de primeros auxilios — cuyo
+propio triage ya contempla *«no tienes claridad sobre qué tan grave es»* y
+resuelve con el 123.
+
+**7. Detalle añadido que no está en la fuente.**
+El prompt dice llamar a la Línea Naranja *«desde el celular del colegio»*;
+el documento solo dice llamar. Es un añadido razonable de Julián, pero
+choca con la regla que el propio prompt se impone («no agregues contexto que
+no esté explícitamente en el documento fuente»). Conviene decidirlo
+conscientemente: o se incorpora al documento institucional, o se quita del
+prompt.
 
 ## 4. Arquitectura propuesta (a validar, no a asumir)
 
@@ -255,9 +342,8 @@ sección 5, preguntas para Julián):
 
 ## 5. Preguntas para Julián — resolver al empezar la próxima sesión
 
-1. ¿Proveedor del LLM? (Claude es la recomendación natural, dado que ya
-   es la herramienta de desarrollo de este proyecto — pero implica un
-   costo por uso que hay que presupuestar).
+~~1. ¿Proveedor del LLM?~~ **RESUELTO: Claude Opus 5 (`claude-opus-5`).**
+
 2. ¿Quién administra y paga la API key?
 3. ¿Dónde vive el acceso al chat en la interfaz? Una emergencia real no
    espera a navegar tres menús — ¿un acceso directo desde el inicio,
@@ -275,27 +361,54 @@ sección 5, preguntas para Julián):
    activarlo, dado que es contenido que un docente seguirá al pie de la
    letra en una emergencia real con un menor?
 
+**Nuevas, de los fallos de la sección 3.1:**
+
+8. ¿«Línea Naranja» es alguna de las que ya están en el directorio COPASST
+   (Línea Código Dorado, Prevención del Suicidio) o es otra distinta? Sin
+   esto el asistente manda a llamar a un número que la app no tiene.
+9. ¿Qué documento firma el acudiente exactamente, y por tanto qué captura
+   `escanear_documento_firmado`?
+10. ¿El asistente cubre también la gestión posterior (sección 5 del
+    protocolo: constancia de retiro, informe administrativo, seguimiento),
+    o eso es otro momento y otra herramienta?
+11. En la rama emocional con origen *dentro del colegio*, ¿debe
+    notificarse a coordinación? El documento pide «proceder internamente»
+    (posible acoso escolar), pero el prompt restringe
+    `notificar_coordinacion` a la rama de primeros auxilios. Confirmar si
+    esa restricción es deliberada.
+
 ## 6. Plan de tareas para la próxima sesión, en orden
 
 1. Resolver las preguntas de la sección 5 con Julián (no programar nada
    antes de esto — varias decisiones cambian la arquitectura).
-2. Instalar el SDK del proveedor elegido en la función correspondiente.
-3. Escribir el system prompt final: estructura del prompt de Julián +
-   el documento fuente transcrito arriba, con las anotaciones de fuente
-   preservadas y los dos puntos abiertos resueltos o marcados con su
-   placeholder acordado.
-4. Cloud Function con el loop de tool-calling, la API key como secreto
-   (`defineSecret`, con `invoker: 'public'` si aplica).
-5. Implementar `notificar_coordinacion` sobre el sistema de
+2. **Corregir los siete fallos de la sección 3.1 en el prompt**, empezando
+   por los dos marcados con ⛔ (polaridad del triage y ramificación por
+   ámbito en la rama emocional). Este paso va antes de escribir código:
+   el prompt corregido *es* la especificación.
+3. Instalar `@anthropic-ai/sdk` en la función correspondiente.
+4. Escribir el system prompt final: estructura del prompt de Julián (ya
+   corregida) + el documento fuente transcrito arriba, con las
+   anotaciones de fuente preservadas y los puntos abiertos resueltos o
+   marcados con su placeholder acordado.
+5. Cloud Function con el loop de tool-calling contra Opus 5
+   (`claude-opus-5`), la API key como secreto (`defineSecret`, con
+   `invoker: 'public'` si aplica).
+6. Implementar `notificar_coordinacion` sobre el sistema de
    notificaciones elegido.
-6. Implementar `escanear_documento_firmado` reutilizando el patrón de
+7. Implementar `escanear_documento_firmado` reutilizando el patrón de
    cámara de asistencia, con sus propias reglas de Storage/Firestore.
-7. Componente de chat en React (nuevo, ej. `AsistenteEmergencia.tsx`),
+8. Componente de chat en React (nuevo, ej. `AsistenteEmergencia.tsx`),
    con el flujo de un mensaje por turno que pide el prompt.
-8. Reglas de Firestore/Storage para `emergenciaCasos` y el documento
+9. Reglas de Firestore/Storage para `emergenciaCasos` y el documento
    firmado.
-9. Enlazar el acceso desde Gestión del Riesgo (y desde donde se decida en
-   la pregunta 3).
-10. Probar manualmente las dos ramas completas, con especial atención a
-    que el triage SIEMPRE corte el flujo cuando corresponde — es la parte
-    donde un error de implementación tiene más consecuencia.
+10. Enlazar el acceso desde Gestión del Riesgo (y desde donde se decida en
+    la pregunta 3), y enlazar la mención de líneas telefónicas del
+    asistente al directorio de `src/data/emergencias.ts` en vez de
+    repetir números dentro del prompt.
+11. Probar manualmente las dos ramas completas. Casos que **no** pueden
+    fallar: (a) el triage corta el flujo siempre que corresponde;
+    (b) responder «sí, está consciente» **no** dispara el 123 — la
+    regresión del fallo 1; (c) la rama emocional con origen dentro del
+    colegio ofrece la vía interna de acoso escolar — la regresión del
+    fallo 2; (d) una señal de triage reportada a mitad de cualquier rama
+    interrumpe y vuelve al 123.
