@@ -300,6 +300,50 @@ no esté explícitamente en el documento fuente»). Conviene decidirlo
 conscientemente: o se incorpora al documento institucional, o se quita del
 prompt.
 
+## 3.2 Cómo organizar la corrección — tres lotes según quién desbloquea
+
+El criterio no es la gravedad del fallo, sino **quién puede resolverlo**.
+Los del lote 3 tienen tiempo de espera (dependen de terceros); los del 1 y
+2, no. Si se mandan las preguntas del lote 3 *primero* y se trabajan los
+otros dos mientras llega la respuesta, nada queda bloqueado esperando.
+
+**Lote 1 — Julián decide solo, sin consultar a nadie. Son ediciones del
+prompt, cuestión de minutos.**
+- Fallo 1 (polaridad del triage): quitar la cuarta pregunta o
+  reformularla como «¿está inconsciente?». El documento fuente lista tres
+  señales; la cuarta sobra.
+- Fallo 6 (paso 0 sin «ambas» ni «no sé»): decidir que «no sé» entra por
+  primeros auxilios, cuyo triage ya resuelve la falta de claridad con el
+  123.
+- Fallo 7 («desde el celular del colegio»): dejarlo o quitarlo.
+
+**Lote 2 — Requiere que Julián decida el alcance del asistente.**
+- Fallo 2 (ramificar por ámbito): la rama de *fuera del colegio* ya está
+  resuelta en el documento. La de *dentro* dice solo «evaluar si hay
+  personas implicadas (por ejemplo, acoso escolar)», que es delgado para
+  guiar a un docente paso a paso — hay que decidir si el asistente
+  simplemente deriva al Comité Escolar de Convivencia o si detalla la
+  ruta, y en ese caso hace falta el texto de convivencia.
+- Fallo 3 (sección 5, gestión posterior): ¿el asistente acompaña también
+  el después, o cierra cuando el estudiante ya va camino a atención?
+- Pregunta 11 (notificar a coordinación en la rama emocional cuando el
+  origen es dentro del colegio).
+
+**Lote 3 — Requiere confirmación institucional. Mandar todo junto, en una
+sola consulta, y seguir trabajando mientras responden.**
+- Fallo 5: qué es exactamente la «Línea Naranja» y su número.
+- Fallo 4: qué documento firma el acudiente.
+- Número/sede de la Policía de Infancia y Adolescencia de San Antonio de
+  Prado (pendiente del propio documento).
+- Si el escenario de jornada terminada sin contactar ya está en el Manual
+  de Convivencia (pendiente del propio documento).
+- Revisión del system prompt final por rectoría (pregunta 7).
+
+**Por qué esto no bloquea la publicación:** el lote 3 se puede publicar con
+los huecos marcados a la vista («[pendiente de confirmar con rectoría]»)
+siempre que el módulo esté rotulado como beta — ver sección 7. Un dato
+faltante y señalado es honesto; un dato inventado para rellenar, no.
+
 ## 4. Arquitectura propuesta (a validar, no a asumir)
 
 - **LLM**: Claude vía Anthropic Messages API (tool use nativo), llamado
@@ -412,3 +456,57 @@ prompt.
     colegio ofrece la vía interna de acoso escolar — la regresión del
     fallo 2; (d) una señal de triage reportada a mitad de cualquier rama
     interrumpe y vuelve al 123.
+12. Aplicar la marca de beta de la sección 7 antes de que lo vea el primer
+    docente.
+
+## 7. Marca de BETA — requisito de Julián
+
+**Por qué.** Cuando esto se socialice va a tener correcciones, y el tema es
+delicado: un docente no debe asumir que lo que le dice la pantalla ya es
+doctrina institucional aprobada. Y hay una razón de fondo más fuerte que la
+madurez del software: **el propio documento fuente no es homogéneo**.
+Distingue tres niveles —protocolo institucional escrito, práctica docente
+documentada, y marco legal general sin verificar contra el MJB— y buena
+parte del contenido (todo el triage, la atención básica, la ramificación
+emocional) es de los dos últimos. Rotularlo como institucional sería
+afirmar más de lo que el documento sostiene.
+
+**Alcance: solo el asistente, no todo Gestión del Riesgo.** Las brigadas
+salen de la Resolución Rectoral N.º 33 y los números del volante oficial
+del COPASST: eso sí es institucional y marcarlo como beta diluiría la
+señal. La beta va únicamente en la pestaña del asistente.
+
+**Cómo se ve:**
+1. **En la pastilla**, antes de entrar: `🚑 Asistente de emergencia` con
+   una insignia `BETA` pequeña al lado (mismo patrón visual que la píldora
+   «Próximamente» que ya existe en `Asistentes.tsx`, reutilizar tokens
+   `bg-warning-soft` / `text-warning`).
+2. **Un aviso al abrir**, corto y arriba del todo, no enterrado al final.
+
+**El texto importa más de lo normal.** Un aviso que siembre duda puede
+hacer dudar al docente en el peor momento; el objetivo es lo contrario:
+recordarle quién manda de verdad, que es exactamente lo que ya dice el
+protocolo («la decisión ya no es tuya, es de ellos»). Propuesta:
+
+> ⚠️ **En pruebas.** Esta guía puede cambiar. En una urgencia manda el
+> **123**; en salud mental, la **Línea Naranja**. Si algo aquí no cuadra
+> con lo que estás viendo, hazle caso a la línea, no a la aplicación.
+
+Eso es honesto sin inducir parálisis: no dice «puede estar mal, ten
+cuidado», dice «la autoridad está en otra parte». La redacción final
+conviene que la revise rectoría junto con el system prompt (pregunta 7).
+
+**Cómo se recogen las correcciones.** No hace falta un canal nuevo: la app
+ya tiene «💡 Enviar sugerencia» con su pantalla de clasificación
+(`crearSugerencia` / `getSugerencias` / `actualizarSugerencia`). Basta con
+un enlace desde el asistente que la abra prellenada con el contexto (rama
+en curso, fecha), para que reportar un problema cueste un toque y no haya
+que acordarse después.
+
+**Cuándo se le quita la beta** — sin criterio de salida, «beta» se queda
+para siempre y deja de significar nada. Propuesta de criterios:
+- Lote 3 de la sección 3.2 resuelto (sin placeholders visibles).
+- System prompt revisado y aprobado por rectoría.
+- Un puñado de usos reales revisados con los docentes que lo usaron, sin
+  hallazgos nuevos de contenido.
+- Los dos fallos críticos con su regresión probada (paso 11).
