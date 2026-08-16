@@ -3,6 +3,7 @@ import { leerInsumosTerceraHora, registrarContacto } from './datos';
 import { advertenciaCobertura, construirReporteTerceraHora, type ReporteTerceraHora } from './domain/reports';
 import { toDateKey } from './domain/ids';
 import type { Jornada } from './domain/types';
+import TelefonoAcudiente from './TelefonoAcudiente';
 
 /**
  * Reporte de tercera hora — la pantalla del coordinador.
@@ -28,6 +29,9 @@ export default function TerceraHora({ sede }: { sede: string }) {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [llamados, setLlamados] = useState<Record<string, string>>({});
+  // Que numero se pulso "Llamar" por estudiante. Sin esto, telefonoUsado quedaba
+  // siempre en el primer telefono aunque el coordinador hubiera llamado al segundo.
+  const [telefonoPulsado, setTelefonoPulsado] = useState<Record<string, string>>({});
 
   const generar = useCallback(async () => {
     setCargando(true);
@@ -80,7 +84,9 @@ export default function TerceraHora({ sede }: { sede: string }) {
         sede,
         fecha,
         motivoContacto: 'inasistencia_dia',
-        telefonoUsado: f.telefonos[0] ?? '',
+        // El numero sobre el que realmente se pulso Llamar; si se registra sin haber
+        // pulsado ninguno, se conserva el primero como comportamiento por defecto.
+        telefonoUsado: telefonoPulsado[f.studentId] ?? f.telefonos[0] ?? '',
         resultado,
         observacion,
       });
@@ -167,8 +173,20 @@ export default function TerceraHora({ sede }: { sede: string }) {
                   <b className="text-strong">{f.nombreCompleto}</b>
                   <span className="ml-2 text-xs text-muted">{f.grado}</span>
                   <br />
-                  <span className="text-xs text-soft">
-                    {f.telefonos.join(' · ') || 'sin teléfono registrado'}
+                  <span className="mt-1 flex flex-col gap-1 text-xs text-soft">
+                    {f.telefonos.length > 0 ? (
+                      f.telefonos.map((t, i) => (
+                        <TelefonoAcudiente
+                          key={`${t}-${i}`}
+                          numero={t}
+                          onLlamar={(numero) =>
+                            setTelefonoPulsado((p) => ({ ...p, [f.studentId]: numero }))
+                          }
+                        />
+                      ))
+                    ) : (
+                      'sin teléfono registrado'
+                    )}
                   </span>
                 </span>
                 {llamados[f.studentId] ? (

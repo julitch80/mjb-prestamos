@@ -4,6 +4,7 @@ import { actualizarFicha, leerEstudiante, leerMiCuenta, type MiCuenta } from './
 import { subirFoto, urlDeFoto } from './fotos';
 import { iniciales, nombreCompleto } from './domain/nombres';
 import type { Student } from './domain/types';
+import TelefonoAcudiente from './TelefonoAcudiente';
 
 /**
  * Ficha del estudiante. Se llama "Información" y no "Editar" a proposito: la mayoria
@@ -139,7 +140,20 @@ export default function Ficha({
                     : est.acudiente
                 }
               />
-              <Dato termino="Teléfonos" valor={est.telefonos.join(' · ')} />
+              <Dato
+                termino="Teléfonos"
+                valor={
+                  est.telefonos.length > 0 ? (
+                    <span className="flex flex-col gap-1.5">
+                      {est.telefonos.map((t, i) => (
+                        <TelefonoAcudiente key={`${t}-${i}`} numero={t} />
+                      ))}
+                    </span>
+                  ) : (
+                    'sin teléfono registrado'
+                  )
+                }
+              />
               {/*
                 El caso de uso es una urgencia: el estudiante se lastimo y en la llamada
                 al 123 o a la EPS piden el documento. Por eso va en cifra grande y
@@ -294,7 +308,7 @@ function Dato({ termino, valor }: { termino: string; valor: React.ReactNode }) {
  * navegador niega el portapapeles (pasa sin HTTPS), se dice, en vez de fingir que
  * funciono.
  */
-function BotonCopiar({ valor }: { valor: string }) {
+export function BotonCopiar({ valor }: { valor: string }) {
   const [estado, setEstado] = useState<'listo' | 'copiado' | 'error'>('listo');
 
   return (
@@ -308,7 +322,7 @@ function BotonCopiar({ valor }: { valor: string }) {
         }
         setTimeout(() => setEstado('listo'), 2000);
       }}
-      className="rounded-lg border border-line px-2 py-0.5 text-xs text-strong"
+      className="grid min-h-9 place-items-center rounded-lg border border-line px-2 py-0.5 text-xs text-strong"
     >
       {estado === 'copiado' ? '✓ Copiado' : estado === 'error' ? 'No se pudo copiar' : 'Copiar'}
     </button>
@@ -455,7 +469,11 @@ function ModalContacto({
 }) {
   const [acudiente, setAcudiente] = useState(estudiante.acudiente);
   const [parentesco, setParentesco] = useState(estudiante.parentesco ?? '');
-  const [tel, setTel] = useState(estudiante.telefonos.join(', '));
+  // Un campo por telefono en vez de texto separado por comas: una coma de mas o de
+  // menos ahi rompia el numero sin que se notara hasta la siguiente llamada fallida.
+  const [telefonos, setTelefonos] = useState(
+    estudiante.telefonos.length > 0 ? estudiante.telefonos : [''],
+  );
 
   return (
     <Modal onCerrar={onCerrar}>
@@ -480,19 +498,40 @@ function ModalContacto({
         placeholder="Sin registrar"
         className="mb-2 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm"
       />
-      <label className="block text-xs text-muted">Teléfonos (separados por coma)</label>
-      <input
-        value={tel}
-        onChange={(e) => setTel(e.target.value)}
-        className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm"
-      />
+      <label className="block text-xs text-muted">Teléfonos</label>
+      <div className="space-y-1.5">
+        {telefonos.map((t, i) => (
+          <div key={i} className="flex gap-1.5">
+            <input
+              value={t}
+              onChange={(e) =>
+                setTelefonos((p) => p.map((x, j) => (j === i ? e.target.value : x)))
+              }
+              className="w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm"
+            />
+            <button
+              onClick={() => setTelefonos((p) => p.filter((_, j) => j !== i))}
+              disabled={telefonos.length === 1}
+              className="grid min-h-9 min-w-9 place-items-center rounded-lg border border-line px-2 text-sm text-strong disabled:opacity-40"
+            >
+              Quitar
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={() => setTelefonos((p) => [...p, ''])}
+        className="mt-1.5 text-xs text-accent"
+      >
+        + Añadir teléfono
+      </button>
       <div className="mt-3 flex gap-2">
         <button
           onClick={() =>
             void onGuardar(
               acudiente.trim(),
               parentesco.trim(),
-              tel.split(',').map((t) => t.trim()).filter(Boolean),
+              telefonos.map((t) => t.trim()).filter(Boolean),
             )
           }
           className="rounded-lg bg-accent px-3 py-1.5 text-sm text-accent-fg"
