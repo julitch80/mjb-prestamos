@@ -386,21 +386,35 @@ faltante y señalado es honesto; un dato inventado para rellenar, no.
 
 ## 5. Preguntas para Julián — resolver al empezar la próxima sesión
 
-~~1. ¿Proveedor del LLM?~~ **RESUELTO: Claude Opus 5 (`claude-opus-5`).**
+**RESUELTAS por Julián (16 de agosto de 2026):**
 
-2. ¿Quién administra y paga la API key?
-3. ¿Dónde vive el acceso al chat en la interfaz? Una emergencia real no
-   espera a navegar tres menús — ¿un acceso directo desde el inicio,
-   además del que va dentro de Gestión del Riesgo?
+- ~~1. ¿Proveedor del LLM?~~ → **Claude Opus 5 (`claude-opus-5`).**
+- ~~3. ¿Dónde vive el acceso?~~ → **Acceso directo en Inicio + pestaña
+  dentro de Gestión del Riesgo.** En una urgencia nadie navega tres menús.
+- ~~5. ¿Historial?~~ → **Solo metadatos del caso**, no la transcripción.
+  Se guarda quién, cuándo, qué rama, si se notificó a coordinación y la
+  referencia al documento escaneado. No se acumulan relatos de crisis de
+  menores en la base.
+- ~~6. ¿Quién es "coordinación"?~~ → **El coordinador de la jornada del
+  docente** (Janneth en la mañana, Juan Diego en la tarde). Ya está en
+  `maestros.ts` como `coord_manana` / `coord_tarde`.
+- ~~Fallo 3 / alcance de la gestión posterior~~ → **Sí, pero como cierre
+  aparte.** El flujo de urgencia termina cuando el estudiante ya está
+  atendido; después el asistente ofrece retomar el caso para la constancia
+  de retiro, el informe administrativo y el seguimiento. Son momentos
+  distintos y mezclarlos alargaría el flujo agudo.
+
+**Pendientes:**
+
+2. ¿Quién administra y paga la API key? **BLOQUEANTE** — no hay ninguna
+   API key de Anthropic en el proyecto (verificado en `.env.local`,
+   `package.json` y ambos codebases de functions). Sin esto no se puede
+   construir nada del LLM. Hay que crearla en `console.anthropic.com`,
+   fondearla, y guardarla como secreto (`defineSecret`), nunca en el
+   cliente.
 4. Los dos puntos abiertos de la sección 2 (número de Policía de Infancia
    y Adolescencia, y si el escenario de jornada terminada ya está en el
    Manual de Convivencia).
-5. ¿Se guarda el historial completo de la conversación, o solo metadatos
-   del caso (para no acumular texto sensible de crisis de menores sin
-   necesidad clara)?
-6. ¿Quién es "coordinación" exactamente en `notificar_coordinacion` —
-   el coordinador de la jornada del docente en ese momento, ambos
-   coordinadores, o algo más específico?
 7. ¿Vale la pena que rectoría revise el system prompt final antes de
    activarlo, dado que es contenido que un docente seguirá al pie de la
    letra en una emergencia real con un menor?
