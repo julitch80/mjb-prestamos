@@ -407,11 +407,10 @@ faltante y señalado es honesto; un dato inventado para rellenar, no.
 **Pendientes:**
 
 2. ¿Quién administra y paga la API key? **BLOQUEANTE** — no hay ninguna
-   API key de Anthropic en el proyecto (verificado en `.env.local`,
+   API key de ningún proveedor en el proyecto (verificado en `.env.local`,
    `package.json` y ambos codebases de functions). Sin esto no se puede
-   construir nada del LLM. Hay que crearla en `console.anthropic.com`,
-   fondearla, y guardarla como secreto (`defineSecret`), nunca en el
-   cliente.
+   construir nada del LLM. Ver la sección 8: la elección de proveedor
+   sigue abierta.
 4. Los dos puntos abiertos de la sección 2 (número de Policía de Infancia
    y Adolescencia, y si el escenario de jornada terminada ya está en el
    Manual de Convivencia).
@@ -524,3 +523,66 @@ para siempre y deja de significar nada. Propuesta de criterios:
 - Un puñado de usos reales revisados con los docentes que lo usaron, sin
   hallazgos nuevos de contenido.
 - Los dos fallos críticos con su regresión probada (paso 11).
+
+## 8. Proveedor del LLM — decisión abierta
+
+La sección 5 daba esto por resuelto (Opus 5). Sigue siendo válido, pero
+Julián preguntó si puede usar la API de otra IA, así que la decisión se
+reabre y queda documentada aquí con sus dos opciones reales.
+
+**Nada del diseño depende del proveedor.** El asistente es «mandar un system
+prompt más la conversación, recibir texto, con llamado a herramientas», y eso
+lo hacen todos los proveedores grandes. Lo que cambiaría al cambiar de
+proveedor es solo la Cloud Function: el SDK, la forma de la petición y el
+bucle de tool-calling. La pantalla de chat, las reglas, el modelo de casos y
+las dos herramientas quedan igual. Es trabajo acotado, no un rediseño.
+
+### Opción A — Anthropic (Claude Opus 5)
+
+- Precio: 5 USD por millón de tokens de entrada, 25 por millón de salida.
+- Costo estimado para este asistente: **~0,20 USD por emergencia atendida**
+  (~800 pesos), o **~2 USD al mes** si se usa unas 10 veces. Es una
+  estimación con el protocolo como system prompt (~3.500 tokens) y
+  conversaciones de 10-15 turnos cortos, con la caché de prompt activa —
+  el protocolo es idéntico en cada conversación, así que después de la
+  primera llamada se cobra a ~10% de su precio.
+- Requiere abrir y fondear una cuenta aparte en `console.anthropic.com`.
+
+### Opción B — Google Gemini
+
+- El argumento fuerte **no es el modelo, es el ecosistema**: el proyecto ya
+  está enteramente dentro de Google. Firebase corre sobre Google Cloud
+  (proyecto `mjb-prestamos`), el backend de préstamos es Apps Script, la base
+  es Sheets y el colegio tiene Workspace institucional. Sería la misma cuenta
+  de facturación, la misma consola y el mismo proyecto: bastante menos
+  fricción administrativa para Julián, que es quien lo va a sostener.
+- Tiene nivel gratuito, que al volumen de este módulo probablemente alcance.
+
+### ⚠️ Lo que hay que verificar antes de decidir — no es de costo
+
+**Los términos de datos del nivel que se use.** Como regla general los planes
+gratuitos de varios proveedores permiten usar los datos para mejorar sus
+modelos, y los de pago normalmente no. Esto no está verificado para Gemini —
+hay que leerlo antes de elegir, no después.
+
+Importa aquí más que en cualquier otro módulo de la aplicación: las
+conversaciones de este asistente son emergencias reales con menores —
+lesiones, crisis emocionales, posibles casos de acoso escolar. Si el nivel
+gratuito implica que ese contenido se usa para entrenamiento, la decisión
+deja de ser de costo y pasa a ser de protección de datos de menores, y
+probablemente convenga pagar el nivel de pago de quien sea.
+
+### Recomendación
+
+Escrita por Claude, que tiene un conflicto de interés evidente al opinar
+sobre esto. Con esa advertencia:
+
+- **El costo no debería ser el criterio.** Menos de 10.000 pesos al mes es de
+  lo más barato del proyecto; no justifica elegir por precio.
+- **La simplicidad administrativa sí es un criterio legítimo.** Si Julián
+  prefiere una sola factura y una sola consola, Gemini es defendible.
+- **Lo que no conviene** es elegir el nivel gratuito sin haber leído qué se
+  hace con esos datos.
+
+Decidido esto, se retoma el plan de tareas de la sección 6 desde el paso 3
+(instalar el SDK del proveedor elegido).
