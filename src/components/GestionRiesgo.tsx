@@ -13,6 +13,14 @@ import {
 import type { Brigada, IntegranteBrigada } from '../data/brigadas';
 import { CATEGORIAS_EMERGENCIA, formatearTelefono } from '../data/emergencias';
 import type { CategoriaEmergenciaId } from '../data/emergencias';
+import {
+  FLUJO_PROTOCOLO,
+  FRASE_MARCO,
+  NOTA_CIERRE,
+  PENDIENTES_RECTORIA,
+  SECCIONES_PROTOCOLO,
+} from '../data/protocoloEmergencias';
+import type { BloqueContenido, NivelFuente } from '../data/protocoloEmergencias';
 
 const JORNADA_LABEL: Record<string, string> = {
   manana: 'Mañana', tarde: 'Tarde', ambas: 'Ambas', nocturna: 'Nocturna',
@@ -320,9 +328,170 @@ function NumerosEmergencia() {
   );
 }
 
+// ── Protocolo de emergencias (consulta estática, sin asistente/IA) ──────────
+
+// Clases completas y literales a proposito -- mismo motivo que ESTILO_CATEGORIA:
+// Tailwind no detecta clases construidas con template strings.
+const ESTILO_NIVEL_FUENTE: Record<NivelFuente, { chip: string; label: string }> = {
+  institucional: {
+    chip: 'bg-accent-soft border-accent text-accent',
+    label: 'Protocolo institucional',
+  },
+  practica: {
+    chip: 'bg-info-soft border-info-soft text-info-soft-fg',
+    label: 'Práctica docente documentada',
+  },
+  legal_sin_verificar: {
+    chip: 'bg-warning-soft border-warning text-warning-soft-fg',
+    label: 'Marco legal sin verificar',
+  },
+};
+
+function BadgeBeta() {
+  return (
+    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-warning-soft border border-warning text-warning-soft-fg leading-none">
+      BETA
+    </span>
+  );
+}
+
+function ChipNivelFuente({ nivel }: { nivel: NivelFuente }) {
+  const estilo = ESTILO_NIVEL_FUENTE[nivel];
+  return (
+    <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded-full border leading-none whitespace-nowrap', estilo.chip)}>
+      {estilo.label}
+    </span>
+  );
+}
+
+function BloqueContenidoView({ bloque }: { bloque: BloqueContenido }) {
+  if (bloque.tipo === 'parrafo') {
+    return <p className="text-xs text-soft leading-relaxed">{bloque.texto}</p>;
+  }
+  if (bloque.tipo === 'pasos') {
+    return (
+      <div className="flex flex-col gap-1.5">
+        {bloque.titulo && <span className="text-xs font-semibold text-strong">{bloque.titulo}</span>}
+        <ul className="flex flex-col gap-1.5">
+          {bloque.items.map((item, i) => (
+            <li key={i} className="text-xs text-soft leading-relaxed flex gap-2">
+              <span className="text-muted flex-shrink-0">•</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  if (bloque.tipo === 'subseccion') {
+    return (
+      <div className="flex flex-col gap-2">
+        <span className="text-xs font-semibold text-strong">{bloque.titulo}</span>
+        <div className="flex flex-col gap-2 pl-1">
+          {bloque.contenido.map((b, i) => (
+            <BloqueContenidoView key={i} bloque={b} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  // destacado
+  return (
+    <div
+      className={cn(
+        'rounded-lg border px-3 py-2.5',
+        bloque.tono === 'peligro'
+          ? 'bg-danger-soft border-danger'
+          : 'bg-info-soft border-info-soft'
+      )}
+    >
+      <p className={cn('text-xs font-semibold leading-relaxed', bloque.tono === 'peligro' ? 'text-danger-soft-fg' : 'text-info-soft-fg')}>
+        {bloque.texto}
+      </p>
+    </div>
+  );
+}
+
+function TarjetaSeccionProtocolo({ seccion }: { seccion: (typeof SECCIONES_PROTOCOLO)[number] }) {
+  return (
+    <div className="rounded-xl border border-line bg-card px-4 py-3 flex flex-col gap-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-sm font-semibold text-strong">
+          {seccion.numero}. {seccion.titulo}
+        </span>
+        <ChipNivelFuente nivel={seccion.nivelFuente} />
+      </div>
+      <p className="text-[10px] text-muted italic leading-relaxed">{seccion.notaFuente}</p>
+      <div className="flex flex-col gap-2.5">
+        {seccion.contenido.map((bloque, i) => (
+          <BloqueContenidoView key={i} bloque={bloque} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FlujoProtocolo() {
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {FLUJO_PROTOCOLO.map((paso, i) => (
+        <div key={paso.numero} className="flex items-center gap-1">
+          <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-elevated border border-line text-soft whitespace-nowrap">
+            {paso.numero}. {paso.nombre}
+          </span>
+          {i < FLUJO_PROTOCOLO.length - 1 && <span className="text-muted text-[10px]">›</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProtocoloEmergencias() {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-warning bg-warning-soft px-4 py-3">
+        <p className="text-xs text-warning-soft-fg leading-relaxed">
+          ⚠️ <strong>En pruebas.</strong> Esta guía puede cambiar. En una urgencia manda el <strong>123</strong>;
+          en salud mental, la <strong>Línea Naranja</strong>. Si algo aquí no cuadra con lo que estás viendo, hazle
+          caso a la línea, no a la aplicación.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <h3 className="text-strong text-sm font-semibold">🚑 Protocolo de atención en emergencias</h3>
+        <p className="text-xs text-soft leading-relaxed italic">{FRASE_MARCO}</p>
+      </div>
+
+      <FlujoProtocolo />
+
+      <div className="flex flex-col gap-3">
+        {SECCIONES_PROTOCOLO.map(seccion => (
+          <TarjetaSeccionProtocolo key={seccion.numero} seccion={seccion} />
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-line bg-elevated px-4 py-3">
+        <p className="text-[11px] text-muted leading-relaxed">{NOTA_CIERRE}</p>
+      </div>
+
+      <div className="rounded-xl border border-danger bg-danger-soft px-4 py-3 flex flex-col gap-2">
+        <span className="text-xs font-semibold text-danger-soft-fg">⏳ Pendiente de confirmar con rectoría</span>
+        <ul className="flex flex-col gap-1.5">
+          {PENDIENTES_RECTORIA.map((p, i) => (
+            <li key={i} className="text-[11px] text-danger-soft-fg leading-relaxed flex gap-2">
+              <span className="flex-shrink-0">•</span>
+              <span>{p.texto}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 
-type Pestana = 'brigadas' | 'emergencias';
+type Pestana = 'brigadas' | 'emergencias' | 'protocolo';
 
 export default function GestionRiesgo() {
   const userId = useAppStore(s => s.userId);
@@ -367,9 +536,22 @@ export default function GestionRiesgo() {
         >
           📞 Números de emergencia
         </button>
+        <button
+          onClick={() => setPestana('protocolo')}
+          className={cn(
+            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex items-center gap-1.5',
+            pestana === 'protocolo'
+              ? 'bg-accent-soft border-accent text-accent'
+              : 'border-line text-muted hover:text-soft hover:bg-elevated'
+          )}
+        >
+          🚑 Protocolo <BadgeBeta />
+        </button>
       </div>
 
-      {pestana === 'emergencias' ? (
+      {pestana === 'protocolo' ? (
+        <ProtocoloEmergencias />
+      ) : pestana === 'emergencias' ? (
         <NumerosEmergencia />
       ) : (
         <>
