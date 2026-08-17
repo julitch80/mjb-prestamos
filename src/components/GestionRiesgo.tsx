@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../data/store';
 import { SEDES, esDirectivo } from '../data/maestros';
@@ -21,6 +22,12 @@ import {
   SECCIONES_PROTOCOLO,
 } from '../data/protocoloEmergencias';
 import type { BloqueContenido, NivelFuente } from '../data/protocoloEmergencias';
+import {
+  SECUENCIA_CONTENCION_EMOCIONAL,
+  SECUENCIA_PRIMEROS_AUXILIOS,
+  faseporId,
+} from '../data/guiaEmergencia';
+import type { FaseEmergencia, LlamadaFase, TonoFase } from '../data/guiaEmergencia';
 
 const JORNADA_LABEL: Record<string, string> = {
   manana: 'Mañana', tarde: 'Tarde', ambas: 'Ambas', nocturna: 'Nocturna',
@@ -489,6 +496,271 @@ function ProtocoloEmergencias() {
   );
 }
 
+// ── Emergencia escolar: submenú + visor de fases ─────────────────────────────
+
+// Clases completas y literales a proposito -- mismo motivo que ESTILO_CATEGORIA
+// y ESTILO_NIVEL_FUENTE: Tailwind no detecta clases construidas con template
+// strings, así que cada tono se escribe a mano.
+const ESTILO_TONO_FASE: Record<TonoFase, { fondo: string; borde: string; texto: string; chip: string }> = {
+  peligro: {
+    fondo: 'bg-danger-soft',
+    borde: 'border-danger',
+    texto: 'text-danger-soft-fg',
+    chip: 'bg-danger-soft border-danger text-danger-soft-fg',
+  },
+  info: {
+    fondo: 'bg-info-soft',
+    borde: 'border-info',
+    texto: 'text-info-soft-fg',
+    chip: 'bg-info-soft border-info text-info-soft-fg',
+  },
+  exito: {
+    fondo: 'bg-success-soft',
+    borde: 'border-success',
+    texto: 'text-success-soft-fg',
+    chip: 'bg-success-soft border-success text-success-soft-fg',
+  },
+  advertencia: {
+    fondo: 'bg-warning-soft',
+    borde: 'border-warning',
+    texto: 'text-warning-soft-fg',
+    chip: 'bg-warning-soft border-warning text-warning-soft-fg',
+  },
+  morado: {
+    fondo: 'bg-purple-soft',
+    borde: 'border-purple',
+    texto: 'text-purple-soft-fg',
+    chip: 'bg-purple-soft border-purple text-purple-soft-fg',
+  },
+  teal: {
+    fondo: 'bg-teal-soft',
+    borde: 'border-teal',
+    texto: 'text-teal-soft-fg',
+    chip: 'bg-teal-soft border-teal text-teal-soft-fg',
+  },
+};
+
+type VistaEmergencia = 'menu' | 'primeros_auxilios' | 'contencion' | 'protocolo_completo';
+
+function BotonVolver({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="self-start px-3 py-2 rounded-lg text-xs font-semibold text-soft border border-line bg-elevated hover:bg-hover transition flex items-center gap-1.5"
+    >
+      ← {children}
+    </button>
+  );
+}
+
+function TarjetaSubmenu({ icono, titulo, subtitulo, onClick }: {
+  icono: string; titulo: string; subtitulo: string; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left rounded-2xl border border-line bg-card px-5 py-4 flex items-center gap-4 hover:bg-elevated active:bg-hover transition"
+    >
+      <span className="text-3xl leading-none flex-shrink-0">{icono}</span>
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <span className="text-strong text-base font-semibold">{titulo}</span>
+        <span className="text-muted text-xs leading-relaxed">{subtitulo}</span>
+      </div>
+    </button>
+  );
+}
+
+function SubmenuEmergencia({ onSeleccionar }: { onSeleccionar: (vista: VistaEmergencia) => void }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-warning bg-warning-soft px-4 py-3">
+        <p className="text-xs text-warning-soft-fg leading-relaxed">
+          ⚠️ <strong>En pruebas.</strong> Esta guía puede cambiar. En una urgencia manda el <strong>123</strong>;
+          en salud mental, la <strong>Línea Naranja</strong>. Si algo aquí no cuadra con lo que estás viendo, hazle
+          caso a la línea, no a la aplicación.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <TarjetaSubmenu
+          icono="🚑"
+          titulo="Primeros auxilios"
+          subtitulo="Lesión, golpe, desmayo, malestar físico"
+          onClick={() => onSeleccionar('primeros_auxilios')}
+        />
+        <TarjetaSubmenu
+          icono="💚"
+          titulo="Contención emocional"
+          subtitulo="Tristeza, angustia, crisis emocional"
+          onClick={() => onSeleccionar('contencion')}
+        />
+        <TarjetaSubmenu
+          icono="📋"
+          titulo="Consultar el protocolo completo"
+          subtitulo="El documento institucional, para leer con calma"
+          onClick={() => onSeleccionar('protocolo_completo')}
+        />
+      </div>
+    </div>
+  );
+}
+
+function LlamadaFaseView({ llamada, onIrANumeros }: { llamada: LlamadaFase; onIrANumeros: () => void }) {
+  if (llamada.pendiente) {
+    return (
+      <div className="rounded-lg border border-danger bg-danger-soft px-3 py-2.5 flex flex-col gap-1.5">
+        <span className="text-xs font-semibold text-danger-soft-fg">⏳ {llamada.etiqueta}</span>
+        <p className="text-[11px] text-danger-soft-fg leading-relaxed">
+          Pendiente de confirmar con rectoría.
+        </p>
+        <button
+          onClick={onIrANumeros}
+          className="self-start text-[11px] font-semibold text-danger-soft-fg underline underline-offset-2"
+        >
+          Ver números de emergencia →
+        </button>
+      </div>
+    );
+  }
+  return (
+    <a
+      href={`tel:${llamada.telefono}`}
+      className={cn(
+        'rounded-lg border px-4 py-3 flex items-center justify-center gap-2 font-semibold transition',
+        llamada.destacada
+          ? 'bg-danger border-danger text-white text-base py-4 hover:brightness-110'
+          : 'bg-card border-line text-strong text-sm hover:bg-elevated'
+      )}
+    >
+      📞 {llamada.etiqueta}{llamada.telefono ? ` · ${formatearTelefono(llamada.telefono)}` : ''}
+    </a>
+  );
+}
+
+function VisorFase({ fase, indice, total, onSiguiente, onAnterior, onTerminar, onIrANumeros }: {
+  fase: FaseEmergencia;
+  indice: number;
+  total: number;
+  onSiguiente: () => void;
+  onAnterior: () => void;
+  onTerminar: () => void;
+  onIrANumeros: () => void;
+}) {
+  const estilo = ESTILO_TONO_FASE[fase.tono];
+  const esUltima = indice === total - 1;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <span className="text-[11px] font-medium text-muted text-center">
+        Fase {indice + 1} de {total}
+      </span>
+
+      <div className={cn('rounded-2xl border-2 px-5 py-5 flex flex-col gap-2', estilo.fondo, estilo.borde)}>
+        <div className="flex items-center justify-between gap-2">
+          <span className={cn('text-2xl font-bold', estilo.texto)}>
+            {fase.id}. {fase.titulo}
+          </span>
+          <ChipNivelFuente nivel={fase.nivelFuente} />
+        </div>
+        {fase.subtitulo && (
+          <span className={cn('text-sm font-medium', estilo.texto)}>{fase.subtitulo}</span>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {fase.bloques.map((bloque, i) => (
+          <div key={i} className="rounded-xl border border-line bg-card px-4 py-3.5 flex flex-col gap-1.5">
+            <span className="text-sm font-bold text-strong">{bloque.titulo}</span>
+            <p className="text-sm text-soft leading-relaxed">{bloque.texto}</p>
+          </div>
+        ))}
+      </div>
+
+      {fase.llamadas && fase.llamadas.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {fase.llamadas.map((llamada, i) => (
+            <LlamadaFaseView key={i} llamada={llamada} onIrANumeros={onIrANumeros} />
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 pt-1">
+        {indice > 0 && (
+          <button
+            onClick={onAnterior}
+            className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition"
+          >
+            ← Anterior
+          </button>
+        )}
+        <button
+          onClick={esUltima ? onTerminar : onSiguiente}
+          className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold text-accent-fg bg-accent hover:brightness-110 transition"
+        >
+          {esUltima ? 'Terminar' : 'Siguiente fase →'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function VisorFases({ secuenciaIds, onTerminar, onIrANumeros }: {
+  secuenciaIds: number[];
+  onTerminar: () => void;
+  onIrANumeros: () => void;
+}) {
+  const [indice, setIndice] = useState(0);
+  const fase = faseporId(secuenciaIds[indice]);
+
+  return (
+    <VisorFase
+      fase={fase}
+      indice={indice}
+      total={secuenciaIds.length}
+      onSiguiente={() => setIndice(i => Math.min(i + 1, secuenciaIds.length - 1))}
+      onAnterior={() => setIndice(i => Math.max(i - 1, 0))}
+      onTerminar={onTerminar}
+      onIrANumeros={onIrANumeros}
+    />
+  );
+}
+
+function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
+  const [vista, setVista] = useState<VistaEmergencia>('menu');
+
+  if (vista === 'menu') {
+    return <SubmenuEmergencia onSeleccionar={setVista} />;
+  }
+
+  const volver = () => setVista('menu');
+
+  if (vista === 'primeros_auxilios') {
+    return (
+      <div className="flex flex-col gap-4">
+        <BotonVolver onClick={volver}>Volver</BotonVolver>
+        <VisorFases secuenciaIds={SECUENCIA_PRIMEROS_AUXILIOS} onTerminar={volver} onIrANumeros={onIrANumeros} />
+      </div>
+    );
+  }
+
+  if (vista === 'contencion') {
+    return (
+      <div className="flex flex-col gap-4">
+        <BotonVolver onClick={volver}>Volver</BotonVolver>
+        <VisorFases secuenciaIds={SECUENCIA_CONTENCION_EMOCIONAL} onTerminar={volver} onIrANumeros={onIrANumeros} />
+      </div>
+    );
+  }
+
+  // protocolo_completo
+  return (
+    <div className="flex flex-col gap-4">
+      <BotonVolver onClick={volver}>Volver</BotonVolver>
+      <ProtocoloEmergencias />
+    </div>
+  );
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 
 type Pestana = 'brigadas' | 'emergencias' | 'protocolo';
@@ -545,12 +817,12 @@ export default function GestionRiesgo() {
               : 'border-line text-muted hover:text-soft hover:bg-elevated'
           )}
         >
-          🚑 Protocolo <BadgeBeta />
+          🚑 Emergencia escolar <BadgeBeta />
         </button>
       </div>
 
       {pestana === 'protocolo' ? (
-        <ProtocoloEmergencias />
+        <EmergenciaEscolar onIrANumeros={() => setPestana('emergencias')} />
       ) : pestana === 'emergencias' ? (
         <NumerosEmergencia />
       ) : (

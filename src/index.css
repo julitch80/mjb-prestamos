@@ -46,6 +46,10 @@
   --color-purple-soft: #ede9fe;
   --color-purple-soft-fg: #4c1d95;
 
+  --color-teal: #0d9488;
+  --color-teal-soft: #ccfbf1;
+  --color-teal-soft-fg: #134e4a;
+
   /* Colores por grado — pareja claro/oscuro */
   --color-grado-11: #047857;  /* verde esmeralda */
   --color-grado-10: #a16207;  /* ámbar oscuro */
@@ -94,6 +98,10 @@
     --color-purple: #a78bfa;
     --color-purple-soft: #4c1d9540;
     --color-purple-soft-fg: #c4b5fd;
+
+    --color-teal: #2dd4bf;
+    --color-teal-soft: #134e4a40;
+    --color-teal-soft-fg: #5eead4;
 
     /* Colores por grado en modo oscuro — tonos claros sobre fondo oscuro */
     --color-grado-11: #6ee7b7;  /* verde esmeralda claro */
