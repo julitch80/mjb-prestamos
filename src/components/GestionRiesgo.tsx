@@ -15,6 +15,15 @@ import type { Brigada, IntegranteBrigada } from '../data/brigadas';
 import { CATEGORIAS_EMERGENCIA, formatearTelefono } from '../data/emergencias';
 import type { CategoriaEmergenciaId } from '../data/emergencias';
 import {
+  IconoPolicia,
+  IconoNinezFamilia,
+  IconoSaludMental,
+  IconoSalud,
+  IconoBomberos,
+  IconoInstitucional,
+  IconoGenerico,
+} from './IconosNeon';
+import {
   FLUJO_PROTOCOLO,
   FRASE_MARCO,
   NOTA_CIERRE,
@@ -190,52 +199,70 @@ function AcordeonMiSede({ sede }: { sede: SedeId }) {
 // de clase que aparecen tal cual en el codigo fuente; construirlas con
 // template strings (`bg-${color}-soft`) hace que el escaner no las vea y
 // desaparezcan del CSS final.
-const ESTILO_CATEGORIA: Record<CategoriaEmergenciaId, { chipActivo: string; tarjeta: string; titulo: string }> = {
+const ESTILO_CATEGORIA: Record<CategoriaEmergenciaId, { chipActivo: string; chipInactivo: string; tarjeta: string; titulo: string }> = {
   policia: {
     chipActivo: 'bg-info-soft border-info text-info-soft-fg',
+    chipInactivo: 'border-info text-info',
     tarjeta: 'border-info-soft bg-info-soft',
     titulo: 'text-info-soft-fg',
   },
   ninez_familia: {
     chipActivo: 'bg-purple-soft border-purple text-purple-soft-fg',
+    chipInactivo: 'border-purple text-purple',
     tarjeta: 'border-purple-soft bg-purple-soft',
     titulo: 'text-purple-soft-fg',
   },
   salud_mental: {
     chipActivo: 'bg-warning-soft border-warning text-warning-soft-fg',
+    chipInactivo: 'border-warning text-warning',
     tarjeta: 'border-warning-soft bg-warning-soft',
     titulo: 'text-warning-soft-fg',
   },
   salud: {
     chipActivo: 'bg-success-soft border-success text-success-soft-fg',
+    chipInactivo: 'border-success text-success',
     tarjeta: 'border-success-soft bg-success-soft',
     titulo: 'text-success-soft-fg',
   },
   bomberos: {
     chipActivo: 'bg-danger-soft border-danger text-danger-soft-fg',
+    chipInactivo: 'border-danger text-danger',
     tarjeta: 'border-danger-soft bg-danger-soft',
     titulo: 'text-danger-soft-fg',
   },
   institucional: {
-    chipActivo: 'bg-accent-soft border-accent text-accent',
-    tarjeta: 'border-accent-soft bg-accent-soft',
-    titulo: 'text-accent',
+    // teal en vez de accent (azul): el azul queda reservado para "seleccionada".
+    chipActivo: 'bg-teal-soft border-teal text-teal-soft-fg',
+    chipInactivo: 'border-teal text-teal',
+    tarjeta: 'border-teal-soft bg-teal-soft',
+    titulo: 'text-teal-soft-fg',
   },
 };
 const ESTILO_TODAS = { chipActivo: 'bg-accent-soft border-accent text-accent' };
 
-function ChipCategoria({ activo, icono, nombre, chipActivo, onClick }: {
-  activo: boolean; icono: string; nombre: string; chipActivo: string; onClick: () => void;
+// Icono de línea por categoría (los emoji de CATEGORIAS_EMERGENCIA no se usan
+// aquí — se mapea por id para no tocar data/emergencias.ts).
+const ICONO_CATEGORIA: Record<CategoriaEmergenciaId, (p: { className?: string }) => ReactNode> = {
+  policia: IconoPolicia,
+  ninez_familia: IconoNinezFamilia,
+  salud_mental: IconoSaludMental,
+  salud: IconoSalud,
+  bomberos: IconoBomberos,
+  institucional: IconoInstitucional,
+};
+
+function ChipCategoria({ activo, Icono, nombre, chipActivo, chipInactivo, onClick }: {
+  activo: boolean; Icono: (p: { className?: string }) => ReactNode; nombre: string; chipActivo: string; chipInactivo?: string; onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
       className={cn(
         'px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex items-center gap-1.5 whitespace-nowrap',
-        activo ? chipActivo : 'border-line text-muted hover:text-soft hover:bg-elevated'
+        activo ? chipActivo : (chipInactivo ?? 'border-line text-muted hover:text-soft hover:bg-elevated')
       )}
     >
-      <span>{icono}</span>
+      <Icono className="w-4 h-4 flex-shrink-0" />
       {nombre}
     </button>
   );
@@ -298,7 +325,7 @@ function NumerosEmergencia() {
       <div className="flex items-center gap-1.5 flex-wrap">
         <ChipCategoria
           activo={categoria === null}
-          icono="📋"
+          Icono={IconoGenerico}
           nombre="Todas"
           chipActivo={ESTILO_TODAS.chipActivo}
           onClick={() => setCategoria(null)}
@@ -307,9 +334,10 @@ function NumerosEmergencia() {
           <ChipCategoria
             key={c.id}
             activo={categoria === c.id}
-            icono={c.icono}
+            Icono={ICONO_CATEGORIA[c.id]}
             nombre={c.nombre}
             chipActivo={ESTILO_CATEGORIA[c.id].chipActivo}
+            chipInactivo={ESTILO_CATEGORIA[c.id].chipInactivo}
             onClick={() => setCategoria(prev => prev === c.id ? null : c.id)}
           />
         ))}
@@ -322,9 +350,17 @@ function NumerosEmergencia() {
       <div className="flex flex-col gap-5">
         {categoriasFiltradas.map(c => (
           <div key={c.id} className="flex flex-col gap-2">
-            <span className="text-xs font-semibold text-soft flex items-center gap-1.5">
-              <span>{c.icono}</span> {c.nombre}
-            </span>
+            {/* El encabezado usa el MISMO icono de linea que la pastilla de esa
+                categoria, no el emoji: mezclar emoji con iconos de linea en la
+                misma pantalla se ve inconsistente. */}
+            {(() => {
+              const IconoCat = ICONO_CATEGORIA[c.id] ?? IconoGenerico;
+              return (
+                <span className={cn('text-xs font-semibold flex items-center gap-1.5', ESTILO_CATEGORIA[c.id].titulo)}>
+                  <IconoCat className="w-4 h-4 flex-shrink-0" /> {c.nombre}
+                </span>
+              );
+            })()}
             <div className="flex flex-col gap-2">
               {c.contactos.map((contacto, i) => (
                 <TarjetaContacto
@@ -1017,7 +1053,7 @@ export default function GestionRiesgo() {
             'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
             pestana === 'brigadas'
               ? 'bg-accent-soft border-accent text-accent'
-              : 'border-line text-muted hover:text-soft hover:bg-elevated'
+              : 'border-success text-success hover:bg-elevated'
           )}
         >
           🧑‍🚒 Brigadas
@@ -1028,7 +1064,7 @@ export default function GestionRiesgo() {
             'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
             pestana === 'emergencias'
               ? 'bg-accent-soft border-accent text-accent'
-              : 'border-line text-muted hover:text-soft hover:bg-elevated'
+              : 'border-warning text-warning hover:bg-elevated'
           )}
         >
           📞 Números de emergencia
@@ -1039,7 +1075,7 @@ export default function GestionRiesgo() {
             'px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex items-center gap-1.5',
             pestana === 'protocolo'
               ? 'bg-accent-soft border-accent text-accent'
-              : 'border-line text-muted hover:text-soft hover:bg-elevated'
+              : 'border-danger text-danger hover:bg-elevated'
           )}
         >
           🚑 Emergencia escolar <BadgeBeta />

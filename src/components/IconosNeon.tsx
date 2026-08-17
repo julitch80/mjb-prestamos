@@ -93,13 +93,12 @@ export const IconoAgenda = (p: Props) => (
   </Svg>
 );
 
-/** Gestión del riesgo — extintor. */
+/** Gestión del riesgo — triángulo de advertencia con exclamación. */
 export const IconoRiesgo = (p: Props) => (
   <Svg {...p}>
-    <rect x="8" y="8" width="8" height="13" rx="2.5" />
-    <path d="M10 8V6a2 2 0 0 1 2-2h1" />
-    <path d="M13 4h4M15 4v3" />
-    <path d="M8 12h8" />
+    <path d="M12 3.5l9.5 16.5h-19z" />
+    <path d="M12 9.5v5" />
+    <path d="M12 17.5h.01" />
   </Svg>
 );
 
@@ -190,6 +189,79 @@ export const IconoAsistencia = (p: Props) => (
     <path d="M6.5 12.5l1.3 1.3L10.3 11" />
     <path d="M6.5 16.7l1.3 1.3 2.5-2.8" />
     <path d="M13 12.2h5M13 16.7h5" />
+  </Svg>
+);
+
+/** Policía — escudo con estrella. */
+export const IconoPolicia = (p: Props) => (
+  <Svg {...p}>
+    <path d="M12 3l7 3v5.5c0 4.5-3 7.7-7 9.5-4-1.8-7-5-7-9.5V6z" />
+    <path d="M12 8.3l1.1 2.3 2.5.35-1.8 1.75.4 2.5-2.2-1.2-2.2 1.2.4-2.5-1.8-1.75 2.5-.35z" />
+  </Svg>
+);
+
+/** Niñez y familia — dos figuras de la mano. */
+export const IconoNinezFamilia = (p: Props) => (
+  <Svg {...p}>
+    <circle cx="8" cy="6" r="2.5" />
+    <path d="M3.5 19v-1.5A4 4 0 0 1 8 13.5a4 4 0 0 1 3 1.4" />
+    <circle cx="17" cy="9" r="1.8" />
+    <path d="M13.5 19v-1.2a3 3 0 0 1 3.5-3 3 3 0 0 1 3.5 3V19" />
+    <path d="M10.3 16.5l1.2 1.2" />
+  </Svg>
+);
+
+/** Salud mental — cabeza de perfil con pulso. */
+export const IconoSaludMental = (p: Props) => (
+  <Svg {...p}>
+    <path d="M8 20v-2.5c-2.5-1.3-4-3.7-4-6.5a7 7 0 0 1 14 0c0 1-.3 1.9-.8 2.7l.8 3.3-3.3-.6c-.6.3-1.2.5-1.9.6V20z" />
+    <path d="M6 11h2.2l1-2 1.6 4 1-2H14" />
+  </Svg>
+);
+
+/** Salud — cruz médica dentro de un contenedor redondeado. */
+export const IconoSalud = (p: Props) => (
+  <Svg {...p}>
+    <rect x="3.5" y="3.5" width="17" height="17" rx="4" />
+    <path d="M12 8v8M8 12h8" />
+  </Svg>
+);
+
+/** Bomberos — casco de bombero. */
+export const IconoBomberos = (p: Props) => (
+  <Svg {...p}>
+    <path d="M4 14.5A8 8 0 0 1 12 7a8 8 0 0 1 8 7.5" />
+    <path d="M3 14.5h18v1.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    <path d="M12 7V4M12 4c-1.2 0-1.9 1-1.6 2" />
+    <path d="M9 18v1.5M15 18v1.5" />
+  </Svg>
+);
+
+/** Institucional — edificio con techo y puerta. */
+export const IconoInstitucional = (p: Props) => (
+  <Svg {...p}>
+    <path d="M4 10l8-6 8 6" />
+    <path d="M5.5 9.5V20h13V9.5" />
+    <path d="M10 20v-5h4v5" />
+  </Svg>
+);
+
+/** Convivencia — apretón de manos. */
+export const IconoConvivencia = (p: Props) => (
+  <Svg {...p}>
+    <path d="M2.5 12l3.5-3 3 2 2.5-2 3 2 3.5-3 3.5 3-3.5 3.5-1.7-1.2" />
+    <path d="M9 11l3 2.7a1.4 1.4 0 0 1-1.9 2l-.3-.25" />
+    <path d="M12 13.5l1.6 1.4a1.3 1.3 0 0 1-1.7 1.9" />
+    <path d="M10.3 17.2a1.2 1.2 0 0 1-1.6 1.7l-1-.9" />
+  </Svg>
+);
+
+/** Evaluación — hoja con marca de verificación. */
+export const IconoEvaluacion = (p: Props) => (
+  <Svg {...p}>
+    <path d="M6 3.5h9l3.5 3.5V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z" />
+    <path d="M15 3.5V7h3.5" />
+    <path d="M8.5 13.5l2 2 4-4.2" />
   </Svg>
 );
 

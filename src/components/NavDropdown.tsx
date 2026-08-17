@@ -1,29 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import {
-  CalendarPlus,
-  ListChecks,
-  LayoutDashboard,
-  Stamp,
-  CalendarDays,
-  ChevronDown,
-  Check,
-  type LucideIcon,
-} from 'lucide-react';
+import { ChevronDown, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { neonDe } from './IconosNeon';
 
 export type NavOption = {
   id: string;
   label: string;
   descripcion: string;
-};
-
-const ICONOS: Record<string, LucideIcon> = {
-  disponibilidad: CalendarPlus,
-  historial: ListChecks,
-  admin: LayoutDashboard,
-  rectora: Stamp,
-  horario: CalendarDays,
 };
 
 interface Props {
@@ -39,7 +23,7 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0 }: P
   const ref = useRef<HTMLDivElement>(null);
 
   const actual = opciones.find(o => o.id === activa) ?? opciones[0];
-  const IconActual = ICONOS[actual?.id] ?? CalendarPlus;
+  const { Icono: IconActual, color: colorActual } = neonDe(actual?.id ?? '');
 
   // Cerrar al hacer clic afuera o con Escape
   useEffect(() => {
@@ -74,7 +58,7 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0 }: P
         aria-haspopup="menu"
         aria-expanded={abierto}
       >
-        <IconActual size={16} className="flex-shrink-0 text-muted" />
+        <IconActual className="w-4 h-4 flex-shrink-0" style={{ color: colorActual }} />
         <span className="truncate">{actual?.label}</span>
         {badge > 0 && actual?.id !== 'disponibilidad' && (
           <span className="min-w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
@@ -98,7 +82,7 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0 }: P
             className="absolute left-0 top-full mt-1.5 w-64 max-w-[calc(100vw-2rem)] z-50 rounded-2xl border border-line bg-card shadow-xl overflow-hidden p-1.5"
           >
             {opciones.map(op => {
-              const Icon = ICONOS[op.id] ?? CalendarPlus;
+              const { Icono: Icon, color } = neonDe(op.id);
               const activo = op.id === activa;
               const mostrarBadge = op.id === 'disponibilidad' && badge > 0;
               return (
@@ -112,12 +96,10 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0 }: P
                   )}
                 >
                   <span
-                    className={cn(
-                      'mt-0.5 flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center',
-                      activo ? 'bg-info-soft text-info-soft-fg' : 'bg-elevated text-muted',
-                    )}
+                    className="mt-0.5 flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
+                    style={{ background: `${color}1a` }}
                   >
-                    <Icon size={16} />
+                    <Icon className="w-4 h-4" style={{ color }} />
                   </span>
                   <span className="flex-1 min-w-0">
                     <span className="flex items-center gap-1.5">

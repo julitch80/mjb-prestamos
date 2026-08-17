@@ -17,7 +17,7 @@ export const ASISTENTES: Asistente[] = [
   {
     id: 'evaluacion',
     nombre: 'Asistente del Sistema de Evaluación',
-    descripcion: 'Orientación sobre el sistema institucional de evaluación (SIEE).',
+    descripcion: 'Orientación sobre el sistema institucional de evaluación (SIEPE).',
     emoji: '📝',
     url: 'https://cdn.botpress.cloud/webchat/v3.7/shareable.html?configUrl=https://files.bpcontent.cloud/2026/08/04/02/20260804022031-FXR4LIXJ.json',
   },
