@@ -28,6 +28,13 @@ import {
   faseporId,
 } from '../data/guiaEmergencia';
 import type { FaseEmergencia, LlamadaFase, TonoFase } from '../data/guiaEmergencia';
+import {
+  ATRIBUCION,
+  FICHAS_AUXILIOS,
+  NOTAS_REVISION,
+  fichaPorId,
+} from '../data/fichasAuxilios';
+import type { BloqueFicha, FichaAuxilios, TonoFicha } from '../data/fichasAuxilios';
 
 const JORNADA_LABEL: Record<string, string> = {
   manana: 'Mañana', tarde: 'Tarde', ambas: 'Ambas', nocturna: 'Nocturna',
@@ -540,7 +547,193 @@ const ESTILO_TONO_FASE: Record<TonoFase, { fondo: string; borde: string; texto: 
   },
 };
 
-type VistaEmergencia = 'menu' | 'primeros_auxilios' | 'contencion' | 'protocolo_completo';
+// Clases completas y literales a proposito -- mismo motivo que ESTILO_CATEGORIA:
+// Tailwind no detecta clases construidas con template strings.
+const ESTILO_TONO_FICHA: Record<TonoFicha, { chipActivo: string; header: string; headerTexto: string }> = {
+  azul: {
+    chipActivo: 'bg-info-soft border-info text-info-soft-fg',
+    header: 'bg-info-soft border-info',
+    headerTexto: 'text-info-soft-fg',
+  },
+  verde: {
+    chipActivo: 'bg-success-soft border-success text-success-soft-fg',
+    header: 'bg-success-soft border-success',
+    headerTexto: 'text-success-soft-fg',
+  },
+  naranja: {
+    chipActivo: 'bg-warning-soft border-warning text-warning-soft-fg',
+    header: 'bg-warning-soft border-warning',
+    headerTexto: 'text-warning-soft-fg',
+  },
+  rojo: {
+    chipActivo: 'bg-danger-soft border-danger text-danger-soft-fg',
+    header: 'bg-danger-soft border-danger',
+    headerTexto: 'text-danger-soft-fg',
+  },
+  morado: {
+    chipActivo: 'bg-purple-soft border-purple text-purple-soft-fg',
+    header: 'bg-purple-soft border-purple',
+    headerTexto: 'text-purple-soft-fg',
+  },
+  teal: {
+    chipActivo: 'bg-teal-soft border-teal text-teal-soft-fg',
+    header: 'bg-teal-soft border-teal',
+    headerTexto: 'text-teal-soft-fg',
+  },
+};
+
+function ChipFichaAuxilios({ ficha, activo, onClick }: {
+  ficha: FichaAuxilios; activo: boolean; onClick: () => void;
+}) {
+  const estilo = ESTILO_TONO_FICHA[ficha.tono];
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'px-3 py-2 rounded-full text-xs font-medium border transition-all flex items-center gap-1.5 whitespace-nowrap',
+        activo ? estilo.chipActivo : 'border-line text-muted hover:text-soft hover:bg-elevated'
+      )}
+    >
+      <span>{ficha.icono}</span>
+      {ficha.titulo}
+    </button>
+  );
+}
+
+function BloqueFichaView({ bloque }: { bloque: BloqueFicha }) {
+  if (bloque.tipo === 'texto') {
+    return <p className="text-sm text-soft leading-relaxed">{bloque.texto}</p>;
+  }
+  if (bloque.tipo === 'pasos') {
+    return (
+      <div className="flex flex-col gap-1.5">
+        {bloque.titulo && <span className="text-sm font-semibold text-strong">{bloque.titulo}</span>}
+        <ol className="flex flex-col gap-1.5 list-decimal list-inside marker:text-muted marker:font-semibold">
+          {bloque.items?.map((item, i) => (
+            <li key={i} className="text-sm text-soft leading-relaxed pl-1">{item}</li>
+          ))}
+        </ol>
+      </div>
+    );
+  }
+  if (bloque.tipo === 'hacer') {
+    return (
+      <div className="rounded-lg border border-success bg-success-soft px-3 py-2.5 flex flex-col gap-1.5">
+        <span className="text-xs font-bold text-success-soft-fg">✓ {bloque.titulo}</span>
+        <ul className="flex flex-col gap-1">
+          {bloque.items?.map((item, i) => (
+            <li key={i} className="text-xs text-success-soft-fg leading-relaxed flex gap-2">
+              <span className="flex-shrink-0">•</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  if (bloque.tipo === 'no_hacer') {
+    return (
+      <div className="rounded-lg border border-danger bg-danger-soft px-3 py-2.5 flex flex-col gap-1.5">
+        <span className="text-xs font-bold text-danger-soft-fg">✕ {bloque.titulo}</span>
+        <ul className="flex flex-col gap-1">
+          {bloque.items?.map((item, i) => (
+            <li key={i} className="text-xs text-danger-soft-fg leading-relaxed flex gap-2">
+              <span className="flex-shrink-0">•</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  // aviso
+  return (
+    <div className="rounded-lg border border-line bg-elevated px-3 py-2.5">
+      <p className="text-xs text-soft leading-relaxed">ℹ️ {bloque.texto}</p>
+    </div>
+  );
+}
+
+function FichaAuxiliosDetalle({ ficha }: { ficha: FichaAuxilios }) {
+  const estilo = ESTILO_TONO_FICHA[ficha.tono];
+  return (
+    <div className="flex flex-col gap-3">
+      <div className={cn('rounded-2xl border-2 px-4 py-4 flex flex-col gap-1.5', estilo.header)}>
+        <div className="flex items-center gap-2">
+          <span className="text-2xl leading-none flex-shrink-0">{ficha.icono}</span>
+          <span className={cn('text-base font-bold', estilo.headerTexto)}>{ficha.titulo}</span>
+        </div>
+        <p className={cn('text-xs leading-relaxed', estilo.headerTexto)}>{ficha.resumen}</p>
+      </div>
+
+      <div className="flex flex-col gap-2.5">
+        {ficha.bloques.map((bloque, i) => (
+          <BloqueFichaView key={i} bloque={bloque} />
+        ))}
+      </div>
+
+      {ficha.llamar123 && (
+        <a
+          href="tel:123"
+          className="rounded-xl border border-danger bg-danger text-white text-base font-bold py-4 flex items-center justify-center gap-2 hover:brightness-110 transition"
+        >
+          📞 Llamar al 123
+        </a>
+      )}
+    </div>
+  );
+}
+
+function GuiaAuxiliosRapida() {
+  const [fichaId, setFichaId] = useState<string | null>(null);
+  const ficha = fichaId ? fichaPorId(fichaId) : undefined;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-strong text-sm font-semibold">🚑 Guía de primeros auxilios</h3>
+        <p className="text-muted text-xs">Fichas de consulta rápida. Toca una para leerla.</p>
+      </div>
+
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {FICHAS_AUXILIOS.map(f => (
+          <ChipFichaAuxilios
+            key={f.id}
+            ficha={f}
+            activo={fichaId === f.id}
+            onClick={() => setFichaId(prev => (prev === f.id ? null : f.id))}
+          />
+        ))}
+      </div>
+
+      {ficha ? (
+        <FichaAuxiliosDetalle ficha={ficha} />
+      ) : (
+        <div className="flex flex-col gap-3">
+          <p className="text-[11px] text-muted leading-relaxed">
+            Adaptado para Colombia: donde la fuente original dice 112, aquí dice 123.
+          </p>
+          <p className="text-[11px] text-muted leading-relaxed">
+            Fuente: «{ATRIBUCION.obra}». {ATRIBUCION.editor}, {ATRIBUCION.anio}. ISBN {ATRIBUCION.isbn}. {ATRIBUCION.nota}
+          </p>
+          <div className="rounded-xl border border-warning bg-warning-soft px-4 py-3 flex flex-col gap-2">
+            <span className="text-xs font-semibold text-warning-soft-fg">⏳ Pendiente de revisión por el COPASST</span>
+            <ul className="flex flex-col gap-1.5">
+              {NOTAS_REVISION.map((nota, i) => (
+                <li key={i} className="text-[11px] text-warning-soft-fg leading-relaxed flex gap-2">
+                  <span className="flex-shrink-0">•</span>
+                  <span>{nota}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type VistaEmergencia = 'menu' | 'primeros_auxilios' | 'contencion' | 'protocolo_completo' | 'guia_auxilios';
 
 function BotonVolver({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
@@ -600,6 +793,12 @@ function SubmenuEmergencia({ onSeleccionar }: { onSeleccionar: (vista: VistaEmer
           subtitulo="El documento institucional, para leer con calma"
           onClick={() => onSeleccionar('protocolo_completo')}
         />
+        <TarjetaSubmenu
+          icono="🩹"
+          titulo="Guía de primeros auxilios"
+          subtitulo="Fichas de consulta rápida"
+          onClick={() => onSeleccionar('guia_auxilios')}
+        />
       </div>
     </div>
   );
@@ -637,7 +836,7 @@ function LlamadaFaseView({ llamada, onIrANumeros }: { llamada: LlamadaFase; onIr
   );
 }
 
-function VisorFase({ fase, indice, total, onSiguiente, onAnterior, onTerminar, onIrANumeros }: {
+function VisorFase({ fase, indice, total, onSiguiente, onAnterior, onTerminar, onIrANumeros, onIrAGuia }: {
   fase: FaseEmergencia;
   indice: number;
   total: number;
@@ -645,6 +844,7 @@ function VisorFase({ fase, indice, total, onSiguiente, onAnterior, onTerminar, o
   onAnterior: () => void;
   onTerminar: () => void;
   onIrANumeros: () => void;
+  onIrAGuia?: () => void;
 }) {
   const estilo = ESTILO_TONO_FASE[fase.tono];
   const esUltima = indice === total - 1;
@@ -676,6 +876,15 @@ function VisorFase({ fase, indice, total, onSiguiente, onAnterior, onTerminar, o
         ))}
       </div>
 
+      {fase.id === 2 && onIrAGuia && (
+        <button
+          onClick={onIrAGuia}
+          className="rounded-lg border border-line bg-elevated px-4 py-3 text-sm font-semibold text-accent hover:bg-hover transition"
+        >
+          🩹 Ver la guía de primeros auxilios →
+        </button>
+      )}
+
       {fase.llamadas && fase.llamadas.length > 0 && (
         <div className="flex flex-col gap-2">
           {fase.llamadas.map((llamada, i) => (
@@ -704,10 +913,11 @@ function VisorFase({ fase, indice, total, onSiguiente, onAnterior, onTerminar, o
   );
 }
 
-function VisorFases({ secuenciaIds, onTerminar, onIrANumeros }: {
+function VisorFases({ secuenciaIds, onTerminar, onIrANumeros, onIrAGuia }: {
   secuenciaIds: number[];
   onTerminar: () => void;
   onIrANumeros: () => void;
+  onIrAGuia?: () => void;
 }) {
   const [indice, setIndice] = useState(0);
   const fase = faseporId(secuenciaIds[indice]);
@@ -721,6 +931,7 @@ function VisorFases({ secuenciaIds, onTerminar, onIrANumeros }: {
       onAnterior={() => setIndice(i => Math.max(i - 1, 0))}
       onTerminar={onTerminar}
       onIrANumeros={onIrANumeros}
+      onIrAGuia={onIrAGuia}
     />
   );
 }
@@ -738,7 +949,12 @@ function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
     return (
       <div className="flex flex-col gap-4">
         <BotonVolver onClick={volver}>Volver</BotonVolver>
-        <VisorFases secuenciaIds={SECUENCIA_PRIMEROS_AUXILIOS} onTerminar={volver} onIrANumeros={onIrANumeros} />
+        <VisorFases
+          secuenciaIds={SECUENCIA_PRIMEROS_AUXILIOS}
+          onTerminar={volver}
+          onIrANumeros={onIrANumeros}
+          onIrAGuia={() => setVista('guia_auxilios')}
+        />
       </div>
     );
   }
@@ -748,6 +964,15 @@ function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
       <div className="flex flex-col gap-4">
         <BotonVolver onClick={volver}>Volver</BotonVolver>
         <VisorFases secuenciaIds={SECUENCIA_CONTENCION_EMOCIONAL} onTerminar={volver} onIrANumeros={onIrANumeros} />
+      </div>
+    );
+  }
+
+  if (vista === 'guia_auxilios') {
+    return (
+      <div className="flex flex-col gap-4">
+        <BotonVolver onClick={volver}>Volver</BotonVolver>
+        <GuiaAuxiliosRapida />
       </div>
     );
   }
