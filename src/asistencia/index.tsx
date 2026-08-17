@@ -15,6 +15,15 @@ import VerificacionFoto from './VerificacionFoto';
  * `import Importar from './Importar'` arriba, es una regresion: devolverlo aqui.
  */
 const Importar = lazy(() => import('./Importar'));
+
+/**
+ * ⚠️ NO CONVERTIR EN IMPORT ESTATICO — mismo motivo que `Importar` arriba.
+ *
+ * `DireccionGrupo` arrastra `exceljs` para la descarga del cuaderno a Excel, y solo la
+ * ve el director de cada grupo (una fraccion de los docentes, y solo en SU grupo). Cargar
+ * ese peso de forma estatica lo pagaria tambien el docente que solo pasa lista.
+ */
+const DireccionGrupo = lazy(() => import('./DireccionGrupo'));
 import CargaFotos from './CargaFotos';
 import Ficha from './Ficha';
 import PanelEstudiante from './PanelEstudiante';
@@ -229,6 +238,14 @@ export default function Asistencia() {
     () => !!cruce && directores[cruce.grado] === slotId,
     [cruce, directores, slotId],
   );
+
+  // Sub-pestaña dentro de un grupo: asistencia o el cuaderno de dirección. Vuelve a
+  // "asistencia" al cambiar de grado, para no dejar abierto por accidente el cuaderno de
+  // un grupo que ya no es este.
+  const [vistaGrupo, setVistaGrupo] = useState<'asistencia' | 'direccion'>('asistencia');
+  useEffect(() => {
+    setVistaGrupo('asistencia');
+  }, [cruce?.grado]);
 
   /**
    * Insumos del panel de estudiante: sesiones de las demás asignaturas y llegadas tarde.
@@ -638,37 +655,82 @@ export default function Asistencia() {
         />
       ) : (
         <>
-          <button
-            onClick={() => setCruce(null)}
-            className="min-h-[36px] text-sm text-accent"
-          >
-            ← Mis grupos
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setCruce(null)}
+              className="min-h-[36px] text-sm text-accent"
+            >
+              ← Mis grupos
+            </button>
 
-          {cruce && (
-            <Planilla
-              grado={cruce.grado}
-              asignatura={cruce.subjectId}
-              estudiantes={estudiantes}
-              sesiones={sesionesDelCruce}
-              matriculas={matriculas}
-              llegadasTarde={llegadasTarde}
-              puedeRegistrar={puedeRegistrar}
-              onMarcar={marcar}
-              onCerrarSesion={cerrar}
-              onAbrirFicha={setFichaAbierta}
-              onAbrirPanel={setPanelAbierto}
-              onLlenarColumna={llenar}
-              onNuevaSesion={nuevaSesion}
-              onEscanear={iniciarEscaneo}
-              color={resolverColor(mapaColores, cruce.grado, cruce.subjectId)}
-              onElegirColor={(colorId) =>
-                setMapaColores((m) => guardarColor(m, cruce.grado, cruce.subjectId, colorId))
-              }
-              alertConfig={alertConfig}
-              puedeAgregarEstudiante={esDirector || rol === 'coordinador'}
-              onAgregarEstudiante={agregarEstudiante}
-            />
+            {/* Solo el director de ESTE grado ve el cuaderno paralelo: en los demas
+                grupos que dicta, ni se ofrece la pestaña. */}
+            {esDirector && (
+              <div className="flex gap-1.5">
+                <Ayuda texto="Pasar lista de la asignatura: la asistencia de cada clase.">
+                  <button
+                    onClick={() => setVistaGrupo('asistencia')}
+                    className={[
+                      'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                      vistaGrupo === 'asistencia'
+                        ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                        : 'border-line text-soft',
+                    ].join(' ')}
+                  >
+                    Asistencia
+                  </button>
+                </Ayuda>
+                <Ayuda texto="El cuaderno paralelo del director: cuotas, equipos de aseo, requisitos — columnas que usted define. No es asistencia y no se cruza con ella.">
+                  <button
+                    onClick={() => setVistaGrupo('direccion')}
+                    className={[
+                      'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                      vistaGrupo === 'direccion'
+                        ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                        : 'border-line text-soft',
+                    ].join(' ')}
+                  >
+                    Dirección de grupo
+                  </button>
+                </Ayuda>
+              </div>
+            )}
+          </div>
+
+          {cruce && esDirector && vistaGrupo === 'direccion' ? (
+            <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando…</p>}>
+              <DireccionGrupo
+                grado={cruce.grado}
+                anio={new Date().getFullYear()}
+                estudiantes={estudiantes}
+              />
+            </Suspense>
+          ) : (
+            cruce && (
+              <Planilla
+                grado={cruce.grado}
+                asignatura={cruce.subjectId}
+                estudiantes={estudiantes}
+                sesiones={sesionesDelCruce}
+                matriculas={matriculas}
+                llegadasTarde={llegadasTarde}
+                puedeRegistrar={puedeRegistrar}
+                onMarcar={marcar}
+                onCerrarSesion={cerrar}
+                onAbrirFicha={setFichaAbierta}
+                onAbrirPanel={setPanelAbierto}
+                onLlenarColumna={llenar}
+                onNuevaSesion={nuevaSesion}
+                onEscanear={iniciarEscaneo}
+                color={resolverColor(mapaColores, cruce.grado, cruce.subjectId)}
+                onElegirColor={(colorId) =>
+                  setMapaColores((m) => guardarColor(m, cruce.grado, cruce.subjectId, colorId))
+                }
+                alertConfig={alertConfig}
+                puedeAgregarEstudiante={esDirector || rol === 'coordinador'}
+                onAgregarEstudiante={agregarEstudiante}
+              />
+            )
           )}
         </>
       )}

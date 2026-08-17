@@ -6,11 +6,12 @@
  * colegio— se pueda probar sin generar un binario.
  */
 
+import { totalDeColumna } from './direccion-grupo';
 import { findMark, MARKS, type MarkCode } from './marks';
 // Un solo sitio compone el nombre: ver la nota en `./nombres`.
 import { nombreCompleto } from './nombres';
 import { computeStats, sesionesRelevantes } from './stats';
-import type { Enrollment, LateArrival, Session, Student } from './types';
+import type { DireccionGrupo, Enrollment, LateArrival, Session, Student, ValorCelda } from './types';
 
 export interface Hoja {
   nombre: string;
@@ -199,6 +200,52 @@ export function estudiantesDelPeriodo(
       ),
     )
     .sort((a, b) => nombreCompleto(a).localeCompare(nombreCompleto(b)));
+}
+
+/** Celda de Direccion de grupo a texto de Excel. Vacia = sin asignar, igual que en las
+ * demas exportaciones: no se inventa un cero ni un "No" donde nadie registro nada. */
+function celdaDireccion(valor: ValorCelda | undefined, opciones: { opcionId: string; etiqueta: string }[]): string | number {
+  if (valor === undefined) return '';
+  if (typeof valor === 'boolean') return valor ? 'Si' : 'No';
+  if (typeof valor === 'string') {
+    // Columna de icono: se exporta la ETIQUETA, no el opcionId ni el nombre del icono
+    // en lucide-react — el Excel lo lee una persona, no un componente.
+    return opciones.find((o) => o.opcionId === valor)?.etiqueta ?? valor;
+  }
+  return valor;
+}
+
+/** 4. Cuaderno de Direccion de grupo: una fila por estudiante, totales en la ultima. */
+export function buildDireccionGrupoExport(input: {
+  grado: string;
+  anio: number;
+  estudiantes: { studentId: string; apellidos: string; nombres: string }[];
+  direccion: DireccionGrupo;
+}): Hoja {
+  const columnas = [...input.direccion.columnas].sort((a, b) => a.orden - b.orden);
+  const estudiantes = [...input.estudiantes].sort((a, b) =>
+    `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`),
+  );
+  const studentIds = estudiantes.map((e) => e.studentId);
+
+  const filas: (string | number)[][] = estudiantes.map((e) => [
+    `${e.apellidos} ${e.nombres}`,
+    ...columnas.map((c) => celdaDireccion(input.direccion.valores[e.studentId]?.[c.columnaId], c.opciones)),
+  ]);
+
+  const totales = columnas.map((c) => totalDeColumna(c, input.direccion.valores, studentIds));
+  filas.push(['Totales', ...totales.map((t) => t.texto)]);
+
+  return {
+    nombre: `Direccion de grupo ${input.grado} ${input.anio}`,
+    encabezados: ['Estudiante', ...columnas.map((c) => c.nombre)],
+    filas,
+    notas: [
+      `Grado ${input.grado} · año ${input.anio}.`,
+      'Celda vacia = sin asignar. NO es un cero ni un "No": nadie ha registrado nada ahi todavia.',
+      'La fila de totales cuenta solo lo que si tiene valor; los vacios no suman ni restan.',
+    ],
+  };
 }
 
 /** Reexport util para quien construya vistas sobre el denominador. */

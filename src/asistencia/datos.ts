@@ -21,6 +21,7 @@
 
 import {
   collection,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -38,6 +39,8 @@ import { sessionId as construirSessionId } from './domain/ids';
 import type { MarkCode } from './domain/marks';
 import type {
   AlertConfig,
+  ColumnaDireccion,
+  DireccionGrupo,
   Enrollment,
   Event,
   EventMemberSource,
@@ -45,6 +48,7 @@ import type {
   LateArrival,
   Session,
   Student,
+  ValorCelda,
 } from './domain/types';
 import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
 import { exigirAutor } from './identidad';
@@ -913,5 +917,118 @@ export async function leerEstudiantesDeSede(sede: string): Promise<Student[]> {
     await getDocs(query(collection(baseDatos(), 'asistenciaStudents'), where('sede', '==', sede))),
   );
   return todos.filter((e) => e.activo);
+}
+
+// ---------- Direccion de grupo: el cuaderno del director ----------
+//
+// NO es asistencia y no se cruza con ella: columnas que el propio director define
+// (cuotas, equipos de aseo, requisitos). SOLO el director del grado accede — ni
+// coordinacion, ni rectora, ni superusuario (`asisIsDirectorOf`, ver
+// rules/asistencia.rules). El año va como SUBCOLECCION para que el `{grado}` venga en
+// la RUTA y la regla lo resuelva sin mirar campos del documento.
+
+export async function leerDireccionGrupo(grado: string, anio: number): Promise<DireccionGrupo | null> {
+  if (!(await listo())) return null;
+  const snap = await getDoc(doc(baseDatos(), 'asistenciaDireccionGrupo', grado, 'anios', String(anio)));
+  return snap.exists() ? (snap.data() as DireccionGrupo) : null;
+}
+
+/**
+ * Crea el cuaderno del año si no existe. Devuelve el que quede.
+ *
+ * Mismo patron que `abrirSesionEvento`: se escribe DIRECTO, sin comprobar antes si
+ * existe. Un `getDoc` previo seria una lectura de mas en el caso normal —el cuaderno ya
+ * existe la mayoria de las veces que se abre la pantalla— para no averiguar nada que la
+ * propia escritura no resuelva sola. Si `setDoc` falla, ENTONCES se lee, para distinguir
+ * "ya existia" (se reutiliza el que hay) de "no tiene permiso" (se propaga el error
+ * original, que es el bueno).
+ */
+export async function abrirDireccionGrupo(grado: string, anio: number): Promise<DireccionGrupo> {
+  const autor = await exigirAutor();
+  const ref = doc(baseDatos(), 'asistenciaDireccionGrupo', grado, 'anios', String(anio));
+
+  const nuevo = {
+    grado,
+    anio,
+    columnas: [],
+    valores: {},
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  };
+
+  try {
+    await setDoc(ref, nuevo);
+  } catch (e) {
+    const otro = await getDoc(ref).catch(() => null);
+    if (otro?.exists()) return otro.data() as DireccionGrupo;
+    throw e;
+  }
+  return { ...nuevo, ultimaEscrituraEn: Date.now() } as DireccionGrupo;
+}
+
+/**
+ * Reemplaza el arreglo de columnas (añadir, quitar, reordenar, renombrar).
+ *
+ * `columnas` SI se reemplaza entero, a diferencia de `valores`: es una lista corta que
+ * solo el unico director del grado toca, no un mapa por estudiante donde dos escrituras
+ * simultaneas puedan pisarse.
+ *
+ * `valores` opcional: quitar una columna debe llevarse sus valores en la MISMA
+ * escritura, o quedan huerfanos ocupando el documento sin que ninguna columna los
+ * muestre ni los cuente.
+ */
+export async function guardarColumnas(
+  grado: string,
+  anio: number,
+  columnas: ColumnaDireccion[],
+  valores?: DireccionGrupo['valores'],
+): Promise<void> {
+  const autor = await exigirAutor();
+  const ref = doc(baseDatos(), 'asistenciaDireccionGrupo', grado, 'anios', String(anio));
+
+  const cambios: Record<string, unknown> = {
+    columnas,
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  };
+  if (valores !== undefined) cambios.valores = valores;
+
+  // Mismo motivo que en `marcarEstudiante`: esta promesa es el acuse del SERVIDOR, y
+  // esperarla dejaria la pantalla de columnas colgada sin señal.
+  registrarEnvio(updateDoc(ref, cambios));
+}
+
+/**
+ * Escribe UNA casilla. `null` la borra (vuelve a "sin asignar").
+ *
+ * Ruta de campo puntual (`valores.est_0412.col_3`), nunca el mapa `valores` completo:
+ * misma razon que en las sesiones de clase, aunque aqui solo escriba un director por
+ * grado — el patron se mantiene porque tambien protege contra dos pestañas abiertas del
+ * mismo director pisandose entre si.
+ *
+ * `deleteField()` y no `valor: null`: un `null` literal seria un valor legitimo y
+ * distinto de "sin asignar" (ver el comentario de `ValorCelda` en `domain/types.ts`) —
+ * escribirlo dejaria la casilla contando como "0 puntos puestos" en vez de vacia.
+ */
+export async function marcarCelda(
+  grado: string,
+  anio: number,
+  studentId: string,
+  columnaId: string,
+  valor: ValorCelda | null,
+): Promise<void> {
+  const autor = await exigirAutor();
+  const ref = doc(baseDatos(), 'asistenciaDireccionGrupo', grado, 'anios', String(anio));
+  const campo = `valores.${studentId}.${columnaId}`;
+
+  const cambios: Record<string, unknown> = {
+    [campo]: valor === null ? deleteField() : valor,
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  };
+
+  // Mismo motivo que en `marcarEstudiante`: la promesa de `updateDoc` es el acuse del
+  // servidor, no la escritura local; esperarla aqui dejaria la casilla muerta sin señal.
+  registrarEnvio(updateDoc(ref, cambios));
 }
 

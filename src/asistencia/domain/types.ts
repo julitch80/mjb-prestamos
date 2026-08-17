@@ -288,3 +288,69 @@ export interface EventSession {
   ultimaEscrituraPor: string;
   ultimaEscrituraEn: number;
 }
+
+// ---------------------------------------------------------------------------
+//  Direccion de grupo — la planilla paralela del director (2026-08-12)
+// ---------------------------------------------------------------------------
+//
+// NO es asistencia y no se cruza con ella: es el cuaderno del director de grupo, con
+// columnas que el define (cuotas, equipos de aseo, requisitos, media tecnica). Vive en
+// `asistenciaDireccionGrupo/{grado}/anios/{anio}`.
+//
+// SUBCOLECCION POR AÑO, no un campo `anio`: asi el `{grado}` queda en la RUTA y la regla
+// lo lee de ahi sin mirar ningun campo del documento — es demostrable sin filtros, igual
+// que las sesiones de un evento. Y al cambiar de año el cuaderno arranca limpio solo, sin
+// migrar ni archivar nada.
+
+export type TipoColumna = 'numero' | 'casilla' | 'puntos' | 'icono';
+
+/**
+ * Una opcion de una columna de tipo `icono`. La paleta se fija AL CREAR la columna.
+ *
+ * Por que la paleta es cerrada y no "cualquier icono en cualquier casilla", como hace
+ * Additio: si cada casilla admitiera cualquiera de los 5.885 iconos, la columna no se
+ * podria contar. Con la paleta declarada, "Aseo" responde sola "Equipo 1: 11 · Equipo 2:
+ * 11 · sin asignar: 6", que es para lo que el director la abre.
+ */
+export interface OpcionColumna {
+  opcionId: string;
+  /** Nombre del icono en lucide-react (p. ej. 'Brush'), o '' si es una etiqueta suelta. */
+  icono: string;
+  /** Lo que se ve y se lee: 'Equipo 1', 'Restaurante'. */
+  etiqueta: string;
+  /** Id de la paleta de `domain/colores.ts`. El color ES parte del significado aqui. */
+  colorId: string;
+}
+
+export interface ColumnaDireccion {
+  columnaId: string;
+  /** Corto: cabe en una cabecera de tabla. 'Cuota 1', 'Aseo P1'. */
+  nombre: string;
+  tipo: TipoColumna;
+  orden: number;
+  /** Solo en `icono`. Vacio en los demas tipos. */
+  opciones: OpcionColumna[];
+}
+
+/**
+ * Valor de una casilla. El tipo depende de la columna:
+ *  - `numero`  -> number (una cifra: 10000)
+ *  - `puntos`  -> number (acumulado con signo: 3, -1)
+ *  - `casilla` -> boolean
+ *  - `icono`   -> string (el `opcionId` elegido)
+ *
+ * Ausente = sin asignar. NO es cero ni "no": esa distincion es la misma que en la
+ * asistencia entre "sin registrar" y "ausencia", y por la misma razon — un total que
+ * cuenta los vacios como ceros miente sobre lo que alguien registro.
+ */
+export type ValorCelda = number | boolean | string;
+
+export interface DireccionGrupo {
+  grado: string;
+  anio: number;
+  columnas: ColumnaDireccion[];
+  /** studentId -> columnaId -> valor. Mapa anidado, escrito con rutas de campo puntuales. */
+  valores: Record<string, Record<string, ValorCelda>>;
+  ultimaEscrituraPor: string;
+  ultimaEscrituraEn: number;
+}
