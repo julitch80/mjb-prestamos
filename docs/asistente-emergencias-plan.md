@@ -1,5 +1,23 @@
 # Asistente de emergencias — plan de implementación
 
+> ## ⏸️ EN PAUSA — decisión de Julián, 16 de agosto de 2026
+>
+> **No se va a construir el asistente conversacional por ahora.** En su lugar
+> se hizo una guía de acción fase por fase, sin IA: la pestaña «Emergencia
+> escolar» dentro de Gestión del Riesgo (`src/data/guiaEmergencia.ts`), con
+> el protocolo dividido en pantallas navegables y botones para llamar
+> directo al 123 y demás líneas.
+>
+> **Este documento se conserva íntegro a propósito.** Julián pidió
+> explícitamente guardarlo por si retoma la idea. Todo lo que hay abajo sigue
+> siendo válido y no hay que rehacerlo: la transcripción del documento
+> fuente, los siete defectos del prompt, la arquitectura propuesta, las
+> decisiones ya tomadas y la comparación de proveedores.
+>
+> Si se retoma, empezar por la sección 8 (elegir proveedor) y seguir con el
+> plan de tareas de la sección 6. La guía sin IA que existe ahora no estorba:
+> sería la pantalla desde la que se ofrece el asistente.
+
 Estado: **análisis hecho, sin código escrito todavía.** Julián trajo un prompt
 para un asistente conversacional de emergencias dentro de Gestión del
 Riesgo, junto con el documento fuente (`protocolo_emergencias_MJB v2.docx`,
