@@ -9,7 +9,7 @@ import LoginScreen from './components/LoginScreen';
 import PanelInicio from './components/PanelInicio';
 import PanelAdmin from './components/PanelAdmin';
 import PanelRectora from './components/PanelRectora';
-import DisponibilidadGrid from './components/DisponibilidadGrid';
+import Reservas from './components/Reservas';
 import VistaHorario from './components/VistaHorario';
 import AsignacionAcademica from './components/AsignacionAcademica';
 import VistaTareas from './components/VistaTareas';
@@ -37,21 +37,31 @@ import { SelectorSedeMenu, SelectorSedePastilla, sedeYaElegidaEnSesion } from '.
 type NavItem = { id: string; label: string; descripcion: string; roles: string[] };
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'inicio',          label: 'Inicio',        descripcion: 'Tu resumen del día',                roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
-  { id: 'disponibilidad', label: 'Reservar',     descripcion: 'Solicita un aula o recurso',        roles: ['docente', 'coordinador'] },
-  { id: 'historial',      label: 'Mis reservas', descripcion: 'Tus solicitudes y su estado',       roles: ['docente', 'coordinador', 'rectora'] },
-  { id: 'admin',          label: 'Panel',         descripcion: 'Pendientes, hoy y configuración',   roles: ['coordinador'] },
-  { id: 'rectora',        label: 'Asignación',    descripcion: 'Asigna espacios directamente',      roles: ['rectora'] },
-  { id: 'horario',        label: 'Horario',       descripcion: 'Por aulas, docente o grupo',        roles: ['docente', 'coordinador', 'rectora'] },
-  { id: 'asignacion',     label: 'Asignación 2026', descripcion: 'Docentes y materias del año',     roles: ['docente', 'coordinador', 'rectora'] },
-  { id: 'tareas',         label: 'Tareas',          descripcion: 'Momentos de tarea por grupo',     roles: ['docente', 'coordinador', 'rectora'] },
-  { id: 'chat',           label: 'Chat',            descripcion: 'Mensajería interna',              roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
-  { id: 'agenda',         label: 'Agenda',          descripcion: 'Agenda semanal institucional',    roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
-  { id: 'riesgo',         label: 'Gestión del Riesgo', descripcion: 'Brigadas de emergencia y funciones', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
-  { id: 'asistentes',     label: 'Asistentes',      descripcion: 'Chatbots de convivencia y evaluación', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
-  { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',        roles: ['superusuario'] },
-  { id: 'sugerencias',    label: 'Sugerencias',     descripcion: 'Lo que reportan los docentes',    roles: ['superusuario'] },
-  { id: 'asistencia',     label: 'Asistencia',      descripcion: 'Registro de clase',               roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  // ORDEN pedido por Julián (17 de agosto de 2026). El arreglo se filtra por
+  // rol más abajo, así que los módulos de un solo rol se intercalan donde le
+  // sirven a ESE rol: la coordinadora y la rectora encuentran su herramienta
+  // principal arriba, y un docente —que no ve ninguno de los dos— ve
+  // exactamente la lista que pidió.
+  //
+  // 'historial' (Mis reservas) YA NO está en el menú para docente y
+  // coordinador: ahora es una pastilla dentro de Reservas. Se conserva como
+  // entrada suelta solo para la rectora, que no tiene pantalla de Reservas
+  // donde anidarlo (su rol no incluye 'disponibilidad').
+  { id: 'inicio',         label: 'Inicio',          descripcion: 'Tu resumen del día',                roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'admin',          label: 'Panel',           descripcion: 'Pendientes, hoy y configuración',   roles: ['coordinador'] },
+  { id: 'rectora',        label: 'Asignación',      descripcion: 'Asigna espacios directamente',      roles: ['rectora'] },
+  { id: 'agenda',         label: 'Agenda',          descripcion: 'Agenda semanal institucional',      roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'horario',        label: 'Horario',         descripcion: 'Por aulas, docente o grupo',        roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'asistencia',     label: 'Asistencia',      descripcion: 'Registro de clase',                 roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'tareas',         label: 'Tareas',          descripcion: 'Momentos de tarea por grupo',       roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'asistentes',     label: 'Chatbot',         descripcion: 'Chatbots de convivencia y evaluación', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'riesgo',         label: 'Gestión del Riesgo', descripcion: 'Emergencia escolar, brigadas y números', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'disponibilidad', label: 'Reservas',        descripcion: 'Solicita un aula o recurso',        roles: ['docente', 'coordinador'] },
+  { id: 'historial',      label: 'Mis reservas',    descripcion: 'Tus solicitudes y su estado',       roles: ['rectora'] },
+  { id: 'asignacion',     label: 'Asignación 2026', descripcion: 'Docentes y materias del año',       roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'chat',           label: 'Chat',            descripcion: 'Mensajería interna',                roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',          roles: ['superusuario'] },
+  { id: 'sugerencias',    label: 'Sugerencias',     descripcion: 'Lo que reportan los docentes',      roles: ['superusuario'] },
 ];
 
 const ROL_COLOR: Record<string, string> = {
@@ -405,7 +415,7 @@ export default function App() {
               return (
                 <>
                   {vistaActual === 'inicio'          && <PanelInicio navItems={navItems} />}
-                  {vistaActual === 'disponibilidad' && <DisponibilidadGrid />}
+                  {vistaActual === 'disponibilidad' && <Reservas />}
                   {vistaActual === 'historial'      && <MiHistorial />}
                   {vistaActual === 'admin'          && rol === 'coordinador' && <PanelAdmin />}
                   {vistaActual === 'rectora'        && rol === 'rectora'     && <PanelRectora />}
