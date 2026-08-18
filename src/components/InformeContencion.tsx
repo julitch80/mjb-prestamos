@@ -4,6 +4,7 @@ import { useAppStore } from '../data/store';
 import { DIRECTORES_MANANA, DIRECTORES_TARDE, getUsuario } from '../data/maestros';
 import { guardarInformeContencion } from '../data/api';
 import { useDictado } from '../hooks/useDictado';
+import { exportarInformeContencion } from '../lib/exportarDoc';
 
 interface EstudianteBusqueda {
   studentId: string;
@@ -45,6 +46,7 @@ export function InformeContencion({ onTerminado, onCancelar }: {
   const [rutaDetalle, setRutaDetalle] = useState<RutaDetalle>('psicoorientador');
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; correoEnviado?: boolean; error?: string } | null>(null);
+  const [datosParaExportar, setDatosParaExportar] = useState<Parameters<typeof exportarInformeContencion>[0] | null>(null);
 
   const dictado = useDictado(useCallback((texto: string) => {
     setDescripcion(prev => (prev ? `${prev} ${texto}` : texto));
@@ -69,8 +71,10 @@ export function InformeContencion({ onTerminado, onCancelar }: {
   async function enviar() {
     if (!estudiante || !docente || !descripcion.trim()) return;
     setEnviando(true);
+    const fecha = new Date().toISOString().slice(0, 10);
+    const rutaDetalleFinal = rutaTipo === 'externa' ? 'externa' : rutaDetalle;
     const r = await guardarInformeContencion({
-      fecha: new Date().toISOString().slice(0, 10),
+      fecha,
       docenteId: docente.id,
       docenteNombre: docente.nombre,
       sede: sedeActual,
@@ -82,10 +86,21 @@ export function InformeContencion({ onTerminado, onCancelar }: {
       director: directorDeGrupo(estudiante.gradoActual),
       descripcion: descripcion.trim(),
       rutaTipo,
-      rutaDetalle: rutaTipo === 'externa' ? 'externa' : rutaDetalle,
+      rutaDetalle: rutaDetalleFinal,
     });
     setEnviando(false);
     setResultado(r);
+    setDatosParaExportar({
+      estudianteNombre: `${estudiante.nombres} ${estudiante.apellidos}`,
+      estudianteDocumento: estudiante.docNumber ?? '',
+      grado: estudiante.gradoActual,
+      director: directorDeGrupo(estudiante.gradoActual),
+      docenteNombre: docente.nombre,
+      fecha,
+      descripcion: descripcion.trim(),
+      rutaTipo,
+      rutaDetalle: rutaDetalleFinal,
+    });
   }
 
   if (resultado) {
@@ -103,12 +118,22 @@ export function InformeContencion({ onTerminado, onCancelar }: {
           </p>
         )}
         {!resultado.ok && <p className="text-xs text-danger">{resultado.error}</p>}
-        <button
-          onClick={onTerminado}
-          className="px-5 py-2.5 rounded-xl text-sm font-semibold text-accent-fg bg-accent hover:brightness-110 transition"
-        >
-          Terminar
-        </button>
+        <div className="flex gap-2">
+          {resultado.ok && datosParaExportar && (
+            <button
+              onClick={() => exportarInformeContencion(datosParaExportar)}
+              className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition"
+            >
+              📄 Exportar (.doc)
+            </button>
+          )}
+          <button
+            onClick={onTerminado}
+            className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-accent-fg bg-accent hover:brightness-110 transition"
+          >
+            Terminar
+          </button>
+        </div>
       </div>
     );
   }

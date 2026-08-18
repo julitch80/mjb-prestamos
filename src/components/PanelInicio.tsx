@@ -1,7 +1,7 @@
 // Panel de inicio — primera pantalla al entrar a la app. Resume notificaciones,
 // cambios de horario, próxima clase (docentes), agenda institucional del día,
 // accesos rápidos por rol y un resumen de chat (solo modo google + Firebase).
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import MiDiaModificado from './MiDiaModificado';
 import { motion } from 'motion/react';
 import { useAppStore } from '../data/store';
@@ -296,12 +296,26 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   // movil el dedo desliza el carrusel sin problema, pero en PC con mouse normal (sin
   // trackpad) no hay forma de moverlo: la rueda solo manda scroll vertical. Se
   // redirige a horizontal cuando el contenedor tiene de donde desplazarse.
-  const desplazarConRueda = (e: React.WheelEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    if (el.scrollWidth <= el.clientWidth) return;
-    el.scrollLeft += e.deltaY;
-    e.preventDefault();
-  };
+  //
+  // OJO: esto NO puede ser un onWheel de React. Desde React 17 los listeners de
+  // wheel/touch del root se registran como passive, así que e.preventDefault() ahi
+  // dentro es un no-op silencioso (solo tira warning en consola) — la pagina entera
+  // seguia bajando con cada giro de rueda en un mouse normal de PC (sin inercia de
+  // trackpad que lo disimulara), tapando el scroll horizontal aunque scrollLeft si se
+  // actualizara. Por eso el listener se registra a mano con { passive: false }.
+  const filaARef = useRef<HTMLDivElement>(null);
+  const filaBRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const listener = (e: WheelEvent) => {
+      const el = e.currentTarget as HTMLDivElement;
+      if (el.scrollWidth <= el.clientWidth) return;
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    };
+    const filas = [filaARef.current, filaBRef.current].filter((el): el is HTMLDivElement => el !== null);
+    filas.forEach(el => el.addEventListener('wheel', listener, { passive: false }));
+    return () => filas.forEach(el => el.removeEventListener('wheel', listener));
+  });
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -318,7 +332,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       {avisos.length > 0 && (
         <section>
           <h2 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Tu día</h2>
-          <div className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0" onWheel={desplazarConRueda}>
+          <div ref={filaARef} className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0">
             {avisos.map((a) => (
               <BannerAviso key={a.id} aviso={a} />
             ))}
@@ -330,7 +344,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       {accesos.length > 0 && (
         <section>
           <h2 className="text-base font-semibold text-strong mb-3">¿Qué deseas hacer?</h2>
-          <div className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0" onWheel={desplazarConRueda}>
+          <div ref={filaBRef} className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0">
             {accesos.map((item) => (
               <BaldosaNeon
                 key={item.id}
