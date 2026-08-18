@@ -39,6 +39,7 @@ import {
 import type { FaseEmergencia, LlamadaFase, TonoFase } from '../data/guiaEmergencia';
 import { InformeContencion } from './InformeContencion';
 import { RemisionSeguro } from './RemisionSeguro';
+import TableroCasos from './TableroCasos';
 import {
   ATRIBUCION,
   FICHAS_AUXILIOS,
@@ -1069,7 +1070,7 @@ function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-type Pestana = 'brigadas' | 'emergencias' | 'protocolo';
+type Pestana = 'brigadas' | 'emergencias' | 'protocolo' | 'casos';
 
 export default function GestionRiesgo() {
   const userId = useAppStore(s => s.userId);
@@ -1125,12 +1126,25 @@ export default function GestionRiesgo() {
         >
           🚑 Emergencia escolar <BadgeBeta />
         </button>
+        <button
+          onClick={() => setPestana('casos')}
+          className={cn(
+            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+            pestana === 'casos'
+              ? 'bg-accent-soft border-accent text-accent'
+              : 'border-purple text-purple hover:bg-elevated'
+          )}
+        >
+          📁 Casos
+        </button>
       </div>
 
       {pestana === 'protocolo' ? (
         <EmergenciaEscolar onIrANumeros={() => setPestana('emergencias')} />
       ) : pestana === 'emergencias' ? (
         <NumerosEmergencia />
+      ) : pestana === 'casos' ? (
+        <TableroCasos />
       ) : (
         <>
           {/* Tus brigadas */}
