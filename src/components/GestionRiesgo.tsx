@@ -920,7 +920,7 @@ function VisorFase({ fase, indice, total, mostrarNumero = true, textoBotonFinal 
       {fase.id === 2 && onIrAGuia && (
         <button
           onClick={onIrAGuia}
-          className="rounded-lg border border-line bg-elevated px-4 py-3 text-sm font-semibold text-accent hover:bg-hover transition"
+          className="rounded-lg border-2 border-danger bg-elevated px-4 py-3 text-sm font-semibold text-accent hover:bg-hover transition"
         >
           🩹 Ver la guía de primeros auxilios →
         </button>
@@ -929,7 +929,7 @@ function VisorFase({ fase, indice, total, mostrarNumero = true, textoBotonFinal 
       {fase.id === 3 && onIrARemisionSeguro && (
         <button
           onClick={onIrARemisionSeguro}
-          className="rounded-lg border border-line bg-elevated px-4 py-3 text-sm font-semibold text-accent hover:bg-hover transition"
+          className="rounded-lg border-2 border-danger bg-elevated px-4 py-3 text-sm font-semibold text-accent hover:bg-hover transition"
         >
           📄 Escanear documento para el seguro →
         </button>
