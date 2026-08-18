@@ -142,10 +142,18 @@
   box-sizing: border-box;
 }
 
-/* Carruseles del panel de inicio: scroll lateral sin barra visible. */
+/* Carruseles del panel de inicio: scroll lateral sin barra visible.
+   "proximity" y no "mandatory": con mandatory, un giro de rueda de mouse en
+   PC manda un salto pequeño (mucho menor que el ancho de una tarjeta) y el
+   navegador revierte de inmediato al punto de anclaje de partida — el
+   scrollLeft cambia por una fracción de segundo pero el snap lo regresa
+   antes de que se note, y el carrusel parece no moverse. En touch/trackpad
+   no pasaba porque el gesto es continuo y cruza el punto de anclaje de un
+   tirón. "proximity" solo engancha cuando el scroll ya quedó cerca de un
+   punto, sin pelear contra incrementos chicos. */
 .scroll-lateral {
   overflow-x: auto;
-  scroll-snap-type: x mandatory;
+  scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }

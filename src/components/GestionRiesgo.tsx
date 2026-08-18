@@ -874,11 +874,12 @@ function LlamadaFaseView({ llamada, onIrANumeros }: { llamada: LlamadaFase; onIr
   );
 }
 
-function VisorFase({ fase, indice, total, mostrarNumero = true, onSiguiente, onAnterior, onTerminar, onIrANumeros, onIrAGuia, onIrARemisionSeguro }: {
+function VisorFase({ fase, indice, total, mostrarNumero = true, textoBotonFinal = 'Terminar', onSiguiente, onAnterior, onTerminar, onIrANumeros, onIrAGuia, onIrARemisionSeguro }: {
   fase: FaseEmergencia;
   indice: number;
   total: number;
   mostrarNumero?: boolean;
+  textoBotonFinal?: string;
   onSiguiente: () => void;
   onAnterior: () => void;
   onTerminar: () => void;
@@ -955,16 +956,17 @@ function VisorFase({ fase, indice, total, mostrarNumero = true, onSiguiente, onA
           onClick={esUltima ? onTerminar : onSiguiente}
           className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold text-accent-fg bg-accent hover:brightness-110 transition"
         >
-          {esUltima ? 'Terminar' : 'Siguiente fase →'}
+          {esUltima ? textoBotonFinal : 'Siguiente fase →'}
         </button>
       </div>
     </div>
   );
 }
 
-function VisorFases({ secuenciaIds, mostrarNumero = true, onTerminar, onIrANumeros, onIrAGuia, onIrARemisionSeguro }: {
+function VisorFases({ secuenciaIds, mostrarNumero = true, textoBotonFinal, onTerminar, onIrANumeros, onIrAGuia, onIrARemisionSeguro }: {
   secuenciaIds: number[];
   mostrarNumero?: boolean;
+  textoBotonFinal?: string;
   onTerminar: () => void;
   onIrANumeros: () => void;
   onIrAGuia?: () => void;
@@ -979,6 +981,7 @@ function VisorFases({ secuenciaIds, mostrarNumero = true, onTerminar, onIrANumer
       indice={indice}
       total={secuenciaIds.length}
       mostrarNumero={mostrarNumero}
+      textoBotonFinal={textoBotonFinal}
       onSiguiente={() => setIndice(i => Math.min(i + 1, secuenciaIds.length - 1))}
       onAnterior={() => setIndice(i => Math.max(i - 1, 0))}
       onTerminar={onTerminar}
@@ -1020,6 +1023,7 @@ function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
         <VisorFases
           secuenciaIds={SECUENCIA_CONTENCION_EMOCIONAL}
           mostrarNumero={false}
+          textoBotonFinal="Generar informe →"
           onTerminar={() => setVista('informe_contencion')}
           onIrANumeros={onIrANumeros}
         />
