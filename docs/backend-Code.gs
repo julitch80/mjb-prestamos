@@ -781,7 +781,13 @@ function guardarInformeContencion(p) {
     const sheet = getSheet('InformesContencion', INFORMES_CONTENCION_HEADERS);
     asegurarEncabezados_(sheet, INFORMES_CONTENCION_HEADERS);
     const id = 'ic_' + new Date().getTime() + '_' + Math.random().toString(36).slice(2, 6);
-    const fila = INFORMES_CONTENCION_HEADERS.map(function(h) {
+    // OJO: asegurarEncabezados_ agrega las columnas que faltan AL FINAL de la hoja
+    // física, no en la posición que tengan en INFORMES_CONTENCION_HEADERS (que las
+    // tiene intercaladas por legibilidad). Escribir con ese orden de la constante
+    // desalinea todo desde la primera columna nueva. Por eso la fila se arma según
+    // el orden REAL de encabezados que ya está en la hoja, columna por columna.
+    const headersReales = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const fila = headersReales.map(function(h) {
       if (h === 'id') return id;
       if (h === 'timestamp') return new Date().toISOString();
       return p[h] || '';
@@ -843,8 +849,12 @@ function guardarRemisionSeguro(p) {
     archivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
     const sheet = getSheet('RemisionesSeguro', REMISIONES_SEGURO_HEADERS);
+    asegurarEncabezados_(sheet, REMISIONES_SEGURO_HEADERS);
     const id = 'rs_' + new Date().getTime() + '_' + Math.random().toString(36).slice(2, 6);
-    const fila = REMISIONES_SEGURO_HEADERS.map(function(h) {
+    // Mismo motivo que en guardarInformeContencion: orden real de la hoja, no el de
+    // la constante, para que una columna nueva agregada al final no desalinee todo.
+    const headersReales = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const fila = headersReales.map(function(h) {
       if (h === 'id') return id;
       if (h === 'fotoUrl') return archivo.getUrl();
       if (h === 'timestamp') return new Date().toISOString();
