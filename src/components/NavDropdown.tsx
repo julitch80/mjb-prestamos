@@ -16,9 +16,14 @@ interface Props {
   onSelect: (id: string) => void;
   /** notificaciones nuevas, badge en "Reservar" y en el botón cerrado */
   badge?: number;
+  /** Contadores por ítem del menú: { riesgo: 3 }. Antes el badge estaba
+   *  cableado solo a 'disponibilidad', así que cualquier otra sección que
+   *  necesitara contador terminaba pegando el número al texto de la etiqueta
+   *  ("Gestión del Riesgo (3)"), que desentona con el resto del menú. */
+  badges?: Record<string, number>;
 }
 
-export default function NavDropdown({ opciones, activa, onSelect, badge = 0 }: Props) {
+export default function NavDropdown({ opciones, activa, onSelect, badge = 0, badges = {} }: Props) {
   const [abierto, setAbierto] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -84,7 +89,7 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0 }: P
             {opciones.map(op => {
               const { Icono: Icon, color } = neonDe(op.id);
               const activo = op.id === activa;
-              const mostrarBadge = op.id === 'disponibilidad' && badge > 0;
+              const conteo = op.id === 'disponibilidad' ? badge : (badges[op.id] ?? 0);
               return (
                 <button
                   key={op.id}
@@ -104,9 +109,9 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0 }: P
                   <span className="flex-1 min-w-0">
                     <span className="flex items-center gap-1.5">
                       <span className="text-sm font-medium text-strong">{op.label}</span>
-                      {mostrarBadge && (
+                      {conteo > 0 && (
                         <span className="min-w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                          {badge}
+                          {conteo}
                         </span>
                       )}
                       {activo && <Check size={13} className="ml-auto text-info flex-shrink-0" />}

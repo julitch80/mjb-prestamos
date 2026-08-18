@@ -160,8 +160,45 @@ clases desaparecen del CSS compilado. Usar objetos de búsqueda con clases compl
 | **2. Tablero de casos** | `TableroCasos.tsx` (nuevo), `GestionRiesgo.tsx`, `PanelAdmin.tsx`, `maestros.ts` | Cada rol ve solo lo suyo; `npm run build` limpio |
 | **3. Seguimientos + alertas** | `SeguimientoCaso.tsx` (nuevo), `App.tsx`, `PanelInicio.tsx` | Dictado funciona; cerrar/programar cambia estado; badge cuenta vencidos |
 
-Lote 1 bloquea a los otros dos (define el contrato de la API). Lotes 2 y 3 pueden
-ir en paralelo después.
+Orden real: **Lote 1 → Lote 3 → Lote 2**. El 3 va antes que el 2 porque el
+tablero (Lote 2) importa el formulario de seguimiento (Lote 3); al revés, el
+Lote 2 no podría compilar solo y se quedaría sin criterio de hecho verificable.
+
+## 7. Contrato entre Lote 3 y Lote 2
+
+El Lote 3 crea `src/components/SeguimientoCaso.tsx` exportando EXACTAMENTE esto,
+y el Lote 2 lo consume sin modificarlo:
+
+```tsx
+export interface CasoResumen {
+  id: string;
+  tipo: 'contencion' | 'seguro';
+  estudianteNombre: string;
+  grado: string;
+  fecha: string;                 // fecha de creación del caso
+  estado: 'abierto' | 'en_seguimiento' | 'cerrado';
+  proximaRevision?: string;
+  ultimoSeguimiento?: string;    // fecha del último seguimiento, si hay
+}
+
+/** Formulario: nota (escrita o dictada) + decisión cerrar/programar. */
+export function SeguimientoCaso(props: {
+  caso: CasoResumen;
+  onGuardado: () => void;
+  onCancelar: () => void;
+}): React.ReactElement;
+
+/** Días desde el último seguimiento (o desde la creación si no hay ninguno). */
+export function diasSinSeguimiento(caso: CasoResumen): number;
+
+/** Nivel de alerta: 'ninguna' | 'ambar' (>=8 días) | 'roja' (>=15 días).
+ *  Un caso cerrado siempre devuelve 'ninguna'. */
+export function nivelAlerta(caso: CasoResumen): 'ninguna' | 'ambar' | 'roja';
+```
+
+`diasSinSeguimiento` y `nivelAlerta` son las que usa el badge del menú (Lote 3)
+y también las tarjetas del tablero (Lote 2): una sola definición de la regla de
+8/15 días, para que no se dupliquen ni se desincronicen.
 
 **Psicoorientador**: NO se crea un rol nuevo. Se usa la constante
 `PSICOORIENTADORES = ['alexander']` en `maestros.ts`, mismo patrón que

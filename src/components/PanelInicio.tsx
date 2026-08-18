@@ -9,6 +9,7 @@ import { useChatStore } from '../data/chatStore';
 import { AUTH_MODE } from '../data/authStore';
 import { firebaseConfigurado } from '../lib/firebase';
 import { getSugerencias } from '../data/api';
+import { useCasosVencidos } from '../hooks/useCasosVencidos';
 import {
   BLOQUES_MANANA,
   BLOQUES_TARDE,
@@ -35,6 +36,7 @@ import {
   IconoHorario,
   IconoAgenda,
   IconoSugerencias,
+  IconoRiesgo,
 } from './IconosNeon';
 
 type NavItem = { id: string; label: string; descripcion: string; roles: string[] };
@@ -92,6 +94,10 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
 
   const esDocente = rol === 'docente';
   const [verMiDiaHoy, setVerMiDiaHoy] = useState(false);
+
+  // Casos con alerta ámbar/roja (docs/plan-gestor-casos.md sección 4). Mismo
+  // hook que el badge del menú: una sola consulta compartida entre ambos.
+  const casosVencidos = useCasosVencidos(userId);
 
   // ── Mi día efectivo de hoy (solo si el docente logueado específicamente
   //    tiene bloques alterados; no basta con que exista un HorarioModificado
@@ -188,6 +194,17 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       titulo: notifNoLeidas === 1 ? '1 notificación nueva' : `${notifNoLeidas} notificaciones nuevas`,
       detalle: 'Toca para revisarlas.',
       accion: { label: 'Ver', onClick: () => setVistaActual('disponibilidad' as never) },
+    });
+  }
+
+  if (casosVencidos > 0) {
+    avisos.push({
+      id: 'casos-vencidos',
+      color: '#f87171',
+      Icono: IconoRiesgo,
+      titulo: casosVencidos === 1 ? '1 caso sin seguimiento' : `${casosVencidos} casos sin seguimiento`,
+      detalle: 'Llevan 8 días o más sin actualizarse.',
+      accion: { label: 'Ver', onClick: () => setVistaActual('riesgo' as never) },
     });
   }
 

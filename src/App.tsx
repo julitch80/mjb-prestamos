@@ -27,6 +27,7 @@ import FichaSede from './components/FichaSede';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
 import { getNotificaciones } from './data/api';
+import { useCasosVencidos } from './hooks/useCasosVencidos';
 import { cargarSyncEditor } from './data/syncEditor';
 import { USUARIOS, SEDES, esDirectivo, sedeDeUsuario } from './data/maestros';
 import { AUTH_MODE } from './data/authStore';
@@ -86,6 +87,11 @@ export default function App() {
 
   const notificaciones = useAppStore(s => s.notificaciones);
   const notifNoLeidas = notificaciones.filter(n => !n.leida).length;
+
+  // Badge de "Gestión del Riesgo": casos con alerta ámbar/roja
+  // (docs/plan-gestor-casos.md sección 4). El backend ya filtra qué casos ve
+  // cada rol (sección 3); aquí solo se cuenta lo que llega.
+  const casosVencidos = useCasosVencidos(userId);
 
   const { data: notifData } = useQuery({
     queryKey: ['notificaciones', userId],
@@ -193,6 +199,7 @@ export default function App() {
             activa={vistaActual}
             onSelect={id => setVistaActual(id as typeof vistaActual)}
             badge={notifNoLeidas}
+            badges={{ riesgo: casosVencidos }}
           />
 
           {/* Regreso explícito al inicio: el escudo ya lleva allí, pero no es
