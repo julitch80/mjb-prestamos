@@ -793,6 +793,10 @@ function guardarInformeContencion(p) {
       return p[h] || '';
     });
     sheet.appendRow(fila);
+    // "11.2" (notación de grado de mañana) se lee como 11 de febrero y Sheets la
+    // vuelve fecha sola al escribirla. Se reescribe forzando texto plano en esa
+    // columna, en la fila recién agregada.
+    forzarColumnaTexto_(sheet, headersReales, 'grado', p.grado || '');
 
     const coordCorreo = p.jornada === 'tarde' ? CONFIG.COORD_TARDE : CONFIG.COORD_MANANA;
     // Siempre a coordinador + psicoorientador + director de grupo. El director puede
@@ -861,8 +865,19 @@ function guardarRemisionSeguro(p) {
       return p[h] || '';
     });
     sheet.appendRow(fila);
+    forzarColumnaTexto_(sheet, headersReales, 'grado', p.grado || '');
     return { ok: true, id: id, fotoUrl: archivo.getUrl() };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+// "11.2" (grado de mañana) se lee como fecha (11 de febrero) y Sheets la convierte
+// sola al escribirla — sea por appendRow o por edición manual. Se reescribe la
+// celda de esa columna, en la última fila, forzando formato de texto plano.
+function forzarColumnaTexto_(sheet, headersReales, nombreColumna, valorTexto) {
+  const idx = headersReales.indexOf(nombreColumna);
+  if (idx < 0) return;
+  const fila = sheet.getLastRow();
+  sheet.getRange(fila, idx + 1).setNumberFormat('@').setValue(valorTexto);
 }
 
 function listarRemisionesSeguro(p) {
