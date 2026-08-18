@@ -39,6 +39,11 @@ function directorDeGrupo(grado: string): string {
   return id ? (getUsuario(id)?.nombre ?? id) : '';
 }
 
+function correoDirectorDeGrupo(grado: string): string {
+  const id = DIRECTORES_MANANA[grado] ?? DIRECTORES_TARDE[grado];
+  return id ? (getUsuario(id)?.correo ?? '') : '';
+}
+
 export function InformeContencion({ onTerminado, onCancelar }: {
   onTerminado: () => void;
   onCancelar: () => void;
@@ -95,6 +100,7 @@ export function InformeContencion({ onTerminado, onCancelar }: {
       acudienteNombre: estudiante.acudiente ?? '',
       acudienteParentesco: estudiante.parentesco ?? '',
       director: directorDeGrupo(estudiante.gradoActual),
+      directorCorreo: correoDirectorDeGrupo(estudiante.gradoActual),
       descripcion: descripcion.trim(),
       rutaTipo: ruta?.tipo ?? '',
       rutaDetalle,

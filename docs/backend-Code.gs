@@ -29,7 +29,7 @@ const CONFIG = {
 const RESERVAS_HEADERS    = ['id','recurso','fecha','bloque','solicitante','proposito','equipos','estado','motivo','timestamp'];
 const NOTIF_HEADERS       = ['id','destinatario','tipo','mensaje','leida','timestamp'];
 const SUGERENCIAS_HEADERS = ['id','autor','texto','timestamp','estado','clasificacion','nota','vinculo','relacionadas','resueltoPor','resueltoEn','avisadoEn'];
-const INFORMES_CONTENCION_HEADERS = ['id','fecha','docenteId','docenteNombre','sede','jornada','grado','estudianteNombre','estudianteDocumento','estudianteTelefonos','acudienteNombre','acudienteParentesco','director','descripcion','rutaTipo','rutaDetalle','timestamp'];
+const INFORMES_CONTENCION_HEADERS = ['id','fecha','docenteId','docenteNombre','sede','jornada','grado','estudianteNombre','estudianteDocumento','estudianteTelefonos','acudienteNombre','acudienteParentesco','director','directorCorreo','descripcion','rutaTipo','rutaDetalle','timestamp'];
 const REMISIONES_SEGURO_HEADERS   = ['id','fecha','docenteId','docenteNombre','sede','jornada','grado','estudianteNombre','estudianteDocumento','fotoUrl','timestamp'];
 // Las tres ultimas columnas se agregaron en agosto de 2026 (descripcion y
 // adjunto). Van AL FINAL a proposito: asegurarEncabezados_ solo anade lo que
@@ -789,7 +789,9 @@ function guardarInformeContencion(p) {
     sheet.appendRow(fila);
 
     const coordCorreo = p.jornada === 'tarde' ? CONFIG.COORD_TARDE : CONFIG.COORD_MANANA;
-    const destinatarios = [coordCorreo, CONFIG.PSICOORIENTADOR].filter(Boolean).join(',');
+    // Siempre a coordinador + psicoorientador + director de grupo. El director puede
+    // faltar (grado sin director conocido en el sistema); no se bloquea el envío por eso.
+    const destinatarios = [coordCorreo, CONFIG.PSICOORIENTADOR, p.directorCorreo].filter(Boolean).join(',');
     const RUTA_LABEL_ = {
       psicoorientador: 'Psicoorientador del colegio',
       uai: 'Remisión a la UAI',

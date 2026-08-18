@@ -5,6 +5,28 @@
 // viejo). Evita cargar una librería de generación de .docx en el navegador
 // solo para esto.
 
+// Escudo institucional embebido como data URI (no una URL externa): así el
+// .doc se ve igual si se abre sin internet o años después de que cambie el
+// hosting. Se reutiliza el mismo archivo que ya usa el login — sin
+// reprocesar nada, ya viene con el fondo transparente resuelto.
+let escudoBase64Cache: string | null = null;
+async function escudoBase64(): Promise<string> {
+  if (escudoBase64Cache) return escudoBase64Cache;
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}mjb_escudo.png`);
+    const blob = await res.blob();
+    escudoBase64Cache = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    return escudoBase64Cache;
+  } catch {
+    return '';
+  }
+}
+
 function documentoHtml(tituloDoc: string, cuerpoHtml: string): string {
   return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head>
@@ -66,9 +88,11 @@ const RUTA_LABEL: Record<string, string> = {
   sin_seleccionar: 'Sin especificar',
 };
 
-export function exportarInformeContencion(datos: DatosInformeContencion) {
+export async function exportarInformeContencion(datos: DatosInformeContencion) {
   const rutaTexto = RUTA_LABEL[datos.rutaDetalle] ?? datos.rutaDetalle;
+  const escudo = await escudoBase64();
   const cuerpo = `
+    ${escudo ? `<div style="text-align:center;"><img src="${escudo}" alt="Escudo MJB" width="70" height="70"></div>` : ''}
     <h1>Institución Educativa Manuel J. Betancur</h1>
     <h2>INFORME DE CONTENCIÓN EMOCIONAL</h2>
     <table>

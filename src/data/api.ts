@@ -505,6 +505,7 @@ export interface InformeContencion {
   acudienteNombre: string;
   acudienteParentesco: string;
   director: string;
+  directorCorreo: string;
   descripcion: string;
   rutaTipo: string;
   rutaDetalle: string;
