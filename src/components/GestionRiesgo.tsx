@@ -872,10 +872,11 @@ function LlamadaFaseView({ llamada, onIrANumeros }: { llamada: LlamadaFase; onIr
   );
 }
 
-function VisorFase({ fase, indice, total, onSiguiente, onAnterior, onTerminar, onIrANumeros, onIrAGuia }: {
+function VisorFase({ fase, indice, total, mostrarNumero = true, onSiguiente, onAnterior, onTerminar, onIrANumeros, onIrAGuia }: {
   fase: FaseEmergencia;
   indice: number;
   total: number;
+  mostrarNumero?: boolean;
   onSiguiente: () => void;
   onAnterior: () => void;
   onTerminar: () => void;
@@ -894,7 +895,7 @@ function VisorFase({ fase, indice, total, onSiguiente, onAnterior, onTerminar, o
       <div className={cn('rounded-2xl border-2 px-5 py-5 flex flex-col gap-2', estilo.fondo, estilo.borde)}>
         <div className="flex items-center justify-between gap-2">
           <span className={cn('text-2xl font-bold', estilo.texto)}>
-            {fase.id}. {fase.titulo}
+            {mostrarNumero ? `${indice + 1}. ` : ''}{fase.titulo}
           </span>
           <ChipNivelFuente nivel={fase.nivelFuente} />
         </div>
@@ -949,8 +950,9 @@ function VisorFase({ fase, indice, total, onSiguiente, onAnterior, onTerminar, o
   );
 }
 
-function VisorFases({ secuenciaIds, onTerminar, onIrANumeros, onIrAGuia }: {
+function VisorFases({ secuenciaIds, mostrarNumero = true, onTerminar, onIrANumeros, onIrAGuia }: {
   secuenciaIds: number[];
+  mostrarNumero?: boolean;
   onTerminar: () => void;
   onIrANumeros: () => void;
   onIrAGuia?: () => void;
@@ -963,6 +965,7 @@ function VisorFases({ secuenciaIds, onTerminar, onIrANumeros, onIrAGuia }: {
       fase={fase}
       indice={indice}
       total={secuenciaIds.length}
+      mostrarNumero={mostrarNumero}
       onSiguiente={() => setIndice(i => Math.min(i + 1, secuenciaIds.length - 1))}
       onAnterior={() => setIndice(i => Math.max(i - 1, 0))}
       onTerminar={onTerminar}
@@ -999,7 +1002,7 @@ function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
     return (
       <div className="flex flex-col gap-4">
         <BotonVolver onClick={volver}>Volver</BotonVolver>
-        <VisorFases secuenciaIds={SECUENCIA_CONTENCION_EMOCIONAL} onTerminar={volver} onIrANumeros={onIrANumeros} />
+        <VisorFases secuenciaIds={SECUENCIA_CONTENCION_EMOCIONAL} mostrarNumero={false} onTerminar={volver} onIrANumeros={onIrANumeros} />
       </div>
     );
   }
