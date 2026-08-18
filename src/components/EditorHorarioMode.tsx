@@ -200,6 +200,14 @@ function FichaArrastrable({
           : esAusente ? `${colorBorde}10` : `${colorBorde}20`,
         opacity: isDragging ? 0.4 : (esAusente ? 0.55 : 1),
         cursor: arrastrable ? (isDragging ? 'grabbing' : 'grab') : 'default',
+        // OBLIGATORIO para que el arrastre funcione en celular. Sin esto el
+        // navegador se queda el gesto como desplazamiento de la pagina y
+        // cancela el arrastre antes de que empiece: en el computador iba bien
+        // (raton) y en Android no se podia mover ninguna clase a la banda de
+        // espera. Lo exige la documentacion de dnd-kit al usar PointerSensor
+        // o TouchSensor. Solo se anula el gesto en las fichas arrastrables,
+        // asi que la pagina se sigue desplazando con el dedo en todo lo demas.
+        touchAction: arrastrable ? 'none' : undefined,
       }}
       className={cn(
         'relative h-full rounded-lg flex flex-col items-center justify-center px-1 gap-0.5 select-none transition-shadow',
