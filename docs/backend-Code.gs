@@ -13,10 +13,7 @@ const CONFIG = {
   COORD_MANANA: 'janneth.ocampo@iemanueljbetancur.edu.co',
   COORD_TARDE:  'juan.salazar@iemanueljbetancur.edu.co',
   RECTORA:      'mjb@iemanueljbetancur.edu.co',
-  // TODO: confirmar y reemplazar por el correo institucional real de
-  // Alexander Sánchez (psicoorientador) antes de activar el envío
-  // automático del informe de contención emocional.
-  PSICOORIENTADOR: 'PENDIENTE_CONFIRMAR_CORREO_PSICOORIENTADOR@iemanueljbetancur.edu.co',
+  PSICOORIENTADOR: 'alexander.sanchez@iemanueljbetancur.edu.co',
   NOMBRE_IE:    'I.E. Manuel J. Betancur',
   // Etapa 2 (Firebase): API Key del proyecto Firebase (pestaña Configuración
   // del proyecto en la consola). Solo se usa si el frontend envía `idToken`
