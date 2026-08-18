@@ -502,9 +502,11 @@ export interface InformeContencion {
   estudianteNombre: string;
   estudianteDocumento: string;
   estudianteTelefonos: string;
+  acudienteNombre: string;
+  acudienteParentesco: string;
   director: string;
   descripcion: string;
-  rutaTipo: 'institucional' | 'externa';
+  rutaTipo: string;
   rutaDetalle: string;
   timestamp: string;
 }

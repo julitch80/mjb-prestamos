@@ -46,10 +46,12 @@ export interface DatosInformeContencion {
   estudianteDocumento: string;
   grado: string;
   director: string;
+  acudienteNombre: string;
+  acudienteParentesco: string;
+  acudienteTelefonos: string;
   docenteNombre: string;
   fecha: string;
   descripcion: string;
-  rutaTipo: 'institucional' | 'externa';
   rutaDetalle: string;
 }
 
@@ -57,7 +59,11 @@ const RUTA_LABEL: Record<string, string> = {
   psicoorientador: 'Atención por psicoorientador del colegio',
   uai: 'Remisión a la UAI (Unidad de Atención Integral)',
   medellin_me_cuida: 'Remisión a Medellín Te Quiere Saludable',
+  directo: 'Se atendió directamente, sin remisión',
+  linea_naranja: 'Se atendió con Línea Naranja',
+  linea_dorada: 'Se atendió con Línea Dorada u otra línea de emergencia externa',
   externa: 'Se orienta a ayuda externa al colegio',
+  sin_seleccionar: 'Sin especificar',
 };
 
 export function exportarInformeContencion(datos: DatosInformeContencion) {
@@ -70,6 +76,8 @@ export function exportarInformeContencion(datos: DatosInformeContencion) {
       <tr><td class="etiqueta">Documento de identidad</td><td>${datos.estudianteDocumento || 'Sin registrar'}</td></tr>
       <tr><td class="etiqueta">Grado / Grupo</td><td>${datos.grado}</td></tr>
       <tr><td class="etiqueta">Director de grupo</td><td>${datos.director || '—'}</td></tr>
+      <tr><td class="etiqueta">Acudiente</td><td>${datos.acudienteNombre || 'Sin registrar'}${datos.acudienteParentesco ? ` (${datos.acudienteParentesco})` : ''}</td></tr>
+      <tr><td class="etiqueta">Teléfono del acudiente</td><td>${datos.acudienteTelefonos || 'Sin registrar'}</td></tr>
       <tr><td class="etiqueta">Fecha de generación del informe</td><td>${datos.fecha}</td></tr>
       <tr><td class="etiqueta">Docente que genera el informe</td><td>${datos.docenteNombre}</td></tr>
     </table>

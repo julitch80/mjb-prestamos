@@ -12,16 +12,26 @@ interface EstudianteBusqueda {
   apellidos: string;
   docNumber?: string;
   telefonos: string[];
+  acudiente: string;
+  parentesco?: string;
   gradoActual: string;
 }
 
-type RutaTipo = 'institucional' | 'externa';
-type RutaDetalle = 'psicoorientador' | 'uai' | 'medellin_me_cuida' | 'externa';
+type RutaDetalle =
+  | 'psicoorientador' | 'uai' | 'medellin_me_cuida'
+  | 'linea_naranja' | 'linea_dorada' | 'directo' | 'externa';
 
-const RUTAS_INSTITUCIONALES: Array<{ id: RutaDetalle; label: string }> = [
-  { id: 'psicoorientador', label: 'Atención por psicoorientador del colegio' },
-  { id: 'uai', label: 'Remisión a la UAI (Unidad de Atención Integral)' },
-  { id: 'medellin_me_cuida', label: 'Remisión a Medellín Te Quiere Saludable' },
+// Ninguna casilla obligatoria: la contención puede terminar sin remisión
+// (se atendió directo) o con una línea externa, y eso no es un caso fallido
+// que haya que forzar a encajar en "psicoorientador/UAI/Medellín Me Cuida".
+const RUTAS: Array<{ id: RutaDetalle; tipo: 'institucional' | 'externa'; label: string }> = [
+  { id: 'psicoorientador', tipo: 'institucional', label: 'Atención por psicoorientador del colegio' },
+  { id: 'uai', tipo: 'institucional', label: 'Remisión a la UAI (Unidad de Atención Integral)' },
+  { id: 'medellin_me_cuida', tipo: 'institucional', label: 'Remisión a Medellín Te Quiere Saludable' },
+  { id: 'directo', tipo: 'externa', label: 'Se atendió directamente, sin remisión' },
+  { id: 'linea_naranja', tipo: 'externa', label: 'Se atendió con Línea Naranja' },
+  { id: 'linea_dorada', tipo: 'externa', label: 'Se atendió con Línea Dorada u otra línea de emergencia externa' },
+  { id: 'externa', tipo: 'externa', label: 'Se orienta a ayuda externa al colegio (familia busca apoyo por fuera)' },
 ];
 
 function directorDeGrupo(grado: string): string {
@@ -42,8 +52,7 @@ export function InformeContencion({ onTerminado, onCancelar }: {
   const [buscando, setBuscando] = useState(false);
   const [estudiante, setEstudiante] = useState<EstudianteBusqueda | null>(null);
   const [descripcion, setDescripcion] = useState('');
-  const [rutaTipo, setRutaTipo] = useState<RutaTipo>('institucional');
-  const [rutaDetalle, setRutaDetalle] = useState<RutaDetalle>('psicoorientador');
+  const [rutaDetalle, setRutaDetalle] = useState<RutaDetalle | ''>('');
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; correoEnviado?: boolean; error?: string } | null>(null);
   const [datosParaExportar, setDatosParaExportar] = useState<Parameters<typeof exportarInformeContencion>[0] | null>(null);
@@ -72,7 +81,7 @@ export function InformeContencion({ onTerminado, onCancelar }: {
     if (!estudiante || !docente || !descripcion.trim()) return;
     setEnviando(true);
     const fecha = new Date().toISOString().slice(0, 10);
-    const rutaDetalleFinal = rutaTipo === 'externa' ? 'externa' : rutaDetalle;
+    const ruta = RUTAS.find(r => r.id === rutaDetalle);
     const r = await guardarInformeContencion({
       fecha,
       docenteId: docente.id,
@@ -83,10 +92,12 @@ export function InformeContencion({ onTerminado, onCancelar }: {
       estudianteNombre: `${estudiante.nombres} ${estudiante.apellidos}`,
       estudianteDocumento: estudiante.docNumber ?? '',
       estudianteTelefonos: estudiante.telefonos.join(', '),
+      acudienteNombre: estudiante.acudiente ?? '',
+      acudienteParentesco: estudiante.parentesco ?? '',
       director: directorDeGrupo(estudiante.gradoActual),
       descripcion: descripcion.trim(),
-      rutaTipo,
-      rutaDetalle: rutaDetalleFinal,
+      rutaTipo: ruta?.tipo ?? '',
+      rutaDetalle,
     });
     setEnviando(false);
     setResultado(r);
@@ -95,11 +106,13 @@ export function InformeContencion({ onTerminado, onCancelar }: {
       estudianteDocumento: estudiante.docNumber ?? '',
       grado: estudiante.gradoActual,
       director: directorDeGrupo(estudiante.gradoActual),
+      acudienteNombre: estudiante.acudiente ?? '',
+      acudienteParentesco: estudiante.parentesco ?? '',
+      acudienteTelefonos: estudiante.telefonos.join(', '),
       docenteNombre: docente.nombre,
       fecha,
       descripcion: descripcion.trim(),
-      rutaTipo,
-      rutaDetalle: rutaDetalleFinal,
+      rutaDetalle: rutaDetalle || 'sin_seleccionar',
     });
   }
 
@@ -175,6 +188,11 @@ export function InformeContencion({ onTerminado, onCancelar }: {
           </div>
           <span className="text-muted">Grado {estudiante.gradoActual} · Director: {directorDeGrupo(estudiante.gradoActual) || '—'}</span>
           <span className="text-muted">Documento: {estudiante.docNumber ?? 'sin registrar'}</span>
+          <span className="text-muted">
+            Acudiente: {estudiante.acudiente || 'sin registrar'}
+            {estudiante.parentesco ? ` (${estudiante.parentesco})` : ''}
+            {estudiante.telefonos.length > 0 ? ` · ${estudiante.telefonos.join(', ')}` : ''}
+          </span>
         </div>
       )}
 
@@ -205,22 +223,29 @@ export function InformeContencion({ onTerminado, onCancelar }: {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[11px] text-muted">Ruta de atención</label>
+            <label className="text-[11px] text-muted">
+              Ruta de atención <span className="opacity-70">(opcional — no toda contención termina en remisión)</span>
+            </label>
             <div className="flex flex-col gap-1.5">
-              {RUTAS_INSTITUCIONALES.map(r => (
+              {RUTAS.map(r => (
                 <label key={r.id} className="flex items-center gap-2 text-sm text-soft cursor-pointer">
                   <input
                     type="radio"
-                    checked={rutaTipo === 'institucional' && rutaDetalle === r.id}
-                    onChange={() => { setRutaTipo('institucional'); setRutaDetalle(r.id); }}
+                    name="rutaDetalle"
+                    checked={rutaDetalle === r.id}
+                    onChange={() => setRutaDetalle(r.id)}
                   />
                   {r.label}
                 </label>
               ))}
-              <label className="flex items-center gap-2 text-sm text-soft cursor-pointer">
-                <input type="radio" checked={rutaTipo === 'externa'} onChange={() => setRutaTipo('externa')} />
-                Se orienta a ayuda externa al colegio
-              </label>
+              {rutaDetalle !== '' && (
+                <button
+                  onClick={() => setRutaDetalle('')}
+                  className="text-[11px] text-muted hover:text-soft self-start"
+                >
+                  Quitar selección
+                </button>
+              )}
             </div>
           </div>
 

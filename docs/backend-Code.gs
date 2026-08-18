@@ -29,7 +29,7 @@ const CONFIG = {
 const RESERVAS_HEADERS    = ['id','recurso','fecha','bloque','solicitante','proposito','equipos','estado','motivo','timestamp'];
 const NOTIF_HEADERS       = ['id','destinatario','tipo','mensaje','leida','timestamp'];
 const SUGERENCIAS_HEADERS = ['id','autor','texto','timestamp','estado','clasificacion','nota','vinculo','relacionadas','resueltoPor','resueltoEn','avisadoEn'];
-const INFORMES_CONTENCION_HEADERS = ['id','fecha','docenteId','docenteNombre','sede','jornada','grado','estudianteNombre','estudianteDocumento','estudianteTelefonos','director','descripcion','rutaTipo','rutaDetalle','timestamp'];
+const INFORMES_CONTENCION_HEADERS = ['id','fecha','docenteId','docenteNombre','sede','jornada','grado','estudianteNombre','estudianteDocumento','estudianteTelefonos','acudienteNombre','acudienteParentesco','director','descripcion','rutaTipo','rutaDetalle','timestamp'];
 const REMISIONES_SEGURO_HEADERS   = ['id','fecha','docenteId','docenteNombre','sede','jornada','grado','estudianteNombre','estudianteDocumento','fotoUrl','timestamp'];
 // Las tres ultimas columnas se agregaron en agosto de 2026 (descripcion y
 // adjunto). Van AL FINAL a proposito: asegurarEncabezados_ solo anade lo que
@@ -779,6 +779,7 @@ function actualizarSugerencia(p) {
 function guardarInformeContencion(p) {
   try {
     const sheet = getSheet('InformesContencion', INFORMES_CONTENCION_HEADERS);
+    asegurarEncabezados_(sheet, INFORMES_CONTENCION_HEADERS);
     const id = 'ic_' + new Date().getTime() + '_' + Math.random().toString(36).slice(2, 6);
     const fila = INFORMES_CONTENCION_HEADERS.map(function(h) {
       if (h === 'id') return id;
@@ -789,12 +790,20 @@ function guardarInformeContencion(p) {
 
     const coordCorreo = p.jornada === 'tarde' ? CONFIG.COORD_TARDE : CONFIG.COORD_MANANA;
     const destinatarios = [coordCorreo, CONFIG.PSICOORIENTADOR].filter(Boolean).join(',');
-    const rutaTexto = p.rutaTipo === 'externa'
-      ? 'Atención externa al colegio'
-      : { psicoorientador: 'Psicoorientador del colegio', uai: 'Remisión a la UAI', medellin_me_cuida: 'Remisión a Medellín Te Quiere Saludable' }[p.rutaDetalle] || p.rutaDetalle;
+    const RUTA_LABEL_ = {
+      psicoorientador: 'Psicoorientador del colegio',
+      uai: 'Remisión a la UAI',
+      medellin_me_cuida: 'Remisión a Medellín Te Quiere Saludable',
+      directo: 'Se atendió directamente, sin remisión',
+      linea_naranja: 'Se atendió con Línea Naranja',
+      linea_dorada: 'Se atendió con Línea Dorada u otra línea de emergencia externa',
+      externa: 'Se orienta a ayuda externa al colegio',
+    };
+    const rutaTexto = p.rutaDetalle ? (RUTA_LABEL_[p.rutaDetalle] || p.rutaDetalle) : 'Sin especificar';
     const html = '<p><b>Informe de contención emocional</b></p>' +
       '<p><b>Estudiante:</b> ' + (p.estudianteNombre || '') + ' (' + (p.estudianteDocumento || 'sin documento') + ')</p>' +
       '<p><b>Grado:</b> ' + (p.grado || '') + ' &middot; <b>Director de grupo:</b> ' + (p.director || '') + '</p>' +
+      '<p><b>Acudiente:</b> ' + (p.acudienteNombre || 'sin registrar') + (p.acudienteParentesco ? ' (' + p.acudienteParentesco + ')' : '') + '</p>' +
       '<p><b>Generado por:</b> ' + (p.docenteNombre || '') + ' &middot; <b>Fecha:</b> ' + (p.fecha || '') + '</p>' +
       '<p><b>Descripción del informe:</b><br>' + String(p.descripcion || '').replace(/\n/g, '<br>') + '</p>' +
       '<p><b>Ruta de atención:</b> ' + rutaTexto + '</p>';
