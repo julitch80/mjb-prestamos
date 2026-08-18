@@ -26,7 +26,6 @@ type RutaDetalle =
 // que haya que forzar a encajar en "psicoorientador/UAI/Medellín Me Cuida".
 const RUTAS: Array<{ id: RutaDetalle; tipo: 'institucional' | 'externa'; label: string }> = [
   { id: 'psicoorientador', tipo: 'institucional', label: 'Atención por psicoorientador del colegio' },
-  { id: 'uai', tipo: 'institucional', label: 'Remisión a la UAI (Unidad de Atención Integral)' },
   { id: 'medellin_me_cuida', tipo: 'institucional', label: 'Remisión a Medellín Te Quiere Saludable' },
   { id: 'directo', tipo: 'externa', label: 'Se atendió directamente, sin remisión' },
   { id: 'linea_naranja', tipo: 'externa', label: 'Se atendió con Línea Naranja' },
