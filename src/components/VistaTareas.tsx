@@ -14,7 +14,7 @@ import { USUARIOS, colorGrado } from '../data/maestros';
 import { getAsignatura, asignacionDeGrupo } from '../data/asignacionAcademica';
 import type { Tarea, Cesion, SolicitudCesion, FechaISO } from '../data/tareas/tipos';
 import {
-  addDias, esDiaHabil, esDiaEjecutable, hoyISO, parseFecha, formatFecha,
+  addDias, esDiaHabil, esDiaEjecutable, hoyISO, parseFecha, formatFecha, diaSemana, esFestivo,
 } from '../data/tareas/calendario';
 import { CONFIG_NIVEL, nivelDeGrupo, cupoDeAsignatura, CUPOS_DEFAULT, NIVELES_CUPO, MAX_MOMENTOS_NIVEL } from '../data/tareas/config';
 import {
@@ -203,6 +203,30 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
     () => ventanaValida(hoy, contexto.diasClase),
     [hoy, contexto.diasClase],
   );
+
+  // Por que esta cerrada la ventana, en palabras del docente. Sin esto el
+  // calendario simplemente desaparecia y no habia forma de saber la razon.
+  const avisoVentana = useMemo(() => {
+    if (ventanaOk) return null;
+    let proxima: FechaISO | null = null;
+    for (let i = 1; i <= 21; i++) {
+      const f = addDias(hoy, i);
+      const d = diaSemana(f);
+      if (d === 'sabado' || d === 'domingo') continue;
+      if (contexto.diasClase.includes(d) && esDiaHabil(f)) { proxima = f; break; }
+    }
+    const cuando = proxima
+      ? ` La proxima clase con este grupo es el ${fechaLegible(proxima)}; ese dia podras asignar.`
+      : '';
+    const hoyD = diaSemana(hoy);
+    if (esFestivo(hoy)) {
+      return { titulo: 'Hoy es festivo', cuerpo: `No hay clase hoy, y el sabado y el domingo tampoco cuentan, asi que la ventana de asignacion esta cerrada para todos los grupos.${cuando}` };
+    }
+    if (hoyD === 'sabado' || hoyD === 'domingo') {
+      return { titulo: 'Hoy es fin de semana', cuerpo: `La ventana de asignacion solo se abre en dias de clase.${cuando}` };
+    }
+    return { titulo: `Hoy no puedes asignarle tarea a ${grupo}`, cuerpo: `La tarea debe asignarse el dia de la clase o, a mas tardar, dentro de los dos dias siguientes.${cuando}` };
+  }, [ventanaOk, hoy, contexto.diasClase, grupo]);
 
   const tareaPrevia = useCallback((fecha: FechaISO): Tarea => ({
     id: '_previa', grupo, asignaturaId: asignaturaActiva, docenteId: userId ?? '',
@@ -404,11 +428,15 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
         </div>
 
         {/* Ventana de asignación cerrada */}
-        {!ventanaOk && (
-          <div className="rounded-xl border border-warning bg-warning-soft px-3 py-2.5 text-xs text-warning-soft-fg">
-            Hoy no puedes asignarle tarea a {grupo}: la tarea debe asignarse el día
-            de la clase o, a más tardar, los dos días siguientes. Podrás asignar el
-            próximo día de clase con este grupo.
+        {avisoVentana && (
+          <div className="rounded-xl border border-warning bg-warning-soft px-3 py-3 text-warning-soft-fg">
+            <div className="flex items-start gap-2">
+              <span className="text-base leading-none mt-0.5">&#9888;</span>
+              <div>
+                <p className="text-sm font-semibold">{avisoVentana.titulo}</p>
+                <p className="text-xs mt-1 opacity-90">{avisoVentana.cuerpo}</p>
+              </div>
+            </div>
           </div>
         )}
 
