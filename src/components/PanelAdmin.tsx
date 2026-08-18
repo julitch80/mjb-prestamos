@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../data/store';
-import { getReservas, actualizarReserva, cambiarPin } from '../data/api';
-import type { Reserva } from '../data/api';
+import { getReservas, actualizarReserva, cambiarPin, listarInformesContencion, listarRemisionesSeguro } from '../data/api';
+import type { Reserva, InformeContencion, RemisionSeguro } from '../data/api';
 import { MODO_LOCAL } from '../data/config';
 import VistaHorario from './VistaHorario';
 
-type Pestaña = 'pendientes' | 'hoy' | 'historial' | 'horario' | 'config';
+type Pestaña = 'pendientes' | 'hoy' | 'historial' | 'informes' | 'horario' | 'config';
 
 export default function PanelAdmin() {
   const { reservas, setReservas, temaOscuro, toggleTema, actualizarReserva: actualizarStore, userId } = useAppStore();
@@ -37,10 +37,25 @@ export default function PanelAdmin() {
     }
   }
 
+  const [informes, setInformes] = useState<InformeContencion[]>([]);
+  const [remisiones, setRemisiones] = useState<RemisionSeguro[]>([]);
+  const [subPestañaInformes, setSubPestañaInformes] = useState<'contencion' | 'seguro'>('contencion');
+  const [cargandoInformes, setCargandoInformes] = useState(false);
+
+  useEffect(() => {
+    if (pestaña !== 'informes') return;
+    setCargandoInformes(true);
+    Promise.all([listarInformesContencion(), listarRemisionesSeguro()])
+      .then(([i, r]) => { setInformes(i); setRemisiones(r); })
+      .catch(() => {})
+      .finally(() => setCargandoInformes(false));
+  }, [pestaña]);
+
   const pestañas: { id: Pestaña; label: string; badge?: number }[] = [
     { id: 'pendientes', label: 'Pendientes', badge: pendientes.length },
     { id: 'hoy',        label: 'Hoy',        badge: deHoy.length },
     { id: 'historial',  label: 'Historial' },
+    { id: 'informes',   label: 'Informes' },
     { id: 'horario',    label: 'Horario del J' },
     { id: 'config',     label: 'Configuración' },
   ];
@@ -106,6 +121,69 @@ export default function PanelAdmin() {
             reservasJornada.map(r => (
               <ReservaCard key={r.id} reserva={r} />
             ))
+          )}
+        </div>
+      )}
+
+      {/* Informes */}
+      {pestaña === 'informes' && (
+        <div className="space-y-3">
+          <div className="flex gap-1">
+            {(['contencion', 'seguro'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setSubPestañaInformes(t)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
+                  subPestañaInformes === t ? 'bg-hover text-strong border border-line-strong' : 'border border-line text-muted hover:bg-elevated'
+                }`}
+              >
+                {t === 'contencion' ? 'Contención emocional' : 'Remisiones al seguro'}
+              </button>
+            ))}
+          </div>
+
+          {cargandoInformes && <div className="text-center py-8 text-soft">Cargando…</div>}
+
+          {!cargandoInformes && subPestañaInformes === 'contencion' && (
+            informes.length === 0 ? (
+              <div className="text-center py-12 text-muted">Sin informes de contención emocional.</div>
+            ) : (
+              [...informes].reverse().map(i => (
+                <div key={i.id} className="bg-card rounded-xl p-4 space-y-1 border border-line">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-strong text-sm">{i.estudianteNombre}</span>
+                    <span className="text-xs text-muted">{i.fecha}</span>
+                  </div>
+                  <p className="text-xs text-muted">Grado {i.grado} · Director: {i.director || '—'} · Docente: {i.docenteNombre}</p>
+                  <p className="text-sm text-soft">{i.descripcion}</p>
+                  <p className="text-xs text-accent">Ruta: {i.rutaTipo === 'externa' ? 'Atención externa' : i.rutaDetalle}</p>
+                </div>
+              ))
+            )
+          )}
+
+          {!cargandoInformes && subPestañaInformes === 'seguro' && (
+            remisiones.length === 0 ? (
+              <div className="text-center py-12 text-muted">Sin remisiones al seguro estudiantil.</div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[...remisiones].reverse().map(r => (
+                  <a
+                    key={r.id}
+                    href={r.fotoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="bg-card rounded-xl p-2 border border-line hover:border-line-strong transition space-y-1 block"
+                  >
+                    <div className="aspect-[3/4] rounded-lg overflow-hidden bg-elevated">
+                      <img src={r.fotoUrl} alt={`Remisión de ${r.estudianteNombre}`} className="w-full h-full object-cover" />
+                    </div>
+                    <p className="text-xs font-semibold text-strong truncate">{r.estudianteNombre}</p>
+                    <p className="text-[11px] text-muted">{r.grado} · {r.fecha}</p>
+                  </a>
+                ))}
+              </div>
+            )
           )}
         </div>
       )}

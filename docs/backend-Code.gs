@@ -13,6 +13,10 @@ const CONFIG = {
   COORD_MANANA: 'janneth.ocampo@iemanueljbetancur.edu.co',
   COORD_TARDE:  'juan.salazar@iemanueljbetancur.edu.co',
   RECTORA:      'mjb@iemanueljbetancur.edu.co',
+  // TODO: confirmar y reemplazar por el correo institucional real de
+  // Alexander Sánchez (psicoorientador) antes de activar el envío
+  // automático del informe de contención emocional.
+  PSICOORIENTADOR: 'PENDIENTE_CONFIRMAR_CORREO_PSICOORIENTADOR@iemanueljbetancur.edu.co',
   NOMBRE_IE:    'I.E. Manuel J. Betancur',
   // Etapa 2 (Firebase): API Key del proyecto Firebase (pestaña Configuración
   // del proyecto en la consola). Solo se usa si el frontend envía `idToken`
@@ -28,6 +32,8 @@ const CONFIG = {
 const RESERVAS_HEADERS    = ['id','recurso','fecha','bloque','solicitante','proposito','equipos','estado','motivo','timestamp'];
 const NOTIF_HEADERS       = ['id','destinatario','tipo','mensaje','leida','timestamp'];
 const SUGERENCIAS_HEADERS = ['id','autor','texto','timestamp','estado','clasificacion','nota','vinculo','relacionadas','resueltoPor','resueltoEn','avisadoEn'];
+const INFORMES_CONTENCION_HEADERS = ['id','fecha','docenteId','docenteNombre','sede','jornada','grado','estudianteNombre','estudianteDocumento','estudianteTelefonos','director','descripcion','rutaTipo','rutaDetalle','timestamp'];
+const REMISIONES_SEGURO_HEADERS   = ['id','fecha','docenteId','docenteNombre','sede','jornada','grado','estudianteNombre','estudianteDocumento','fotoUrl','timestamp'];
 // Las tres ultimas columnas se agregaron en agosto de 2026 (descripcion y
 // adjunto). Van AL FINAL a proposito: asegurarEncabezados_ solo anade lo que
 // falta, asi que las filas viejas siguen leyendose sin tocar la hoja a mano.
@@ -119,6 +125,11 @@ function manejar(e) {
       case 'getSyncEditor':      resultado = getSyncEditor();       break;
       // ⚠ CAMBIO: requiere redespliegue
       case 'crearNotificacionesLote': resultado = crearNotificacionesLote(p); break;
+      // ⚠ CAMBIO: requiere redespliegue
+      case 'guardarInformeContencion': resultado = guardarInformeContencion(p); break;
+      case 'listarInformesContencion': resultado = listarInformesContencion(p); break;
+      case 'guardarRemisionSeguro':    resultado = guardarRemisionSeguro(p);    break;
+      case 'listarRemisionesSeguro':   resultado = listarRemisionesSeguro(p);   break;
       default:
         resultado = { ok: false, error: 'Acción desconocida: ' + p.action };
     }
@@ -761,4 +772,91 @@ function actualizarSugerencia(p) {
   const ok = actualizarFila(sheet, 'id', p.id, updates);
   if (!ok) return { ok: false, error: 'Sugerencia no encontrada' };
   return { ok: true };
+}
+
+// ── INFORME DE CONTENCIÓN EMOCIONAL ───────────────────────────
+// Guarda el informe y, en el mismo paso, envía el correo automático a
+// coordinación (según jornada del estudiante) y a psicoorientación.
+// El envío es best-effort: si el correo falla, el informe igual queda
+// guardado (nunca se pierde el registro por un problema de envío).
+function guardarInformeContencion(p) {
+  try {
+    const sheet = getSheet('InformesContencion', INFORMES_CONTENCION_HEADERS);
+    const id = 'ic_' + new Date().getTime() + '_' + Math.random().toString(36).slice(2, 6);
+    const fila = INFORMES_CONTENCION_HEADERS.map(function(h) {
+      if (h === 'id') return id;
+      if (h === 'timestamp') return new Date().toISOString();
+      return p[h] || '';
+    });
+    sheet.appendRow(fila);
+
+    const coordCorreo = p.jornada === 'tarde' ? CONFIG.COORD_TARDE : CONFIG.COORD_MANANA;
+    const destinatarios = [coordCorreo, CONFIG.PSICOORIENTADOR].filter(Boolean).join(',');
+    const rutaTexto = p.rutaTipo === 'externa'
+      ? 'Atención externa al colegio'
+      : { psicoorientador: 'Psicoorientador del colegio', uai: 'Remisión a la UAI', medellin_me_cuida: 'Remisión a Medellín Te Quiere Saludable' }[p.rutaDetalle] || p.rutaDetalle;
+    const html = '<p><b>Informe de contención emocional</b></p>' +
+      '<p><b>Estudiante:</b> ' + (p.estudianteNombre || '') + ' (' + (p.estudianteDocumento || 'sin documento') + ')</p>' +
+      '<p><b>Grado:</b> ' + (p.grado || '') + ' &middot; <b>Director de grupo:</b> ' + (p.director || '') + '</p>' +
+      '<p><b>Generado por:</b> ' + (p.docenteNombre || '') + ' &middot; <b>Fecha:</b> ' + (p.fecha || '') + '</p>' +
+      '<p><b>Descripción del informe:</b><br>' + String(p.descripcion || '').replace(/\n/g, '<br>') + '</p>' +
+      '<p><b>Ruta de atención:</b> ' + rutaTexto + '</p>';
+    try {
+      if (destinatarios) enviarHtml(destinatarios, 'Informe de contención emocional — ' + (p.estudianteNombre || ''), html);
+    } catch (mailErr) {
+      return { ok: true, id: id, correoEnviado: false, errorCorreo: String(mailErr.message || mailErr) };
+    }
+    return { ok: true, id: id, correoEnviado: true };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+// Historial para la pestaña "Informes" de coordinación. Sin filtro de
+// jornada en el backend: cada coordinador ve todo y el frontend decide
+// qué mostrar por defecto, igual que el resto del panel.
+function listarInformesContencion(p) {
+  try {
+    const sheet = getSheet('InformesContencion', INFORMES_CONTENCION_HEADERS);
+    return { ok: true, informes: hojaAObjetos(sheet) };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+// ── REMISIÓN AL SEGURO ESTUDIANTIL (banco de fotos) ───────────
+// La foto llega en base64 por POST (por eso esta acción solo funciona vía
+// callApiPost, nunca por JSONP/GET: una imagen no cabe en una URL). Se
+// guarda en una carpeta de Drive dedicada y solo el enlace va a la hoja.
+function guardarRemisionSeguro(p) {
+  try {
+    if (!p.fotoBase64) return { ok: false, error: 'Falta la fotografía' };
+    const carpeta = obtenerCarpetaRemisionesSeguro_();
+    const bytes = Utilities.base64Decode(p.fotoBase64.replace(/^data:image\/\w+;base64,/, ''));
+    const nombreArchivo = 'remision_' + (p.grado || 'grado') + '_' + new Date().getTime() + '.jpg';
+    const blob = Utilities.newBlob(bytes, 'image/jpeg', nombreArchivo);
+    const archivo = carpeta.createFile(blob);
+    archivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    const sheet = getSheet('RemisionesSeguro', REMISIONES_SEGURO_HEADERS);
+    const id = 'rs_' + new Date().getTime() + '_' + Math.random().toString(36).slice(2, 6);
+    const fila = REMISIONES_SEGURO_HEADERS.map(function(h) {
+      if (h === 'id') return id;
+      if (h === 'fotoUrl') return archivo.getUrl();
+      if (h === 'timestamp') return new Date().toISOString();
+      return p[h] || '';
+    });
+    sheet.appendRow(fila);
+    return { ok: true, id: id, fotoUrl: archivo.getUrl() };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+function listarRemisionesSeguro(p) {
+  try {
+    const sheet = getSheet('RemisionesSeguro', REMISIONES_SEGURO_HEADERS);
+    return { ok: true, remisiones: hojaAObjetos(sheet) };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+function obtenerCarpetaRemisionesSeguro_() {
+  const NOMBRE = 'MJB - Remisiones Seguro Estudiantil';
+  const iter = DriveApp.getFoldersByName(NOMBRE);
+  if (iter.hasNext()) return iter.next();
+  return DriveApp.createFolder(NOMBRE);
 }

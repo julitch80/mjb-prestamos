@@ -489,3 +489,64 @@ export async function publicarAviso(
 export async function retirarAviso(id: string): Promise<{ ok: boolean; error?: string }> {
   return callApi({ action: 'retirarAviso', id });
 }
+
+// ── Informe de contención emocional ───────────────────────────
+export interface InformeContencion {
+  id: string;
+  fecha: string;
+  docenteId: string;
+  docenteNombre: string;
+  sede: string;
+  jornada: string;
+  grado: string;
+  estudianteNombre: string;
+  estudianteDocumento: string;
+  estudianteTelefonos: string;
+  director: string;
+  descripcion: string;
+  rutaTipo: 'institucional' | 'externa';
+  rutaDetalle: string;
+  timestamp: string;
+}
+
+export async function guardarInformeContencion(
+  informe: Omit<InformeContencion, 'id' | 'timestamp'>,
+): Promise<{ ok: boolean; id?: string; correoEnviado?: boolean; error?: string }> {
+  return callApi({ action: 'guardarInformeContencion', ...informe });
+}
+
+export async function listarInformesContencion(): Promise<InformeContencion[]> {
+  const res = await callApi<{ ok: boolean; informes: InformeContencion[] }>({
+    action: 'listarInformesContencion',
+  });
+  return res.informes ?? [];
+}
+
+// ── Remisión al seguro estudiantil (banco de fotos) ───────────
+// Va por POST: la foto en base64 no cabe en una URL de GET/JSONP.
+export interface RemisionSeguro {
+  id: string;
+  fecha: string;
+  docenteId: string;
+  docenteNombre: string;
+  sede: string;
+  jornada: string;
+  grado: string;
+  estudianteNombre: string;
+  estudianteDocumento: string;
+  fotoUrl: string;
+  timestamp: string;
+}
+
+export async function guardarRemisionSeguro(
+  remision: Omit<RemisionSeguro, 'id' | 'fotoUrl' | 'timestamp'> & { fotoBase64: string },
+): Promise<{ ok: boolean; id?: string; fotoUrl?: string; error?: string }> {
+  return callApiPost({ action: 'guardarRemisionSeguro', ...remision });
+}
+
+export async function listarRemisionesSeguro(): Promise<RemisionSeguro[]> {
+  const res = await callApi<{ ok: boolean; remisiones: RemisionSeguro[] }>({
+    action: 'listarRemisionesSeguro',
+  });
+  return res.remisiones ?? [];
+}

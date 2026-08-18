@@ -37,6 +37,8 @@ import {
   faseporId,
 } from '../data/guiaEmergencia';
 import type { FaseEmergencia, LlamadaFase, TonoFase } from '../data/guiaEmergencia';
+import { InformeContencion } from './InformeContencion';
+import { RemisionSeguro } from './RemisionSeguro';
 import {
   ATRIBUCION,
   FICHAS_AUXILIOS,
@@ -769,7 +771,7 @@ function GuiaAuxiliosRapida() {
   );
 }
 
-type VistaEmergencia = 'menu' | 'primeros_auxilios' | 'contencion' | 'protocolo_completo' | 'guia_auxilios';
+type VistaEmergencia = 'menu' | 'primeros_auxilios' | 'contencion' | 'protocolo_completo' | 'guia_auxilios' | 'informe_contencion' | 'remision_seguro';
 
 function BotonVolver({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
@@ -872,7 +874,7 @@ function LlamadaFaseView({ llamada, onIrANumeros }: { llamada: LlamadaFase; onIr
   );
 }
 
-function VisorFase({ fase, indice, total, mostrarNumero = true, onSiguiente, onAnterior, onTerminar, onIrANumeros, onIrAGuia }: {
+function VisorFase({ fase, indice, total, mostrarNumero = true, onSiguiente, onAnterior, onTerminar, onIrANumeros, onIrAGuia, onIrARemisionSeguro }: {
   fase: FaseEmergencia;
   indice: number;
   total: number;
@@ -882,6 +884,7 @@ function VisorFase({ fase, indice, total, mostrarNumero = true, onSiguiente, onA
   onTerminar: () => void;
   onIrANumeros: () => void;
   onIrAGuia?: () => void;
+  onIrARemisionSeguro?: () => void;
 }) {
   const estilo = ESTILO_TONO_FASE[fase.tono];
   const esUltima = indice === total - 1;
@@ -922,6 +925,15 @@ function VisorFase({ fase, indice, total, mostrarNumero = true, onSiguiente, onA
         </button>
       )}
 
+      {fase.id === 3 && onIrARemisionSeguro && (
+        <button
+          onClick={onIrARemisionSeguro}
+          className="rounded-lg border border-line bg-elevated px-4 py-3 text-sm font-semibold text-accent hover:bg-hover transition"
+        >
+          📄 Escanear documento para el seguro →
+        </button>
+      )}
+
       {fase.llamadas && fase.llamadas.length > 0 && (
         <div className="flex flex-col gap-2">
           {fase.llamadas.map((llamada, i) => (
@@ -950,12 +962,13 @@ function VisorFase({ fase, indice, total, mostrarNumero = true, onSiguiente, onA
   );
 }
 
-function VisorFases({ secuenciaIds, mostrarNumero = true, onTerminar, onIrANumeros, onIrAGuia }: {
+function VisorFases({ secuenciaIds, mostrarNumero = true, onTerminar, onIrANumeros, onIrAGuia, onIrARemisionSeguro }: {
   secuenciaIds: number[];
   mostrarNumero?: boolean;
   onTerminar: () => void;
   onIrANumeros: () => void;
   onIrAGuia?: () => void;
+  onIrARemisionSeguro?: () => void;
 }) {
   const [indice, setIndice] = useState(0);
   const fase = faseporId(secuenciaIds[indice]);
@@ -971,6 +984,7 @@ function VisorFases({ secuenciaIds, mostrarNumero = true, onTerminar, onIrANumer
       onTerminar={onTerminar}
       onIrANumeros={onIrANumeros}
       onIrAGuia={onIrAGuia}
+      onIrARemisionSeguro={onIrARemisionSeguro}
     />
   );
 }
@@ -993,6 +1007,7 @@ function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
           onTerminar={volver}
           onIrANumeros={onIrANumeros}
           onIrAGuia={() => setVista('guia_auxilios')}
+          onIrARemisionSeguro={() => setVista('remision_seguro')}
         />
       </div>
     );
@@ -1002,7 +1017,12 @@ function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
     return (
       <div className="flex flex-col gap-4">
         <BotonVolver onClick={volver}>Volver</BotonVolver>
-        <VisorFases secuenciaIds={SECUENCIA_CONTENCION_EMOCIONAL} mostrarNumero={false} onTerminar={volver} onIrANumeros={onIrANumeros} />
+        <VisorFases
+          secuenciaIds={SECUENCIA_CONTENCION_EMOCIONAL}
+          mostrarNumero={false}
+          onTerminar={() => setVista('informe_contencion')}
+          onIrANumeros={onIrANumeros}
+        />
       </div>
     );
   }
@@ -1012,6 +1032,24 @@ function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
       <div className="flex flex-col gap-4">
         <BotonVolver onClick={volver}>Volver</BotonVolver>
         <GuiaAuxiliosRapida />
+      </div>
+    );
+  }
+
+  if (vista === 'informe_contencion') {
+    return (
+      <div className="flex flex-col gap-4">
+        <BotonVolver onClick={volver}>Volver</BotonVolver>
+        <InformeContencion onTerminado={volver} onCancelar={volver} />
+      </div>
+    );
+  }
+
+  if (vista === 'remision_seguro') {
+    return (
+      <div className="flex flex-col gap-4">
+        <BotonVolver onClick={volver}>Volver</BotonVolver>
+        <RemisionSeguro onTerminado={volver} onCancelar={volver} />
       </div>
     );
   }
