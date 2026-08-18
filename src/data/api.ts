@@ -510,18 +510,24 @@ export interface InformeContencion {
   rutaTipo: string;
   rutaDetalle: string;
   timestamp: string;
+  // Máquina de estados del gestor de casos (docs/plan-gestor-casos.md sección 2).
+  // Opcionales: filas viejas (guardadas antes del Lote 1) no las traen.
+  estado?: 'abierto' | 'en_seguimiento' | 'cerrado';
+  proximaRevision?: string;
+  cerradoPor?: string;
+  cerradoEn?: string;
 }
 
 export async function guardarInformeContencion(
   informe: Omit<InformeContencion, 'id' | 'timestamp'>,
 ): Promise<{ ok: boolean; id?: string; correoEnviado?: boolean; error?: string }> {
-  return callApi({ action: 'guardarInformeContencion', ...informe });
+  return callApi(await conIdToken({ action: 'guardarInformeContencion', ...informe }));
 }
 
 export async function listarInformesContencion(): Promise<InformeContencion[]> {
-  const res = await callApi<{ ok: boolean; informes: InformeContencion[] }>({
-    action: 'listarInformesContencion',
-  });
+  const res = await callApi<{ ok: boolean; informes: InformeContencion[] }>(
+    await conIdToken({ action: 'listarInformesContencion' }),
+  );
   return res.informes ?? [];
 }
 
@@ -539,17 +545,54 @@ export interface RemisionSeguro {
   estudianteDocumento: string;
   fotoUrl: string;
   timestamp: string;
+  // Máquina de estados del gestor de casos (docs/plan-gestor-casos.md sección 2).
+  estado?: 'abierto' | 'en_seguimiento' | 'cerrado';
+  proximaRevision?: string;
+  cerradoPor?: string;
+  cerradoEn?: string;
 }
 
 export async function guardarRemisionSeguro(
   remision: Omit<RemisionSeguro, 'id' | 'fotoUrl' | 'timestamp'> & { fotoBase64: string },
 ): Promise<{ ok: boolean; id?: string; fotoUrl?: string; error?: string }> {
-  return callApiPost({ action: 'guardarRemisionSeguro', ...remision });
+  // Sigue siendo POST (la foto en base64 no cabe en una URL), pero ahora
+  // también lleva idToken cuando VITE_AUTH_MODE=google.
+  return callApiPost(await conIdToken({ action: 'guardarRemisionSeguro', ...remision }));
 }
 
 export async function listarRemisionesSeguro(): Promise<RemisionSeguro[]> {
-  const res = await callApi<{ ok: boolean; remisiones: RemisionSeguro[] }>({
-    action: 'listarRemisionesSeguro',
-  });
+  const res = await callApi<{ ok: boolean; remisiones: RemisionSeguro[] }>(
+    await conIdToken({ action: 'listarRemisionesSeguro' }),
+  );
   return res.remisiones ?? [];
+}
+
+// ── Seguimientos de casos (contención + remisión al seguro) ───────────────
+// docs/plan-gestor-casos.md secciones 1 y 2. Un mismo mecanismo de
+// seguimiento para los dos tipos de caso; casoTipo distingue a cuál pertenece.
+export interface SeguimientoCaso {
+  id: string;
+  casoId: string;
+  casoTipo: 'contencion' | 'seguro';
+  fecha: string;
+  autorId: string;
+  autorNombre: string;
+  texto: string;
+  decision: 'programar' | 'cerrar';
+  proximaFecha: string;
+  timestamp: string;
+}
+
+export async function guardarSeguimiento(
+  seguimiento: Omit<SeguimientoCaso, 'id' | 'autorId' | 'timestamp'>,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  // autorId lo resuelve el backend a partir del idToken, no del cliente.
+  return callApi(await conIdToken({ action: 'guardarSeguimiento', ...seguimiento }));
+}
+
+export async function listarSeguimientos(casoId?: string): Promise<SeguimientoCaso[]> {
+  const res = await callApi<{ ok: boolean; seguimientos: SeguimientoCaso[] }>(
+    await conIdToken({ action: 'listarSeguimientos', ...(casoId ? { casoId } : {}) }),
+  );
+  return res.seguimientos ?? [];
 }

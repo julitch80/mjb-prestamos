@@ -25,12 +25,98 @@ const CONFIG = {
   FIREBASE_DOMAIN:  'iemanueljbetancur.edu.co',
 };
 
+// ── Visibilidad del gestor de casos (docs/plan-gestor-casos.md, sección 3) ──
+// Apps Script no puede leer src/data/maestros.ts (vive en el frontend), así
+// que estos mapas son una copia derivada a mano de DIRECTORES_MANANA /
+// DIRECTORES_TARDE / USUARIOS. Si esos datos cambian en maestros.ts hay que
+// actualizar esto también.
+//
+// grado → correo del director de grupo (mañana usa notación con punto,
+// tarde usa notación con ordinal — igual que en el resto del sistema).
+const DIRECTORES_CORREO = {
+  '11.1': 'johana.cano@iemanueljbetancur.edu.co',
+  '11.2': 'julian.medina@iemanueljbetancur.edu.co',
+  '11.3': 'claudia.henao@iemanueljbetancur.edu.co',
+  '10.1': 'carlos.cardenas@iemanueljbetancur.edu.co',
+  '10.2': 'beatriz.montoya@iemanueljbetancur.edu.co',
+  '10.3': 'ledis.quintana@iemanueljbetancur.edu.co',
+  '10.4': 'adolfo.arango@iemanueljbetancur.edu.co',
+  '9.1':  'gloria.alvarez@iemanueljbetancur.edu.co',
+  '9.2':  'martha.usuga@iemanueljbetancur.edu.co',
+  '9.3':  'uriel.lopez@iemanueljbetancur.edu.co',
+  '6º1':  'luis.quiceno@iemanueljbetancur.edu.co',
+  '6º2':  'john.garcia@iemanueljbetancur.edu.co',
+  '6º3':  'carolina.medina@iemanueljbetancur.edu.co',
+  '7º1':  'yanet.moscote@iemanueljbetancur.edu.co',
+  '7º2':  'luis.rojas@iemanueljbetancur.edu.co',
+  '7º3':  'harol.gomez@iemanueljbetancur.edu.co',
+  '8º1':  'edgar.perez@iemanueljbetancur.edu.co',
+  '8º2':  'hugo.yepes@iemanueljbetancur.edu.co',
+  '8º3':  'monica.rave@iemanueljbetancur.edu.co',
+  '8º4':  'juan.bettin@iemanueljbetancur.edu.co',
+};
+
+// correo (minúsculas) → id de docente, copiado de USUARIOS en maestros.ts.
+// Se usa para que un docente cualquiera (que no es coordinador, rectora,
+// psicoorientador ni director) solo vea los casos que él mismo generó.
+const CORREO_A_DOCENTE_ID = {
+  'mjb@iemanueljbetancur.edu.co': 'rectora',
+  'janneth.ocampo@iemanueljbetancur.edu.co': 'coord_manana',
+  'juan.salazar@iemanueljbetancur.edu.co': 'coord_tarde',
+  'johana.cano@iemanueljbetancur.edu.co': 'johana',
+  'beatriz.montoya@iemanueljbetancur.edu.co': 'beatriz',
+  'adolfo.arango@iemanueljbetancur.edu.co': 'adolfo',
+  'gloria.alvarez@iemanueljbetancur.edu.co': 'gloria_a',
+  'doris.castrillon@iemanueljbetancur.edu.co': 'doris',
+  'martha.usuga@iemanueljbetancur.edu.co': 'marta',
+  'julian.medina@iemanueljbetancur.edu.co': 'julian',
+  'carlos.cardenas@iemanueljbetancur.edu.co': 'carlos',
+  'juancarlosbv@iemanueljbetancur.edu.co': 'yoguis',
+  'jorge.acevedo@iemanueljbetancur.edu.co': 'jorge',
+  'ledis.quintana@iemanueljbetancur.edu.co': 'ledis',
+  'uriel.lopez@iemanueljbetancur.edu.co': 'uriel',
+  'claudia.henao@iemanueljbetancur.edu.co': 'claudia',
+  'margarita.montoya@iemanueljbetancur.edu.co': 'margara',
+  'monica.cordoba@iemanueljbetancur.edu.co': 'monica_c',
+  'edgar.perez@iemanueljbetancur.edu.co': 'edgar',
+  'carolina.medina@iemanueljbetancur.edu.co': 'carolina',
+  'monica.rave@iemanueljbetancur.edu.co': 'monica_rave',
+  'fredy.gutierrez@iemanueljbetancur.edu.co': 'fredy_g',
+  'john.garcia@iemanueljbetancur.edu.co': 'fredy_garcia',
+  'luis.rojas@iemanueljbetancur.edu.co': 'luis_javier',
+  'luz.zapata@iemanueljbetancur.edu.co': 'marina',
+  'luis.quiceno@iemanueljbetancur.edu.co': 'luis_angel',
+  'juan.bettin@iemanueljbetancur.edu.co': 'juan_pablo',
+  'hugo.yepes@iemanueljbetancur.edu.co': 'hugo',
+  'felipe.piedrahita@iemanueljbetancur.edu.co': 'felipe',
+  'valentina.jaramillo@iemanueljbetancur.edu.co': 'valentina',
+  'yanet.moscote@iemanueljbetancur.edu.co': 'yanet',
+  'harol.gomez@iemanueljbetancur.edu.co': 'harol',
+  'yuri.gomez@iemanueljbetancur.edu.co': 'yuri',
+  'alexander.sanchez@iemanueljbetancur.edu.co': 'alexander',
+  'leidy.atehortua@iemanueljbetancur.edu.co': 'gri_leidy_a',
+  'maria.henao@iemanueljbetancur.edu.co': 'gri_maria_v',
+  'lourdes.uparela@iemanueljbetancur.edu.co': 'gri_lourdes',
+  'edison.sanches@iemanueljbetancur.edu.co': 'gri_edison',
+  'jaqueline.arevalo@iemanueljbetancur.edu.co': 'gri_jaqueline',
+  'sandra.garcia@iemanueljbetancur.edu.co': 'gri_sandra',
+  'johana.rivera@iemanueljbetancur.edu.co': 'gri_johana_r',
+  'edwin.toro@iemanueljbetancur.edu.co': 'gri_edwin',
+  'leonardo.acevedo@iemanueljbetancur.edu.co': 'gri_leonardo',
+  'diego.mejia@iemanueljbetancur.edu.co': 'gri_diego',
+  'beatriz.zapata@iemanueljbetancur.edu.co': 'gri_beatriz_z',
+  'dolly.gutierrez@iemanueljbetancur.edu.co': 'gri_dolly',
+};
+
 // Esquemas de las hojas (se crean solas si no existen)
 const RESERVAS_HEADERS    = ['id','recurso','fecha','bloque','solicitante','proposito','equipos','estado','motivo','timestamp'];
 const NOTIF_HEADERS       = ['id','destinatario','tipo','mensaje','leida','timestamp'];
 const SUGERENCIAS_HEADERS = ['id','autor','texto','timestamp','estado','clasificacion','nota','vinculo','relacionadas','resueltoPor','resueltoEn','avisadoEn'];
-const INFORMES_CONTENCION_HEADERS = ['id','fecha','docenteId','docenteNombre','sede','jornada','grado','estudianteNombre','estudianteDocumento','estudianteTelefonos','acudienteNombre','acudienteParentesco','director','directorCorreo','descripcion','rutaTipo','rutaDetalle','timestamp'];
-const REMISIONES_SEGURO_HEADERS   = ['id','fecha','docenteId','docenteNombre','sede','jornada','grado','estudianteNombre','estudianteDocumento','fotoUrl','timestamp'];
+const INFORMES_CONTENCION_HEADERS = ['id','fecha','docenteId','docenteNombre','sede','jornada','grado','estudianteNombre','estudianteDocumento','estudianteTelefonos','acudienteNombre','acudienteParentesco','director','directorCorreo','descripcion','rutaTipo','rutaDetalle','timestamp','estado','proximaRevision','cerradoPor','cerradoEn','avisadoEn'];
+const REMISIONES_SEGURO_HEADERS   = ['id','fecha','docenteId','docenteNombre','sede','jornada','grado','estudianteNombre','estudianteDocumento','fotoUrl','timestamp','estado','proximaRevision','cerradoPor','cerradoEn','avisadoEn'];
+// Hoja de seguimientos de casos (contención emocional y remisión al seguro
+// comparten el mismo mecanismo — sección 1-2 de docs/plan-gestor-casos.md).
+const SEGUIMIENTOS_HEADERS = ['id','casoId','casoTipo','fecha','autorId','autorNombre','texto','decision','proximaFecha','timestamp'];
 // Las tres ultimas columnas se agregaron en agosto de 2026 (descripcion y
 // adjunto). Van AL FINAL a proposito: asegurarEncabezados_ solo anade lo que
 // falta, asi que las filas viejas siguen leyendose sin tocar la hoja a mano.
@@ -77,18 +163,38 @@ function verifyFirebaseIdToken_(idToken) {
   }
 }
 
+// Acciones que exponen datos sensibles (salud mental de menores, remisiones
+// al seguro estudiantil) o escriben sobre ellos. Antes se autorizaban solo
+// SI el cliente mandaba idToken (opcional) — cualquiera podía llamar la URL
+// /exec pública sin ninguno y el backend respondía igual. Ahora, si la acción
+// está en esta lista, el idToken es obligatorio y se valida contra Identity
+// Toolkit; sin uno válido no se ejecuta la acción (docs/plan-gestor-casos.md
+// sección 0).
+const ACCIONES_PROTEGIDAS = [
+  'guardarInformeContencion', 'listarInformesContencion',
+  'guardarRemisionSeguro', 'listarRemisionesSeguro',
+  'guardarSeguimiento', 'listarSeguimientos',
+];
+
 function manejar(e) {
   const p = (e && e.parameter) ? e.parameter : {};
   const callback = p.callback;
   let resultado;
   try {
-    // Si viene idToken, se valida; comportamiento sin idToken no cambia.
+    // El correo que devuelve verifyFirebaseIdToken_ es la identidad de
+    // confianza para todo lo que sigue: nunca se usa un correo/rol que
+    // mande el cliente por parámetro para decidir qué puede ver o hacer.
+    let correoAutenticado = null;
     if (p.idToken) {
-      const email = verifyFirebaseIdToken_(p.idToken);
-      if (!email) {
+      correoAutenticado = verifyFirebaseIdToken_(p.idToken);
+      if (!correoAutenticado) {
         resultado = { ok: false, error: 'no-autorizado' };
         return responder_(resultado, callback);
       }
+    }
+    if (ACCIONES_PROTEGIDAS.indexOf(p.action) >= 0 && !correoAutenticado) {
+      resultado = { ok: false, error: 'no-autorizado' };
+      return responder_(resultado, callback);
     }
     switch (p.action) {
       case 'login':              resultado = login(p);              break;
@@ -123,10 +229,12 @@ function manejar(e) {
       // ⚠ CAMBIO: requiere redespliegue
       case 'crearNotificacionesLote': resultado = crearNotificacionesLote(p); break;
       // ⚠ CAMBIO: requiere redespliegue
-      case 'guardarInformeContencion': resultado = guardarInformeContencion(p); break;
-      case 'listarInformesContencion': resultado = listarInformesContencion(p); break;
-      case 'guardarRemisionSeguro':    resultado = guardarRemisionSeguro(p);    break;
-      case 'listarRemisionesSeguro':   resultado = listarRemisionesSeguro(p);   break;
+      case 'guardarInformeContencion': resultado = guardarInformeContencion(p, correoAutenticado); break;
+      case 'listarInformesContencion': resultado = listarInformesContencion(p, correoAutenticado); break;
+      case 'guardarRemisionSeguro':    resultado = guardarRemisionSeguro(p, correoAutenticado);    break;
+      case 'listarRemisionesSeguro':   resultado = listarRemisionesSeguro(p, correoAutenticado);   break;
+      case 'guardarSeguimiento':       resultado = guardarSeguimiento(p, correoAutenticado);       break;
+      case 'listarSeguimientos':       resultado = listarSeguimientos(p, correoAutenticado);       break;
       default:
         resultado = { ok: false, error: 'Acción desconocida: ' + p.action };
     }
@@ -776,7 +884,7 @@ function actualizarSugerencia(p) {
 // coordinación (según jornada del estudiante) y a psicoorientación.
 // El envío es best-effort: si el correo falla, el informe igual queda
 // guardado (nunca se pierde el registro por un problema de envío).
-function guardarInformeContencion(p) {
+function guardarInformeContencion(p, correoAutenticado) {
   try {
     const sheet = getSheet('InformesContencion', INFORMES_CONTENCION_HEADERS);
     asegurarEncabezados_(sheet, INFORMES_CONTENCION_HEADERS);
@@ -790,6 +898,7 @@ function guardarInformeContencion(p) {
     const fila = headersReales.map(function(h) {
       if (h === 'id') return id;
       if (h === 'timestamp') return new Date().toISOString();
+      if (h === 'estado') return 'abierto'; // todo caso nuevo arranca abierto (sección 2)
       return p[h] || '';
     });
     sheet.appendRow(fila);
@@ -828,13 +937,16 @@ function guardarInformeContencion(p) {
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
-// Historial para la pestaña "Informes" de coordinación. Sin filtro de
-// jornada en el backend: cada coordinador ve todo y el frontend decide
-// qué mostrar por defecto, igual que el resto del panel.
-function listarInformesContencion(p) {
+// Historial para la pestaña "Casos"/"Informes". El filtro por rol ahora se
+// aplica AQUÍ, en el backend (docs/plan-gestor-casos.md sección 3) — no basta
+// con filtrar en pantalla porque el dato ya salió del servidor si no se filtra
+// antes de responder.
+function listarInformesContencion(p, correoAutenticado) {
   try {
     const sheet = getSheet('InformesContencion', INFORMES_CONTENCION_HEADERS);
-    return { ok: true, informes: hojaAObjetos(sheet) };
+    asegurarEncabezados_(sheet, INFORMES_CONTENCION_HEADERS);
+    const acceso = resolverAcceso_(correoAutenticado);
+    return { ok: true, informes: filtrarCasosPorAcceso_(hojaAObjetos(sheet), acceso) };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
@@ -842,7 +954,7 @@ function listarInformesContencion(p) {
 // La foto llega en base64 por POST (por eso esta acción solo funciona vía
 // callApiPost, nunca por JSONP/GET: una imagen no cabe en una URL). Se
 // guarda en una carpeta de Drive dedicada y solo el enlace va a la hoja.
-function guardarRemisionSeguro(p) {
+function guardarRemisionSeguro(p, correoAutenticado) {
   try {
     if (!p.fotoBase64) return { ok: false, error: 'Falta la fotografía' };
     const carpeta = obtenerCarpetaRemisionesSeguro_();
@@ -862,6 +974,7 @@ function guardarRemisionSeguro(p) {
       if (h === 'id') return id;
       if (h === 'fotoUrl') return archivo.getUrl();
       if (h === 'timestamp') return new Date().toISOString();
+      if (h === 'estado') return 'abierto'; // todo caso nuevo arranca abierto (sección 2)
       return p[h] || '';
     });
     sheet.appendRow(fila);
@@ -880,10 +993,12 @@ function forzarColumnaTexto_(sheet, headersReales, nombreColumna, valorTexto) {
   sheet.getRange(fila, idx + 1).setNumberFormat('@').setValue(valorTexto);
 }
 
-function listarRemisionesSeguro(p) {
+function listarRemisionesSeguro(p, correoAutenticado) {
   try {
     const sheet = getSheet('RemisionesSeguro', REMISIONES_SEGURO_HEADERS);
-    return { ok: true, remisiones: hojaAObjetos(sheet) };
+    asegurarEncabezados_(sheet, REMISIONES_SEGURO_HEADERS);
+    const acceso = resolverAcceso_(correoAutenticado);
+    return { ok: true, remisiones: filtrarCasosPorAcceso_(hojaAObjetos(sheet), acceso) };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
@@ -892,4 +1007,202 @@ function obtenerCarpetaRemisionesSeguro_() {
   const iter = DriveApp.getFoldersByName(NOMBRE);
   if (iter.hasNext()) return iter.next();
   return DriveApp.createFolder(NOMBRE);
+}
+
+// ── Visibilidad por rol (docs/plan-gestor-casos.md sección 3) ────────────
+// Resuelve, a partir del correo autenticado, qué subconjunto de casos puede
+// ver quien pregunta. Nunca se recibe el rol como parámetro del cliente.
+function resolverAcceso_(correoAutenticado) {
+  const correo = String(correoAutenticado || '').toLowerCase();
+  if (correo === String(CONFIG.RECTORA).toLowerCase()) return { tipo: 'todos' };
+  if (correo === String(CONFIG.PSICOORIENTADOR).toLowerCase()) return { tipo: 'todos' };
+  if (correo === String(CONFIG.COORD_MANANA).toLowerCase()) return { tipo: 'jornada', jornada: 'manana' };
+  if (correo === String(CONFIG.COORD_TARDE).toLowerCase()) return { tipo: 'jornada', jornada: 'tarde' };
+  const grados = Object.keys(DIRECTORES_CORREO).filter(function(g) {
+    return String(DIRECTORES_CORREO[g]).toLowerCase() === correo;
+  });
+  if (grados.length > 0) return { tipo: 'grados', grados: grados };
+  // Cualquier otro correo institucional: solo ve lo que él mismo generó.
+  return { tipo: 'propio', docenteId: CORREO_A_DOCENTE_ID[correo] || null };
+}
+
+// Conjunto de ids de caso que este acceso puede ver, mirando las DOS hojas de
+// casos. Es la pieza que impide que un seguimiento sea una puerta trasera: un
+// docente autenticado podría pedir cualquier casoId y leer las notas de un caso
+// ajeno si solo se validara la sesión y no la pertenencia del caso.
+function casosVisiblesIds_(acceso) {
+  const informes = hojaAObjetos(getSheet('InformesContencion', INFORMES_CONTENCION_HEADERS));
+  const remisiones = hojaAObjetos(getSheet('RemisionesSeguro', REMISIONES_SEGURO_HEADERS));
+  const visibles = filtrarCasosPorAcceso_(informes, acceso)
+    .concat(filtrarCasosPorAcceso_(remisiones, acceso));
+  const ids = {};
+  visibles.forEach(function(c) { ids[String(c.id)] = true; });
+  return ids;
+}
+
+function filtrarCasosPorAcceso_(items, acceso) {
+  if (acceso.tipo === 'todos') return items;
+  if (acceso.tipo === 'jornada') {
+    return items.filter(function(c) { return String(c.jornada) === acceso.jornada; });
+  }
+  if (acceso.tipo === 'grados') {
+    return items.filter(function(c) { return acceso.grados.indexOf(String(c.grado)) >= 0; });
+  }
+  // 'propio' — si no se pudo resolver el id de docente (correo no está en
+  // CORREO_A_DOCENTE_ID), no se muestra nada: no hay forma segura de saber
+  // qué le pertenece.
+  return items.filter(function(c) {
+    return acceso.docenteId && String(c.docenteId) === acceso.docenteId;
+  });
+}
+
+// ── SEGUIMIENTOS DE CASOS (contención + remisión al seguro) ──────────────
+// docs/plan-gestor-casos.md secciones 1 y 2: escribe el seguimiento Y avanza
+// el estado del caso (InformesContencion o RemisionesSeguro) en el mismo paso.
+function guardarSeguimiento(p, correoAutenticado) {
+  try {
+    if (!p.casoId || !p.casoTipo || !p.texto || !p.decision) {
+      return { ok: false, error: 'Faltan datos del seguimiento' };
+    }
+    if (p.casoTipo !== 'contencion' && p.casoTipo !== 'seguro') {
+      return { ok: false, error: 'casoTipo inválido' };
+    }
+    if (p.decision !== 'programar' && p.decision !== 'cerrar') {
+      return { ok: false, error: 'decision inválida' };
+    }
+    // No basta con estar autenticado: hay que poder ver ESE caso para dejarle
+    // seguimiento o cerrarlo. Si no, cualquier docente podría cerrar el caso de
+    // un estudiante que no le corresponde.
+    const accesoEscritura = resolverAcceso_(correoAutenticado);
+    if (accesoEscritura.tipo !== 'todos'
+        && casosVisiblesIds_(accesoEscritura)[String(p.casoId)] !== true) {
+      return { ok: false, error: 'no-autorizado' };
+    }
+
+    const sheet = getSheet('SeguimientosCasos', SEGUIMIENTOS_HEADERS);
+    asegurarEncabezados_(sheet, SEGUIMIENTOS_HEADERS);
+    const id = 'seg_' + new Date().getTime() + '_' + Math.random().toString(36).slice(2, 6);
+    const ts = new Date().toISOString();
+    // autorId viene de la identidad verificada por Firebase, no de lo que
+    // mande el cliente — mismo principio que el resto del Lote 1.
+    const registro = {
+      id: id,
+      casoId: String(p.casoId),
+      casoTipo: String(p.casoTipo),
+      fecha: p.fecha || Utilities.formatDate(new Date(), 'America/Bogota', 'yyyy-MM-dd'),
+      autorId: correoAutenticado || '',
+      autorNombre: p.autorNombre || '',
+      texto: p.texto,
+      decision: p.decision,
+      proximaFecha: p.decision === 'programar' ? (p.proximaFecha || '') : '',
+      timestamp: ts,
+    };
+    const headersReales = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const fila = headersReales.map(function(h) {
+      return Object.prototype.hasOwnProperty.call(registro, h) ? registro[h] : '';
+    });
+    sheet.appendRow(fila);
+
+    // Actualiza el caso: en_seguimiento + próxima revisión, o cerrado + quién/cuándo.
+    const nombreHoja = p.casoTipo === 'seguro' ? 'RemisionesSeguro' : 'InformesContencion';
+    const headersCaso = p.casoTipo === 'seguro' ? REMISIONES_SEGURO_HEADERS : INFORMES_CONTENCION_HEADERS;
+    const sheetCaso = getSheet(nombreHoja, headersCaso);
+    asegurarEncabezados_(sheetCaso, headersCaso);
+    const updates = (p.decision === 'cerrar')
+      ? { estado: 'cerrado', cerradoPor: correoAutenticado || '', cerradoEn: ts }
+      : { estado: 'en_seguimiento', proximaRevision: p.proximaFecha || '' };
+    const ok = actualizarFila(sheetCaso, 'id', p.casoId, updates);
+    if (!ok) return { ok: false, error: 'Caso no encontrado' };
+
+    return { ok: true, id: id };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+function listarSeguimientos(p, correoAutenticado) {
+  try {
+    const sheet = getSheet('SeguimientosCasos', SEGUIMIENTOS_HEADERS);
+    asegurarEncabezados_(sheet, SEGUIMIENTOS_HEADERS);
+    var items = hojaAObjetos(sheet);
+    if (p.casoId) {
+      items = items.filter(function(s) { return String(s.casoId) === String(p.casoId); });
+    }
+    // Las notas de seguimiento son tan sensibles como el caso al que pertenecen
+    // (describen la situación emocional de un menor), así que se filtran por la
+    // misma regla de acceso. Sin esto, autenticarse bastaría para leerlas todas.
+    const acceso = resolverAcceso_(correoAutenticado);
+    if (acceso.tipo !== 'todos') {
+      const permitidos = casosVisiblesIds_(acceso);
+      items = items.filter(function(s) { return permitidos[String(s.casoId)] === true; });
+    }
+    items.sort(function(a, b) { return String(a.timestamp).localeCompare(String(b.timestamp)); });
+    return { ok: true, seguimientos: items };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+// ── ALERTA DE CASOS VENCIDOS (docs/plan-gestor-casos.md sección 4) ───────
+// ⚠ Esta función NO se activa sola. Julián debe instalarla a mano UNA VEZ
+// desde el editor de Apps Script: Activadores (icono de reloj) → Añadir
+// activador → función "revisarCasosVencidos" → origen del evento "Basado en
+// tiempo" → temporizador diario → guardar. No se instala por código porque
+// ScriptApp.newTrigger requiere el consentimiento interactivo del propietario
+// del proyecto (no se puede autorizar desde una petición HTTP del backend).
+//
+// Recorre InformesContencion y RemisionesSeguro; para cada caso no cerrado
+// con ≥ 8 días desde su último seguimiento (o desde su creación si no tiene
+// ninguno), envía un correo a coordinación de la jornada + psicoorientador +
+// director de grupo. 'avisadoEn' evita repetir el aviso el mismo día, mismo
+// patrón que ya usa la hoja Sugerencias con actualizarSugerencia.
+function revisarCasosVencidos() {
+  const hoy = new Date();
+  const hoyStr = Utilities.formatDate(hoy, 'America/Bogota', 'yyyy-MM-dd');
+
+  const seguimientos = hojaAObjetos(getSheet('SeguimientosCasos', SEGUIMIENTOS_HEADERS));
+  // Último seguimiento por caso: el timestamp ISO más grande en orden de texto
+  // ya ordena cronológicamente (formato yyyy-MM-ddTHH:mm:ss...).
+  const ultimoPorCaso = {};
+  seguimientos.forEach(function(s) {
+    const caso = String(s.casoId);
+    const ts = String(s.timestamp || '');
+    if (!ts) return;
+    if (!ultimoPorCaso[caso] || ts > ultimoPorCaso[caso]) ultimoPorCaso[caso] = ts;
+  });
+
+  [
+    { hoja: 'InformesContencion', headers: INFORMES_CONTENCION_HEADERS, etiqueta: 'Informe de contención emocional' },
+    { hoja: 'RemisionesSeguro',   headers: REMISIONES_SEGURO_HEADERS,   etiqueta: 'Remisión al seguro estudiantil' },
+  ].forEach(function(cfg) {
+    const sheet = getSheet(cfg.hoja, cfg.headers);
+    asegurarEncabezados_(sheet, cfg.headers);
+    const casos = hojaAObjetos(sheet);
+    casos.forEach(function(c) {
+      if (!c.id) return;
+      if (String(c.estado) === 'cerrado') return;
+      if (String(c.avisadoEn || '').slice(0, 10) === hoyStr) return; // ya avisado hoy
+
+      const referencia = ultimoPorCaso[String(c.id)] || String(c.timestamp || '');
+      if (!referencia) return;
+      const fechaRef = new Date(referencia);
+      if (isNaN(fechaRef.getTime())) return;
+      const dias = Math.floor((hoy.getTime() - fechaRef.getTime()) / 86400000);
+      if (dias < 8) return;
+
+      const coordCorreo = String(c.jornada) === 'tarde' ? CONFIG.COORD_TARDE : CONFIG.COORD_MANANA;
+      const directorCorreo = DIRECTORES_CORREO[String(c.grado)] || '';
+      const destinatarios = [coordCorreo, CONFIG.PSICOORIENTADOR, directorCorreo].filter(Boolean).join(',');
+      if (!destinatarios) return;
+
+      const html = '<p><b>Caso sin seguimiento hace ' + dias + ' días</b></p>' +
+        '<p><b>Tipo:</b> ' + cfg.etiqueta + '</p>' +
+        '<p><b>Estudiante:</b> ' + (c.estudianteNombre || '') + '</p>' +
+        '<p><b>Grado:</b> ' + (c.grado || '') + '</p>' +
+        '<p style="font-size:12px;color:#666">Revisa el caso en la pestaña "Casos" de la app.</p>';
+      try {
+        enviarHtml(destinatarios, '[MJB] Caso sin seguimiento (' + dias + ' días) — ' + (c.estudianteNombre || ''), html);
+        actualizarFila(sheet, 'id', c.id, { avisadoEn: new Date().toISOString() });
+      } catch (mailErr) {
+        // best-effort: si el correo falla no se marca avisado, para reintentar
+        // en la siguiente corrida diaria (mismo criterio que Sugerencias).
+      }
+    });
+  });
 }
