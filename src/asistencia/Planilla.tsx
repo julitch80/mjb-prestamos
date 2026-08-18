@@ -194,15 +194,22 @@ export default function Planilla({
               : 'Elegir un color para este grupo'
           }
           title={color ? `Color del grupo: ${color.nombre}` : 'Elegir un color para este grupo'}
-          className="grid h-9 w-9 shrink-0 place-items-center"
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-line px-2 text-xs text-muted"
         >
           <span
             style={color ? { backgroundColor: color.hex } : {}}
             className={[
-              'block h-5 w-5 rounded-full',
+              'block h-4 w-4 rounded-full',
               color ? '' : 'border-2 border-dashed border-line-strong',
             ].join(' ')}
           />
+          {/* La palabra "Color" va SIEMPRE, no solo el punto. Sin color asignado el punto
+              es un circulito punteado de 20 px junto al titulo: en el celular la cabecera
+              se parte en varias lineas y se ve, pero en una pantalla ancha queda todo en
+              una sola fila y pasa desapercibido. Julian reporto que "en el computador no
+              existe la opcion" — existia, pero era invisible, que para el caso es lo
+              mismo. */}
+          {color ? color.nombre : 'Color'}
         </button>
         <span className="shrink-0 text-xs text-muted">
           {ordenadas.length === 0

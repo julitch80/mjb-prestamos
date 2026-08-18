@@ -546,9 +546,21 @@ service cloud.firestore {
 
       // `asisCanRecord()` ademas del director: la rectora no escribe en ningun sitio, y el
       // superusuario tampoco (su clave es transferible).
+      //
+      // ⚠️ ESTA REGLA NO PUEDE IMPEDIR QUE EL CLIENTE VACIE EL CUADERNO, y conviene saberlo
+      // antes de confiarse. En `asistenciaSessions` un `setDoc` sobre una sesion viva rebota
+      // porque la identidad de la sesion es inmutable; aqui no hay identidad que proteger, y
+      // para las reglas un `updateDoc` legitimo y un `setDoc` que arrasa producen el MISMO
+      // `request.resource.data`. Son indistinguibles.
+      //
+      // Por eso `abrirDireccionGrupo` LEE antes de escribir. El 2026-08-12 no lo hacia, y
+      // borraba las columnas del director cada vez que abria la pantalla.
       allow create, update: if asisIsDirectorOf(grado)
         && asisCanRecord()
-        && asisAuthorStamp();
+        && asisAuthorStamp()
+        // Lo unico que si se puede blindar: el cuaderno no cambia de dueño ni de año.
+        && request.resource.data.grado == grado
+        && request.resource.data.anio == int(anio);
 
       // Se borran COLUMNAS desde la aplicacion (quitandolas del arreglo), nunca el cuaderno
       // entero de un manotazo.

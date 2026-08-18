@@ -934,18 +934,30 @@ export async function leerDireccionGrupo(grado: string, anio: number): Promise<D
 }
 
 /**
- * Crea el cuaderno del año si no existe. Devuelve el que quede.
+ * Devuelve el cuaderno del año, y solo lo crea si de verdad no existe.
  *
- * Mismo patron que `abrirSesionEvento`: se escribe DIRECTO, sin comprobar antes si
- * existe. Un `getDoc` previo seria una lectura de mas en el caso normal —el cuaderno ya
- * existe la mayoria de las veces que se abre la pantalla— para no averiguar nada que la
- * propia escritura no resuelva sola. Si `setDoc` falla, ENTONCES se lee, para distinguir
- * "ya existia" (se reutiliza el que hay) de "no tiene permiso" (se propaga el error
- * original, que es el bueno).
+ * ⚠️ AQUI SE LEE ANTES DE ESCRIBIR, Y NO ES NEGOCIABLE. Es lo contrario de lo que hacen
+ * `abrirSesion` y `abrirSesionEvento`, a proposito.
+ *
+ * Aquellas escriben directo porque sus REGLAS rechazan sobrescribir un documento que ya
+ * existe: la identidad de una sesion es inmutable, asi que un `setDoc` sobre una sesion
+ * viva rebota. Aqui esa proteccion no existe —la regla del cuaderno solo comprueba quien
+ * pregunta—, asi que un `setDoc` incondicional PASA y reemplaza el documento entero.
+ *
+ * Eso fue exactamente lo que ocurrio el 2026-08-12: el director creaba sus columnas, se
+ * guardaban bien, y al volver a entrar la pantalla las borraba sola. No es que no se
+ * guardara; es que se destruia al abrir.
+ *
+ * Leer primero aqui es ademas SEGURO, que es lo que lo hace posible: la regla es
+ * `asisIsDirectorOf(grado)` con el grado en la RUTA, sin mirar `resource`, asi que leer
+ * un documento inexistente no revienta la evaluacion como si pasaba en `abrirSesion`.
  */
 export async function abrirDireccionGrupo(grado: string, anio: number): Promise<DireccionGrupo> {
   const autor = await exigirAutor();
   const ref = doc(baseDatos(), 'asistenciaDireccionGrupo', grado, 'anios', String(anio));
+
+  const existente = await getDoc(ref);
+  if (existente.exists()) return existente.data() as DireccionGrupo;
 
   const nuevo = {
     grado,
@@ -955,14 +967,7 @@ export async function abrirDireccionGrupo(grado: string, anio: number): Promise<
     ultimaEscrituraPor: autor,
     ultimaEscrituraEn: serverTimestamp(),
   };
-
-  try {
-    await setDoc(ref, nuevo);
-  } catch (e) {
-    const otro = await getDoc(ref).catch(() => null);
-    if (otro?.exists()) return otro.data() as DireccionGrupo;
-    throw e;
-  }
+  await setDoc(ref, nuevo);
   return { ...nuevo, ultimaEscrituraEn: Date.now() } as DireccionGrupo;
 }
 

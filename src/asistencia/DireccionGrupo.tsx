@@ -221,10 +221,17 @@ export default function DireccionGrupo({
                 <th className="sticky left-0 z-10 min-w-[10.5rem] max-w-[10.5rem] border-b border-r border-line bg-card p-2 text-left text-xs font-semibold text-muted">
                   Estudiante ({estudiantes.length})
                 </th>
-                {columnas.map((c) => (
+                {/* Franja alterna + borde vertical: sin esto las columnas se funden unas
+                    con otras y no se sabe donde acaba "Cuota 1" y empieza "Cuota 2". La
+                    franja va en la cabecera Y en las celdas, con el mismo indice, o el
+                    rayado no se alinea con lo que separa. */}
+                {columnas.map((c, i) => (
                   <th
                     key={c.columnaId}
-                    className="min-w-[7rem] max-w-[7rem] border-b border-line p-1.5 text-center text-xs font-normal text-muted"
+                    className={[
+                      'min-w-[7rem] max-w-[7rem] border-b border-r border-line p-1.5 text-center text-xs font-normal text-muted',
+                      i % 2 === 1 ? 'bg-elevated' : '',
+                    ].join(' ')}
                   >
                     <div className="flex items-center justify-center gap-1">
                       <span className="truncate font-semibold text-strong">{c.nombre}</span>
@@ -257,8 +264,14 @@ export default function DireccionGrupo({
                       </span>
                     </div>
                   </td>
-                  {columnas.map((c) => (
-                    <td key={c.columnaId} className="border-b border-line p-0 text-center">
+                  {columnas.map((c, i) => (
+                    <td
+                      key={c.columnaId}
+                      className={[
+                        'border-b border-r border-line p-0 text-center',
+                        i % 2 === 1 ? 'bg-elevated' : '',
+                      ].join(' ')}
+                    >
                       <CeldaColumna
                         columna={c}
                         valor={direccion?.valores[e.studentId]?.[c.columnaId]}
