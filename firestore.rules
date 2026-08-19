@@ -161,6 +161,15 @@ service cloud.firestore {
     //  este a la vez, o divergen sin que nadie lo note.
     // =========================================================================
 
+    // =========================================================================
+    //  BLOQUE DE REGLAS DEL MODULO DE ASISTENCIA
+    //
+    //  Integrado desde el repo de asistencia (rules/asistencia.rules). Se pega
+    //  aqui porque Firestore admite un solo archivo de reglas por proyecto.
+    //  ESTE archivo es el que se despliega: no editar el fragmento de alla y
+    //  este a la vez, o divergen sin que nadie lo note.
+    // =========================================================================
+
     // =============================================================================
     //  BLOQUE DE REGLAS DEL MODULO DE ASISTENCIA
     //  Entregable 2 de la seccion 7 del contrato de integracion.
@@ -217,9 +226,14 @@ service cloud.firestore {
     // sigue siendo valido sin tocarlo y ningun coordinador pierde acceso por accidente.
     //
     //   autoridadSede = {
-    //     mapa:        { central: [a@, b@], gustavo_rodas: [c@] },
-    //     soloJornada: { manana: [a@], tarde: [b@] }        // opcional
+    //     mapa:        { central: [a@, b@], gustavo_rodas: [a@], la_finquita: [b@] },
+    //     soloJornada: { central: { manana: [a@], tarde: [b@] } }        // opcional
     //   }
+    //
+    // ⚠️ LA RESTRICCION VA POR SEDE, no por persona. Es "en central y SOLO en central", y el
+    // dato real lo demuestra: la misma coordinadora que solo lleva la manana de central
+    // coordina Gustavo Rodas ENTERA, que tiene siete grupos de tarde. Una restriccion global
+    // por persona le habria borrado esos siete sin que nadie entendiera por que.
     //
     // Se listan por JORNADA y no `correo -> jornada` a proposito: un correo como clave de
     // mapa lleva puntos, que es justo lo que obligo a anidar el mapa de directores bajo
@@ -227,13 +241,14 @@ service cloud.firestore {
     function asisOtraJornada(jornada) {
       return jornada == 'manana' ? 'tarde' : 'manana';
     }
-    function asisLimitadoAOtraJornada(jornada) {
+    function asisLimitadoAOtraJornada(sede, jornada) {
       return 'soloJornada' in asisAutoridadDoc()
-        && asisOtraJornada(jornada) in asisAutoridadDoc().soloJornada
-        && callerEmail() in asisAutoridadDoc().soloJornada[asisOtraJornada(jornada)];
+        && sede in asisAutoridadDoc().soloJornada
+        && asisOtraJornada(jornada) in asisAutoridadDoc().soloJornada[sede]
+        && callerEmail() in asisAutoridadDoc().soloJornada[sede][asisOtraJornada(jornada)];
     }
     function asisCoordinaJornada(sede, jornada) {
-      return asisCoordinaSede(sede) && !asisLimitadoAOtraJornada(jornada);
+      return asisCoordinaSede(sede) && !asisLimitadoAOtraJornada(sede, jornada);
     }
 
     // Consulta ampliada: cargos de apoyo sin grupo (PTA, apoyo) que LEEN todas las planillas

@@ -432,7 +432,7 @@ export interface AlcanceUsuario {
  * a nadie sin planilla, asi que se cae en los valores por defecto (nadie ampliado, nadie
  * limitado).
  */
-export async function leerAlcanceUsuario(): Promise<AlcanceUsuario> {
+export async function leerAlcanceUsuario(sede: string): Promise<AlcanceUsuario> {
   const porDefecto: AlcanceUsuario = { soloConsulta: false, jornadaLimitada: null };
   if (!(await listo())) return porDefecto;
   const correo = await exigirAutor();
@@ -450,12 +450,16 @@ export async function leerAlcanceUsuario(): Promise<AlcanceUsuario> {
 
   const soloConsulta = cuentaSnap.exists() && cuentaSnap.data().asistenciaConsulta === true;
 
-  const soloJornada = autoridadSnap.exists()
-    ? ((autoridadSnap.data().soloJornada ?? {}) as Record<string, string[]>)
+  // La restriccion de jornada va POR SEDE, no por persona: la misma coordinadora que solo
+  // lleva la manana de central coordina Gustavo Rodas entera, tarde incluida. Leerla como
+  // una propiedad de la persona le borraria siete grupos que si le corresponden.
+  const porSede = autoridadSnap.exists()
+    ? ((autoridadSnap.data().soloJornada ?? {}) as Record<string, Record<string, string[]>>)
     : {};
-  const jornadaLimitada: 'manana' | 'tarde' | null = (soloJornada.manana ?? []).includes(correo)
+  const deEstaSede = porSede[sede] ?? {};
+  const jornadaLimitada: 'manana' | 'tarde' | null = (deEstaSede.manana ?? []).includes(correo)
     ? 'manana'
-    : (soloJornada.tarde ?? []).includes(correo)
+    : (deEstaSede.tarde ?? []).includes(correo)
       ? 'tarde'
       : null;
 

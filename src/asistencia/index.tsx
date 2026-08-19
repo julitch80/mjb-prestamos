@@ -112,8 +112,10 @@ export default function Asistencia() {
   }>({ soloConsulta: false, jornadaLimitada: null });
   useEffect(() => {
     if (!firebaseConfigurado) return;
-    void leerAlcanceUsuario().then(setAlcanceUsuario);
-  }, []);
+    void leerAlcanceUsuario(sede).then(setAlcanceUsuario);
+    // Depende de la sede: la restriccion de jornada es del par sede+coordinador, no de
+    // la persona, asi que al cambiar de sede hay que volver a resolverla.
+  }, [sede]);
 
   // La rectora, el superusuario y los cargos de apoyo (consulta ampliada) consultan pero
   // no registran. El servidor ya lo impide; esto solo evita ofrecer botones que
@@ -662,7 +664,13 @@ export default function Asistencia() {
         <MisGrupos
           slotId={slotId}
           extras={cruces}
-          soloConsulta={rol === 'rectora' || alcanceUsuario.soloConsulta}
+          perfil={
+            rol === 'rectora' || alcanceUsuario.soloConsulta
+              ? 'consulta'
+              : rol === 'coordinador'
+                ? 'coordinacion'
+                : 'docente'
+          }
           onElegir={(grado, subjectId) => {
             const yaTieneSesiones = cruces.some(
               (c) => c.grado === grado && c.subjectId === subjectId,

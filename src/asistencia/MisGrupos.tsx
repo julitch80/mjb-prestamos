@@ -13,7 +13,7 @@ import { gradoSortKey } from './domain/ids';
 export default function MisGrupos({
   slotId,
   extras,
-  soloConsulta = false,
+  perfil = 'docente',
   onElegir,
   onSinAsignacion,
 }: {
@@ -29,11 +29,19 @@ export default function MisGrupos({
    */
   extras: { grado: string; subjectId: string }[];
   /**
-   * Rectora o cargo de apoyo (consulta ampliada): no dictan clase, asi que "sin
-   * asignacion" no es un error para ellos, es lo normal. Tampoco se les ofrece abrir
-   * sesion: el servidor solo permite registrar a quien dicta o dirige, y ellos no.
+   * Quien esta mirando. Cambia el mensaje cuando no hay nada que enseñar, que es donde
+   * esta pantalla mentia:
+   *
+   *  - `docente`: sin asignacion ES una falla que hay que explicar (falta cargarla, o es
+   *    un cargo de apoyo) y se le ofrece abrir a mano.
+   *  - `coordinacion`: NO tiene asignacion academica y nunca la va a tener — se comprobo
+   *    contra el archivo real de MJB: 29 docentes con asignacion, CERO coordinadores.
+   *    Decirle "no hay asignacion cargada para usted" lo manda a buscar un fallo que no
+   *    existe. Si conserva el abrir a mano, porque hace digitacion de respaldo.
+   *  - `consulta`: rectora y cargos de apoyo. Igual que coordinacion, pero ademas NO se
+   *    les ofrece abrir sesion: el servidor solo deja registrar a quien dicta o dirige.
    */
-  soloConsulta?: boolean;
+  perfil?: 'docente' | 'coordinacion' | 'consulta';
   onElegir: (grado: string, subjectId: string) => void;
   onSinAsignacion: () => void;
 }) {
@@ -59,19 +67,28 @@ export default function MisGrupos({
     .filter((e) => !yaListado.has(`${e.grado}|${e.subjectId}`))
     .sort((a, b) => gradoSortKey(a.grado).localeCompare(gradoSortKey(b.grado)));
 
-  // Ni asignacion ni sesiones. Para un docente es una falla a explicar (le falta su
-  // asignacion, o puede abrir a mano); para quien es solo de consulta es lo normal — no
-  // dicta clase, asi que nunca va a tener asignacion ni tarjeta propia, y tampoco se le
-  // ofrece abrir sesion porque el servidor se lo rechazaria.
+  // Ni asignacion ni sesiones todavia. El mensaje depende de QUIEN mira: para un docente
+  // es una falla que hay que explicar; para coordinacion y rectoria es sencillamente lo
+  // normal, y decirles que "falta cargar su asignacion" los manda a buscar un problema
+  // inexistente.
   if (tarjetas.length === 0 && otros.length === 0) {
-    if (soloConsulta) {
+    if (perfil !== 'docente') {
       return (
         <div className="rounded-xl border border-line bg-card p-4 text-center">
-          <p className="text-sm text-strong">Todavía no hay planillas para consultar.</p>
+          <p className="text-sm text-strong">Todavía no hay planillas que mostrar.</p>
           <p className="mt-1 text-xs text-muted">
-            Aquí aparecerán las planillas de los grupos en cuanto los docentes empiecen a
-            pasar lista.
+            {perfil === 'coordinacion'
+              ? 'Aquí aparecerán las planillas de los grupos de su jornada en cuanto los docentes empiecen a pasar lista.'
+              : 'Aquí aparecerán las planillas de los grupos en cuanto los docentes empiecen a pasar lista.'}
           </p>
+          {perfil === 'coordinacion' && (
+            <button
+              onClick={onSinAsignacion}
+              className="mt-3 min-h-[36px] rounded-lg border border-line px-3 py-2 text-sm font-medium text-strong"
+            >
+              Abrir una sesión a mano
+            </button>
+          )}
         </div>
       );
     }
@@ -119,9 +136,9 @@ export default function MisGrupos({
               texto no puede decir "suyos": son las planillas del colegio, no las de esta
               cuenta. */}
           <p className="text-xs text-muted">
-            {soloConsulta
-              ? 'Planillas disponibles para consultar:'
-              : 'Otras planillas con registros suyos, fuera de la asignación académica:'}
+            {perfil === 'docente'
+              ? 'Otras planillas con registros suyos, fuera de la asignación académica:'
+              : 'Planillas disponibles:'}
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {otros.map((e) => (
@@ -143,7 +160,7 @@ export default function MisGrupos({
         </p>
       )}
 
-      {!soloConsulta && (
+      {perfil !== 'consulta' && (
         <button
           onClick={onSinAsignacion}
           className="min-h-[36px] text-xs text-muted underline"
