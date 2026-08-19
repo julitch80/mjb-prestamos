@@ -97,6 +97,20 @@
       ]
     },
     {
+      "collectionGroup": "asistenciaSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sede",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "jornada",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "asistenciaLateArrivals",
       "queryScope": "COLLECTION",
       "fields": [

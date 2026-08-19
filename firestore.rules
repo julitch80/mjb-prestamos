@@ -75,7 +75,14 @@ service cloud.firestore {
         && request.resource.data.displayName is string;
       allow update: if isSuper()
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['displayName', 'role', 'active', 'replacedBy', 'replacedAt', 'slotId', 'sede', 'jornada'])
+             // 'asistenciaConsulta' habilita la consulta ampliada del modulo de
+             // asistencia (ver asisConsultaAmpliada mas abajo): cargos de apoyo sin
+             // grupo que LEEN todas las planillas y no escriben nada. Sin este campo
+             // en la lista, la bandera solo se podria poner a mano desde la consola
+             // de Firebase, porque el panel de superusuario escribe con updateDoc y
+             // la regla se lo rechazaria. No abre un camino de escalada nuevo: quien
+             // puede tocar esto ya puede cambiar roles.
+             .hasOnly(['displayName', 'role', 'active', 'replacedBy', 'replacedAt', 'slotId', 'sede', 'jornada', 'asistenciaConsulta'])
         && !(email == callerEmail()
              && (request.resource.data.role != resource.data.role
                  || request.resource.data.active != resource.data.active));
@@ -154,6 +161,23 @@ service cloud.firestore {
     //  este a la vez, o divergen sin que nadie lo note.
     // =========================================================================
 
+    // =============================================================================
+    //  BLOQUE DE REGLAS DEL MODULO DE ASISTENCIA
+    //  Entregable 2 de la seccion 7 del contrato de integracion.
+    //
+    //  Este archivo es un FRAGMENTO. No lleva `rules_version`, ni `service
+    //  cloud.firestore`, ni el `match /databases/{database}/documents`, ni redefine los
+    //  helpers de MJB (callerEmail, isInstitutional, callerDoc, isActiveUser, isSuper):
+    //  se reusan los existentes.
+    //
+    //  Se pega dentro del `match /databases/{database}/documents` de mjb-prestamos, por
+    //  convencion antes del `match /{document=**}` final. El orden no altera la
+    //  evaluacion (las reglas se unen), pero mantiene el archivo legible.
+    //
+    //  Para probarlo, `tests/rules/rules.test.ts` lo compone con un stub de los helpers
+    //  de MJB; ese stub NO se despliega.
+    // =============================================================================
+
     // ---------- Helpers propios del modulo (nombres nuevos, no pisan los de MJB) ----------
 
     function asisIsCoordinador() {
@@ -170,13 +194,70 @@ service cloud.firestore {
     //
     // Se declara aqui por si el fragmento se lee suelto; en el archivo fusionado de MJB ya
     // existe y NO debe declararse dos veces.
+    function asisAutoridadDoc() {
+      return get(/databases/$(database)/documents/asistenciaConfig/autoridadSede).data;
+    }
     function asisAutoridadSede() {
-      return get(/databases/$(database)/documents/asistenciaConfig/autoridadSede).data.mapa;
+      return asisAutoridadDoc().mapa;
     }
     function asisCoordinaSede(sede) {
       return asisIsCoordinador()
         && sede in asisAutoridadSede()
         && callerEmail() in asisAutoridadSede()[sede];
+    }
+
+    // Coordinador ACOTADO POR JORNADA — decision de Julian (2026-08-12).
+    //
+    // En la sede central hay DOS coordinadores, uno por jornada: a cada uno le corresponden
+    // solo los grupos de la suya. En las otras sedes hay uno solo y manda en todo.
+    //
+    // Se modela como una RESTRICCION opcional y no como un permiso: el campo `soloJornada`
+    // de `asistenciaConfig/autoridadSede` lista, por jornada, a los coordinadores limitados a
+    // ella. Quien no aparezca ahi conserva la sede completa, asi que el documento actual
+    // sigue siendo valido sin tocarlo y ningun coordinador pierde acceso por accidente.
+    //
+    //   autoridadSede = {
+    //     mapa:        { central: [a@, b@], gustavo_rodas: [c@] },
+    //     soloJornada: { manana: [a@], tarde: [b@] }        // opcional
+    //   }
+    //
+    // Se listan por JORNADA y no `correo -> jornada` a proposito: un correo como clave de
+    // mapa lleva puntos, que es justo lo que obligo a anidar el mapa de directores bajo
+    // `mapa`. Con listas por jornada no hay claves con puntos en ninguna parte.
+    function asisOtraJornada(jornada) {
+      return jornada == 'manana' ? 'tarde' : 'manana';
+    }
+    function asisLimitadoAOtraJornada(jornada) {
+      return 'soloJornada' in asisAutoridadDoc()
+        && asisOtraJornada(jornada) in asisAutoridadDoc().soloJornada
+        && callerEmail() in asisAutoridadDoc().soloJornada[asisOtraJornada(jornada)];
+    }
+    function asisCoordinaJornada(sede, jornada) {
+      return asisCoordinaSede(sede) && !asisLimitadoAOtraJornada(jornada);
+    }
+
+    // Consulta ampliada: cargos de apoyo sin grupo (PTA, apoyo) que LEEN todas las planillas
+    // y no escriben NADA. Decision de Julian (2026-08-12): "solo de consulta, no pueden
+    // modificar ni llamar a editar; esa es tarea de los coordinadores".
+    //
+    // Va como BANDERA EN `users/{correo}`, no como documento espejo aparte, y la razon es de
+    // seguridad, no de comodidad:
+    //
+    //   La restriccion tiene que entrar tambien en `asisCanRecord()`, que se evalua en CADA
+    //   marca de asistencia del colegio. Si eso dependiera de un `get()` a otro documento, el
+    //   dia que ese documento faltara o se borrara el `get()` reventaria — y un error en una
+    //   regla es una DENEGACION. Nadie podria pasar lista en todo el colegio por un documento
+    //   de configuracion ausente.
+    //
+    //   `callerDoc()` en cambio ya se lee para comprobar el rol, asi que la bandera no cuesta
+    //   ninguna lectura extra, y un campo ausente es simplemente `!= true`. No hay forma de
+    //   que su ausencia rompa nada.
+    //
+    // Se activa poniendo `asistenciaConsulta: true` en `users/{correo}`.
+    function asisConsultaAmpliada() {
+      // `get(campo, por_defecto)` obligatorio: casi ninguna cuenta tiene el campo, y leerlo
+      // directo revienta la regla en vez de dar falso. Ver la nota en `asisCanRecord`.
+      return isActiveUser() && callerDoc().get('asistenciaConsulta', false) == true;
     }
 
     function asisIsRectora() {
@@ -194,7 +275,18 @@ service cloud.firestore {
     function asisCanRecord() {
       return isActiveUser()
         && callerDoc().role != 'superusuario'
-        && callerDoc().role != 'rectora';
+        && callerDoc().role != 'rectora'
+        // Cargos de apoyo (PTA, apoyo): su rol es `docente` porque el esquema no tiene uno
+        // propio, asi que sin esta linea pasaban por aqui como cualquier docente y podian
+        // marcar asistencia. Lo detecto una prueba de reglas el 2026-08-12, no el codigo:
+        // el comentario de arriba decia "solo de consulta" y la regla no lo cumplia.
+        //
+        // ⚠️ `get(campo, valorPorDefecto)` y NO `callerDoc().asistenciaConsulta`: leer un
+        // campo AUSENTE en las reglas de Firestore no devuelve falso, REVIENTA la evaluacion,
+        // y un error es una denegacion. Como ninguna cuenta tiene hoy ese campo, la forma
+        // directa dejaba al colegio entero sin poder pasar lista. Es la misma trampa por la
+        // que el blindaje de `docNumber` usa `affectedKeys()` en vez de comparar el campo.
+        && callerDoc().get('asistenciaConsulta', false) != true;
     }
 
     // Director de grupo: no es un valor de `role`. Se resuelve contra un unico documento
@@ -237,10 +329,14 @@ service cloud.firestore {
       // where('slotId','==',<el suyo>) y un director con where('grado','==',<el suyo>);
       // una consulta sin filtrar falla aunque tuviera derecho a cada documento.
       allow read: if isActiveUser() && (
-        asisCoordinaSede(resource.data.sede)   // coordinador SOLO en las sedes que le tocan
+        // Coordinador: su sede, y en central solo su jornada (ver asisCoordinaJornada).
+        asisCoordinaJornada(resource.data.sede, resource.data.jornada)
         || asisIsRectora()                     // consulta institucional; no registra
         || asisIsDirectorOf(resource.data.grado)
         || resource.data.slotId == callerDoc().slotId
+        // AL FINAL a proposito: ver la nota de asisConsultaAmpliada sobre el documento que
+        // debe existir. Los casos anteriores resuelven antes y ni llegan aqui.
+        || asisConsultaAmpliada()
       );
 
       // Decision (a) del contrato: cualquier docente activo puede abrir una sesion. El
@@ -367,13 +463,13 @@ service cloud.firestore {
         && request.resource.data.qrToken == resource.data.qrToken
         && request.resource.data.gradoActual == resource.data.gradoActual
         // El numero de documento lo escribe UNICAMENTE la Cloud Function de importacion,
-        // junto al hash que sale de el. Si un cliente pudiera corregirlo, el numero y el
-        // hash dejarian de corresponder y la siguiente importacion veria a ese estudiante
-        // como una persona nueva, duplicandolo.
+        // que lo guarda junto al hash que sale de el. Si un cliente pudiera corregirlo, el
+        // numero y el hash dejarian de corresponder y la siguiente importacion veria a ese
+        // estudiante como una persona nueva.
         //
-        // Se comprueba con affectedKeys y no con igualdad directa porque las fichas
-        // importadas antes de que el campo existiera NO lo tienen, y comparar un campo
-        // ausente reventaria la evaluacion en esos documentos.
+        // Se compara con affectedKeys y no con igualdad directa porque las fichas
+        // importadas antes de que el campo existiera NO lo tienen: `resource.data.docNumber`
+        // reventaria la evaluacion en esos documentos.
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['docNumber']);
 
       allow delete: if false;   // baja logica con activo:false
@@ -579,6 +675,7 @@ service cloud.firestore {
       allow read: if isSuper();
       allow write: if false;
     }
+
 
     match /{document=**} {
       allow read, write: if false;

@@ -38,6 +38,7 @@ import {
   buscarPorQrToken,
   cerrarSesion as cerrarSesionRemota,
   crearEstudianteManual,
+  leerAlcanceUsuario,
   leerConfigAlertas,
   leerDirectores,
   leerGrupo,
@@ -100,17 +101,37 @@ export default function Asistencia() {
    */
   const identidadReal = useAppStore((s) => s.identidadReal);
 
-  // La rectora y el superusuario consultan pero no registran. El servidor ya lo impide;
-  // esto solo evita ofrecer botones que fallarian.
-  const puedeRegistrar = rol !== 'rectora' && rol !== 'superusuario';
+  /**
+   * Que le toca leer a esta cuenta segun los documentos espejo `consultaAmpliada` y
+   * `autoridadSede` (ver datos.ts). Se carga junto a la config de alertas: ninguna de
+   * las dos depende del cruce elegido, solo de quien entro.
+   */
+  const [alcanceUsuario, setAlcanceUsuario] = useState<{
+    soloConsulta: boolean;
+    jornadaLimitada: 'manana' | 'tarde' | null;
+  }>({ soloConsulta: false, jornadaLimitada: null });
+  useEffect(() => {
+    if (!firebaseConfigurado) return;
+    void leerAlcanceUsuario().then(setAlcanceUsuario);
+  }, []);
 
-  const alcance: AlcanceLectura = useMemo(
-    () =>
-      rol === 'coordinador'
-        ? { tipo: 'coordinador', sede }
-        : { tipo: 'docente', slotId: slotId ?? '' },
-    [rol, slotId, sede],
-  );
+  // La rectora, el superusuario y los cargos de apoyo (consulta ampliada) consultan pero
+  // no registran. El servidor ya lo impide; esto solo evita ofrecer botones que
+  // fallarian. Decision de Julian (2026-08-12): "solo de consulta; esa es tarea de los
+  // coordinadores" — no editan, no marcan y no abren sesiones.
+  const puedeRegistrar =
+    rol !== 'rectora' && rol !== 'superusuario' && !alcanceUsuario.soloConsulta;
+
+  const alcance: AlcanceLectura = useMemo(() => {
+    // Rectora y cargos de apoyo no dictan clase: filtrarlos como docente (por slotId, que
+    // ni siquiera tienen) o como coordinador (por sede sin mas) no refleja lo que la
+    // regla les permite — leer TODA la sede, sin acotar por puesto.
+    if (rol === 'rectora' || alcanceUsuario.soloConsulta) return { tipo: 'consulta', sede };
+    if (rol === 'coordinador') {
+      return { tipo: 'coordinador', sede, jornada: alcanceUsuario.jornadaLimitada ?? undefined };
+    }
+    return { tipo: 'docente', slotId: slotId ?? '' };
+  }, [rol, slotId, sede, alcanceUsuario]);
 
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -641,6 +662,7 @@ export default function Asistencia() {
         <MisGrupos
           slotId={slotId}
           extras={cruces}
+          soloConsulta={rol === 'rectora' || alcanceUsuario.soloConsulta}
           onElegir={(grado, subjectId) => {
             const yaTieneSesiones = cruces.some(
               (c) => c.grado === grado && c.subjectId === subjectId,

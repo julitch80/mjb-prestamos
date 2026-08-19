@@ -13,6 +13,7 @@ import { gradoSortKey } from './domain/ids';
 export default function MisGrupos({
   slotId,
   extras,
+  soloConsulta = false,
   onElegir,
   onSinAsignacion,
 }: {
@@ -22,10 +23,17 @@ export default function MisGrupos({
    *
    * Sin esto quedarian inalcanzables al hacer de esta pantalla la unica puerta de
    * entrada: las planillas viejas con el codigo de asignatura escrito a mano, las que
-   * abrio un docente de apoyo por el formulario manual, y —para el coordinador y la
-   * rectora, que no tienen asignacion academica— absolutamente todas.
+   * abrio un docente de apoyo por el formulario manual, y —para el coordinador, la
+   * rectora y los cargos de apoyo, que no tienen asignacion academica— absolutamente
+   * todas.
    */
   extras: { grado: string; subjectId: string }[];
+  /**
+   * Rectora o cargo de apoyo (consulta ampliada): no dictan clase, asi que "sin
+   * asignacion" no es un error para ellos, es lo normal. Tampoco se les ofrece abrir
+   * sesion: el servidor solo permite registrar a quien dicta o dirige, y ellos no.
+   */
+  soloConsulta?: boolean;
   onElegir: (grado: string, subjectId: string) => void;
   onSinAsignacion: () => void;
 }) {
@@ -51,9 +59,22 @@ export default function MisGrupos({
     .filter((e) => !yaListado.has(`${e.grado}|${e.subjectId}`))
     .sort((a, b) => gradoSortKey(a.grado).localeCompare(gradoSortKey(b.grado)));
 
-  // Ni asignacion ni sesiones: docente de apoyo, o alguien cuya asignacion no se ha
-  // cargado. Sin esta salida no habria forma de entrar al modulo.
+  // Ni asignacion ni sesiones. Para un docente es una falla a explicar (le falta su
+  // asignacion, o puede abrir a mano); para quien es solo de consulta es lo normal — no
+  // dicta clase, asi que nunca va a tener asignacion ni tarjeta propia, y tampoco se le
+  // ofrece abrir sesion porque el servidor se lo rechazaria.
   if (tarjetas.length === 0 && otros.length === 0) {
+    if (soloConsulta) {
+      return (
+        <div className="rounded-xl border border-line bg-card p-4 text-center">
+          <p className="text-sm text-strong">Todavía no hay planillas para consultar.</p>
+          <p className="mt-1 text-xs text-muted">
+            Aquí aparecerán las planillas de los grupos en cuanto los docentes empiecen a
+            pasar lista.
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="rounded-xl border border-line bg-card p-4 text-center">
         <p className="text-sm text-strong">
@@ -93,9 +114,14 @@ export default function MisGrupos({
         <div className="space-y-2">
           {/* Aparte y explicado: son planillas reales, pero fuera de la asignacion. Si se
               mezclaran con las de arriba, el docente no distinguiria su horario oficial de
-              lo que abrio a mano o quedo de un periodo anterior. */}
+              lo que abrio a mano o quedo de un periodo anterior.
+              Para quien es solo de consulta no hay "arriba" (no dicta clase), asi que el
+              texto no puede decir "suyos": son las planillas del colegio, no las de esta
+              cuenta. */}
           <p className="text-xs text-muted">
-            Otras planillas con registros suyos, fuera de la asignación académica:
+            {soloConsulta
+              ? 'Planillas disponibles para consultar:'
+              : 'Otras planillas con registros suyos, fuera de la asignación académica:'}
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {otros.map((e) => (
@@ -117,12 +143,14 @@ export default function MisGrupos({
         </p>
       )}
 
-      <button
-        onClick={onSinAsignacion}
-        className="min-h-[36px] text-xs text-muted underline"
-      >
-        Abrir una sesión de un grupo que no aparece aquí
-      </button>
+      {!soloConsulta && (
+        <button
+          onClick={onSinAsignacion}
+          className="min-h-[36px] text-xs text-muted underline"
+        >
+          Abrir una sesión de un grupo que no aparece aquí
+        </button>
+      )}
     </div>
   );
 }

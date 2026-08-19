@@ -91,8 +91,21 @@ export type AlcanceLectura =
    *
    * El sintoma era enganoso: al fallar la consulta no llegaban sesiones, y la pantalla
    * ofrecia "Abrir la primera sesion" como si el colegio no tuviera ninguna.
+   *
+   * `jornada` es OPCIONAL a proposito: solo los coordinadores de central que aparecen en
+   * `autoridadSede.soloJornada` estan acotados; el resto sigue con la sede completa. Si
+   * viene, la regla (`asisCoordinaJornada`) exige el campo `jornada` del documento — sin
+   * este filtro Firestore rechaza la consulta ENTERA, no la recorta.
    */
-  | { tipo: 'coordinador'; sede: string };
+  | { tipo: 'coordinador'; sede: string; jornada?: 'manana' | 'tarde' }
+  /**
+   * Rectora y cargos de apoyo (PTA, apoyo): LEEN todo, no escriben nada. Se acota por
+   * SEDE para no traerse el colegio entero de una vez, aunque la regla
+   * (`asisIsRectora()` / `asisConsultaAmpliada()`) no dependa de ningun campo del
+   * documento — a diferencia del coordinador, aqui el filtro es solo por volumen, no
+   * porque Firestore lo exija.
+   */
+  | { tipo: 'consulta'; sede: string };
 
 export async function leerSesiones(
   alcance: AlcanceLectura,
@@ -103,7 +116,11 @@ export async function leerSesiones(
   const cons: QueryConstraint[] = [];
   if (alcance.tipo === 'docente') cons.push(where('slotId', '==', alcance.slotId));
   if (alcance.tipo === 'director') cons.push(where('grado', '==', alcance.grado));
-  if (alcance.tipo === 'coordinador') cons.push(where('sede', '==', alcance.sede));
+  if (alcance.tipo === 'coordinador') {
+    cons.push(where('sede', '==', alcance.sede));
+    if (alcance.jornada) cons.push(where('jornada', '==', alcance.jornada));
+  }
+  if (alcance.tipo === 'consulta') cons.push(where('sede', '==', alcance.sede));
   if (filtro.subjectId) cons.push(where('subjectId', '==', filtro.subjectId));
   if (filtro.desde) cons.push(where('fecha', '>=', filtro.desde));
   if (filtro.hasta) cons.push(where('fecha', '<=', filtro.hasta));
@@ -393,6 +410,56 @@ export async function leerDirectores(): Promise<Record<string, string>> {
   if (!(await listo())) return {};
   const snap = await getDoc(doc(baseDatos(), 'asistenciaConfig', 'directores'));
   return snap.exists() ? ((snap.data().mapa ?? {}) as Record<string, string>) : {};
+}
+
+export interface AlcanceUsuario {
+  /** Solo lectura ampliada: rectora o cargo de apoyo (PTA, apoyo). No registra nada. */
+  soloConsulta: boolean;
+  /** Jornada a la que esta limitado un coordinador de central, o null si manda en toda
+   *  la sede (el resto de sedes, y el coordinador de central que no aparece en
+   *  `soloJornada`). */
+  jornadaLimitada: 'manana' | 'tarde' | null;
+}
+
+/**
+ * Que le toca leer al usuario actual, resuelto contra los DOS documentos espejo que
+ * tambien consultan las reglas: `asistenciaConfig/consultaAmpliada` (cargos de apoyo) y
+ * `asistenciaConfig/autoridadSede` (jornada del coordinador). Evita ofrecer una consulta
+ * que el servidor va a rechazar, o filtrar de mas a quien no le corresponde.
+ *
+ * Si alguno de los dos documentos AUN no existe (colegio recien arrancado, nadie lo ha
+ * creado todavia), no revienta: un documento de configuracion sin crear no puede dejar
+ * a nadie sin planilla, asi que se cae en los valores por defecto (nadie ampliado, nadie
+ * limitado).
+ */
+export async function leerAlcanceUsuario(): Promise<AlcanceUsuario> {
+  const porDefecto: AlcanceUsuario = { soloConsulta: false, jornadaLimitada: null };
+  if (!(await listo())) return porDefecto;
+  const correo = await exigirAutor();
+
+  // La bandera de "solo consulta" vive en `users/{correo}`, NO en un documento espejo
+  // aparte. Esa decision se tomo del lado de las reglas y por seguridad: la restriccion
+  // tambien entra en `asisCanRecord()`, que se evalua en cada marca de asistencia, y
+  // hacerla depender de un documento que puede faltar dejaria al colegio entero sin poder
+  // pasar lista (un error en una regla es una denegacion). Ver `asisConsultaAmpliada` en
+  // rules/asistencia.rules.
+  const [cuentaSnap, autoridadSnap] = await Promise.all([
+    getDoc(doc(baseDatos(), 'users', correo)),
+    getDoc(doc(baseDatos(), 'asistenciaConfig', 'autoridadSede')),
+  ]);
+
+  const soloConsulta = cuentaSnap.exists() && cuentaSnap.data().asistenciaConsulta === true;
+
+  const soloJornada = autoridadSnap.exists()
+    ? ((autoridadSnap.data().soloJornada ?? {}) as Record<string, string[]>)
+    : {};
+  const jornadaLimitada: 'manana' | 'tarde' | null = (soloJornada.manana ?? []).includes(correo)
+    ? 'manana'
+    : (soloJornada.tarde ?? []).includes(correo)
+      ? 'tarde'
+      : null;
+
+  return { soloConsulta, jornadaLimitada };
 }
 
 export interface MiCuenta {
