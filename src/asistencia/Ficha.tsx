@@ -5,6 +5,7 @@ import { subirFoto, urlDeFoto } from './fotos';
 import { iniciales, nombreCompleto } from './domain/nombres';
 import type { Student } from './domain/types';
 import TelefonoAcudiente from './TelefonoAcudiente';
+import { Check, Copy } from 'lucide-react';
 
 /**
  * Ficha del estudiante. Se llama "Información" y no "Editar" a proposito: la mayoria
@@ -308,8 +309,22 @@ function Dato({ termino, valor }: { termino: string; valor: React.ReactNode }) {
  * navegador niega el portapapeles (pasa sin HTTPS), se dice, en vez de fingir que
  * funciono.
  */
-export function BotonCopiar({ valor }: { valor: string }) {
+export function BotonCopiar({
+  valor,
+  soloIcono = false,
+}: {
+  valor: string;
+  /**
+   * Sin texto, solo el icono. Se usa junto a los botones de llamar y WhatsApp, que son
+   * iconos: una palabra suelta al lado de dos dibujos desequilibra la fila. En el numero
+   * de documento sigue con texto, que ahi no compite con nada.
+   */
+  soloIcono?: boolean;
+}) {
   const [estado, setEstado] = useState<'listo' | 'copiado' | 'error'>('listo');
+
+  const rotulo =
+    estado === 'copiado' ? 'Copiado' : estado === 'error' ? 'No se pudo copiar' : 'Copiar';
 
   return (
     <button
@@ -322,9 +337,25 @@ export function BotonCopiar({ valor }: { valor: string }) {
         }
         setTimeout(() => setEstado('listo'), 2000);
       }}
-      className="grid min-h-9 place-items-center rounded-lg border border-line px-2 py-0.5 text-xs text-strong"
+      // Sin texto visible, el `aria-label` deja de ser un detalle: es lo unico que oye
+      // quien usa lector de pantalla.
+      aria-label={soloIcono ? `${rotulo} el número` : undefined}
+      title={soloIcono ? rotulo : undefined}
+      className="grid min-h-9 min-w-9 place-items-center rounded-lg border border-line px-2 py-0.5 text-xs text-strong"
     >
-      {estado === 'copiado' ? '✓ Copiado' : estado === 'error' ? 'No se pudo copiar' : 'Copiar'}
+      {soloIcono ? (
+        estado === 'copiado' ? (
+          <Check size={16} aria-hidden />
+        ) : (
+          <Copy size={16} aria-hidden />
+        )
+      ) : estado === 'copiado' ? (
+        '✓ Copiado'
+      ) : estado === 'error' ? (
+        'No se pudo copiar'
+      ) : (
+        'Copiar'
+      )}
     </button>
   );
 }
