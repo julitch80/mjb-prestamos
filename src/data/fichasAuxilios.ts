@@ -28,14 +28,19 @@
 /** Tonos disponibles, mapeados a los tokens semánticos de la app. */
 export type TonoFicha = 'azul' | 'verde' | 'naranja' | 'rojo' | 'morado' | 'teal';
 
-export type TipoBloque = 'texto' | 'pasos' | 'hacer' | 'no_hacer' | 'aviso';
+export type TipoBloque = 'texto' | 'pasos' | 'hacer' | 'no_hacer' | 'aviso' | 'ilustracion';
 
 export interface BloqueFicha {
   tipo: TipoBloque;
   titulo?: string;
   texto?: string;
   items?: string[];
+  /** Solo para tipo 'ilustracion': id del dibujo en ILUSTRACIONES (IlustracionesAuxilios.tsx). */
+  ilustracion?: string;
 }
+
+/** Identificador de fuente bibliográfica — cada ficha declara la suya en `fuente`. */
+export type FuenteId = 'plena_inclusion' | 'armada';
 
 export interface FichaAuxilios {
   id: string;
@@ -49,8 +54,13 @@ export interface FichaAuxilios {
   bloques: BloqueFicha[];
   /** Si la ficha debe ofrecer el botón de llamar al 123. */
   llamar123?: boolean;
+  /** Qué fuente respalda esta ficha (ver FUENTES). Por defecto: plena_inclusion. */
+  fuente?: FuenteId;
+  /** Ficha técnica dirigida a la brigada, no a cualquier docente. */
+  soloBrigada?: boolean;
 }
 
+/** Atribución de la guía de lectura fácil — se mantiene igual que antes, sin alterar. */
 export const ATRIBUCION = {
   obra: 'Primeros auxilios para todas las personas. Guía accesible en lectura fácil',
   editor: 'Plena inclusión Región de Murcia',
@@ -58,6 +68,35 @@ export const ATRIBUCION = {
   isbn: '978-84-09-59496-2',
   nota: 'Reproducida sin fines comerciales, citando autores y editor, según la licencia de la propia obra.',
 } as const;
+
+/**
+ * Mapa de fuentes bibliográficas usadas por las fichas. Se agregó la
+ * Cartilla de la Armada al incorporar las fichas de vendajes y fracturas
+ * (fichas 10 y 11). ATRIBUCION se conserva tal cual para no romper nada
+ * que ya dependiera de ella; FUENTES.plena_inclusion es su equivalente
+ * dentro del mapa nuevo.
+ */
+export const FUENTES: Record<FuenteId, {
+  obra: string;
+  editor: string;
+  anio: number;
+  nota: string;
+  url?: string;
+}> = {
+  plena_inclusion: {
+    obra: ATRIBUCION.obra,
+    editor: ATRIBUCION.editor,
+    anio: ATRIBUCION.anio,
+    nota: ATRIBUCION.nota,
+  },
+  armada: {
+    obra: 'Cartilla de Primeros Auxilios',
+    editor: 'Armada Nacional de Colombia — Infantería de Marina',
+    anio: 2007,
+    nota: 'Transcrita del capítulo de vendajes y del capítulo de lesiones en huesos y articulaciones. Se omitieron deliberadamente la recomendación de medicar con aspirina/acetaminofén y las férulas neumáticas (ver NOTAS_REVISION).',
+    url: 'https://www.armada.mil.co/sites/default/files/013._cartilla_de_primeros_auxilios_17-dic-2007.pdf',
+  },
+};
 
 export const FICHAS_AUXILIOS: FichaAuxilios[] = [
   {
@@ -394,6 +433,152 @@ export const FICHAS_AUXILIOS: FichaAuxilios[] = [
       },
     ],
   },
+  {
+    id: 'fracturas_luxaciones_esguinces',
+    numero: 10,
+    titulo: 'Golpes en huesos y articulaciones',
+    resumen: 'Fractura, luxación o esguince — qué NO hacer',
+    icono: '🦴',
+    tono: 'naranja',
+    llamar123: true,
+    fuente: 'armada',
+    bloques: [
+      {
+        tipo: 'texto',
+        texto: 'A veces es difícil distinguir si una lesión es una fractura (el hueso se rompe), una luxación (el hueso se sale de su articulación) o un esguince (se lastiman los tejidos al torcer una articulación). Cuando no esté seguro acerca de cuál es la lesión, trátela como si fuera una fractura.',
+      },
+      {
+        tipo: 'no_hacer',
+        titulo: 'Lo que NUNCA se hace',
+        items: [
+          'No intentar colocar el hueso en su sitio.',
+          'No mover la parte afectada innecesariamente.',
+          'No hacer masajes.',
+          'No untar pomadas.',
+        ],
+      },
+      {
+        tipo: 'pasos',
+        titulo: 'Signos y síntomas',
+        items: [
+          'Deformidad en la articulación.',
+          'Dolor en la articulación o dolor muscular.',
+          'Incapacidad de movimiento o rigidez articular.',
+          'Edema o inflamación.',
+          'Decoloración de la piel, especialmente equimosis (morado).',
+        ],
+      },
+      {
+        tipo: 'hacer',
+        titulo: 'Primeros auxilios de un esguince',
+        items: [
+          'Aplicar hielo inmediatamente para reducir la inflamación, envolviendo el hielo en un pedazo de tela y evitando aplicarlo directamente sobre la piel.',
+          'No mover el área afectada: colocar un vendaje firme pero no apretado sobre ella.',
+          'Mantener elevada la articulación inflamada por encima del nivel del corazón, incluso mientras se duerme.',
+          'Dejar en reposo la articulación afectada por varios días.',
+        ],
+      },
+      {
+        tipo: 'aviso',
+        texto: 'Si hay herida abierta, cúbrala con un trapo limpio e inmovilice a la persona sin intentar nada más. Esta ficha es solo lo esencial: la técnica de vendajes e inmovilización la aplica la brigada.',
+      },
+    ],
+  },
+  {
+    id: 'vendajes_inmovilizacion_brigada',
+    numero: 11,
+    titulo: 'Vendajes e inmovilización (brigada)',
+    resumen: 'Técnica de vendaje y férulas — solo brigada',
+    icono: '🩹',
+    tono: 'morado',
+    llamar123: true,
+    fuente: 'armada',
+    soloBrigada: true,
+    bloques: [
+      {
+        tipo: 'aviso',
+        texto: 'La ejecución de un vendaje perfecto exige un entrenamiento previo. Esta ficha es para quien ya recibió esa formación, no para improvisar sobre la marcha.',
+      },
+      {
+        tipo: 'pasos',
+        titulo: 'Normas generales de todo vendaje',
+        items: [
+          'Siempre se inicia por la parte más distal (más alejada del corazón), dirigiéndose hacia la raíz del miembro.',
+          'Se aplica con una tensión homogénea, ni muy intensa ni muy débil.',
+          'Señal de alarma de que quedó apretado: la persona siente hormigueo en los dedos, los nota fríos o hay cambio de coloración. Si ocurre, se afloja.',
+          'Se cubren con algodón los salientes óseos y las cavidades naturales (axilas, ingles) antes de vendar.',
+          'Se termina con dos vueltas circulares perpendiculares al eje del miembro.',
+        ],
+      },
+      {
+        tipo: 'pasos',
+        titulo: 'Vendaje en ocho (articulaciones)',
+        items: [
+          'Se usa en tobillo, rodilla, hombro, codo y muñeca, porque permite cierta movilidad.',
+          'Con la articulación ligeramente flexionada, se hace una vuelta circular en medio de la articulación.',
+          'La venda se dirige alternando hacia arriba y hacia abajo, cruzándose siempre en el centro de la articulación.',
+        ],
+      },
+      { tipo: 'ilustracion', ilustracion: 'vendaje-ocho', titulo: 'Vendaje en ocho de tobillo' },
+      {
+        tipo: 'pasos',
+        titulo: 'Vendaje para codo o rodilla',
+        items: [
+          'Con la articulación semiflexionada, dos vueltas circulares en el centro de esta.',
+          'Se prosigue con cruzados en 8, alternos sobre brazo/antebrazo o pierna/muslo.',
+          'No se debe inmovilizar totalmente la articulación con este vendaje.',
+        ],
+      },
+      {
+        tipo: 'pasos',
+        titulo: 'Vendaje para tobillo o pie',
+        items: [
+          'Se comienza con dos circulares a nivel del tobillo.',
+          'Varias vueltas en 8 que abarquen alternativamente pie y tobillo, remontando de la parte distal hacia la proximal.',
+          'Se termina con dos vueltas circulares a la altura del tobillo y se fija la venda.',
+          'No debe apretarse excesivamente: los dedos deben quedar descubiertos para poder controlar la circulación.',
+        ],
+      },
+      {
+        tipo: 'pasos',
+        titulo: 'Cabestrillo improvisado',
+        items: [
+          'Se coloca el brazo sobre el pecho, con la mano hacia el hombro contrario a la lesión (o, en fractura de codo/antebrazo, con la mano más alta que el codo).',
+          'Se compone con lo que se tenga a la mano: pañoleta, cinturón, corbata o camisa.',
+        ],
+      },
+      { tipo: 'ilustracion', ilustracion: 'cabestrillo', titulo: 'Cabestrillo improvisado' },
+      {
+        tipo: 'pasos',
+        titulo: 'Férulas improvisadas',
+        items: [
+          'Pueden elaborarse con cartón, revistas, madera u otros objetos rígidos.',
+          'Se pone material de acolchado entre el objeto rígido y la extremidad, con acolchado extra sobre articulaciones y áreas sensibles.',
+          'Se amarra en la parte superior e inferior de la fractura (no solo en un punto).',
+          'Si el brazo está en extensión, se coloca una férula y se amarra con vendas triangulares o se asegura contra el cuerpo. Si está flejado, se inmoviliza con férulas rígidas en forma de L.',
+        ],
+      },
+      { tipo: 'ilustracion', ilustracion: 'ferula-acolchada', titulo: 'Férula acolchada con doble amarre' },
+      {
+        tipo: 'pasos',
+        titulo: 'Inmovilización por zona',
+        items: [
+          'Clavícula: brazo sobre el pecho, mano hacia el hombro contrario, cabestrillo compuesto.',
+          'Brazo: antebrazo flejado sobre el pecho, algodón protegiendo la axila, férula en la parte externa amarrada arriba y abajo de la fractura, y cabestrillo.',
+          'Codo o antebrazo: se inmoviliza en la posición en que se encontró. Extendido: férula y vendas triangulares o contra el cuerpo. Flejado: férulas rígidas en L.',
+          'Mano y dedos: almohadilla en palma y muñeca, férula desde el codo hasta la punta de los dedos. Una falange se inmoviliza con un baja lenguas acolchado fijado con esparadrapo.',
+          'Rodilla: acostar o sentar a la persona, férula por debajo de la pierna desde la región glútea hasta el talón, amarrada, con vendaje en ocho alrededor del tobillo, el pie y la tablilla.',
+          'Tibia-peroné (parte inferior de la pierna): dos férulas (interna y externa) desde la parte superior del muslo hasta el tobillo, protegiendo rodilla y tobillo, y amarradas. Con un cartón largo puede hacerse una férula en L.',
+          'Tobillo o pie: si el zapato es plano, no se retira porque ayuda a inmovilizar. Férula en L que cubra pie y parte inferior de la pierna. Si no hay férula, una almohada o abrigo hacen de férula blanda.',
+        ],
+      },
+      { tipo: 'ilustracion', ilustracion: 'ferula-l-carton', titulo: 'Férula en L de cartón para tobillo/pie' },
+      {
+        tipo: 'aviso',
+        texto: 'Ante cualquier fractura, se debe verificar el pulso distal (más allá de la lesión) para valorar la circulación de la extremidad fracturada.',
+      },
+    ],
+  },
 ];
 
 /**
@@ -405,6 +590,7 @@ export const FICHAS_AUXILIOS: FichaAuxilios[] = [
 export const NOTAS_REVISION = [
   'Atragantamiento: la fuente dice explícitamente que NO se den golpes en la espalda cuando la persona puede toser. Otros protocolos de primeros auxilios sí contemplan golpes interescapulares cuando la tos es inefectiva. Conviene que el COPASST confirme cuál es la pauta que adopta la institución.',
   'Reanimación: la fuente ordena los pasos como A) 30 compresiones y luego B) 2 respiraciones, pero al describir el ciclo repetido lo enuncia empezando por las dos respiraciones. Conviene aclarar el orden del ciclo.',
+  'Fichas 10 y 11 (fracturas, luxaciones, esguinces, vendajes e inmovilización): provienen de la Cartilla de Primeros Auxilios de la Armada Nacional de Colombia — Infantería de Marina (2007), un manual dirigido a personal militar adulto, no a un entorno escolar. Se omitieron a propósito dos contenidos de la fuente: la recomendación de dar una pastilla (aspirina/acetaminofén) ante dolor intenso en luxaciones — medicar a un estudiante no le corresponde a un docente, y la aspirina está contraindicada en menores por el síndrome de Reye — y las férulas neumáticas, que no existen en un botiquín escolar y que la propia fuente advierte que mal aplicadas pueden causar isquemia o síndrome compartimental. La brigada debe validar el contenido técnico de la ficha 11 antes de que salga de BETA.',
 ] as const;
 
 export function fichaPorId(id: string): FichaAuxilios | undefined {

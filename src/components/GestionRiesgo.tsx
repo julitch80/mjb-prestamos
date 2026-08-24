@@ -43,10 +43,12 @@ import TableroCasos from './TableroCasos';
 import {
   ATRIBUCION,
   FICHAS_AUXILIOS,
+  FUENTES,
   NOTAS_REVISION,
   fichaPorId,
 } from '../data/fichasAuxilios';
 import type { BloqueFicha, FichaAuxilios, TonoFicha } from '../data/fichasAuxilios';
+import { ILUSTRACIONES } from './IlustracionesAuxilios';
 
 const JORNADA_LABEL: Record<string, string> = {
   manana: 'Mañana', tarde: 'Tarde', ambas: 'Ambas', nocturna: 'Nocturna',
@@ -685,6 +687,16 @@ function BloqueFichaView({ bloque }: { bloque: BloqueFicha }) {
       </div>
     );
   }
+  if (bloque.tipo === 'ilustracion') {
+    const Dibujo = bloque.ilustracion ? ILUSTRACIONES[bloque.ilustracion] : undefined;
+    if (!Dibujo) return null;
+    return (
+      <div className="rounded-lg border border-line bg-elevated px-3 py-3 flex flex-col items-center gap-1.5">
+        <Dibujo className="w-full max-w-[220px] text-soft" />
+        {bloque.titulo && <span className="text-[11px] text-muted text-center">{bloque.titulo}</span>}
+      </div>
+    );
+  }
   // aviso
   return (
     <div className="rounded-lg border border-line bg-elevated px-3 py-2.5">
@@ -695,12 +707,18 @@ function BloqueFichaView({ bloque }: { bloque: BloqueFicha }) {
 
 function FichaAuxiliosDetalle({ ficha }: { ficha: FichaAuxilios }) {
   const estilo = ESTILO_TONO_FICHA[ficha.tono];
+  const fuente = FUENTES[ficha.fuente ?? 'plena_inclusion'];
   return (
     <div className="flex flex-col gap-3">
       <div className={cn('rounded-2xl border-2 px-4 py-4 flex flex-col gap-1.5', estilo.header)}>
         <div className="flex items-center gap-2">
           <span className="text-2xl leading-none flex-shrink-0">{ficha.icono}</span>
           <span className={cn('text-base font-bold', estilo.headerTexto)}>{ficha.titulo}</span>
+          {ficha.soloBrigada && (
+            <span className="ml-auto rounded-full border border-purple bg-purple-soft text-purple-soft-fg text-[10px] font-bold px-2 py-1 whitespace-nowrap">
+              🎓 Solo brigada
+            </span>
+          )}
         </div>
         <p className={cn('text-xs leading-relaxed', estilo.headerTexto)}>{ficha.resumen}</p>
       </div>
@@ -719,6 +737,20 @@ function FichaAuxiliosDetalle({ ficha }: { ficha: FichaAuxilios }) {
           📞 Llamar al 123
         </a>
       )}
+
+      <p className="text-[11px] text-muted leading-relaxed">
+        Fuente: «{fuente.obra}». {fuente.editor}, {fuente.anio}.{' '}
+        {fuente.url && (
+          <a
+            href={fuente.url}
+            target="_blank"
+            rel="noreferrer"
+            className="underline hover:text-soft"
+          >
+            Ver PDF original
+          </a>
+        )}
+      </p>
     </div>
   );
 }
