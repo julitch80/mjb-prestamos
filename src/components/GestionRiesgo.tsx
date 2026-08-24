@@ -48,7 +48,6 @@ import {
   fichaPorId,
 } from '../data/fichasAuxilios';
 import type { BloqueFicha, FichaAuxilios, TonoFicha } from '../data/fichasAuxilios';
-import { ILUSTRACIONES } from './IlustracionesAuxilios';
 
 const JORNADA_LABEL: Record<string, string> = {
   manana: 'Mañana', tarde: 'Tarde', ambas: 'Ambas', nocturna: 'Nocturna',
@@ -684,16 +683,6 @@ function BloqueFichaView({ bloque }: { bloque: BloqueFicha }) {
             </li>
           ))}
         </ul>
-      </div>
-    );
-  }
-  if (bloque.tipo === 'ilustracion') {
-    const Dibujo = bloque.ilustracion ? ILUSTRACIONES[bloque.ilustracion] : undefined;
-    if (!Dibujo) return null;
-    return (
-      <div className="rounded-lg border border-line bg-elevated px-3 py-3 flex flex-col items-center gap-1.5">
-        <Dibujo className="w-full max-w-[220px] text-soft" />
-        {bloque.titulo && <span className="text-[11px] text-muted text-center">{bloque.titulo}</span>}
       </div>
     );
   }

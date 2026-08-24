@@ -28,15 +28,13 @@
 /** Tonos disponibles, mapeados a los tokens semánticos de la app. */
 export type TonoFicha = 'azul' | 'verde' | 'naranja' | 'rojo' | 'morado' | 'teal';
 
-export type TipoBloque = 'texto' | 'pasos' | 'hacer' | 'no_hacer' | 'aviso' | 'ilustracion';
+export type TipoBloque = 'texto' | 'pasos' | 'hacer' | 'no_hacer' | 'aviso';
 
 export interface BloqueFicha {
   tipo: TipoBloque;
   titulo?: string;
   texto?: string;
   items?: string[];
-  /** Solo para tipo 'ilustracion': id del dibujo en ILUSTRACIONES (IlustracionesAuxilios.tsx). */
-  ilustracion?: string;
 }
 
 /** Identificador de fuente bibliográfica — cada ficha declara la suya en `fuente`. */
@@ -519,7 +517,6 @@ export const FICHAS_AUXILIOS: FichaAuxilios[] = [
           'La venda se dirige alternando hacia arriba y hacia abajo, cruzándose siempre en el centro de la articulación.',
         ],
       },
-      { tipo: 'ilustracion', ilustracion: 'vendaje-ocho', titulo: 'Vendaje en ocho de tobillo' },
       {
         tipo: 'pasos',
         titulo: 'Vendaje para codo o rodilla',
@@ -547,7 +544,6 @@ export const FICHAS_AUXILIOS: FichaAuxilios[] = [
           'Se compone con lo que se tenga a la mano: pañoleta, cinturón, corbata o camisa.',
         ],
       },
-      { tipo: 'ilustracion', ilustracion: 'cabestrillo', titulo: 'Cabestrillo improvisado' },
       {
         tipo: 'pasos',
         titulo: 'Férulas improvisadas',
@@ -558,7 +554,6 @@ export const FICHAS_AUXILIOS: FichaAuxilios[] = [
           'Si el brazo está en extensión, se coloca una férula y se amarra con vendas triangulares o se asegura contra el cuerpo. Si está flejado, se inmoviliza con férulas rígidas en forma de L.',
         ],
       },
-      { tipo: 'ilustracion', ilustracion: 'ferula-acolchada', titulo: 'Férula acolchada con doble amarre' },
       {
         tipo: 'pasos',
         titulo: 'Inmovilización por zona',
@@ -572,7 +567,6 @@ export const FICHAS_AUXILIOS: FichaAuxilios[] = [
           'Tobillo o pie: si el zapato es plano, no se retira porque ayuda a inmovilizar. Férula en L que cubra pie y parte inferior de la pierna. Si no hay férula, una almohada o abrigo hacen de férula blanda.',
         ],
       },
-      { tipo: 'ilustracion', ilustracion: 'ferula-l-carton', titulo: 'Férula en L de cartón para tobillo/pie' },
       {
         tipo: 'aviso',
         texto: 'Ante cualquier fractura, se debe verificar el pulso distal (más allá de la lesión) para valorar la circulación de la extremidad fracturada.',
