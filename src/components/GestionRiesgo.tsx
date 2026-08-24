@@ -686,6 +686,20 @@ function BloqueFichaView({ bloque }: { bloque: BloqueFicha }) {
       </div>
     );
   }
+  if (bloque.tipo === 'foto') {
+    return (
+      <div className="flex flex-col gap-1.5">
+        {bloque.titulo && <span className="text-sm font-semibold text-strong">{bloque.titulo}</span>}
+        <img
+          src={`${import.meta.env.BASE_URL}fotos-brigada/${bloque.foto}`}
+          alt={bloque.pie ?? 'Foto de referencia de la brigada'}
+          loading="lazy"
+          className="w-full max-w-full rounded-lg border border-line"
+        />
+        {bloque.pie && <p className="text-[11px] text-muted leading-relaxed">{bloque.pie}</p>}
+      </div>
+    );
+  }
   // aviso
   return (
     <div className="rounded-lg border border-line bg-elevated px-3 py-2.5">

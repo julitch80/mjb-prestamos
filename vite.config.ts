@@ -44,7 +44,19 @@ export default defineConfig({
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        globPatterns: ['**/*.{js,css,html,ico,svg,woff2}'],
+        // Las fotos de la brigada (kit de inmovilización) se consultan justo
+        // en una emergencia: si no están en el precache, un celular sin señal
+        // muestra un ícono roto en el peor momento posible. Por eso se
+        // precachean imágenes, PERO SOLO las de esa carpeta.
+        //
+        // El patrón va acotado a fotos-brigada/ a propósito. Incluir imágenes
+        // con un glob general metía al precache mjb_hd.png (1,9 MB) y el
+        // escudo (843 KB), que no sirven de nada en una emergencia y casi
+        // duplicaban lo que cada usuario descarga al instalar o actualizar.
+        globPatterns: [
+          '**/*.{js,css,html,ico,svg,woff2}',
+          'fotos-brigada/**/*.{jpg,jpeg,png,webp}',
+        ],
         skipWaiting: true,
         clientsClaim: true,
         runtimeCaching: [

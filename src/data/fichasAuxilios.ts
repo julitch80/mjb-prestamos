@@ -28,13 +28,17 @@
 /** Tonos disponibles, mapeados a los tokens semánticos de la app. */
 export type TonoFicha = 'azul' | 'verde' | 'naranja' | 'rojo' | 'morado' | 'teal';
 
-export type TipoBloque = 'texto' | 'pasos' | 'hacer' | 'no_hacer' | 'aviso';
+export type TipoBloque = 'texto' | 'pasos' | 'hacer' | 'no_hacer' | 'aviso' | 'foto';
 
 export interface BloqueFicha {
   tipo: TipoBloque;
   titulo?: string;
   texto?: string;
   items?: string[];
+  /** Solo para tipo 'foto': nombre del archivo en public/fotos-brigada/, p. ej. 'cabestrillo.jpg'. */
+  foto?: string;
+  /** Solo para tipo 'foto': pie de foto, también usado como alt descriptivo. */
+  pie?: string;
 }
 
 /** Identificador de fuente bibliográfica — cada ficha declara la suya en `fuente`. */
@@ -570,6 +574,18 @@ export const FICHAS_AUXILIOS: FichaAuxilios[] = [
       {
         tipo: 'aviso',
         texto: 'Ante cualquier fractura, se debe verificar el pulso distal (más allá de la lesión) para valorar la circulación de la extremidad fracturada.',
+      },
+      {
+        tipo: 'texto',
+        texto: 'Kit de inmovilización del colegio: el colegio cuenta con un kit inmovilizador de cartonplast (fabricante Health Solutions), con 5 piezas: pierna, tobillo, brazo, muñeca y cuello. Es reutilizable, se ajusta con correas y velcro, y es radiolúcido: permite tomar radiografías sin necesidad de retirarlo. No sustituye el criterio de la brigada: se aplican sobre él los mismos principios ya descritos en esta ficha, acolchado entre la pieza rígida y la piel, un amarre por encima y otro por debajo de la lesión, dedos visibles para vigilar la circulación, y aflojar de inmediato si aparece hormigueo, frío o cambio de color.',
+      },
+      {
+        tipo: 'aviso',
+        texto: '⚠️ La pieza de CUELLO no debe usarla personal sin entrenamiento formal en inmovilización cervical. Ante sospecha de lesión de columna, lo indicado es NO mover a la persona, estabilizar la cabeza sujetándola con las manos, y esperar la llegada del 123.',
+      },
+      {
+        tipo: 'aviso',
+        texto: 'Pendiente: fotos de la brigada aplicando el kit sobre cada pieza (pierna, tobillo, brazo, muñeca, cuello). Se agregarán a esta ficha en cuanto estén disponibles.',
       },
     ],
   },
