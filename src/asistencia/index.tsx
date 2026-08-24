@@ -25,6 +25,7 @@ const Importar = lazy(() => import('./Importar'));
  */
 const DireccionGrupo = lazy(() => import('./DireccionGrupo'));
 import CargaFotos from './CargaFotos';
+import DiagnosticoPermisos from './DiagnosticoPermisos';
 import Ficha from './Ficha';
 import PanelEstudiante from './PanelEstudiante';
 import TerceraHora from './TerceraHora';
@@ -262,10 +263,27 @@ export default function Asistencia() {
     [cruce, directores, slotId],
   );
 
-  // Sub-pestaña dentro de un grupo: asistencia o el cuaderno de dirección. Vuelve a
-  // "asistencia" al cambiar de grado, para no dejar abierto por accidente el cuaderno de
-  // un grupo que ya no es este.
-  const [vistaGrupo, setVistaGrupo] = useState<'asistencia' | 'direccion'>('asistencia');
+  // Grados de los que esta cuenta puede subir fotos, para pasarselos a `CargaFotos` como
+  // `gradosPermitidos`. El director solo el suyo (puede dirigir mas de un grado); el
+  // coordinador, los que aparezcan en las sesiones que ya puede leer (`cruces`). La
+  // autoridad real la decide el espejo `asistenciaConfig/directores.fotos` que evaluan
+  // las reglas de Storage — esto solo evita ofrecer una carpeta que el servidor va a
+  // rechazar.
+  const gradosDirector = useMemo(
+    () => Object.entries(directores).filter(([, s]) => s === slotId).map(([g]) => g),
+    [directores, slotId],
+  );
+  const gradosCoordinador = useMemo(
+    () => [...new Set(cruces.map((c) => c.grado))],
+    [cruces],
+  );
+  const mostrarFotos = esDirector || rol === 'coordinador';
+  const gradosPermitidosFotos = rol === 'coordinador' ? gradosCoordinador : gradosDirector;
+
+  // Sub-pestaña dentro de un grupo: asistencia, el cuaderno de dirección o la carga de
+  // fotos. Vuelve a "asistencia" al cambiar de grado, para no dejar abierto por accidente
+  // el cuaderno o la carga de fotos de un grupo que ya no es este.
+  const [vistaGrupo, setVistaGrupo] = useState<'asistencia' | 'direccion' | 'fotos'>('asistencia');
   useEffect(() => {
     setVistaGrupo('asistencia');
   }, [cruce?.grado]);
@@ -569,6 +587,7 @@ export default function Asistencia() {
           <Importar />
         </Suspense>
         <BuscadorFichas sede={sede} onAbrir={setFichaAbierta} />
+        <DiagnosticoPermisos />
         <CargaFotos />
         <LimpiezaPlanillas />
       </div>
@@ -693,9 +712,10 @@ export default function Asistencia() {
               ← Mis grupos
             </button>
 
-            {/* Solo el director de ESTE grado ve el cuaderno paralelo: en los demas
-                grupos que dicta, ni se ofrece la pestaña. */}
-            {esDirector && (
+            {/* El director ve el cuaderno paralelo Y la carga de fotos, en los demas
+                grupos que dicta no se ofrece ninguna de las dos. El coordinador solo ve
+                Fotos: el cuaderno de direccion es autoridad exclusiva del director. */}
+            {mostrarFotos && (
               <div className="flex gap-1.5">
                 <Ayuda texto="Pasar lista de la asignatura: la asistencia de cada clase.">
                   <button
@@ -710,17 +730,32 @@ export default function Asistencia() {
                     Asistencia
                   </button>
                 </Ayuda>
-                <Ayuda texto="El cuaderno paralelo del director: cuotas, equipos de aseo, requisitos — columnas que usted define. No es asistencia y no se cruza con ella.">
+                {esDirector && (
+                  <Ayuda texto="El cuaderno paralelo del director: cuotas, equipos de aseo, requisitos — columnas que usted define. No es asistencia y no se cruza con ella.">
+                    <button
+                      onClick={() => setVistaGrupo('direccion')}
+                      className={[
+                        'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                        vistaGrupo === 'direccion'
+                          ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                          : 'border-line text-soft',
+                      ].join(' ')}
+                    >
+                      Dirección de grupo
+                    </button>
+                  </Ayuda>
+                )}
+                <Ayuda texto="Subir las fotografías de los estudiantes de este grupo: la foto es el control de identidad al escanear el QR.">
                   <button
-                    onClick={() => setVistaGrupo('direccion')}
+                    onClick={() => setVistaGrupo('fotos')}
                     className={[
                       'min-h-[36px] rounded-full border px-3 py-1 text-sm',
-                      vistaGrupo === 'direccion'
+                      vistaGrupo === 'fotos'
                         ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                         : 'border-line text-soft',
                     ].join(' ')}
                   >
-                    Dirección de grupo
+                    Fotos
                   </button>
                 </Ayuda>
               </div>
@@ -735,6 +770,8 @@ export default function Asistencia() {
                 estudiantes={estudiantes}
               />
             </Suspense>
+          ) : cruce && mostrarFotos && vistaGrupo === 'fotos' ? (
+            <CargaFotos gradosPermitidos={gradosPermitidosFotos} />
           ) : (
             cruce && (
               <Planilla
@@ -905,6 +942,7 @@ function BuscadorFichas({
   onAbrir: (studentId: string) => void;
 }) {
   const [texto, setTexto] = useState('');
+  const [incluirRetirados, setIncluirRetirados] = useState(false);
   const [resultados, setResultados] = useState<Student[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -915,7 +953,7 @@ function BuscadorFichas({
     }
     // Con retardo: se teclea mas rapido de lo que conviene consultar.
     const t = setTimeout(() => {
-      void buscarEstudiantes(sede, texto)
+      void buscarEstudiantes(sede, texto, incluirRetirados)
         .then((r) => {
           setResultados(r);
           setError(null);
@@ -923,7 +961,7 @@ function BuscadorFichas({
         .catch((e) => setError(mensajeDeError(e)));
     }, 250);
     return () => clearTimeout(t);
-  }, [texto, sede]);
+  }, [texto, sede, incluirRetirados]);
 
   return (
     <section className="rounded-xl border border-line bg-card p-3">
@@ -937,6 +975,17 @@ function BuscadorFichas({
         placeholder="Apellido o nombre…"
         className="mt-2 w-full rounded-lg border border-line bg-elevated px-2 py-2 text-base text-strong"
       />
+      {/* Apagada por defecto: mezclar retirados con activos en la busqueda de todos los
+          dias confundiria a quien solo quiere pasar lista. Se prende a proposito, solo
+          para reintegrar a alguien que el boton de retirar dejo inalcanzable. */}
+      <label className="mt-2 flex min-h-[36px] w-fit items-center gap-2 text-sm text-strong">
+        <input
+          type="checkbox"
+          checked={incluirRetirados}
+          onChange={(e) => setIncluirRetirados(e.target.checked)}
+        />
+        Incluir retirados
+      </label>
       {error && <p className="mt-2 text-xs text-danger">{error}</p>}
       {texto.trim().length >= 2 && resultados.length === 0 && !error && (
         <p className="mt-2 text-sm text-muted">Ningún estudiante coincide.</p>
@@ -950,6 +999,14 @@ function BuscadorFichas({
             >
               {nombreCompleto(e)}
               <span className="ml-2 text-xs text-muted">{e.gradoActual}</span>
+              {/* Marcado, para que no se confunda con un estudiante activo: es la unica
+                  garantia de que aqui no se anda editando por error la ficha de alguien
+                  que ya no esta en el colegio. */}
+              {!e.activo && (
+                <span className="ml-2 rounded-full bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger-soft-fg">
+                  Retirado
+                </span>
+              )}
             </button>
           </li>
         ))}

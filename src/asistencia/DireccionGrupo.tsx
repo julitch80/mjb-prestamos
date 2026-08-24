@@ -1,20 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import ExcelJS from 'exceljs';
-import { ChevronLeft, ChevronRight, Download, Ellipsis, Plus, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Ellipsis, Eye, EyeOff, Plus, X } from 'lucide-react';
 import Avatar from './Avatar';
 import Ayuda from './Ayuda';
 import { ICONO_COMPONENTE } from './IconosDireccion';
 import {
   ajustarPuntos,
+  guardarAutomaticasOcultas,
+  leerAutomaticasOcultas,
   moverColumna,
   quitarColumna,
+  totalDeAutomatica,
   totalDeColumna,
   validarColumna,
+  type ColumnaAutomatica,
 } from './domain/direccion-grupo';
 import { buildDireccionGrupoExport } from './domain/exports';
 import { COLORES_GRUPO, estiloEtiqueta } from './domain/colores';
 import { iconosPorGrupo, type IconoDisponible } from './domain/iconos-direccion';
 import { nombreCompleto, nombresDePila } from './domain/nombres';
+import { llegadasQueAlertan } from './domain/alertas';
+import { computeStats } from './domain/stats';
 import type {
   ColumnaDireccion,
   DireccionGrupo as DireccionGrupoModelo,
@@ -23,7 +29,7 @@ import type {
   TipoColumna,
   ValorCelda,
 } from './domain/types';
-import { abrirDireccionGrupo, guardarColumnas, marcarCelda } from './datos';
+import { abrirDireccionGrupo, guardarColumnas, leerGrupo, leerLlegadasTardePorGrado, leerSesiones, marcarCelda } from './datos';
 
 /**
  * Cuaderno paralelo del director de grupo — el modelo, la logica y el acceso a datos ya
@@ -51,6 +57,9 @@ export default function DireccionGrupo({
     null,
   );
   const [descargando, setDescargando] = useState(false);
+  const [ocultarAutomaticas, setOcultarAutomaticas] = useState(() => leerAutomaticasOcultas());
+  const [faltasPorEstudiante, setFaltasPorEstudiante] = useState<Record<string, number>>({});
+  const [llegadasTardePorEstudiante, setLlegadasTardePorEstudiante] = useState<Record<string, number>>({});
 
   // Se reabre el cuaderno cada vez que cambia el grado (o el año, aunque hoy es siempre
   // el actual): `abrirDireccionGrupo` crea el documento si es la primera vez que este
@@ -86,6 +95,97 @@ export default function DireccionGrupo({
         : new Map(),
     [columnas, direccion, studentIds],
   );
+
+  /**
+   * Faltas en TODO el grado (todas las asignaturas), lo que se transcribe a Master2000 —
+   * no `ausenciasTotales`, porque las justificadas no se transcriben y mezclarlas exagera
+   * la cifra. Es una columna AUTOMATICA (ver domain/direccion-grupo.ts): el cuaderno es
+   * el trabajo, esto es un extra, por eso va en su propio try/catch. Si falla, el
+   * cuaderno del director sigue funcionando con lo que ya tenia — igual que
+   * `sesionesPorAsignatura` en index.tsx.
+   */
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const [sesionesDelGrado, { matriculas }] = await Promise.all([
+          leerSesiones({ tipo: 'director', grado }),
+          leerGrupo(grado),
+        ]);
+        if (!vivo) return;
+        const porEstudiante: Record<string, number> = {};
+        for (const id of studentIds) {
+          const enrollmentsEstudiante = matriculas.filter((m) => m.studentId === id);
+          const stats = computeStats({
+            studentId: id,
+            sessions: sesionesDelGrado,
+            enrollments: enrollmentsEstudiante,
+          });
+          // Sin sesiones registradas todavia para este estudiante: no hay dato, y una
+          // casilla sin dato NO es cero — decir "0 faltas" de alguien a quien nadie ha
+          // pasado lista es mentir.
+          if (stats.sessionsCount === 0) continue;
+          porEstudiante[id] = stats.aMaster2000;
+        }
+        setFaltasPorEstudiante(porEstudiante);
+      } catch {
+        if (vivo) setFaltasPorEstudiante({});
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [grado, studentIds]);
+
+  /**
+   * Llegadas tarde a la institucion que ALERTAN (excluye justificadas y pendientes de
+   * verificar, ver `llegadasQueAlertan`). Acumuladas en el año escolar, igual que el
+   * escalamiento de color del coordinador. Cada estudiante del grupo parte de 0: aqui, a
+   * diferencia de las faltas, la consulta si cubre a todo el grado, asi que la ausencia
+   * de registros para alguien es una respuesta real (nunca llego tarde), no un vacio de
+   * datos. Try/catch propio: si esto falla, el resto del cuaderno sigue igual.
+   */
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const hoy = new Date().toISOString().slice(0, 10);
+        const llegadas = await leerLlegadasTardePorGrado({ grado, desde: `${anio}-01-01`, hasta: hoy });
+        if (!vivo) return;
+        const queAlertan = llegadasQueAlertan(llegadas);
+        const porEstudiante: Record<string, number> = {};
+        for (const id of studentIds) porEstudiante[id] = 0;
+        for (const l of queAlertan) {
+          if (porEstudiante[l.studentId] !== undefined) porEstudiante[l.studentId] += 1;
+        }
+        setLlegadasTardePorEstudiante(porEstudiante);
+      } catch {
+        if (vivo) setLlegadasTardePorEstudiante({});
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [grado, anio, studentIds]);
+
+  /** Las dos columnas que el sistema ya sabe, listas para pintarse al final del cuaderno
+   * si el director no las ha ocultado. */
+  const columnasAutomaticas: ColumnaAutomatica[] = ocultarAutomaticas
+    ? []
+    : [
+        { id: 'faltas', nombre: 'Faltas', valores: faltasPorEstudiante },
+        { id: 'llegadas_tarde', nombre: 'Llegadas tarde', valores: llegadasTardePorEstudiante },
+      ];
+  const totalesAutomaticas = useMemo(
+    () => new Map(columnasAutomaticas.map((c) => [c.id, totalDeAutomatica(c, studentIds)])),
+    [ocultarAutomaticas, faltasPorEstudiante, llegadasTardePorEstudiante, studentIds],
+  );
+
+  function alternarAutomaticas() {
+    const siguiente = !ocultarAutomaticas;
+    setOcultarAutomaticas(siguiente);
+    guardarAutomaticasOcultas(siguiente);
+  }
 
   /**
    * Pinta la casilla en el acto y manda la escritura sin esperarla: `marcarCelda` ya no
@@ -196,6 +296,18 @@ export default function DireccionGrupo({
         </div>
       )}
 
+      {columnas.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={alternarAutomaticas}
+            className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs font-medium text-soft hover:bg-hover"
+          >
+            {ocultarAutomaticas ? <EyeOff size={14} /> : <Eye size={14} />}
+            {ocultarAutomaticas ? 'Mostrar faltas y llegadas tarde' : 'Ocultar faltas y llegadas tarde'}
+          </button>
+        </div>
+      )}
+
       {columnas.length === 0 ? (
         <div className="space-y-3 rounded-xl border border-line bg-card p-4 text-sm text-soft">
           <p>
@@ -248,6 +360,35 @@ export default function DireccionGrupo({
                     </div>
                   </th>
                 ))}
+                {/* Columnas automaticas: siempre al final, sin boton de opciones (no se
+                    mueven ni se quitan) y con el rotulo "automática" para que nadie
+                    intente escribir en ellas. Mismo ancho EXACTO que las manuales — ver
+                    la nota de <td> mas abajo. */}
+                {columnasAutomaticas.map((c, j) => {
+                  const i = columnas.length + j;
+                  return (
+                    <th
+                      key={c.id}
+                      className={[
+                        'min-w-[7rem] max-w-[7rem] border-b border-r border-line p-1.5 text-center text-xs font-normal text-muted',
+                        i % 2 === 1 ? 'bg-elevated' : '',
+                      ].join(' ')}
+                    >
+                      <span className="truncate font-semibold text-strong">{c.nombre}</span>
+                      <div className="mt-0.5 flex justify-center">
+                        <span className="rounded-full border border-line-strong px-1.5 py-px text-[0.55rem] uppercase tracking-wide text-muted">
+                          automática
+                        </span>
+                      </div>
+                      <div
+                        className="mt-0.5 truncate text-[0.65rem] text-muted"
+                        title={totalesAutomaticas.get(c.id)?.texto}
+                      >
+                        {totalesAutomaticas.get(c.id)?.texto}
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -282,6 +423,23 @@ export default function DireccionGrupo({
                       />
                     </td>
                   ))}
+                  {columnasAutomaticas.map((c, j) => {
+                    const i = columnas.length + j;
+                    const valor = c.valores[e.studentId];
+                    return (
+                      <td
+                        key={c.id}
+                        className={[
+                          'border-b border-r border-line p-0 text-center',
+                          i % 2 === 1 ? 'bg-elevated' : '',
+                        ].join(' ')}
+                      >
+                        <div className="grid h-9 min-h-[36px] place-items-center text-xs font-semibold text-strong">
+                          {valor === undefined ? <span className="text-muted opacity-70">·</span> : valor}
+                        </div>
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -304,7 +462,7 @@ export default function DireccionGrupo({
           disabled={descargando}
           className="flex min-h-[36px] w-full items-center justify-center gap-2 rounded-xl border border-line bg-card p-2.5 text-sm font-medium text-soft disabled:opacity-60"
         >
-          <Download size={16} />
+          <Download size={16} aria-hidden />
           {descargando ? 'Generando Excel…' : 'Descargar a Excel'}
         </button>
       )}

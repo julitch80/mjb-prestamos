@@ -170,3 +170,57 @@ export function quitarColumna(
   }
   return { columnas, valores };
 }
+
+// ---------------------------------------------------------------------------
+//  Columnas automaticas — lo que el sistema ya sabe (faltas, llegadas tarde)
+// ---------------------------------------------------------------------------
+//
+// A diferencia de las columnas del director, estas no las crea ni las edita nadie: las
+// llena la asistencia ya registrada. Van SIEMPRE al final y son de solo lectura — por
+// eso no tienen `columnaId` de verdad ni entran en `DireccionGrupo.columnas`, viven solo
+// en memoria del lado de la pantalla (ver DireccionGrupo.tsx).
+
+export interface ColumnaAutomatica {
+  id: 'faltas' | 'llegadas_tarde';
+  nombre: string;
+  /** Valor por estudiante. Ausente = no hay dato, que NO es cero. */
+  valores: Record<string, number>;
+}
+
+/**
+ * Total de una columna automatica. Misma regla que `totalDeColumna`: un estudiante sin
+ * dato (por ejemplo, sin ninguna sesion registrada todavia en su grado) no cuenta como
+ * "0 faltas" — cuenta en `sinAsignar`, nunca en la suma.
+ */
+export function totalDeAutomatica(columna: ColumnaAutomatica, studentIds: string[]): TotalColumna {
+  const celdas = studentIds.map((id) => columna.valores[id]);
+  const sinAsignar = celdas.filter((v) => v === undefined).length;
+  const suma = celdas.reduce((acc: number, v) => acc + (typeof v === 'number' ? v : 0), 0);
+  const texto = sinAsignar > 0 ? `${suma} en total · sin datos: ${sinAsignar}` : `${suma} en total`;
+  return { columnaId: columna.id, texto, sinAsignar };
+}
+
+const CLAVE_AUTOMATICAS_OCULTAS = 'asistencia.direccionGrupo.automaticasOcultas';
+
+/**
+ * Preferencia de OCULTAR las columnas automaticas. Del dispositivo, no del colegio —
+ * mismo patron que `domain/colores.ts`: no todos los directores las quieren siempre a la
+ * vista, y guardarlo en Firestore obligaria a tocar permisos por algo que es solo de
+ * pantalla.
+ */
+export function leerAutomaticasOcultas(): boolean {
+  try {
+    return localStorage.getItem(CLAVE_AUTOMATICAS_OCULTAS) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function guardarAutomaticasOcultas(ocultas: boolean): void {
+  try {
+    if (ocultas) localStorage.setItem(CLAVE_AUTOMATICAS_OCULTAS, '1');
+    else localStorage.removeItem(CLAVE_AUTOMATICAS_OCULTAS);
+  } catch {
+    // Modo privado o almacen lleno: se pierde la preferencia, no la sesion de trabajo.
+  }
+}

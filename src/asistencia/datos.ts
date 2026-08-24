@@ -295,8 +295,20 @@ export async function buscarPorQrToken(
   return { estudiante: e, otraSede: false };
 }
 
-/** Busca estudiantes por apellido o nombre dentro de una sede. */
-export async function buscarEstudiantes(sede: string, texto: string): Promise<Student[]> {
+/**
+ * Busca estudiantes por apellido o nombre dentro de una sede.
+ *
+ * Por defecto SOLO activos: es lo que quiere un docente pasando lista. Pero desde que
+ * existe el boton de retirar (`activo: false`), un retirado se vuelve INALCANZABLE si
+ * este filtro no se pudiera relajar - no hay otra puerta a su ficha, y reintegrarlo exige
+ * poder abrirla primero. `incluirInactivos` queda apagado por defecto para no mezclar, en
+ * la busqueda de todos los dias, a alguien que ya no esta en el colegio.
+ */
+export async function buscarEstudiantes(
+  sede: string,
+  texto: string,
+  incluirInactivos = false,
+): Promise<Student[]> {
   if (!(await listo()) || texto.trim().length < 2) return [];
   // Firestore no hace búsqueda por subcadena. A escala de una sede (unos cientos de
   // estudiantes) filtrar en memoria es más simple y más barato que montar un índice de
@@ -311,7 +323,7 @@ export async function buscarEstudiantes(sede: string, texto: string): Promise<St
     .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase();
   return todos
-    .filter((e) => e.activo)
+    .filter((e) => e.activo || incluirInactivos)
     .filter((e) =>
       `${e.apellidos} ${e.nombres}`
         .normalize('NFD')
@@ -410,6 +422,87 @@ export async function leerDirectores(): Promise<Record<string, string>> {
   if (!(await listo())) return {};
   const snap = await getDoc(doc(baseDatos(), 'asistenciaConfig', 'directores'));
   return snap.exists() ? ((snap.data().mapa ?? {}) as Record<string, string>) : {};
+}
+
+/**
+ * Mapa sede -> correos con autoridad de coordinacion, desde
+ * `asistenciaConfig/autoridadSede`. Es el mismo documento espejo que evalua
+ * `asisCoordinaSede` en las reglas (ver `rules/asistencia.rules`): se lee aqui solo para
+ * no ofrecer, en la ficha del estudiante, un boton de "registrar llamada" que el
+ * servidor le va a negar a un coordinador de otra sede.
+ */
+export async function leerAutoridadSede(): Promise<Record<string, string[]>> {
+  if (!(await listo())) return {};
+  const snap = await getDoc(doc(baseDatos(), 'asistenciaConfig', 'autoridadSede'));
+  return snap.exists() ? ((snap.data().mapa ?? {}) as Record<string, string[]>) : {};
+}
+
+export interface AutoridadSedeCompleta {
+  /** sede -> correos con autoridad de coordinacion. Mismo mapa que `leerAutoridadSede`. */
+  mapa: Record<string, string[]>;
+  /** sede -> jornada -> correos limitados a esa jornada dentro de esa sede. Solo se usa
+   *  hoy en central, pero el documento no lo restringe. */
+  soloJornada: Record<string, Record<string, string[]>>;
+}
+
+/**
+ * Version completa de `leerAutoridadSede()`: trae tambien `soloJornada`, que la version
+ * corta no expone porque las pantallas normales no la necesitan (`leerAlcanceUsuario` ya
+ * la resuelve para la cuenta que entro). El diagnostico de permisos si la necesita:
+ * tiene que reproducir esa misma resolucion para una cuenta AJENA, no la propia.
+ */
+export async function leerAutoridadSedeCompleta(): Promise<AutoridadSedeCompleta> {
+  if (!(await listo())) return { mapa: {}, soloJornada: {} };
+  const snap = await getDoc(doc(baseDatos(), 'asistenciaConfig', 'autoridadSede'));
+  if (!snap.exists()) return { mapa: {}, soloJornada: {} };
+  const d = snap.data();
+  return {
+    mapa: (d.mapa ?? {}) as Record<string, string[]>,
+    soloJornada: (d.soloJornada ?? {}) as Record<string, Record<string, string[]>>,
+  };
+}
+
+export interface CuentaDiagnostico {
+  correo: string;
+  /** Si el documento `users/{correo}` EXISTE. Ver el mismo campo en `MiCuenta`. */
+  existe: boolean;
+  role: string | null;
+  active: boolean;
+  slotId: string | null;
+  /** Bandera de solo-consulta (rectora, PTA, apoyo). Vive en el propio documento de
+   *  usuario, no en un espejo aparte — ver el comentario de `leerAlcanceUsuario`. */
+  asistenciaConsulta: boolean;
+}
+
+/**
+ * Lee la cuenta de OTRA persona, para el diagnostico de permisos del superusuario.
+ *
+ * Es el mismo documento que `leerMiCuenta()`, pero aquel usa `exigirAutor()` porque
+ * siempre lee la cuenta de quien esta conectado; aqui el correo lo escribe el
+ * superusuario a mano, para averiguar que veria OTRA persona.
+ */
+export async function leerCuentaPorCorreo(correo: string): Promise<CuentaDiagnostico> {
+  const normalizado = correo.trim().toLowerCase();
+  const vacia: CuentaDiagnostico = {
+    correo: normalizado,
+    existe: false,
+    role: null,
+    active: false,
+    slotId: null,
+    asistenciaConsulta: false,
+  };
+  if (!(await listo()) || !normalizado) return vacia;
+  const snap = await getDoc(doc(baseDatos(), 'users', normalizado));
+  if (!snap.exists()) return vacia;
+  const d = snap.data();
+  return {
+    correo: normalizado,
+    existe: true,
+    role: (d.role as string | null) ?? null,
+    active: d.active === true,
+    slotId: (d.slotId as string | null) ?? null,
+    asistenciaConsulta: d.asistenciaConsulta === true,
+  };
 }
 
 export interface AlcanceUsuario {
@@ -566,12 +659,23 @@ export async function leerEstudiante(studentId: string): Promise<Student | null>
 }
 
 /**
- * Edita los datos de contacto de la ficha.
+ * Edita los datos de contacto de la ficha, y tambien la baja/alta logica (`activo`).
  *
- * Ni se intentan los campos que las reglas blindan: `docHash`, `qrToken`, `gradoActual`
- * y `sede`. Enviarlos haría fallar la escritura entera, y de todos modos no le
- * corresponde al cliente cambiarlos — `gradoActual` es de lo que depende que las reglas
- * reconozcan al director de grupo.
+ * Ni se intentan los campos que las reglas blindan: `docHash`, `qrToken`, `gradoActual`,
+ * `sede` y `docNumber`. Enviarlos haría fallar la escritura entera, y de todos modos no
+ * le corresponde al cliente cambiarlos — `gradoActual` es de lo que depende que las
+ * reglas reconozcan al director de grupo.
+ *
+ * `activo: false` es un RETIRO, no un borrado: el estudiante deja de contar en planillas
+ * y conteos (ver el filtro `.filter((e) => e.activo)` en `leerGrupo` y
+ * `buscarEstudiantes`), pero el documento y su historial de sesiones quedan intactos, y
+ * `activo: true` lo reintegra sin perder nada.
+ *
+ * ⚠️ A PROPOSITO no cierra la matricula (`Enrollment.hasta`) aunque el modelo la
+ * contemple: las reglas de `asistenciaEnrollments` solo dejan escribir a coordinacion y
+ * al superusuario, nunca al director de grupo. Si este metodo intentara cerrarla, la
+ * escritura fallaria entera justo para quien mas usa este boton (el director). Cerrar la
+ * matricula, si algun dia hace falta, es tarea de otra pantalla con otra autoridad.
  */
 export async function actualizarFicha(
   studentId: string,
@@ -580,6 +684,7 @@ export async function actualizarFicha(
     parentesco?: string;
     telefonos?: string[];
     fotoPath?: string | null;
+    activo?: boolean;
   },
 ): Promise<void> {
   await exigirAutor();

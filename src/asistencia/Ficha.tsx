@@ -1,11 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { actualizarFicha, leerEstudiante, leerMiCuenta, type MiCuenta } from './datos';
+import {
+  actualizarFicha,
+  leerAutoridadSede,
+  leerEstudiante,
+  leerMiCuenta,
+  registrarContacto,
+  type MiCuenta,
+} from './datos';
 import { subirFoto, urlDeFoto } from './fotos';
 import { iniciales, nombreCompleto } from './domain/nombres';
-import type { Student } from './domain/types';
+import { toDateKey } from './domain/ids';
+import type { ContactReason, Student } from './domain/types';
 import TelefonoAcudiente from './TelefonoAcudiente';
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, UserCheck, UserX } from 'lucide-react';
+
+/** Etiquetas en español de `ContactReason` (domain/types.ts). No se inventan motivos
+ *  nuevos aquí: son exactamente los que acepta el servidor. */
+const ETIQUETAS_MOTIVO: Record<ContactReason, string> = {
+  inasistencia_dia: 'No vino hoy',
+  umbral_ausencias: 'Acumulado de ausencias',
+  umbral_retrasos: 'Acumulado de retrasos',
+  umbral_llegadas_tarde: 'Acumulado de llegadas tarde',
+  faltas_consecutivas: 'Faltas consecutivas',
+};
 
 /**
  * Ficha del estudiante. Se llama "Información" y no "Editar" a proposito: la mayoria
@@ -37,6 +55,12 @@ export default function Ficha({
   const [verQr, setVerQr] = useState(false);
   const [camara, setCamara] = useState(false);
   const [cuenta, setCuenta] = useState<MiCuenta | null>(null);
+  const [autoridadSede, setAutoridadSede] = useState<Record<string, string[]>>({});
+  const [confirmandoRetiro, setConfirmandoRetiro] = useState(false);
+  // Numero sobre el que se pulso "Llamar", pendiente de que se decida si se registra la
+  // gestion. `null` = no hay aviso pendiente.
+  const [numeroLlamado, setNumeroLlamado] = useState<string | null>(null);
+  const [registrandoLlamada, setRegistrandoLlamada] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -45,6 +69,7 @@ export default function Ficha({
       if (e) setFoto(await urlDeFoto(studentId));
       // El puesto segun el SERVIDOR, que es contra el que evaluan las reglas.
       setCuenta(await leerMiCuenta());
+      setAutoridadSede(await leerAutoridadSede());
     })();
   }, [studentId]);
 
@@ -56,6 +81,18 @@ export default function Ficha({
   // dicen lo mismo.
   const esDirector = Boolean(slotId && directores[est.gradoActual] === slotId);
   const puedeEditar = rol === 'coordinador' || rol === 'superusuario' || esDirector;
+
+  // Registrar una llamada a la familia es MAS ESTRECHO que editar la ficha: la regla de
+  // `asistenciaFamilyContacts` (rules/asistencia.rules) solo deja crear al director del
+  // grupo o a coordinacion CON AUTORIDAD SOBRE LA SEDE del estudiante — el superusuario
+  // queda fuera a proposito, la misma razon por la que tampoco marca asistencia. Por eso
+  // esto NO se calcula con `puedeEditar`, que si incluye al superusuario.
+  const puedeContactar = Boolean(
+    esDirector ||
+      (cuenta?.rol === 'coordinador' &&
+        cuenta.activo &&
+        (autoridadSede[est.sede] ?? []).includes(cuenta.correo)),
+  );
 
   // El puesto que ve el servidor. Si difiere del que resuelve la interfaz, la app
   // habilita botones que las reglas rechazan: es el fallo mas confuso del sistema,
@@ -147,7 +184,14 @@ export default function Ficha({
                   est.telefonos.length > 0 ? (
                     <span className="flex flex-col gap-1.5">
                       {est.telefonos.map((t, i) => (
-                        <TelefonoAcudiente key={`${t}-${i}`} numero={t} />
+                        <TelefonoAcudiente
+                          key={`${t}-${i}`}
+                          numero={t}
+                          // Solo se ofrece dejar constancia a quien la regla se lo va a
+                          // aceptar; a los demas el boton de llamar sigue funcionando,
+                          // simplemente no aparece el aviso de despues.
+                          onLlamar={puedeContactar ? setNumeroLlamado : undefined}
+                        />
                       ))}
                     </span>
                   ) : (
@@ -177,6 +221,31 @@ export default function Ficha({
                 }
               />
             </dl>
+
+            {/*
+              Aviso discreto tras pulsar "Llamar": NADA se registra solo. El sistema no
+              sabe si la llamada de verdad ocurrio, solo que se toco el boton — por eso
+              esto es una oferta con un boton, no una hoja que se abre encima sin
+              pedirlo.
+            */}
+            {numeroLlamado && !registrandoLlamada && (
+              <div className="mt-2 flex items-center gap-2 rounded-lg border border-line bg-elevated p-2 text-xs text-muted">
+                <span className="grow">¿Registrar la gestión de esta llamada?</span>
+                <button
+                  onClick={() => setRegistrandoLlamada(true)}
+                  className="rounded-lg border border-line px-2 py-1 text-xs text-strong"
+                >
+                  Registrar llamada
+                </button>
+                <button
+                  onClick={() => setNumeroLlamado(null)}
+                  aria-label="Descartar aviso de llamada"
+                  className="grid min-h-9 min-w-9 place-items-center text-muted"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             <div className="mt-2 flex flex-wrap gap-2">
               <button
@@ -267,6 +336,101 @@ export default function Ficha({
             </p>
         </details>
       </div>
+
+      {/*
+        Zona de peligro, separada del resto: retirar (y reintegrar) es del mismo
+        `puedeEditar` que edita el contacto, pero es una accion que cambia si el
+        estudiante aparece en planillas y conteos, asi que lleva sus propios tokens de
+        peligro y su propia confirmacion — no debe confundirse con "Editar contacto".
+      */}
+      {puedeEditar && (
+        <div className="rounded-xl border border-danger-soft bg-danger-soft p-3">
+          {est.activo ? (
+            <>
+              <p className="text-xs text-danger-soft-fg">
+                Retirar no borra nada: el estudiante deja de aparecer en planillas y
+                conteos, pero su historial se conserva y se puede reintegrar cuando haga
+                falta.
+              </p>
+              <button
+                onClick={() => setConfirmandoRetiro(true)}
+                className="mt-2 flex min-h-9 items-center gap-1.5 rounded-lg border border-danger-soft px-3 py-1.5 text-sm text-danger-soft-fg"
+              >
+                <UserX size={16} aria-hidden />
+                Marcar como retirado
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-danger-soft-fg">
+                <UserX size={16} aria-hidden />
+                Estudiante retirado
+              </p>
+              <p className="mt-1 text-xs text-danger-soft-fg">
+                No aparece en planillas ni conteos. Su historial sigue intacto.
+              </p>
+              <button
+                onClick={async () => {
+                  setError(null);
+                  try {
+                    await actualizarFicha(studentId, { activo: true });
+                    setEst((p) => (p ? { ...p, activo: true } : p));
+                  } catch (e) {
+                    setError((e as Error).message);
+                  }
+                }}
+                className="mt-2 flex min-h-9 items-center gap-1.5 rounded-lg border border-danger-soft px-3 py-1.5 text-sm text-danger-soft-fg"
+              >
+                <UserCheck size={16} aria-hidden />
+                Reintegrar
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {confirmandoRetiro && (
+        <ModalConfirmarRetiro
+          estudiante={est}
+          onCerrar={() => setConfirmandoRetiro(false)}
+          onConfirmar={async () => {
+            setError(null);
+            try {
+              await actualizarFicha(studentId, { activo: false });
+              setEst((p) => (p ? { ...p, activo: false } : p));
+              setConfirmandoRetiro(false);
+            } catch (e) {
+              setError((e as Error).message);
+            }
+          }}
+        />
+      )}
+
+      {registrandoLlamada && numeroLlamado && (
+        <ModalRegistrarLlamada
+          numero={numeroLlamado}
+          onCerrar={() => setRegistrandoLlamada(false)}
+          onGuardar={async (motivoContacto, resultado, observacion) => {
+            setError(null);
+            try {
+              await registrarContacto({
+                studentId,
+                grado: est.gradoActual,
+                sede: est.sede,
+                fecha: toDateKey(new Date()),
+                motivoContacto,
+                telefonoUsado: numeroLlamado,
+                resultado,
+                observacion,
+              });
+              setRegistrandoLlamada(false);
+              setNumeroLlamado(null);
+            } catch (e) {
+              setError((e as Error).message);
+            }
+          }}
+        />
+      )}
 
       {verQr && <ModalQr estudiante={est} onCerrar={() => setVerQr(false)} />}
 
@@ -565,6 +729,132 @@ function ModalContacto({
               telefonos.map((t) => t.trim()).filter(Boolean),
             )
           }
+          className="rounded-lg bg-accent px-3 py-1.5 text-sm text-accent-fg"
+        >
+          Guardar
+        </button>
+        <button onClick={onCerrar} className="rounded-lg border border-line px-3 py-1.5 text-sm text-strong">
+          Cancelar
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Confirmacion de retiro. No es un `window.confirm`: la decision borra al estudiante de
+ * planillas y conteos de un click, y necesita explicar en el momento — no despues del
+ * click — que no se pierde nada y que se puede deshacer.
+ */
+function ModalConfirmarRetiro({
+  estudiante,
+  onCerrar,
+  onConfirmar,
+}: {
+  estudiante: Student;
+  onCerrar: () => void;
+  onConfirmar: () => Promise<void>;
+}) {
+  return (
+    <Modal onCerrar={onCerrar}>
+      <h3 className="text-sm font-semibold text-strong">
+        ¿Marcar a {nombreCompleto(estudiante)} como retirado?
+      </h3>
+      <ul className="mt-2 space-y-1 text-sm text-soft">
+        <li>No se borra nada: la ficha y su historial de sesiones quedan intactos.</li>
+        <li>Desaparece de las planillas y de los conteos de asistencia.</li>
+        <li>Se puede reintegrar en cualquier momento desde esta misma ficha.</li>
+      </ul>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={() => void onConfirmar()}
+          className="rounded-lg border border-danger-soft bg-danger-soft px-3 py-1.5 text-sm text-danger-soft-fg"
+        >
+          Marcar como retirado
+        </button>
+        <button onClick={onCerrar} className="rounded-lg border border-line px-3 py-1.5 text-sm text-strong">
+          Cancelar
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Deja constancia de una llamada YA hecha (el boton de "Llamar" ya se pulso antes de
+ * llegar aqui). No sugiere un resultado por defecto: que contesten o no, y el motivo,
+ * los decide quien llamo, no la pantalla.
+ */
+function ModalRegistrarLlamada({
+  numero,
+  onCerrar,
+  onGuardar,
+}: {
+  numero: string;
+  onCerrar: () => void;
+  onGuardar: (
+    motivoContacto: ContactReason,
+    resultado: 'contesto' | 'no_contesto' | 'pendiente',
+    observacion: string,
+  ) => Promise<void>;
+}) {
+  const [motivo, setMotivo] = useState<ContactReason>('inasistencia_dia');
+  const [resultado, setResultado] = useState<'contesto' | 'no_contesto' | 'pendiente'>('contesto');
+  const [observacion, setObservacion] = useState('');
+
+  return (
+    <Modal onCerrar={onCerrar}>
+      <h3 className="text-sm font-semibold text-strong">Registrar llamada</h3>
+      <p className="mb-2 text-xs text-muted">Número marcado: {numero}</p>
+
+      <label className="block text-xs text-muted">Resultado</label>
+      <div className="mb-2 flex flex-wrap gap-1.5">
+        {(
+          [
+            ['contesto', 'Contestó'],
+            ['no_contesto', 'No contestó'],
+            ['pendiente', 'Pendiente'],
+          ] as const
+        ).map(([valor, etiqueta]) => (
+          <button
+            key={valor}
+            onClick={() => setResultado(valor)}
+            className={`min-h-9 rounded-lg border px-3 py-1.5 text-sm ${
+              resultado === valor
+                ? 'border-accent bg-accent text-accent-fg'
+                : 'border-line text-strong'
+            }`}
+          >
+            {etiqueta}
+          </button>
+        ))}
+      </div>
+
+      <label className="block text-xs text-muted">Motivo</label>
+      <select
+        value={motivo}
+        onChange={(e) => setMotivo(e.target.value as ContactReason)}
+        className="mb-2 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm"
+      >
+        {Object.entries(ETIQUETAS_MOTIVO).map(([valor, etiqueta]) => (
+          <option key={valor} value={valor}>
+            {etiqueta}
+          </option>
+        ))}
+      </select>
+
+      <label className="block text-xs text-muted">Observación</label>
+      <textarea
+        value={observacion}
+        onChange={(e) => setObservacion(e.target.value)}
+        rows={3}
+        placeholder="Qué informó la familia, o por qué quedó pendiente…"
+        className="mb-2 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm"
+      />
+
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={() => void onGuardar(motivo, resultado, observacion.trim())}
           className="rounded-lg bg-accent px-3 py-1.5 text-sm text-accent-fg"
         >
           Guardar

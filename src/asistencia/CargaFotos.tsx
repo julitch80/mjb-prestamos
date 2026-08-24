@@ -13,7 +13,11 @@ import { nombreCompleto } from './domain/nombres';
 import type { Student } from './domain/types';
 
 /**
- * Carga masiva de fotografías — pantalla del superusuario.
+ * Carga masiva de fotografías.
+ *
+ * La ve el superusuario sin restricción, y también el director de grupo y el
+ * coordinador — a ambos, `index.tsx` les pasa `gradosPermitidos` porque las reglas de
+ * Storage (`asisPuedeEditarFotoDe`) solo les dejan escribir la foto de SU grado.
  *
  * El insumo real es una carpeta con una subcarpeta por grupo (`10_1`, `11_2`…) y dentro
  * archivos `Apellidos_Nombres.jpg`. La rejilla de confirmación es el corazón de la
@@ -21,7 +25,22 @@ import type { Student } from './domain/types';
  * sería confiar a ciegas en un emparejamiento de texto sobre datos de menores, y un
  * homónimo mal resuelto deja la foto de otro estudiante como control de identidad.
  */
-export default function CargaFotos() {
+export default function CargaFotos({
+  gradosPermitidos,
+}: {
+  /**
+   * Grados de los que esta cuenta puede subir fotos. `undefined` = sin restricción (el
+   * superusuario). El director y el coordinador la traen calculada desde `index.tsx`
+   * (mapa `directores` y `cruces`, respectivamente) — aquí solo se aplica, nunca se
+   * decide, porque la autoridad real de verdad es el espejo `asistenciaConfig/directores`
+   * que evalúa `asisPuedeEditarFotoDe` en las reglas de Storage.
+   *
+   * Se avisa ANTES de subir, en la propia rejilla: descubrir la carpeta rechazada en el
+   * archivo 40 de 60 sería inútil, y además dejaría una subida a medias sin que la
+   * persona entienda por qué se detuvo ahí.
+   */
+  gradosPermitidos?: string[];
+}) {
   const [archivos, setArchivos] = useState<ArchivoFoto[]>([]);
   const [estudiantesPorGrado, setEstudiantesPorGrado] = useState<Record<string, Student[]>>({});
   const [cargandoGrupos, setCargandoGrupos] = useState(false);
@@ -101,13 +120,20 @@ export default function CargaFotos() {
 
     setArchivos(nuevos);
 
-    const grados = [
+    const gradosDetectados = [
       ...new Set(
         nuevos
           .map((a) => gradoDeCarpeta(a.rutaRelativa.split('/')[0] ?? ''))
           .filter((g): g is string => g !== null),
       ),
     ];
+
+    // Solo se piden los estudiantes de los grados con permiso. Pedir tambien los de
+    // fuera no serviria para nada (esas carpetas no se van a subir) y podria hacer
+    // fallar la consulta entera si la regla de matriculas tambien acota por grado.
+    const grados = gradosPermitidos
+      ? gradosDetectados.filter((g) => gradosPermitidos.includes(g))
+      : gradosDetectados;
 
     setCargandoGrupos(true);
     try {
@@ -136,10 +162,16 @@ export default function CargaFotos() {
     return { grupos: [...mapa.entries()].sort((a, b) => a[0].localeCompare(b[0])), sinGrado };
   }, [emparejamientos]);
 
-  /** Qué se va a subir de verdad: lo emparejado sin excluir, más lo elegido a mano. */
+  /** Un grado sin `gradosPermitidos` (superusuario) siempre tiene permiso. */
+  const tienePermiso = (grado: string | null) =>
+    !gradosPermitidos || (grado !== null && gradosPermitidos.includes(grado));
+
+  /** Qué se va a subir de verdad: lo emparejado sin excluir, más lo elegido a mano. Nunca
+   *  incluye archivos de un grado sin permiso, aunque el emparejamiento fuera perfecto. */
   const paraSubir = useMemo(() => {
     const lista: { key: string; studentId: string; archivo: ArchivoFoto; nombre: string }[] = [];
     for (const m of emparejamientos) {
+      if (!tienePermiso(m.grado)) continue;
       const key = m.archivo.rutaRelativa;
       if (m.estado === 'emparejado' && !excluidos.has(key)) {
         lista.push({
@@ -160,7 +192,7 @@ export default function CargaFotos() {
       }
     }
     return lista;
-  }, [emparejamientos, excluidos, decisiones, estudiantesPorGrado]);
+  }, [emparejamientos, excluidos, decisiones, estudiantesPorGrado, gradosPermitidos]);
 
   const faltantesPorGrado = useMemo(() => {
     if (Object.keys(estudiantesPorGrado).length === 0) return [];
@@ -261,26 +293,33 @@ export default function CargaFotos() {
             onReintentar={reintentarFallidos}
           />
 
-          {porGrado.grupos.map(([grado, items]) => (
-            <GrupoFotos
-              key={grado}
-              grado={grado}
-              items={items}
-              urls={urlsRef.current}
-              decisiones={decisiones}
-              excluidos={excluidos}
-              candidatosGrupo={estudiantesPorGrado[grado] ?? []}
-              onExcluir={(key, excluir) =>
-                setExcluidos((prev) => {
-                  const s = new Set(prev);
-                  if (excluir) s.add(key);
-                  else s.delete(key);
-                  return s;
-                })
-              }
-              onElegir={(key, studentId) => setDecisiones((prev) => ({ ...prev, [key]: studentId }))}
-            />
-          ))}
+          {porGrado.grupos.map(([grado, items]) =>
+            gradosPermitidos && !gradosPermitidos.includes(grado) ? (
+              // Se avisa ANTES de subir, no al fallar la subida numero 40: esta carpeta
+              // ni siquiera intenta emparejarse contra estudiantes (no se pidieron), asi
+              // que tampoco tiene sentido ofrecer el desplegable de "elegir a mano".
+              <GrupoSinPermiso key={grado} grado={grado} cantidad={items.length} />
+            ) : (
+              <GrupoFotos
+                key={grado}
+                grado={grado}
+                items={items}
+                urls={urlsRef.current}
+                decisiones={decisiones}
+                excluidos={excluidos}
+                candidatosGrupo={estudiantesPorGrado[grado] ?? []}
+                onExcluir={(key, excluir) =>
+                  setExcluidos((prev) => {
+                    const s = new Set(prev);
+                    if (excluir) s.add(key);
+                    else s.delete(key);
+                    return s;
+                  })
+                }
+                onElegir={(key, studentId) => setDecisiones((prev) => ({ ...prev, [key]: studentId }))}
+              />
+            ),
+          )}
 
           {porGrado.sinGrado.length > 0 && (
             <section className="rounded-xl border border-warning-soft bg-warning-soft p-3">
@@ -516,6 +555,26 @@ function GrupoFotos({
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * Aviso de una carpeta fuera de `gradosPermitidos`. Reemplaza a `GrupoFotos` entero para
+ * este grado: no se ofrece ni la rejilla ni el desplegable de "elegir a mano", porque de
+ * todos modos la subida se va a rechazar — y ofrecer el control es prometer algo que el
+ * servidor no va a cumplir.
+ */
+function GrupoSinPermiso({ grado, cantidad }: { grado: string; cantidad: number }) {
+  return (
+    <section className="rounded-xl border border-danger-soft bg-danger-soft p-3">
+      <h3 className="text-sm font-semibold text-danger-soft-fg">
+        {grado} — sin permiso para este grupo ({cantidad} {cantidad === 1 ? 'foto' : 'fotos'})
+      </h3>
+      <p className="mt-1 text-xs text-danger-soft-fg">
+        Esta carpeta no se va a subir: usted no tiene permiso de fotografía para este
+        grupo. Si cree que sí le corresponde, avise a coordinación.
+      </p>
     </section>
   );
 }
