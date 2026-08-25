@@ -57,6 +57,12 @@ export interface HojaCentro {
    * pide SIEMPRE el correo, porque el archivo no lo trae; esto solo es la pista.
    */
   lider: string;
+  /**
+   * Correo del lider si el titulo lo traia. El archivo original NO lo trae; el depurado
+   * si. Vacio = la pantalla lo pide, porque es lo unico con lo que las reglas pueden
+   * dejar entrar a alguien a su propio centro.
+   */
+  correoLider: string;
   /** Indice (base 0) de la fila de encabezados dentro de la matriz. */
   filaEncabezados: number;
   filas: FilaCentro[];
@@ -203,27 +209,45 @@ function limpiarNombreCentro(bruto: string): string {
  * (`La chispa adecuada - Electricidad en el hogar - Uriel López`) y el ultimo es el unico
  * que separa siempre.
  */
-export function separarTituloYLider(titulo: string): { centro: string; lider: string } {
-  const t = (titulo ?? '').replace(/\s+/g, ' ').trim();
-  if (!t) return { centro: '', lider: '' };
+export function separarTituloYLider(
+  titulo: string,
+): { centro: string; lider: string; correoLider: string } {
+  const crudo = (titulo ?? '').replace(/\s+/g, ' ').trim();
+  if (!crudo) return { centro: '', lider: '', correoLider: '' };
 
-  const conParentesis = t.match(/^(.*?)[\s\-–—]*\(([^()]*)\)\s*$/);
-  if (conParentesis && pareceNombreDePersona(conParentesis[2])) {
+  // El correo se saca ANTES de partir el titulo, y se quita del texto.
+  //
+  // El archivo original no trae correos —solo nombres, y a veces ni eso—, pero el que se
+  // genera depurado si, porque el correo es lo unico con lo que las reglas pueden dejar
+  // entrar a alguien a su propio centro. Si no se extrajera aqui, el correo quedaria
+  // pegado al NOMBRE DEL CENTRO ('Vibe Coding - juancarlosbv@...'), y de ahi sale el
+  // `grupoId`: cambiaria la identidad del centro y reimportar crearia uno nuevo en vez
+  // de actualizar el que ya existe.
+  const correoLider = (crudo.match(/[\w.+-]+@[\w-]+\.[\w.-]+/) ?? [''])[0].toLowerCase();
+  const t = correoLider
+    ? crudo.replace(correoLider, '').replace(/[<>()]/g, ' ').replace(/\s+/g, ' ').trim()
+        .replace(/[\s\-–—.,;:]+$/, '')
+    : crudo;
+  if (!t) return { centro: '', lider: '', correoLider };
+
+  const conParen = t.match(/^(.*?)[\s\-–—]*\(([^()]*)\)\s*$/);
+  if (conParen && pareceNombreDePersona(conParen[2])) {
     return {
-      centro: limpiarNombreCentro(conParentesis[1]),
-      lider: conParentesis[2].replace(/\s+/g, ' ').trim(),
+      centro: limpiarNombreCentro(conParen[1]),
+      lider: conParen[2].replace(/\s+/g, ' ').trim(),
+      correoLider,
     };
   }
-
-  const corte = Math.max(t.lastIndexOf('-'), t.lastIndexOf('–'), t.lastIndexOf('—'));
-  if (corte > 0) {
-    const cola = t.slice(corte + 1).trim();
-    if (pareceNombreDePersona(cola)) {
-      return { centro: limpiarNombreCentro(t.slice(0, corte)), lider: cola };
+  {
+    const corte = Math.max(t.lastIndexOf('-'), t.lastIndexOf('–'), t.lastIndexOf('—'));
+    if (corte > 0) {
+      const cola = t.slice(corte + 1).trim();
+      if (pareceNombreDePersona(cola)) {
+        return { centro: limpiarNombreCentro(t.slice(0, corte)), lider: cola, correoLider };
+      }
     }
   }
-
-  return { centro: limpiarNombreCentro(t), lider: '' };
+  return { centro: limpiarNombreCentro(t), lider: '', correoLider };
 }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +301,7 @@ export function leerHojaCentro(hoja: HojaCruda): HojaCentro | HojaOmitida {
     );
   }
 
-  const { centro, lider } = separarTituloYLider(titulo);
+  const { centro, lider, correoLider } = separarTituloYLider(titulo);
   if (!centro) {
     return {
       hoja: hoja.nombre,
@@ -319,7 +343,10 @@ export function leerHojaCentro(hoja: HojaCruda): HojaCentro | HojaOmitida {
     return { hoja: hoja.nombre, motivo: 'La hoja no tiene ninguna fila con nombre.' };
   }
 
-  return { hoja: hoja.nombre, titulo, centro, lider, filaEncabezados, filas, avisos, tituloDeLaHoja };
+  return {
+    hoja: hoja.nombre, titulo, centro, lider, correoLider,
+    filaEncabezados, filas, avisos, tituloDeLaHoja,
+  };
 }
 
 function esOmitida(x: HojaCentro | HojaOmitida): x is HojaOmitida {

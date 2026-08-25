@@ -53,7 +53,11 @@ import { DECISIONES_MANANA, DECISIONES_TARDE } from './domain/decisiones-centros
 interface ConfigCentro {
   /** Nombre del centro. Editable: los titulos reales traen comillas sueltas y erratas. */
   centro: string;
-  /** Correo del lider. El archivo trae el NOMBRE, nunca el correo: hay que pedirlo. */
+  /**
+   * Correo del lider. El archivo ORIGINAL trae el nombre y nunca el correo, asi que hay
+   * que pedirlo; el archivo DEPURADO si lo trae en el titulo, y entonces llega relleno.
+   * Editable siempre: quien manda es lo que quede en esta casilla, no lo del archivo.
+   */
   correoLider: string;
 }
 
@@ -189,7 +193,9 @@ export default function ImportarCentros({
       setNombreArchivo(f.name);
       setHojas(leido.hojas);
       setOmitidas(leido.hojasOmitidas);
-      setConfig(leido.hojas.map((h) => ({ centro: h.centro, correoLider: '' })));
+      // Se rellena con el correo del titulo si venia. Sin esto, un archivo depurado que
+      // SI trae los 21 correos obligaria a escribirlos otra vez a mano, uno por uno.
+      setConfig(leido.hojas.map((h) => ({ centro: h.centro, correoLider: h.correoLider ?? '' })));
       if (leido.jornadaSugerida) setJornada(leido.jornadaSugerida);
     } catch (e) {
       limpiarArchivo();
