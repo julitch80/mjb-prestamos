@@ -704,6 +704,25 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/asistenciaProgramas/$(programaId)).data;
     }
 
+    // QUIEN PUEDE CREAR UN PROGRAMA NUEVO, ademas del superusuario y la coordinacion de
+    // sede. Requisito explicito de Julian (2026-08-25): la lider del proyecto de centros
+    // de interes tiene rol de docente y `asistenciaConsulta`, y aun asi debe poder crear
+    // el programa del semestre siguiente sin depender de la cuenta de administracion.
+    //
+    // NO se resuelve con "quien ya coordina algun programa": eso obligaria a recorrer
+    // todos los programas y no es demostrable en una regla. Se resuelve con una lista
+    // explicita en `asistenciaConfig/programas`, que solo escribe el superusuario.
+    //
+    // `exists()` antes del `get()`, y `get('creadores', [])` y no `.creadores`: hoy ese
+    // documento NO existe todavia, y si existiera sin el campo, acceder directo LANZARIA
+    // error — y un error en una regla es una denegacion. Es la misma trampa que tumbo la
+    // asistencia de todo el colegio con `asistenciaConsulta`.
+    function asisCreadoresDePrograma() {
+      return exists(/databases/$(database)/documents/asistenciaConfig/programas)
+        ? get(/databases/$(database)/documents/asistenciaConfig/programas).data.get('creadores', [])
+        : [];
+    }
+
     // COORDINADOR DE PROGRAMA: quien esta en `coordinadores` del documento del programa.
     // Manda sobre TODOS sus grupos, sesiones y pendientes.
     //
@@ -748,7 +767,14 @@ service cloud.firestore {
       // inicial). Se exige que quien lo crea quede DENTRO de `coordinadores`, por la misma
       // razon que en los eventos: para que no pueda fabricar un programa que nadie -- ni el
       // mismo -- pueda coordinar despues.
-      allow create: if (isSuper() || asisCoordinaSede(request.resource.data.sede))
+      // Tres puertas, no dos: superusuario, coordinacion de la sede, y quien este en la
+      // lista de `asistenciaConfig/programas` (ver `asisCreadoresDePrograma`). La tercera
+      // es la que le permite a la lider del proyecto arrancar el semestre siguiente.
+      allow create: if (
+          isSuper()
+          || asisCoordinaSede(request.resource.data.sede)
+          || callerEmail() in asisCreadoresDePrograma()
+        )
         && request.resource.data.creadoPor == callerEmail()
         && callerEmail() in request.resource.data.coordinadores
         && request.resource.data.tipo is string

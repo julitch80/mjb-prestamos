@@ -11,6 +11,7 @@ const ImportarCentros = lazy(() => import('./ImportarCentros'));
 import {
   crearGrupoPrograma,
   crearPrograma,
+  leerCreadoresDeProgramas,
   editarGrupoPrograma,
   editarPrograma,
   leerMisGruposDePrograma,
@@ -58,7 +59,9 @@ export default function Programas({
   /** Si se ofrece marcar asistencia. NO decide quien crea un programa: ver abajo. */
   puedeRegistrar: boolean;
   /**
-   * Quien puede crear el PRIMER programa: el superusuario o un coordinador de sede.
+   * Quien puede crear un programa: el superusuario, un coordinador de sede, o quien este
+   * en `asistenciaConfig/programas` (la lider del proyecto). Esta prop cubre los dos
+   * primeros; el tercero lo resuelve la propia pantalla leyendo la lista.
    *
    * NO es `puedeRegistrar`, y confundirlos dejo el modulo muerto el 2026-08-25: el
    * superusuario no registra asistencia, asi que `puedeRegistrar` es falso para el, y el
@@ -79,6 +82,14 @@ export default function Programas({
   const [abierto, setAbierto] = useState<Programa | null>(null);
   const [creando, setCreando] = useState(false);
   const [editando, setEditando] = useState<Programa | null>(null);
+  const [creadores, setCreadores] = useState<string[]>([]);
+
+  /**
+   * El permiso final es el de la regla: rol O lista. Se lee aparte porque `rol` viene del
+   * store y la lista vive en Firestore; juntarlos aqui es lo que evita el desajuste que
+   * dejo el modulo muerto el 2026-08-25 (boton con una condicion, regla con otra).
+   */
+  const puedeCrear = puedeCrearPrograma || creadores.includes((miCorreo ?? '').toLowerCase());
 
   async function cargar() {
     setError(null);
@@ -96,6 +107,10 @@ export default function Programas({
   useEffect(() => {
     void cargar();
     void correoAutorAsync().then(setMiCorreo);
+    // Si la lista no se puede leer no se rompe nada: se cae al permiso por rol, que es
+    // el restrictivo. Fallar hacia "no ofrezco el boton" muestra de menos; fallar hacia
+    // el otro lado ofrece un boton que la regla rechaza.
+    void leerCreadoresDeProgramas().then(setCreadores).catch(() => setCreadores([]));
   }, []);
 
   const coordinaAlguno = useMemo(
@@ -126,7 +141,7 @@ export default function Programas({
         {/* Mismo criterio que la regla: superusuario o coordinador de sede. Quien lo crea
             queda dentro de `coordinadores` (lo exige la propia regla), si no nacería
             huérfano y nadie podría volver a tocarlo. */}
-        {puedeCrearPrograma && (
+        {puedeCrear && (
           <button
             onClick={() => setCreando(true)}
             className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
@@ -157,7 +172,7 @@ export default function Programas({
         <div className="rounded-xl border border-line bg-card p-4 text-center">
           <p className="text-sm text-strong">Todavía no hay ningún programa.</p>
           <p className="mt-1 text-xs text-muted">
-            {puedeCrearPrograma
+            {puedeCrear
               ? 'Cree el programa del semestre y luego agregue dentro cada centro de interés con su líder.'
               : 'Aquí aparecerán los centros de interés en cuanto la coordinación cree el programa del semestre y le asigne el suyo.'}
           </p>
@@ -709,6 +724,18 @@ function FormularioPrograma({
       <p className="mt-1 text-xs text-muted">
         Quien coordina ve y administra los centros del programa entero, sin tener que
         estar agregado en cada uno. Usted queda siempre dentro de la lista.
+      </p>
+      {/*
+        Aviso deliberado. La coordinación del programa SÍ puede leer las planillas de sus
+        centros, y eso es correcto para quien lo administra. Pero el superusuario es una
+        cuenta de administración con clave transferible: en el resto del módulo no lee
+        ninguna planilla, a propósito. Si crea el programa y se queda dentro, se abre una
+        excepción a esa regla sin que nadie lo haya decidido.
+      */}
+      <p className="mt-1 text-xs text-warning-soft-fg">
+        Si está creando esto desde la cuenta de administración: cuando termine de cargar
+        las listas, edite el programa y quite su correo, dejando el de quien lidera. La
+        coordinación puede leer las planillas de sus centros, y esa cuenta no debería.
       </p>
 
       <label className="mt-3 flex items-start gap-2 text-sm text-strong">

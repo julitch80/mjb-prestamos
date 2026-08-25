@@ -1291,6 +1291,34 @@ function normalizarCorreos(correos: string[]): string[] {
  * indice, y un indice que falta no devuelve vacio: revienta con un error que parece de
  * permisos (ya nos costo una tarde con `buscarPorQrToken`).
  */
+/**
+ * Correos que pueden CREAR un programa nuevo, ademas del superusuario y la coordinacion
+ * de sede. Espejo de `asisCreadoresDePrograma()` en las reglas.
+ *
+ * Existe para que la lider del proyecto (Yuri) arranque el semestre siguiente sin
+ * depender del superusuario. La lista la escribe solo el superusuario; leerla la puede
+ * cualquiera, para saber si ofrecer el boton o no.
+ */
+export async function leerCreadoresDeProgramas(): Promise<string[]> {
+  await listo();
+  const snap = await getDoc(doc(baseDatos(), 'asistenciaConfig', 'programas'));
+  if (!snap.exists()) return [];
+  const v = (snap.data() as { creadores?: unknown }).creadores;
+  return Array.isArray(v) ? v.map((x) => String(x).toLowerCase()) : [];
+}
+
+/**
+ * Reemplaza la lista completa. Aqui `setDoc` SI es correcto —al contrario que en las
+ * planillas— porque el documento tiene un solo campo, lo escribe una sola persona y la
+ * operacion es justamente "esta es la lista ahora". No hay trabajo simultaneo que perder.
+ */
+export async function guardarCreadoresDeProgramas(correos: string[]): Promise<void> {
+  await exigirAutor();
+  await setDoc(doc(baseDatos(), 'asistenciaConfig', 'programas'), {
+    creadores: correos.map((c) => c.trim().toLowerCase()).filter(Boolean),
+  });
+}
+
 export async function leerProgramasVisibles(incluirInactivos = false): Promise<Programa[]> {
   if (!(await listo())) return [];
   const correo = await exigirAutor();

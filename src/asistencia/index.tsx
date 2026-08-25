@@ -55,6 +55,8 @@ import {
   marcarEstudiante,
   type AlcanceLectura,
   type ResumenBorradoCruce,
+  leerCreadoresDeProgramas,
+  guardarCreadoresDeProgramas,
 } from './datos';
 import type { NuevoEstudianteInput } from './Planilla';
 import { toDateKey } from './domain/ids';
@@ -592,8 +594,26 @@ export default function Asistencia() {
         <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando importación…</p>}>
           <Importar />
         </Suspense>
+        {/*
+          CENTROS DE INTERES AQUI, y no en las pestañas.
+          El superusuario NUNCA llega a la barra de pestañas: el `return` de arriba corta
+          antes. Por eso el 2026-08-25 nadie pudo crear el primer programa — el único a
+          quien la regla se lo permitía era el único sin pantalla para hacerlo. Este panel
+          es el sitio que le corresponde: existe para sembrar los datos base (estudiantes,
+          fotos), y crear el programa del semestre y subir las 21 listas es lo mismo, dos
+          veces al año.
+
+          Después de sembrarlo el superusuario desaparece de la operación: la coordinación
+          del programa administra y cada líder pasa su lista.
+        */}
+        <Suspense
+          fallback={<p className="p-3 text-sm text-muted">Cargando centros de interés…</p>}
+        >
+          <Programas puedeRegistrar={false} puedeCrearPrograma />
+        </Suspense>
         <BuscadorFichas sede={sede} onAbrir={setFichaAbierta} />
         <DiagnosticoPermisos />
+        <CreadoresDeProgramas />
         <CargaFotos />
         <LimpiezaPlanillas />
       </div>
@@ -1056,6 +1076,82 @@ function BuscadorFichas({
  * que poder borrar son justo los códigos escritos a mano en las pruebas, que nunca
  * estuvieron en el catálogo cerrado de asignaturas.
  */
+/**
+ * Quien puede crear programas de centros de interes, aparte del superusuario.
+ *
+ * Existe para que la lider del proyecto (Yuri) arranque el semestre siguiente sin
+ * depender de esta cuenta. Se hace desde aqui y no desde la consola de Firebase a
+ * proposito: cada cosa que solo se puede hacer en la consola es una cosa que Julian tiene
+ * que pedirle a alguien o buscar como se hacia.
+ *
+ * Escribe `asistenciaConfig/programas`, el mismo documento que leen las reglas.
+ */
+function CreadoresDeProgramas() {
+  const [texto, setTexto] = useState('');
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void leerCreadoresDeProgramas()
+      .then((c) => setTexto(c.join(', ')))
+      .catch((e) => setError(`No fue posible leer la lista. (${(e as Error).message})`))
+      .finally(() => setCargando(false));
+  }, []);
+
+  async function guardar() {
+    setGuardando(true);
+    setAviso(null);
+    setError(null);
+    try {
+      const correos = texto.split(',').map((c) => c.trim()).filter(Boolean);
+      await guardarCreadoresDeProgramas(correos);
+      setAviso(
+        correos.length === 0
+          ? 'Lista vacía: solo usted y la coordinación de sede pueden crear programas.'
+          : `Guardado. ${correos.length === 1 ? 'Esa persona podrá' : 'Esas personas podrán'} crear programas de centros de interés.`,
+      );
+    } catch (e) {
+      setError(`No se pudo guardar. (${(e as Error).message})`);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-line bg-card p-3">
+      <h3 className="text-sm font-semibold text-strong">Quién puede crear centros de interés</h3>
+      <p className="mt-0.5 text-xs text-muted">
+        Además de usted. Quien esté aquí puede crear el programa de un semestre nuevo y
+        subir las listas, sin tener que pedírselo a esta cuenta.
+      </p>
+      {cargando ? (
+        <p className="mt-2 text-sm text-muted">Cargando…</p>
+      ) : (
+        <>
+          <input
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="yuri.gomez@iemanueljbetancur.edu.co"
+            className="mt-2 block w-full rounded-lg border border-line bg-elevated px-2 py-2 text-base text-strong"
+          />
+          <p className="mt-1 text-xs text-muted">Correos separados por coma.</p>
+          <button
+            onClick={() => void guardar()}
+            disabled={guardando}
+            className="mt-2 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg disabled:opacity-50"
+          >
+            {guardando ? 'Guardando…' : 'Guardar'}
+          </button>
+        </>
+      )}
+      {aviso && <p className="mt-2 text-xs text-info-soft-fg">{aviso}</p>}
+      {error && <p className="mt-2 text-xs text-danger-soft-fg">{error}</p>}
+    </div>
+  );
+}
+
 function LimpiezaPlanillas() {
   const [grado, setGrado] = useState('');
   const [asignatura, setAsignatura] = useState('');
