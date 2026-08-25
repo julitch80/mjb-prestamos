@@ -24,6 +24,12 @@ const Importar = lazy(() => import('./Importar'));
  * ese peso de forma estatica lo pagaria tambien el docente que solo pasa lista.
  */
 const DireccionGrupo = lazy(() => import('./DireccionGrupo'));
+/**
+ * Centros de interes. Va con lazy() como Importar y DireccionGrupo: por dentro arrastra
+ * la carga desde Excel, y con ella exceljs, que no tiene por que pesar en el arranque de
+ * quien solo va a pasar lista.
+ */
+const Programas = lazy(() => import('./Programas'));
 import CargaFotos from './CargaFotos';
 import DiagnosticoPermisos from './DiagnosticoPermisos';
 import Ficha from './Ficha';
@@ -71,7 +77,7 @@ import type { StudentMark } from './domain/types';
  * hasta aqui (coordinador o docente) porque cualquier docente puede crear un evento; las
  * otras tres pestanas quedan filtradas por rol dentro de `Pestanas`.
  */
-type VistaAsistencia = 'planilla' | 'tercera_hora' | 'llegadas' | 'eventos';
+type VistaAsistencia = 'planilla' | 'tercera_hora' | 'llegadas' | 'eventos' | 'programas';
 
 /**
  * Componente raiz del modulo de asistencia. ESTE es el punto de pegado.
@@ -633,6 +639,22 @@ export default function Asistencia() {
 
   // Eventos es para cualquier docente, no solo coordinacion: por eso NO va detras de un
   // `rol === 'coordinador'` como las dos pestanas anteriores.
+  if (vista === 'programas') {
+    return (
+      <div className="space-y-3">
+        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
+        {/* La autoridad la resuelve la propia pantalla leyendo `coordinadores` del
+            programa: el lider ve su centro y nada mas, la coordinacion ve los veintiuno.
+            `puedeRegistrar` solo decide si se ofrece marcar asistencia, igual que en
+            Eventos — y NO es lo mismo que coordinar: Yuri tiene `asistenciaConsulta` y
+            aun asi coordina el programa. */}
+        <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando centros de interés…</p>}>
+          <Programas puedeRegistrar={puedeRegistrar} />
+        </Suspense>
+      </div>
+    );
+  }
+
   if (vista === 'eventos') {
     return (
       <div className="space-y-3">
@@ -1323,7 +1345,7 @@ function MenuBloque({
   );
 }
 
-/** Las cuatro secciones del modulo, con la ayuda que aparece al pasar el raton. */
+/** Las secciones del modulo, con la ayuda que aparece al pasar el raton. */
 const SECCIONES: {
   vista: VistaAsistencia;
   nombre: string;
@@ -1354,6 +1376,12 @@ const SECCIONES: {
     nombre: 'Eventos',
     descripcion:
       'Aquí puede crear grupos personalizados de asistencia para una actividad particular: una feria, una salida, un centro de interés. Se arma con los estudiantes que quiera, se comparte con otros docentes y lleva su propia planilla.',
+  },
+  {
+    vista: 'programas',
+    nombre: 'Centros de interés',
+    descripcion:
+      'Los centros de interés del semestre. Cada profesor entra a la planilla del suyo; la coordinación del programa los ve todos, carga las listas desde Excel y resuelve los casos que no cruzaron.',
   },
 ];
 

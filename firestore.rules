@@ -161,15 +161,6 @@ service cloud.firestore {
     //  este a la vez, o divergen sin que nadie lo note.
     // =========================================================================
 
-    // =========================================================================
-    //  BLOQUE DE REGLAS DEL MODULO DE ASISTENCIA
-    //
-    //  Integrado desde el repo de asistencia (rules/asistencia.rules). Se pega
-    //  aqui porque Firestore admite un solo archivo de reglas por proyecto.
-    //  ESTE archivo es el que se despliega: no editar el fragmento de alla y
-    //  este a la vez, o divergen sin que nadie lo note.
-    // =========================================================================
-
     // =============================================================================
     //  BLOQUE DE REGLAS DEL MODULO DE ASISTENCIA
     //  Entregable 2 de la seccion 7 del contrato de integracion.
@@ -689,6 +680,210 @@ service cloud.firestore {
     match /asistenciaImportReviews/{reviewId} {
       allow read: if isSuper();
       allow write: if false;
+    }
+
+    // ---------- Programas: centros de interes y todo lo que se reparte por semestre ----------
+    //
+    // Contrato: `docs/modelo-centros-interes.md` (2026-08-24). Si algo de aqui choca con el,
+    // gana el contrato.
+    //
+    // POR QUE NO SON EVENTOS. Un evento es puntual y su autoridad es la lista `docentes` del
+    // propio documento. Un centro de interes dura un semestre y se agrupa con otros veinte
+    // bajo UNA coordinacion, que manda sobre todos sin que haya que agregarla a cada uno.
+    // Meter a la coordinadora en los `docentes` de cada centro es mas barato y es fragil por
+    // diseno: el dia que alguien cree un centro y no la agregue, ella deja de verlo y nadie
+    // se entera. Por eso la autoridad cuelga del PROGRAMA, que esta en la RUTA.
+    //
+    // LO QUE ESTAS REGLAS NO PUEDEN HACER: `exclusivo` (un estudiante, un solo centro) es una
+    // restriccion de unicidad ENTRE documentos. Verificarla exigiria leer los 21 grupos y
+    // reventaria el tope de get(). Va como validacion del cliente + revision de la
+    // coordinadora, y los choques quedan como pendientes de tipo `duplicado`. Se escribe aqui
+    // para que nadie la busque en las reglas y concluya que falta.
+
+    function asisProgramaDe(programaId) {
+      return get(/databases/$(database)/documents/asistenciaProgramas/$(programaId)).data;
+    }
+
+    // COORDINADOR DE PROGRAMA: quien esta en `coordinadores` del documento del programa.
+    // Manda sobre TODOS sus grupos, sesiones y pendientes.
+    //
+    // /!\ ESTO NO PASA POR `asisCanRecord()`, Y ES CONTRAINTUITIVO A PROPOSITO.
+    // Yuri coordina los centros de interes y tiene `asistenciaConsulta: true` (no registra
+    // asistencia de clase en ningun lado). Si coordinar dependiera de `asisCanRecord()`, la
+    // bandera que le impide marcar una clase le impediria tambien crear grupos, inscribir
+    // estudiantes y resolver pendientes -- que es justo su trabajo. La regla es:
+    //     coordinar el programa  -> NO pasa por asisCanRecord()
+    //     ESCRIBIR una sesion    -> SI pasa por asisCanRecord()
+    // Quien no puede registrar (superusuario, rectora, `asistenciaConsulta:true`) tampoco
+    // escribe sesiones aqui, ni siquiera coordinando. Ver el match de /sesiones.
+    //
+    // `get('coordinadores', [])` y no acceso directo: un campo AUSENTE no devuelve falso,
+    // REVIENTA la evaluacion, y un error en una regla es una denegacion. Es la trampa que ya
+    // dejo al colegio entero sin pasar lista con `callerDoc().asistenciaConsulta != true`.
+    function asisCoordinaPrograma(programaId) {
+      return isActiveUser()
+        && callerEmail() in asisProgramaDe(programaId).get('coordinadores', []);
+    }
+
+    // Lider/docente de un grupo concreto. El grupoId viene en la RUTA, asi que se resuelve
+    // sin mirar ningun campo del documento hijo (ver la nota de demostrabilidad mas abajo).
+    function asisGrupoProgramaDe(programaId, grupoId) {
+      return get(/databases/$(database)/documents/asistenciaProgramas/$(programaId)/grupos/$(grupoId)).data;
+    }
+    function asisEnGrupoPrograma(programaId, grupoId) {
+      return isActiveUser()
+        && callerEmail() in asisGrupoProgramaDe(programaId, grupoId).get('docentes', []);
+    }
+
+    match /asistenciaProgramas/{programaId} {
+
+      // El documento del programa es la cabecera (nombre, fechas, sede, coordinadores): no
+      // lleva datos de menores. Cualquier usuario activo lo lee, porque el lider de un centro
+      // necesita saber las fechas del semestre y la lectura tiene que ser demostrable sin
+      // filtros. Los datos sensibles viven en grupos/sesiones/pendientes, que si estan
+      // cerrados.
+      allow read: if isActiveUser();
+
+      // Crear un programa es un acto de coordinacion de sede (o del superusuario en la carga
+      // inicial). Se exige que quien lo crea quede DENTRO de `coordinadores`, por la misma
+      // razon que en los eventos: para que no pueda fabricar un programa que nadie -- ni el
+      // mismo -- pueda coordinar despues.
+      allow create: if (isSuper() || asisCoordinaSede(request.resource.data.sede))
+        && request.resource.data.creadoPor == callerEmail()
+        && callerEmail() in request.resource.data.coordinadores
+        && request.resource.data.tipo is string
+        && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
+        && request.resource.data.desde <= request.resource.data.hasta
+        && request.resource.data.exclusivo is bool
+        && request.resource.data.activo is bool;
+
+      // Aqui se lee `resource.data.coordinadores` en vez de llamar a asisCoordinaPrograma():
+      // el documento del programa ES este documento, asi que el get() sobraria. Un get()
+      // menos en la cuenta del tope de 10.
+      //
+      // La autoria (`creadoPor`) es inmutable, igual que en asistenciaEvents: documenta un
+      // hecho ocurrido.
+      //
+      // NO se exige que el creador siga en `coordinadores` (eso si se hace en los eventos):
+      // aqui el programa lo suele crear el superusuario en la carga inicial y entregarselo a
+      // la coordinadora, asi que atarlo al creador dejaria a un administrador dentro para
+      // siempre. Lo que si se blinda es que la lista no quede VACIA: un programa sin
+      // coordinacion es un programa que nadie puede volver a tocar — ni sus grupos, ni sus
+      // pendientes — porque toda la autoridad de las subcolecciones cuelga de esta lista.
+      allow update: if isActiveUser()
+        && (isSuper() || (callerEmail() in resource.data.get('coordinadores', [])))
+        && request.resource.data.creadoPor == resource.data.creadoPor
+        && request.resource.data.sede == resource.data.sede
+        && request.resource.data.coordinadores.size() > 0;
+
+      allow delete: if false;   // baja logica con activo:false, como en todo el modulo
+
+      // ---------- Los centros de interes concretos ----------
+      //
+      // Van como SUBCOLECCION y no sueltos por el mismo motivo que las sesiones de un evento:
+      // el `programaId` queda en la RUTA, asi que la regla va a buscar `coordinadores` al
+      // documento padre sin mirar ningun campo del hijo. Sueltos, la regla tendria que leer
+      // `resource.data.programaId`, Firestore exigiria filtrar por ese campo en cada consulta
+      // y aun asi no podria resolver el get() del padre.
+      match /grupos/{grupoId} {
+
+        // /!\ LA FORMA DE ESTA LECTURA ES DELIBERADA, NO ESTILISTICA.
+        //
+        // La primera rama NO mira `resource`: solo la ruta y el documento padre. Por eso la
+        // consulta SIN filtro de la coordinadora es DEMOSTRABLE -- Firestore puede probar de
+        // antemano que todo resultado posible le sera legible, y le devuelve los 21 centros
+        // de un tiron.
+        //
+        // La segunda SI mira `resource`, asi que el docente DEBE consultar con
+        // where('docentes','array-contains', <su correo>). Sin ese filtro Firestore rechaza
+        // la CONSULTA ENTERA con permission-denied, aunque tuviera derecho a cada documento
+        // uno por uno.
+        //
+        // Coste en get(): coordinadora = users + programa (2 documentos). Docente = users y
+        // nada mas, porque el grupo ya viene resuelto en `resource`. Lejos del tope de 10.
+        allow read: if asisCoordinaPrograma(programaId)
+                 || (isActiveUser() && callerEmail() in resource.data.docentes);
+
+        // Crear el centro, editarlo, inscribir y mover estudiantes: SOLO la coordinacion del
+        // programa. No pasa por asisCanRecord() (ver la nota de asisCoordinaPrograma: Yuri).
+        //
+        // Se exige que el lider este tambien en `docentes` para que el grupo no nazca con un
+        // responsable que no puede ni verlo.
+        allow create: if asisCoordinaPrograma(programaId)
+          && request.resource.data.creadoPor == callerEmail()
+          && request.resource.data.lider in request.resource.data.docentes
+          && request.resource.data.miembros is list
+          && request.resource.data.activo is bool;
+
+        // El lider/docente NO edita el grupo: ni `miembros`, ni `docentes`, ni nada. Su
+        // autoridad llega hasta las sesiones. Un centro se inscribe y se rebaraja desde
+        // coordinacion, que es quien ve los 21 a la vez y por tanto la unica que puede
+        // detectar que un estudiante quedo en dos (`exclusivo`).
+        allow update: if asisCoordinaPrograma(programaId)
+          && request.resource.data.creadoPor == resource.data.creadoPor
+          && request.resource.data.lider in request.resource.data.docentes;
+
+        allow delete: if false;   // baja logica con activo:false
+
+        // ---------- La planilla de cada fecha ----------
+        // Identica en forma a la sesion de un evento y calculada con las MISMAS funciones de
+        // domain/eventos.ts. Se escribe con rutas de campo puntuales
+        // (`estudiantes.est_0412.estado`) para no perder el conflicto por estudiante.
+        match /sesiones/{fecha} {
+
+          // Coste en get(): docente = users + grupo (2 documentos; el programa ni se toca,
+          // por cortocircuito del ||). Coordinadora = users + grupo + programa (3).
+          // Tope de Firestore: 10 por evaluacion de documento unico o de consulta. Sobra
+          // margen -- pero se cuenta a mano y se deja escrito porque EL EMULADOR NO APLICA
+          // ESTE LIMITE: pasar en local no prueba nada sobre produccion.
+          allow read: if asisEnGrupoPrograma(programaId, grupoId)
+                   || asisCoordinaPrograma(programaId);
+
+          // /!\ AQUI SI ENTRA asisCanRecord(), y va PRIMERO a proposito.
+          // Es la unica puerta del programa que lo exige: escribir una sesion es registrar
+          // asistencia, y quien no registra en el resto del modulo (superusuario, rectora,
+          // `asistenciaConsulta:true`) tampoco registra aqui -- ni coordinando el programa.
+          // Se reutiliza la funcion, no se reescribe la condicion: el dia que se excluya a un
+          // rol mas, este match tiene que enterarse solo.
+          allow create, update: if asisCanRecord()
+            && (asisEnGrupoPrograma(programaId, grupoId) || asisCoordinaPrograma(programaId))
+            && asisAuthorStamp();
+
+          allow delete: if false;
+        }
+      }
+
+      // ---------- La bandeja de revision ----------
+      //
+      // Lo que la coordinadora resuelve a un clic en vez de recibir en una lista de papel.
+      // Es EXCLUSIVA de la coordinacion del programa: un lider no ve los pendientes, porque
+      // cada uno lleva nombres de estudiantes de TODO el colegio como candidatos.
+      //
+      // Tampoco pasa por asisCanRecord(): resolver un homonimo no es marcar asistencia.
+      match /pendientes/{pendienteId} {
+        allow read: if asisCoordinaPrograma(programaId);
+
+        allow create: if asisCoordinaPrograma(programaId)
+          && request.resource.data.tipo in ['homonimo', 'no_encontrado', 'ortografia', 'duplicado']
+          && request.resource.data.estado == 'pendiente'
+          && request.resource.data.candidatos is list;
+
+        // Resolver: la evidencia del archivo es inmutable (`tipo`, `nombreArchivo`,
+        // `grupoArchivo`), porque es lo que permite auditar la decision despues. Y quien
+        // resuelve firma con su propio correo.
+        //
+        // `get('resueltoPor', '')` sobre request.resource: mientras el pendiente sigue en
+        // `pendiente` el campo NO existe, y leerlo directo reventaria la evaluacion.
+        allow update: if asisCoordinaPrograma(programaId)
+          && request.resource.data.tipo == resource.data.tipo
+          && request.resource.data.nombreArchivo == resource.data.nombreArchivo
+          && request.resource.data.grupoArchivo == resource.data.grupoArchivo
+          && request.resource.data.estado in ['pendiente', 'resuelto', 'descartado']
+          && (request.resource.data.estado == 'pendiente'
+              || request.resource.data.get('resueltoPor', '') == callerEmail());
+
+        allow delete: if false;   // un pendiente se descarta (estado), no se borra: es rastro
+      }
     }
 
 

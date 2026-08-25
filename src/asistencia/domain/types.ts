@@ -354,3 +354,128 @@ export interface DireccionGrupo {
   ultimaEscrituraPor: string;
   ultimaEscrituraEn: number;
 }
+
+// ---------------------------------------------------------------------------
+//  Programas — centros de interes y todo lo que se reparte por semestre (2026-08-24)
+// ---------------------------------------------------------------------------
+//
+// Ver `docs/modelo-centros-interes.md` para el porque de cada decision. En resumen: un
+// centro de interes no es un evento porque se repite un semestre entero, porque su
+// autoridad cuelga de una coordinacion que manda sobre los veintiun centros a la vez, y
+// porque obliga a una regla que el evento no tiene (un estudiante, un solo centro).
+//
+// Ruta: `asistenciaProgramas/{programaId}`
+//       `asistenciaProgramas/{programaId}/grupos/{grupoId}`
+//       `asistenciaProgramas/{programaId}/grupos/{grupoId}/sesiones/{fecha}`
+//       `asistenciaProgramas/{programaId}/pendientes/{pendienteId}`
+//
+// El `programaId` va en la RUTA para que la regla lea `coordinadores` del padre sin
+// mirar ningun campo del hijo: lectura demostrable sin filtros ni indices compuestos.
+
+export type TipoPrograma = 'centros_interes';
+
+export interface Programa {
+  programaId: string;          // slug ASCII estable: 'centros-interes-2026-2'
+  nombre: string;
+  tipo: TipoPrograma;
+  sede: Sede;
+  /** Ausente = el programa cubre las dos jornadas. */
+  jornada?: Jornada;
+  desde: string;               // 'YYYY-MM-DD' inclusivo
+  hasta: string;               // 'YYYY-MM-DD' inclusivo
+  /**
+   * CORREOS en minusculas, nunca `slotId` ni UID — misma razon que `Event.docentes`:
+   * coordinar es un acto entre personas concretas y lo unico que la regla puede
+   * garantizar al escribir es `callerEmail()`.
+   */
+  coordinadores: string[];
+  /** true = un estudiante puede estar en UN solo grupo del programa. */
+  exclusivo: boolean;
+  activo: boolean;
+  creadoPor: string;
+  creadoEn: number;
+}
+
+export interface GrupoPrograma {
+  programaId: string;
+  grupoId: string;             // slug ASCII: 'vibe-coding'
+  nombre: string;
+  /** Correo del responsable. SIEMPRE presente tambien en `docentes`. */
+  lider: string;
+  docentes: string[];
+  /**
+   * FOTO FIJA resuelta al inscribir, igual que `Event.miembros` y por la misma razon:
+   * si fuera una consulta viva, un estudiante inscrito en octubre apareceria
+   * retroactivamente en las sesiones de agosto y la estadistica cambiaria sola.
+   */
+  miembros: string[];
+  /**
+   * studentIds de este centro que ademas estan inscritos en OTRO centro del programa,
+   * pendientes de que la coordinacion decida. Se GUARDA, no se calcula en pantalla.
+   *
+   * Por que persistido: el conflicto solo se puede DETECTAR mirando los 21 centros a la
+   * vez, y eso solo lo ve la coordinacion. Un lider consulta con
+   * where('docentes','array-contains', su correo) y recibe unicamente los suyos: si la
+   * marca se calculara en el cliente, el lider de UN solo centro no veria nada, que es
+   * justo el caso mas comun. La coordinacion lo detecta una vez al importar y lo deja
+   * escrito aqui, donde cualquiera que pueda leer el grupo lo ve.
+   *
+   * Ausente o vacio = ningun conflicto.
+   */
+  enConflicto?: string[];
+  cupo?: number;
+  activo: boolean;
+  creadoPor: string;
+  creadoEn: number;
+}
+
+/**
+ * Identica en forma a `EventSession`: se calcula con las MISMAS funciones de
+ * `domain/eventos.ts`. No se duplica esa logica.
+ */
+export interface SesionPrograma {
+  programaId: string;
+  grupoId: string;
+  fecha: string;               // 'YYYY-MM-DD'
+  estudiantes: Record<string, StudentMark>;
+  ultimaEscrituraPor: string;
+  ultimaEscrituraEn: number;
+}
+
+/**
+ * Por que existe la bandeja: al cruzar los dos archivos reales quedaron 42 casos que el
+ * sistema no puede decidir solo. Mandarlos en una lista de papel convierte en tarea
+ * humana lo que la aplicacion debe resolver a un clic. Cada pendiente llega con sus
+ * candidatos y con la propuesta ya marcada; la coordinadora confirma o corrige.
+ */
+export type TipoPendiente =
+  | 'homonimo'        // varios candidatos posibles
+  | 'no_encontrado'   // ninguno
+  | 'ortografia'      // uno solo, pero el nombre no coincide literalmente
+  | 'duplicado';      // el estudiante quedo en dos grupos y `exclusivo` es true
+
+export interface CandidatoPendiente {
+  studentId: string;
+  nombre: string;
+  grado: string;               // grado LITERAL de la matricula ('9.1', '6º1')
+}
+
+export interface PendientePrograma {
+  programaId: string;
+  pendienteId: string;
+  tipo: TipoPendiente;
+  /** El nombre tal cual venia en el Excel, sin sanear: es la evidencia. */
+  nombreArchivo: string;
+  /** El grado que decia el Excel. NO se cree: manda la matricula. Solo desempata. */
+  grupoArchivo: string;
+  /** A que centro de interes iba. En `duplicado`, los dos van en `gruposEnConflicto`. */
+  grupoId: string;
+  gruposEnConflicto?: string[];
+  candidatos: CandidatoPendiente[];
+  /** La propuesta del sistema, ya marcada en la pantalla. `null` = no hay ninguna. */
+  sugerido: string | null;
+  estado: 'pendiente' | 'resuelto' | 'descartado';
+  decision?: string;           // studentId elegido, o grupoId ganador si es `duplicado`
+  resueltoPor?: string;
+  resueltoEn?: number;
+}

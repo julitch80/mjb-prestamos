@@ -20,6 +20,8 @@
  */
 
 import {
+  arrayRemove,
+  arrayUnion,
   collection,
   deleteField,
   doc,
@@ -30,6 +32,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
   type QueryConstraint,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -45,9 +48,16 @@ import type {
   Event,
   EventMemberSource,
   EventSession,
+  GrupoPrograma,
+  Jornada,
   LateArrival,
+  PendientePrograma,
+  Programa,
+  Sede,
+  SesionPrograma,
   Session,
   Student,
+  TipoPendiente,
   ValorCelda,
 } from './domain/types';
 import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
@@ -1213,3 +1223,717 @@ export async function marcarCelda(
   registrarEnvio(updateDoc(ref, cambios));
 }
 
+// ---------- Programas: centros de interes ----------
+//
+// Ver `docs/modelo-centros-interes.md`. Un centro de interes NO es un evento: se repite
+// un semestre entero y su autoridad NO cuelga del propio documento sino del PROGRAMA
+// padre, donde vive `coordinadores`. Por eso los grupos son una SUBCOLECCION: el
+// `programaId` queda en la RUTA y la regla lo resuelve mirando al padre, sin depender de
+// ningun campo del hijo ni de indices compuestos.
+//
+// Rutas:
+//   asistenciaProgramas/{programaId}
+//   asistenciaProgramas/{programaId}/grupos/{grupoId}
+//   asistenciaProgramas/{programaId}/grupos/{grupoId}/sesiones/{fecha}
+//   asistenciaProgramas/{programaId}/pendientes/{pendienteId}
+//
+// `exclusivo` (un estudiante, un solo centro) NO lo puede verificar ninguna regla: es
+// unicidad ENTRE documentos y exigiria leer los 21 grupos, muy por encima del tope de 10
+// `get()` por peticion. Se valida en el cliente y los choques quedan como pendientes de
+// tipo `duplicado`. Esta escrito aqui para que nadie lo busque en las reglas y concluya
+// que falta.
+
+const PROGRAMAS = 'asistenciaProgramas';
+
+function refPrograma(programaId: string) {
+  return doc(baseDatos(), PROGRAMAS, programaId);
+}
+
+function coleccionGrupos(programaId: string) {
+  return collection(baseDatos(), PROGRAMAS, programaId, 'grupos');
+}
+
+function refGrupo(programaId: string, grupoId: string) {
+  return doc(baseDatos(), PROGRAMAS, programaId, 'grupos', grupoId);
+}
+
+function refSesionPrograma(programaId: string, grupoId: string, fecha: string) {
+  return doc(baseDatos(), PROGRAMAS, programaId, 'grupos', grupoId, 'sesiones', fecha);
+}
+
+function coleccionPendientes(programaId: string) {
+  return collection(baseDatos(), PROGRAMAS, programaId, 'pendientes');
+}
+
+/** Identidad del modulo: correo en minusculas, nunca el UID. */
+function normalizarCorreos(correos: string[]): string[] {
+  return [...new Set(correos.map((c) => c.trim().toLowerCase()).filter(Boolean))];
+}
+
+/**
+ * Programas que el usuario puede ver.
+ *
+ * Van DOS consultas, y no es un descuido:
+ *
+ *  1. `array-contains coordinadores` — siempre demostrable, sea cual sea la rama de la
+ *     regla que aplique, porque el filtro coincide exactamente con el campo que la regla
+ *     mira. Es la unica que un coordinador necesita.
+ *  2. La misma consulta SIN filtro, para el docente que no coordina nada pero lidera un
+ *     centro: no hay ningun campo del programa que lo nombre, asi que no existe filtro
+ *     que lo acote. Si la regla del documento del programa resulta ser mas estrecha que
+ *     `isActiveUser()`, Firestore rechaza la consulta ENTERA (no la recorta), asi que va
+ *     con `catch` y se queda solo con lo de (1).
+ *
+ * NO se usa `collectionGroup('grupos')` para averiguar en que programas participa un
+ * docente, aunque parezca el camino corto: en una consulta de grupo de coleccion el
+ * `{programaId}` no queda ligado en la ruta, asi que `asisCoordinaPrograma(programaId)`
+ * —que es como esta escrita la regla— no se puede evaluar. Ademas exigiria su propio
+ * indice, y un indice que falta no devuelve vacio: revienta con un error que parece de
+ * permisos (ya nos costo una tarde con `buscarPorQrToken`).
+ */
+export async function leerProgramasVisibles(incluirInactivos = false): Promise<Programa[]> {
+  if (!(await listo())) return [];
+  const correo = await exigirAutor();
+
+  const [queCoordino, todos] = await Promise.all([
+    getDocs(
+      query(collection(baseDatos(), PROGRAMAS), where('coordinadores', 'array-contains', correo)),
+    )
+      .then((s) => aLista<Programa>(s))
+      .catch(() => [] as Programa[]),
+    getDocs(query(collection(baseDatos(), PROGRAMAS)))
+      .then((s) => aLista<Programa>(s))
+      .catch(() => [] as Programa[]),
+  ]);
+
+  const porId = new Map<string, Programa>();
+  for (const p of [...queCoordino, ...todos]) porId.set(p.programaId, p);
+
+  return [...porId.values()]
+    .filter((p) => p.activo || incluirInactivos)
+    .sort((a, b) => (a.desde < b.desde ? 1 : a.desde > b.desde ? -1 : 0));
+}
+
+export async function leerPrograma(programaId: string): Promise<Programa | null> {
+  if (!(await listo())) return null;
+  const snap = await getDoc(refPrograma(programaId));
+  return snap.exists() ? (snap.data() as Programa) : null;
+}
+
+/**
+ * Crea el programa. El `programaId` es un slug ASCII ESTABLE y legible
+ * ('centros-interes-2026-2'), no un id generado: va en la ruta de todo lo que cuelga
+ * debajo y se escribe en enlaces y en la barra de direcciones.
+ *
+ * Quien lo crea queda dentro de `coordinadores`: si no, se quedaria sin poder abrir lo
+ * que acaba de crear en cuanto la consulta acotada de (1) sea la unica que le funcione.
+ *
+ * LEE ANTES DE ESCRIBIR: el id lo elige la persona, asi que dos semestres podrian chocar,
+ * y aqui un `setDoc` incondicional reemplazaria el programa entero — con su lista de
+ * coordinadores — dejando sus 21 grupos colgando de un documento nuevo. Es exactamente el
+ * accidente que `abrirDireccionGrupo` sufrio el 2026-08-12.
+ */
+export async function crearPrograma(input: {
+  programaId: string;
+  nombre: string;
+  sede: Sede;
+  jornada?: Jornada;
+  desde: string;
+  hasta: string;
+  coordinadores?: string[];
+  exclusivo?: boolean;
+}): Promise<Programa> {
+  const autor = await exigirAutor();
+  const ref = refPrograma(input.programaId);
+
+  const existente = await getDoc(ref).catch(() => null);
+  if (existente?.exists()) {
+    throw new ConflictoError(`Ya existe un programa con el identificador "${input.programaId}".`);
+  }
+
+  const nuevo = {
+    programaId: input.programaId,
+    nombre: input.nombre,
+    tipo: 'centros_interes' as const,
+    sede: input.sede,
+    // `jornada` ausente = las dos jornadas. No se escribe `null`: la regla y las
+    // consultas distinguen "no tiene el campo" de "tiene el campo vacio".
+    ...(input.jornada ? { jornada: input.jornada } : {}),
+    desde: input.desde,
+    hasta: input.hasta,
+    coordinadores: normalizarCorreos([...(input.coordinadores ?? []), autor]),
+    exclusivo: input.exclusivo ?? true,
+    activo: true,
+    creadoPor: autor,
+    creadoEn: serverTimestamp(),
+  };
+
+  await setDoc(ref, nuevo);
+  return { ...nuevo, creadoEn: Date.now() } as Programa;
+}
+
+/**
+ * Edita el programa. Campos puntuales con `updateDoc`, nunca el documento entero: los
+ * grupos y los pendientes cuelgan de el y `coordinadores` es lo unico que sostiene la
+ * autoridad de toda la subcoleccion.
+ *
+ * `coordinadores` llega COMPLETA (igual que en `compartirEvento`) porque tambien sirve
+ * para quitar a alguien, y el autor se mantiene dentro para no dejarse fuera de lo que
+ * administra.
+ */
+export async function editarPrograma(
+  programaId: string,
+  cambios: {
+    nombre?: string;
+    desde?: string;
+    hasta?: string;
+    jornada?: Jornada;
+    coordinadores?: string[];
+    exclusivo?: boolean;
+  },
+): Promise<void> {
+  const autor = await exigirAutor();
+  const datos: Record<string, unknown> = { ...cambios };
+  if (cambios.coordinadores) {
+    const lista = normalizarCorreos(cambios.coordinadores);
+    if (!lista.includes(autor)) lista.push(autor);
+    datos.coordinadores = lista;
+  }
+  await updateDoc(refPrograma(programaId), datos);
+}
+
+/** Baja logica. Nunca se borra: los grupos y las sesiones del semestre siguen ahi. */
+export async function desactivarPrograma(programaId: string): Promise<void> {
+  await exigirAutor();
+  await updateDoc(refPrograma(programaId), { activo: false });
+}
+
+/**
+ * COMO SE CONSULTAN LOS GRUPOS. Las dos formas NO son intercambiables.
+ *
+ * La regla es:
+ *
+ *     allow read: if asisCoordinaPrograma(programaId)
+ *              || (isActiveUser() && callerEmail() in resource.data.docentes);
+ *
+ * La primera rama no mira `resource`, asi que el coordinador puede consultar SIN filtro.
+ * La segunda si lo mira, y Firestore exige poder demostrar ANTES de ejecutar que todo el
+ * resultado sera legible: el docente TIENE que consultar con
+ * `where('docentes', 'array-contains', <su correo>)`. Sin ese filtro la consulta entera
+ * es rechazada con permission-denied — no devuelve los grupos que si le tocan, no
+ * devuelve vacio: falla. Este error ya rompio pantallas en este modulo (ver el comentario
+ * de `AlcanceLectura` sobre la planilla del coordinador).
+ *
+ * Por eso el alcance es un parametro OBLIGATORIO y sin valor por defecto: no hay forma de
+ * llamar a `leerGruposDePrograma` sin decidir cual de las dos consultas se quiere. Y para
+ * no tener que decidirlo a mano en cada pantalla existe `leerMisGruposDePrograma`, que lo
+ * resuelve leyendo `coordinadores` del programa — esa es la que deberia usar la interfaz.
+ */
+export type AlcanceGruposPrograma = { tipo: 'coordinador' } | { tipo: 'docente' };
+
+export async function leerGruposDePrograma(
+  programaId: string,
+  alcance: AlcanceGruposPrograma,
+  incluirInactivos = false,
+): Promise<GrupoPrograma[]> {
+  if (!(await listo())) return [];
+
+  const cons: QueryConstraint[] = [];
+  if (alcance.tipo === 'docente') {
+    // OBLIGATORIO. Ver el comentario de `AlcanceGruposPrograma`.
+    cons.push(where('docentes', 'array-contains', await exigirAutor()));
+  }
+
+  const grupos = aLista<GrupoPrograma>(await getDocs(query(coleccionGrupos(programaId), ...cons)));
+  return grupos
+    .filter((g) => g.activo || incluirInactivos)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
+}
+
+/**
+ * Los grupos que le tocan al usuario, con el alcance ya resuelto. Es la puerta que deben
+ * usar las pantallas: quien coordina el programa ve los 21 centros, y quien no, solo
+ * aquellos en cuyo `docentes` aparece — con el `array-contains` puesto por dentro, donde
+ * no se puede olvidar.
+ *
+ * Si el programa no se puede leer se asume el alcance de docente, que es el restrictivo:
+ * equivocarse hacia ahi devuelve de menos, y equivocarse hacia el otro lado rompe la
+ * consulta entera.
+ */
+export async function leerMisGruposDePrograma(
+  programaId: string,
+  incluirInactivos = false,
+): Promise<GrupoPrograma[]> {
+  if (!(await listo())) return [];
+  const correo = await exigirAutor();
+  const programa = await leerPrograma(programaId).catch(() => null);
+  const coordina = Boolean(programa?.coordinadores?.includes(correo));
+  return leerGruposDePrograma(
+    programaId,
+    coordina ? { tipo: 'coordinador' } : { tipo: 'docente' },
+    incluirInactivos,
+  );
+}
+
+export async function leerGrupoPrograma(
+  programaId: string,
+  grupoId: string,
+): Promise<GrupoPrograma | null> {
+  if (!(await listo())) return null;
+  const snap = await getDoc(refGrupo(programaId, grupoId));
+  return snap.exists() ? (snap.data() as GrupoPrograma) : null;
+}
+
+/**
+ * Crea un centro de interes dentro del programa. El `grupoId` es un slug ASCII estable
+ * ('vibe-coding') por la misma razon que el `programaId`: va en la ruta de las sesiones.
+ *
+ * El lider SIEMPRE queda dentro de `docentes` — es la lista que la regla mira, y un lider
+ * fuera de ella no podria abrir su propio centro.
+ *
+ * LEE ANTES DE ESCRIBIR: un `setDoc` sobre un grupo existente reemplazaria `miembros`, es
+ * decir, la inscripcion completa del semestre.
+ */
+export async function crearGrupoPrograma(input: {
+  programaId: string;
+  grupoId: string;
+  nombre: string;
+  lider: string;
+  docentes?: string[];
+  miembros?: string[];
+  cupo?: number;
+}): Promise<GrupoPrograma> {
+  const autor = await exigirAutor();
+  const ref = refGrupo(input.programaId, input.grupoId);
+
+  const existente = await getDoc(ref).catch(() => null);
+  if (existente?.exists()) {
+    throw new ConflictoError(
+      `El programa ya tiene un centro con el identificador "${input.grupoId}".`,
+    );
+  }
+
+  const lider = input.lider.trim().toLowerCase();
+  const nuevo = {
+    programaId: input.programaId,
+    grupoId: input.grupoId,
+    nombre: input.nombre,
+    lider,
+    docentes: normalizarCorreos([...(input.docentes ?? []), lider]),
+    miembros: input.miembros ?? [],
+    ...(input.cupo === undefined ? {} : { cupo: input.cupo }),
+    activo: true,
+    creadoPor: autor,
+    creadoEn: serverTimestamp(),
+  };
+
+  await setDoc(ref, nuevo);
+  return { ...nuevo, creadoEn: Date.now() } as GrupoPrograma;
+}
+
+/**
+ * Edita el centro. NO toca `miembros`: para eso estan `inscribirEnGrupoPrograma` y
+ * `moverEntreGruposPrograma`, que escriben con `arrayUnion`/`arrayRemove` en vez de
+ * reemplazar la lista entera.
+ *
+ * `docentes` si se reemplaza completo (como en `compartirEvento`): es una lista corta,
+ * sirve tambien para quitar a alguien, y el lider se mantiene dentro pase lo que pase.
+ */
+export async function editarGrupoPrograma(
+  programaId: string,
+  grupoId: string,
+  cambios: { nombre?: string; lider?: string; docentes?: string[]; cupo?: number },
+): Promise<void> {
+  await exigirAutor();
+  const datos: Record<string, unknown> = {};
+  if (cambios.nombre !== undefined) datos.nombre = cambios.nombre;
+  if (cambios.cupo !== undefined) datos.cupo = cambios.cupo;
+
+  const lider = cambios.lider?.trim().toLowerCase();
+  if (lider) datos.lider = lider;
+
+  if (cambios.docentes || lider) {
+    // Una sola lectura para las dos cosas que pueden faltar (la lista actual si solo
+    // cambia el lider, y el lider actual si solo cambia la lista).
+    const actualGrupo = await leerGrupoPrograma(programaId, grupoId);
+    const lista = normalizarCorreos(cambios.docentes ?? actualGrupo?.docentes ?? []);
+    const referencia = lider ?? actualGrupo?.lider;
+    if (referencia && !lista.includes(referencia)) lista.push(referencia);
+    datos.docentes = lista;
+  }
+
+  if (Object.keys(datos).length === 0) return;
+  await updateDoc(refGrupo(programaId, grupoId), datos);
+}
+
+/** Baja logica del centro. Nunca se borra: sus sesiones son el registro del semestre. */
+export async function desactivarGrupoPrograma(
+  programaId: string,
+  grupoId: string,
+): Promise<void> {
+  await exigirAutor();
+  await updateDoc(refGrupo(programaId, grupoId), { activo: false });
+}
+
+/**
+ * Inscribe estudiantes en un centro.
+ *
+ * `arrayUnion` y no una lista nueva: `miembros` es la inscripcion del semestre entero, y
+ * reemplazarla completa desde una pantalla que la tenia cargada hace dos minutos borraria
+ * a quien otra persona inscribio mientras tanto. Es el mismo motivo por el que las marcas
+ * van con rutas de campo puntuales.
+ *
+ * OJO — `exclusivo` NO se comprueba aqui ni lo comprueban las reglas (unicidad entre
+ * documentos, ver la cabecera de esta seccion). Quien llame debe haberlo validado ya, y
+ * los choques se registran como pendientes de tipo `duplicado`.
+ */
+export async function inscribirEnGrupoPrograma(
+  programaId: string,
+  grupoId: string,
+  studentIds: string[],
+): Promise<void> {
+  await exigirAutor();
+  if (studentIds.length === 0) return;
+  // Mismo motivo que en `marcarEstudiante`: la promesa es el acuse del SERVIDOR, no la
+  // escritura local; esperarla dejaria la pantalla colgada sin senal.
+  registrarEnvio(
+    updateDoc(refGrupo(programaId, grupoId), { miembros: arrayUnion(...studentIds) }),
+  );
+}
+
+/**
+ * Deja escrito en el centro que estos estudiantes estan ademas en OTRO centro.
+ *
+ * Se ESCRIBE en vez de calcularse en pantalla porque el conflicto solo se detecta
+ * mirando los 21 centros a la vez, y eso solo lo alcanza la coordinacion: un lider
+ * consulta con `array-contains` y recibe unicamente los suyos. Calculandolo en el
+ * cliente, el lider de UN solo centro —el caso mas comun— no veria la marca nunca.
+ *
+ * `arrayUnion` y no `setDoc`: los dos centros en conflicto se marcan por separado y no
+ * deben pisarse. Solo lo puede escribir la coordinacion (regla de update del grupo).
+ */
+export async function marcarConflictosEnGrupo(
+  programaId: string,
+  grupoId: string,
+  studentIds: string[],
+): Promise<void> {
+  await exigirAutor();
+  if (studentIds.length === 0) return;
+  registrarEnvio(
+    updateDoc(refGrupo(programaId, grupoId), { enConflicto: arrayUnion(...studentIds) }),
+  );
+}
+
+/**
+ * Levanta la marca de conflicto. Se llama al resolver el pendiente: en el centro que
+ * gana, porque ya no hay duda; en el que pierde no hace falta, porque el estudiante sale
+ * de `miembros` y deja de aparecer.
+ */
+export async function limpiarConflictoEnGrupo(
+  programaId: string,
+  grupoId: string,
+  studentIds: string[],
+): Promise<void> {
+  await exigirAutor();
+  if (studentIds.length === 0) return;
+  registrarEnvio(
+    updateDoc(refGrupo(programaId, grupoId), { enConflicto: arrayRemove(...studentIds) }),
+  );
+}
+
+/** Retira estudiantes de un centro (se equivocaron de lista, o cambiaron de centro). */
+export async function retirarDeGrupoPrograma(
+  programaId: string,
+  grupoId: string,
+  studentIds: string[],
+): Promise<void> {
+  await exigirAutor();
+  if (studentIds.length === 0) return;
+  registrarEnvio(
+    updateDoc(refGrupo(programaId, grupoId), { miembros: arrayRemove(...studentIds) }),
+  );
+}
+
+/**
+ * Mueve estudiantes de un centro a otro.
+ *
+ * Va en un `writeBatch` porque las dos mitades tienen que ocurrir o no ocurrir: si solo
+ * pasara la salida, el estudiante se quedaria sin centro y nadie lo notaria hasta que
+ * alguien pase lista; si solo pasara la entrada, quedaria en dos y romperia `exclusivo`.
+ * El lote se aplica en local de una vez y sale como una sola escritura.
+ */
+export async function moverEntreGruposPrograma(
+  programaId: string,
+  origenGrupoId: string,
+  destinoGrupoId: string,
+  studentIds: string[],
+): Promise<void> {
+  await exigirAutor();
+  if (studentIds.length === 0 || origenGrupoId === destinoGrupoId) return;
+
+  const lote = writeBatch(baseDatos());
+  lote.update(refGrupo(programaId, origenGrupoId), { miembros: arrayRemove(...studentIds) });
+  lote.update(refGrupo(programaId, destinoGrupoId), { miembros: arrayUnion(...studentIds) });
+
+  registrarEnvio(lote.commit());
+}
+
+/**
+ * Sesiones de un centro. Sin filtro: la regla las hace legibles por estar dentro de la
+ * ruta (mira al programa padre y al grupo, no a campos propios de la sesion), asi que la
+ * consulta es demostrable sin `where` ni indice. Igual que `leerSesionesEvento`.
+ */
+export async function leerSesionesPrograma(
+  programaId: string,
+  grupoId: string,
+): Promise<SesionPrograma[]> {
+  if (!(await listo())) return [];
+  return aLista<SesionPrograma>(
+    await getDocs(collection(baseDatos(), PROGRAMAS, programaId, 'grupos', grupoId, 'sesiones')),
+  );
+}
+
+export async function leerSesionPrograma(
+  programaId: string,
+  grupoId: string,
+  fecha: string,
+): Promise<SesionPrograma | null> {
+  if (!(await listo())) return null;
+  const snap = await getDoc(refSesionPrograma(programaId, grupoId, fecha));
+  return snap.exists() ? (snap.data() as SesionPrograma) : null;
+}
+
+/**
+ * Devuelve la sesion de esa fecha, y solo la crea si de verdad no existe.
+ *
+ * LEE ANTES DE ESCRIBIR, y no es negociable. La regla de la sesion se resuelve por la
+ * RUTA (programa padre + grupo), no por campos del propio documento, asi que NADA impide
+ * que un `setDoc` incondicional pase y reemplace el mapa `estudiantes` completo: la lista
+ * ya pasada del centro, borrada al abrirla. Es literalmente lo que le paso al cuaderno de
+ * un director el 2026-08-12 (ver `abrirDireccionGrupo`).
+ *
+ * Leer primero es ademas SEGURO aqui, y eso es lo que lo hace posible: como la regla no
+ * mira `resource`, leer un documento inexistente no revienta la evaluacion — que es el
+ * motivo por el que `abrirSesion` (clase) no puede hacer lo mismo.
+ */
+export async function abrirSesionPrograma(
+  programaId: string,
+  grupoId: string,
+  fecha: string,
+): Promise<SesionPrograma> {
+  const autor = await exigirAutor();
+  const ref = refSesionPrograma(programaId, grupoId, fecha);
+
+  const existente = await getDoc(ref);
+  if (existente.exists()) return existente.data() as SesionPrograma;
+
+  const nueva = {
+    programaId,
+    grupoId,
+    fecha,
+    estudiantes: {},
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  };
+  await setDoc(ref, nueva);
+  return { ...nueva, ultimaEscrituraEn: Date.now() } as SesionPrograma;
+}
+
+/**
+ * Marca a UN estudiante en la sesion del centro.
+ *
+ * RUTAS DE CAMPO PUNTUALES (`estudiantes.est_0412.estado`), nunca el mapa completo: el
+ * lider y el docente de apoyo pueden estar marcando a la vez, y Firestore fusiona por
+ * campo. La autoria original (`registradoPor`/`registradoEn`) es inmutable: una
+ * correccion deja `modificadoPor`/`modificadoEn` y el valor anterior queda en el
+ * historial del servidor.
+ */
+export async function marcarEnPrograma(
+  programaId: string,
+  grupoId: string,
+  fecha: string,
+  studentId: string,
+  estado: MarkCode,
+  extra: { motivo?: string | null; observacion?: string | null } = {},
+): Promise<void> {
+  const autor = await exigirAutor();
+  const ref = refSesionPrograma(programaId, grupoId, fecha);
+  const base = `estudiantes.${studentId}`;
+
+  // Con la cache local este getDoc se resuelve del telefono sin tocar la red. Sin red y
+  // sin el documento en cache falla, y entonces se asume "primera vez": es mejor que
+  // dejar la marca sin escribir por un dato que solo decide que campo de autoria llenar.
+  let yaTenia = false;
+  try {
+    const previo = await getDoc(ref);
+    yaTenia = Boolean(previo.exists() && (previo.data().estudiantes ?? {})[studentId]);
+  } catch {
+    yaTenia = false;
+  }
+
+  const cambios: Record<string, unknown> = {
+    [`${base}.estado`]: estado,
+    [`${base}.motivo`]: extra.motivo ?? null,
+    [`${base}.observacion`]: extra.observacion ?? null,
+    // La regla exige `asisAuthorStamp()`: estos dos campos van en TODA escritura.
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  };
+
+  if (yaTenia) {
+    cambios[`${base}.modificadoPor`] = autor;
+    cambios[`${base}.modificadoEn`] = serverTimestamp();
+  } else {
+    cambios[`${base}.registradoPor`] = autor;
+    cambios[`${base}.registradoEn`] = serverTimestamp();
+    cambios[`${base}.modificadoPor`] = null;
+    cambios[`${base}.modificadoEn`] = null;
+  }
+
+  // Mismo motivo que en `marcarEstudiante`: la promesa es el acuse del servidor, no la
+  // escritura local. Esperarla cuelga la casilla sin senal.
+  registrarEnvio(updateDoc(ref, cambios));
+}
+
+/**
+ * Llena de golpe las casillas VACIAS de la sesion del centro, en UNA sola escritura.
+ *
+ * Igual que `llenarColumna`: solo toca las vacias —nunca pisa lo ya marcado, porque un
+ * toque accidental borraria media lista y ademas cada sobreescritura contaria como
+ * correccion—, y quien ya tiene marca sale de `yaMarcados`, que es lo que la pantalla ya
+ * tiene cargado, no de un `getDoc` que sin senal no llega.
+ */
+export async function llenarColumnaPrograma(
+  programaId: string,
+  grupoId: string,
+  fecha: string,
+  studentIds: string[],
+  estado: MarkCode,
+  yaMarcados: Record<string, unknown>,
+): Promise<number> {
+  const autor = await exigirAutor();
+  const ref = refSesionPrograma(programaId, grupoId, fecha);
+
+  const vacios = studentIds.filter((id) => !yaMarcados[id]);
+  if (vacios.length === 0) return 0;
+
+  const cambios: Record<string, unknown> = {
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  };
+  for (const id of vacios) {
+    cambios[`estudiantes.${id}.estado`] = estado;
+    cambios[`estudiantes.${id}.registradoPor`] = autor;
+    cambios[`estudiantes.${id}.registradoEn`] = serverTimestamp();
+    cambios[`estudiantes.${id}.motivo`] = null;
+    cambios[`estudiantes.${id}.observacion`] = null;
+    cambios[`estudiantes.${id}.modificadoPor`] = null;
+    cambios[`estudiantes.${id}.modificadoEn`] = null;
+  }
+
+  registrarEnvio(updateDoc(ref, cambios));
+  return vacios.length;
+}
+
+/**
+ * La bandeja de revision del programa.
+ *
+ * Sin filtro por defecto: la regla se resuelve por la ruta (mira `coordinadores` del
+ * programa padre), asi que la consulta es demostrable sin `where`. `soloPendientes` anade
+ * un filtro de un solo campo, cuyo indice es automatico — no hace falta desplegar
+ * ninguno, y por eso no se combina con un `orderBy`, que si lo exigiria: el orden se hace
+ * en memoria, igual que en `leerMisEventos`.
+ */
+export async function leerPendientesPrograma(
+  programaId: string,
+  soloPendientes = true,
+): Promise<PendientePrograma[]> {
+  if (!(await listo())) return [];
+  const cons: QueryConstraint[] = soloPendientes ? [where('estado', '==', 'pendiente')] : [];
+  const pendientes = aLista<PendientePrograma>(
+    await getDocs(query(coleccionPendientes(programaId), ...cons)),
+  );
+  return pendientes.sort((a, b) => a.nombreArchivo.localeCompare(b.nombreArchivo));
+}
+
+/**
+ * Guarda de golpe lo que el cruce con la matricula no pudo decidir solo.
+ *
+ * Lo que no cruza NO se descarta: se convierte en un pendiente con sus candidatos y con
+ * la propuesta ya marcada, para que la coordinacion lo resuelva a un clic en vez de
+ * recibir una lista en papel (regla de oro del cruce, `docs/modelo-centros-interes.md`).
+ *
+ * El `pendienteId` es DETERMINISTA (centro + nombre del archivo): reimportar el mismo
+ * Excel actualiza los mismos documentos en vez de duplicar la bandeja entera. El nombre
+ * se normaliza SOLO para construir el id; en `nombreArchivo` se guarda tal cual venia,
+ * porque es la evidencia.
+ *
+ * Un pendiente lleva nombre, grado y studentId, nada mas: ningun documento de identidad
+ * en claro (datos de menores, Ley 1581/2012).
+ */
+export async function guardarPendientesPrograma(
+  programaId: string,
+  pendientes: Omit<PendientePrograma, 'programaId' | 'pendienteId' | 'estado'>[],
+): Promise<number> {
+  await exigirAutor();
+  if (pendientes.length === 0) return 0;
+
+  const lote = writeBatch(baseDatos());
+  for (const p of pendientes) {
+    const clave = `${p.grupoId}__${p.nombreArchivo}`
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 120);
+    lote.set(doc(coleccionPendientes(programaId), clave), {
+      ...p,
+      programaId,
+      pendienteId: clave,
+      estado: 'pendiente',
+    });
+  }
+
+  registrarEnvio(lote.commit());
+  return pendientes.length;
+}
+
+/**
+ * Cierra un pendiente: se acepta un candidato, o se descarta.
+ *
+ * Resolver NO inscribe por si solo — inscribir es `inscribirEnGrupoPrograma`, y va aparte
+ * a proposito: son dos documentos distintos y encadenarlos aqui dejaria media decision
+ * aplicada si la segunda escritura fallara. Quien llama decide el orden y ve el resultado
+ * de cada una.
+ *
+ * `decision` es el `studentId` elegido, o el `grupoId` ganador cuando el pendiente es de
+ * tipo `duplicado`.
+ */
+export async function resolverPendientePrograma(
+  programaId: string,
+  pendienteId: string,
+  resultado: { estado: 'resuelto' | 'descartado'; decision?: string },
+): Promise<void> {
+  const autor = await exigirAutor();
+  await updateDoc(doc(coleccionPendientes(programaId), pendienteId), {
+    estado: resultado.estado,
+    decision: resultado.decision ?? null,
+    resueltoPor: autor,
+    resueltoEn: serverTimestamp(),
+  });
+}
+
+/** Cuantos pendientes quedan por tipo, para el contador de la bandeja. */
+export async function contarPendientesPrograma(
+  programaId: string,
+): Promise<Record<TipoPendiente, number>> {
+  const conteo: Record<TipoPendiente, number> = {
+    homonimo: 0,
+    no_encontrado: 0,
+    ortografia: 0,
+    duplicado: 0,
+  };
+  for (const p of await leerPendientesPrograma(programaId)) conteo[p.tipo] += 1;
+  return conteo;
+}
