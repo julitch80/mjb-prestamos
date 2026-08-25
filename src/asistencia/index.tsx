@@ -649,7 +649,13 @@ export default function Asistencia() {
             Eventos — y NO es lo mismo que coordinar: Yuri tiene `asistenciaConsulta` y
             aun asi coordina el programa. */}
         <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando centros de interés…</p>}>
-          <Programas puedeRegistrar={puedeRegistrar} />
+          <Programas
+            puedeRegistrar={puedeRegistrar}
+            // Espeja la regla `allow create` del programa: isSuper() o coordinador de
+            // sede. NO es `puedeRegistrar` — el superusuario no marca asistencia y aun
+            // asi es el unico que puede crear el primero.
+            puedeCrearPrograma={rol === 'superusuario' || rol === 'coordinador'}
+          />
         </Suspense>
       </div>
     );

@@ -51,7 +51,26 @@ const OPCIONES_JORNADA: { valor: Jornada | ''; label: string }[] = [
  * un boton que el servidor va a negar es hacerle perder el tiempo a un docente y
  * hacerle creer que la aplicacion falla.
  */
-export default function Programas({ puedeRegistrar }: { puedeRegistrar: boolean }) {
+export default function Programas({
+  puedeRegistrar,
+  puedeCrearPrograma,
+}: {
+  /** Si se ofrece marcar asistencia. NO decide quien crea un programa: ver abajo. */
+  puedeRegistrar: boolean;
+  /**
+   * Quien puede crear el PRIMER programa: el superusuario o un coordinador de sede.
+   *
+   * NO es `puedeRegistrar`, y confundirlos dejo el modulo muerto el 2026-08-25: el
+   * superusuario no registra asistencia, asi que `puedeRegistrar` es falso para el, y el
+   * boton se le escondia — pero la regla de Firestore dice `isSuper() ||
+   * asisCoordinaSede(...)`, o sea que era el UNICO que podia crearlo. Nadie podia crear
+   * nada. Al reves, un docente cualquiera SI veia el boton y la regla se lo rechazaba.
+   *
+   * Regla general que sale de esto: la condicion de un boton tiene que ser la MISMA que
+   * la de la regla que lo respalda, no una parecida.
+   */
+  puedeCrearPrograma: boolean;
+}) {
   const [programas, setProgramas] = useState<Programa[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,10 +123,10 @@ export default function Programas({ puedeRegistrar }: { puedeRegistrar: boolean 
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-strong">Centros de interés</h2>
-        {/* Crear un programa lo hace quien coordina alguno. Al primero de todos lo crea
-            quien tenga permiso de escritura: quien lo crea queda dentro de
-            `coordinadores` (lo garantiza `crearPrograma`), si no nacería huérfano. */}
-        {puedeRegistrar && (
+        {/* Mismo criterio que la regla: superusuario o coordinador de sede. Quien lo crea
+            queda dentro de `coordinadores` (lo exige la propia regla), si no nacería
+            huérfano y nadie podría volver a tocarlo. */}
+        {puedeCrearPrograma && (
           <button
             onClick={() => setCreando(true)}
             className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
@@ -138,7 +157,7 @@ export default function Programas({ puedeRegistrar }: { puedeRegistrar: boolean 
         <div className="rounded-xl border border-line bg-card p-4 text-center">
           <p className="text-sm text-strong">Todavía no hay ningún programa.</p>
           <p className="mt-1 text-xs text-muted">
-            {puedeRegistrar
+            {puedeCrearPrograma
               ? 'Cree el programa del semestre y luego agregue dentro cada centro de interés con su líder.'
               : 'Aquí aparecerán los centros de interés en cuanto la coordinación cree el programa del semestre y le asigne el suyo.'}
           </p>
