@@ -99,18 +99,6 @@ export default function Asistencia() {
   const sede = useAppStore((s) => s.sedeActual);
 
   /**
-   * Modo "Ver como" activo: la pantalla se comporta como el usuario simulado, pero el
-   * SERVIDOR sigue viendo al usuario real. En asistencia eso no es un detalle — casi
-   * todas las reglas dependen de quien pregunta, asi que simular a un coordinador desde
-   * el superusuario produce rechazos que parecen fallos del modulo y no lo son.
-   *
-   * Costo una tarde de diagnostico: se probaban las pantallas del coordinador simulandolo
-   * desde el superusuario, que por regla NO puede leer ninguna sesion, y el error generico
-   * decia "la sesion no es suya o es de otra sede" sin mencionar la simulacion.
-   */
-  const identidadReal = useAppStore((s) => s.identidadReal);
-
-  /**
    * Que le toca leer a esta cuenta segun los documentos espejo `consultaAmpliada` y
    * `autoridadSede` (ver datos.ts). Se carga junto a la config de alertas: ninguna de
    * las dos depende del cruce elegido, solo de quien entro.
@@ -698,21 +686,6 @@ export default function Asistencia() {
       <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
 
       <IndicadorSync sync={sync} />
-
-      {/* Va ANTES del error y siempre visible: cuando se simula a otra persona, casi
-          cualquier fallo de permisos de este modulo se explica por aqui, y el mensaje
-          generico manda a buscar donde no es. */}
-      {identidadReal && (
-        <div className="rounded-xl border border-warning-soft bg-warning-soft p-3 text-sm text-warning-soft-fg">
-          <b>Está viendo la aplicación como otra persona.</b> El servidor sigue
-          identificándolo como <b>{identidadReal.nombre}</b>, así que los permisos de
-          asistencia son los de esa cuenta, no los de la simulada. Es normal que aquí no
-          cargue nada.
-          <br />
-          Para probar las pantallas de un docente o del coordinador, hay que{' '}
-          <b>entrar con su propia cuenta</b>.
-        </div>
-      )}
 
       {error && (
         <div className="rounded-xl border border-danger-soft bg-danger-soft p-3 text-sm text-danger-soft-fg">

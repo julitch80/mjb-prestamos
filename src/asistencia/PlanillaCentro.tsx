@@ -30,7 +30,7 @@ import type {
   Student,
 } from './domain/types';
 
-type Pestana = 'registro' | 'estadisticas' | 'integrantes';
+type Pestana = 'registro' | 'columnas' | 'estadisticas' | 'integrantes';
 
 const PESTANAS: { clave: Pestana; nombre: string; descripcion: string }[] = [
   {
@@ -38,6 +38,12 @@ const PESTANAS: { clave: Pestana; nombre: string; descripcion: string }[] = [
     nombre: 'Registro',
     descripcion:
       'Pase la lista del día: escanee el código del estudiante y confirme con la foto, o márquelo desde la lista.',
+  },
+  {
+    clave: 'columnas',
+    nombre: 'Por columnas',
+    descripcion:
+      'El cuaderno completo: una columna por sesión registrada. Toque una casilla para corregirla o el encabezado para abrir esa fecha.',
   },
   {
     clave: 'estadisticas',
@@ -62,6 +68,43 @@ const AVISO_CONFLICTO =
   'Este estudiante quedó inscrito en dos centros de interés a la vez. No es un error suyo ni de la lista: la coordinación del programa va a decidir en cuál se queda. Mientras tanto aparece en las dos planillas y usted puede llamarlo a lista con normalidad.';
 
 /**
+ * Nombres de dia y mes escritos a mano, NO con Intl.
+ *
+ * Misma razon que en `domain/direccion-grupo.ts`: el locale 'es-CO' no llega completo en
+ * todos los runtimes, y una fecha que en un telefono dice "mié" y en otro dice "Wed" es
+ * exactamente el tipo de detalle que hace desconfiar de la planilla.
+ */
+const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/** Partes de una fecha 'YYYY-MM-DD'. En UTC a proposito: sin hora no hay huso que corra el dia. */
+function partesFecha(fecha: string): { dia: number; mes: number; diaSemana: number } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha);
+  if (!m) return null;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  if (Number.isNaN(d.getTime())) return null;
+  return { dia: Number(m[3]), mes: Number(m[2]) - 1, diaSemana: d.getUTCDay() };
+}
+
+/** «12 ago» — para la casilla estrecha del encabezado de columna. */
+function fechaCorta(fecha: string): string {
+  const p = partesFecha(fecha);
+  return p ? `${p.dia} ${MESES[p.mes]}` : fecha;
+}
+
+/** «mié 12 ago» — para las pastillas, donde sí cabe el día de la semana. */
+function fechaLegible(fecha: string): string {
+  const p = partesFecha(fecha);
+  return p ? `${DIAS[p.diaSemana]} ${p.dia} ${MESES[p.mes]}` : fecha;
+}
+
+/** Solo el día de la semana («mié»), para la segunda línea del encabezado de columna. */
+function diaSemana(fecha: string): string {
+  const p = partesFecha(fecha);
+  return p ? DIAS[p.diaSemana] : '';
+}
+
+/**
  * Planilla de UN centro de interes en UNA fecha.
  *
  * Es la planilla que el docente ya conoce —foto grande, las siete marcas, llenar la
@@ -69,9 +112,13 @@ const AVISO_CONFLICTO =
  * el mismo docente que pasa lista en su clase, y no tiene por que aprender dos formas
  * de hacer lo mismo.
  *
- * Se parece a `PlanillaEvento` y no a `Planilla` en una cosa: UNA fecha visible a la
- * vez, no todas las sesiones en columnas. Un centro de interes dura un semestre entero;
- * una columna por miercoles seria ilegible en un celular.
+ * DOS VISTAS, y la distincion es lo que hace usable un centro de interes de semestre:
+ *   - «Registro» trabaja sobre UNA sesion —la del dia—, con foto grande y las siete
+ *     marcas, que es como se pasa lista de pie y con el telefono en la mano;
+ *   - «Por columnas» enseña el cuaderno entero, una columna por sesion registrada, para
+ *     mirar el semestre y corregir lo que quedo mal.
+ * La barra de sesiones es la que une las dos: sin ella el docente solo veia un campo de
+ * fecha suelto y no habia nada que dijera que cada semana es una columna nueva.
  *
  * AUTORIDAD. Aqui hay dos papeles distintos y la pantalla no los mezcla:
  *   - el LIDER del centro registra la asistencia y ve su estadistica, nada mas;
@@ -109,7 +156,15 @@ export default function PlanillaCentro({
   onVolver: () => void;
 }) {
   const [pestana, setPestana] = useState<Pestana>('registro');
-  const [fecha, setFecha] = useState(toDateKey(new Date()));
+  /**
+   * La sesion que se esta mirando. `null` es un estado REAL, no un placeholder: significa
+   * "todavia no hay ninguna sesion abierta ni elegida", y la pantalla entonces no enseña
+   * una lista en blanco que parezca un dia sin marcar, sino el estado vacio que manda a
+   * «+ Nueva sesión».
+   */
+  const [fecha, setFecha] = useState<string | null>(null);
+  /** Borrador del selector de «+ Nueva sesión»; `null` mientras el selector esta cerrado. */
+  const [fechaNueva, setFechaNueva] = useState<string | null>(null);
   const [miembros, setMiembros] = useState<Student[]>([]);
   const [sesiones, setSesiones] = useState<SesionPrograma[]>([]);
   const [hermanos, setHermanos] = useState<GrupoPrograma[]>(gruposDelPrograma ?? []);
@@ -137,6 +192,12 @@ export default function PlanillaCentro({
         const porId = new Map(todos.map((e) => [e.studentId, e]));
         setMiembros(grupo.miembros.map((id) => porId.get(id)).filter((e): e is Student => !!e));
         setSesiones(sesionesCentro);
+        // Al entrar se abre la sesion MAS RECIENTE que exista, no la de hoy: hoy casi
+        // nunca hay clase del centro, y arrancar en una columna vacia hace creer que se
+        // perdio lo de la semana pasada. Para empezar la de hoy esta «+ Nueva sesión».
+        // Si el usuario ya tenia una fecha elegida, se respeta.
+        const reciente = [...sesionesCentro].sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+        setFecha((prev) => (prev ?? reciente?.fecha ?? null));
       } catch (e) {
         if (vivo) {
           setError(
@@ -202,8 +263,14 @@ export default function PlanillaCentro({
     setSesiones(await leerSesionesPrograma(programa.programaId, grupo.grupoId));
   }, [programa.programaId, grupo.grupoId]);
 
+  /** Las sesiones ya registradas, de la mas reciente a la mas antigua: asi van las pastillas. */
+  const sesionesRecientes = useMemo(
+    () => [...sesiones].sort((a, b) => b.fecha.localeCompare(a.fecha)),
+    [sesiones],
+  );
+
   const sesionActual = useMemo(
-    () => sesiones.find((s) => s.fecha === fecha) ?? null,
+    () => (fecha ? (sesiones.find((s) => s.fecha === fecha) ?? null) : null),
     [sesiones, fecha],
   );
   const avance = resumenSesionEvento(comoSesionDeEvento(sesionActual), grupo.miembros);
@@ -213,17 +280,23 @@ export default function PlanillaCentro({
    * elegir la fecha: si se abriera al mirar, cada vistazo dejaria una sesion vacia y el
    * denominador de la estadistica —sesiones REGISTRADAS, jamas el calendario— quedaria
    * inflado con dias en los que nadie paso lista.
+   *
+   * ESTO SIGUE VALIENDO CON EL BOTON «+ Nueva sesión». Ese boton NO escribe el documento:
+   * selecciona la fecha y deja la lista lista para marcar. El documento nace con la
+   * primera marca, aqui. Un docente que abre el selector, ve que se equivoco de semana y
+   * se sale no deja ninguna sesion fantasma en la estadistica.
    */
-  async function asegurarSesion(): Promise<void> {
-    if (sesiones.some((s) => s.fecha === fecha)) return;
-    const nueva = await abrirSesionPrograma(programa.programaId, grupo.grupoId, fecha);
+  async function asegurarSesion(fechaSesion: string): Promise<void> {
+    if (sesiones.some((s) => s.fecha === fechaSesion)) return;
+    const nueva = await abrirSesionPrograma(programa.programaId, grupo.grupoId, fechaSesion);
     setSesiones((prev) => [...prev, nueva]);
   }
 
   async function marcar(studentId: string, estado: MarkCode) {
+    if (!fecha) return;
     setError(null);
     try {
-      await asegurarSesion();
+      await asegurarSesion(fecha);
       await marcarEnPrograma(programa.programaId, grupo.grupoId, fecha, studentId, estado);
       await recargarSesiones();
     } catch (e) {
@@ -232,9 +305,10 @@ export default function PlanillaCentro({
   }
 
   async function llenarColumna(estado: MarkCode) {
+    if (!fecha) return;
     setError(null);
     try {
-      await asegurarSesion();
+      await asegurarSesion(fecha);
       const llenadas = await llenarColumnaPrograma(
         programa.programaId,
         grupo.grupoId,
@@ -355,65 +429,84 @@ export default function PlanillaCentro({
 
       {pestana === 'registro' && (
         <div className="space-y-3">
-          <div className="rounded-xl border border-line bg-card p-3">
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="text-xs text-muted">
-                Fecha
-                <input
-                  type="date"
-                  value={fecha}
-                  onChange={(ev) => setFecha(ev.target.value)}
-                  className="mt-0.5 block rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong"
-                />
-              </label>
-              {puedeRegistrar && (
-                <>
-                  <button
-                    onClick={() => setEscaneando(true)}
-                    className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-strong"
-                  >
-                    Escanear código
-                  </button>
-                  <button
-                    onClick={() => setLlenando(true)}
-                    title="Llenar de una vez las casillas vacías de este día"
-                    className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-strong"
-                  >
-                    Llenar la lista
-                  </button>
-                </>
+          <BarraSesiones
+            sesiones={sesionesRecientes}
+            fecha={fecha}
+            fechaNueva={fechaNueva}
+            puedeRegistrar={puedeRegistrar}
+            onElegir={(f) => {
+              setFecha(f);
+              setFechaNueva(null);
+              setAviso(null);
+            }}
+            onAbrirSelector={() => setFechaNueva(fecha && !sesionActual ? fecha : toDateKey(new Date()))}
+            onCambiarNueva={setFechaNueva}
+            onCancelarSelector={() => setFechaNueva(null)}
+          />
+
+          {fecha && (
+            <div className="rounded-xl border border-line bg-card p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-strong">
+                  Sesión del {fechaLegible(fecha)}
+                </span>
+                {puedeRegistrar && (
+                  <>
+                    <button
+                      onClick={() => setEscaneando(true)}
+                      className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-strong"
+                    >
+                      Escanear código
+                    </button>
+                    <button
+                      onClick={() => setLlenando(true)}
+                      title="Llenar de una vez las casillas vacías de este día"
+                      className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-strong"
+                    >
+                      Llenar la lista
+                    </button>
+                  </>
+                )}
+                <span className="grow" />
+                <span className="text-sm font-semibold text-strong">
+                  {avance.marcados} de {avance.total} marcados
+                </span>
+              </div>
+
+              {(fecha < programa.desde || fecha > programa.hasta) && (
+                <p className="mt-2 text-xs text-warning-soft-fg">
+                  Esa fecha queda fuera del semestre del programa ({programa.desde} a{' '}
+                  {programa.hasta}). Se puede registrar igual, pero revise que sea la fecha
+                  correcta.
+                </p>
               )}
-              <span className="grow" />
-              <span className="text-sm font-semibold text-strong">
-                {avance.marcados} de {avance.total} marcados
-              </span>
+
+              {!sesionActual && (
+                <p className="mt-2 text-xs text-muted">
+                  Esta sesión todavía no existe: se creará sola con la primera marca que
+                  usted ponga. Si se equivocó de fecha, cierre y vuelva a elegir; no queda
+                  nada guardado.
+                </p>
+              )}
+
+              {candidatoQr && (
+                <ul className="mt-2">
+                  <VerificacionFoto
+                    estudiante={candidatoQr}
+                    tamano={110}
+                    extra={
+                      enConflicto.has(candidatoQr.studentId) ? (
+                        <MarcaConflicto />
+                      ) : undefined
+                    }
+                    acciones={<BotonesMarca onElegir={(m) => void marcarDesdeQr(m)} />}
+                  />
+                </ul>
+              )}
             </div>
+          )}
 
-            {(fecha < programa.desde || fecha > programa.hasta) && (
-              <p className="mt-2 text-xs text-warning-soft-fg">
-                Esa fecha queda fuera del semestre del programa ({programa.desde} a{' '}
-                {programa.hasta}). Se puede registrar igual, pero revise que sea la fecha
-                correcta.
-              </p>
-            )}
-
-            {candidatoQr && (
-              <ul className="mt-2">
-                <VerificacionFoto
-                  estudiante={candidatoQr}
-                  tamano={110}
-                  extra={
-                    enConflicto.has(candidatoQr.studentId) ? (
-                      <MarcaConflicto />
-                    ) : undefined
-                  }
-                  acciones={<BotonesMarca onElegir={(m) => void marcarDesdeQr(m)} />}
-                />
-              </ul>
-            )}
-          </div>
-
-          {miembros.length === 0 ? (
+          {!fecha ? null : miembros.length === 0 ? (
             <div className="rounded-xl border border-line bg-card p-4 text-center">
               <p className="text-sm text-strong">Este centro todavía no tiene inscritos.</p>
               <p className="mt-1 text-xs text-muted">
@@ -471,6 +564,29 @@ export default function PlanillaCentro({
         </div>
       )}
 
+      {pestana === 'columnas' && (
+        <HistorialColumnas
+          miembros={miembros}
+          sesiones={sesiones}
+          fecha={fecha}
+          enConflicto={enConflicto}
+          onAbrirSesion={(f) => {
+            setFecha(f);
+            setFechaNueva(null);
+            setPestana('registro');
+          }}
+          onAbrirCasilla={(f, e) => {
+            setFecha(f);
+            setFechaNueva(null);
+            setPestana('registro');
+            // Solo se abre la hoja de marcar a quien PUEDE registrar. A la rectora y a
+            // los cargos de apoyo la casilla los lleva a la sesion y ahi se queda: el
+            // servidor les rechazaria la escritura y ofrecerles el menu seria mentirles.
+            if (puedeRegistrar) setMarcando(e);
+          }}
+        />
+      )}
+
       {pestana === 'estadisticas' && (
         <EstadisticasCentro miembros={miembros} sesiones={sesiones} />
       )}
@@ -507,7 +623,7 @@ export default function PlanillaCentro({
         />
       )}
 
-      {llenando && (
+      {llenando && fecha && (
         <MenuLlenarLista
           fecha={fecha}
           total={grupo.miembros.length}
@@ -537,6 +653,279 @@ function comoSesionDeEvento(s: SesionPrograma | null): EventSession | null {
     ultimaEscrituraPor: s.ultimaEscrituraPor,
     ultimaEscrituraEn: s.ultimaEscrituraEn,
   };
+}
+
+/**
+ * La barra de sesiones — el arreglo del problema que reporto Julian.
+ *
+ * Antes aqui habia un `<input type="date">` suelto. Funcionaba (cambiar la fecha YA
+ * cambiaba de sesion, el modelo siempre guardo una sesion por fecha), pero no habia NADA
+ * que dijera que cada semana es una columna nueva ni forma de ver las semanas anteriores,
+ * y el docente concluyo —con razon— que el centro de interes era un unico evento que se
+ * repetia. La pastilla y el boton dicen lo que el campo de fecha callaba.
+ *
+ * El boton NO escribe nada: selecciona la fecha. Ver `asegurarSesion`.
+ */
+function BarraSesiones({
+  sesiones,
+  fecha,
+  fechaNueva,
+  puedeRegistrar,
+  onElegir,
+  onAbrirSelector,
+  onCambiarNueva,
+  onCancelarSelector,
+}: {
+  /** Ya ordenadas de la mas reciente a la mas antigua. */
+  sesiones: SesionPrograma[];
+  fecha: string | null;
+  fechaNueva: string | null;
+  puedeRegistrar: boolean;
+  onElegir: (fecha: string) => void;
+  onAbrirSelector: () => void;
+  onCambiarNueva: (fecha: string) => void;
+  onCancelarSelector: () => void;
+}) {
+  // La fecha elegida que TODAVIA no tiene documento se enseña como una pastilla mas, para
+  // que el docente no crea que perdio la seleccion. Va aparte y dicha como lo que es.
+  const seleccionSinSesion = fecha && !sesiones.some((s) => s.fecha === fecha) ? fecha : null;
+
+  return (
+    <div className="rounded-xl border border-line bg-card p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-muted">
+          {sesiones.length === 0
+            ? 'Sesiones registradas'
+            : `${sesiones.length} ${sesiones.length === 1 ? 'sesión registrada' : 'sesiones registradas'}`}
+        </span>
+        <span className="grow" />
+        {puedeRegistrar && (
+          <button
+            onClick={onAbrirSelector}
+            title="Abrir la lista de un día nuevo para empezar a marcar"
+            className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-fg"
+          >
+            + Nueva sesión
+          </button>
+        )}
+      </div>
+
+      {fechaNueva !== null && (
+        <div className="mt-2 rounded-lg border border-accent bg-accent-soft p-2 text-accent-soft-fg">
+          <p className="text-xs font-semibold">¿De qué día es la clase que va a registrar?</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              value={fechaNueva}
+              onChange={(ev) => onCambiarNueva(ev.target.value)}
+              className="rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong"
+            />
+            <button
+              onClick={() => onElegir(fechaNueva)}
+              className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-fg"
+            >
+              Abrir la lista
+            </button>
+            <button
+              onClick={onCancelarSelector}
+              className="rounded-lg border border-line px-3 py-1.5 text-sm text-soft"
+            >
+              Cancelar
+            </button>
+          </div>
+          <p className="mt-1 text-[0.7rem]">
+            Abrirla no guarda nada todavía: la sesión queda registrada con la primera marca
+            que usted ponga.
+          </p>
+        </div>
+      )}
+
+      {sesiones.length === 0 && !seleccionSinSesion ? (
+        <p className="mt-2 text-xs text-muted">
+          Todavía no se ha pasado lista ni una vez en este centro. Cada semana es una
+          sesión nueva:{' '}
+          {puedeRegistrar
+            ? 'empiece por «+ Nueva sesión» y elija el día de la clase.'
+            : 'la registra quien lidera el centro.'}
+        </p>
+      ) : (
+        // Barra propia con desplazamiento horizontal: un semestre son ~18 pastillas y la
+        // pagina entera NO se puede desbordar de lado en un telefono.
+        <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+          {seleccionSinSesion && (
+            <button
+              onClick={() => onElegir(seleccionSinSesion)}
+              className="shrink-0 rounded-full border border-dashed border-accent bg-accent-soft px-3 py-1 text-xs font-semibold text-accent-soft-fg"
+            >
+              {fechaLegible(seleccionSinSesion)} · sin marcar
+            </button>
+          )}
+          {sesiones.map((s) => (
+            <button
+              key={s.fecha}
+              onClick={() => onElegir(s.fecha)}
+              className={[
+                'shrink-0 rounded-full border px-3 py-1 text-xs',
+                s.fecha === fecha
+                  ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                  : 'border-line text-soft',
+              ].join(' ')}
+            >
+              {fechaLegible(s.fecha)}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * El cuaderno completo: una fila por inscrito, una columna por sesion REGISTRADA.
+ *
+ * REGLA DE ORO del modulo, y por eso las columnas salen de `sesiones` y de ningun otro
+ * lado: un dia sin sesion no existe. Nada de pintar todos los miercoles del semestre y
+ * dejarlos vacios — eso convertiria el calendario en denominador y hundiria la
+ * estadistica de todo el mundo con dias en los que no hubo clase.
+ */
+function HistorialColumnas({
+  miembros,
+  sesiones,
+  fecha,
+  enConflicto,
+  onAbrirSesion,
+  onAbrirCasilla,
+}: {
+  miembros: Student[];
+  sesiones: SesionPrograma[];
+  fecha: string | null;
+  enConflicto: Set<string>;
+  onAbrirSesion: (fecha: string) => void;
+  onAbrirCasilla: (fecha: string, estudiante: Student) => void;
+}) {
+  const ordenadas = useMemo(
+    () => [...sesiones].sort((a, b) => a.fecha.localeCompare(b.fecha)),
+    [sesiones],
+  );
+  const comoEventos = useMemo(
+    () => ordenadas.map((s) => comoSesionDeEvento(s)).filter((s): s is EventSession => !!s),
+    [ordenadas],
+  );
+
+  if (ordenadas.length === 0) {
+    return (
+      <p className="rounded-xl border border-line bg-card p-3 text-sm text-muted">
+        Todavía no hay ninguna columna que enseñar: nadie ha pasado lista en este centro.
+        Vaya a «Registro» y abra la primera sesión con «+ Nueva sesión».
+      </p>
+    );
+  }
+
+  if (miembros.length === 0) {
+    return (
+      <p className="rounded-xl border border-line bg-card p-3 text-sm text-muted">
+        Este centro todavía no tiene inscritos, así que no hay filas que enseñar.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* El contenedor lleva SU PROPIO overflow-x-auto: a 375 px la página no se desborda. */}
+      <div className="overflow-x-auto rounded-xl border border-line bg-card">
+        <table className="w-max min-w-full border-collapse">
+          <thead>
+            <tr>
+              {/* El ancho del <th> y el del <td> de abajo tienen que coincidir EXACTO:
+                  son dos elementos sticky distintos y, si difieren, la columna del nombre
+                  se parte al desplazar la tabla de lado. */}
+              <th className="sticky left-0 z-10 min-w-[10.5rem] max-w-[10.5rem] border-b border-r border-line bg-card p-2 text-left text-xs font-semibold text-muted">
+                Estudiante ({miembros.length})
+              </th>
+              {ordenadas.map((s) => (
+                <th key={s.fecha} className="border-b border-line p-0">
+                  <button
+                    onClick={() => onAbrirSesion(s.fecha)}
+                    title={`Abrir la sesión del ${fechaLegible(s.fecha)}`}
+                    className={[
+                      'h-full w-14 px-1 py-1 text-center text-[0.65rem] font-normal',
+                      s.fecha === fecha ? 'bg-accent-soft text-accent-soft-fg' : 'text-muted',
+                    ].join(' ')}
+                  >
+                    <span className="block font-semibold text-strong">{fechaCorta(s.fecha)}</span>
+                    {diaSemana(s.fecha)}
+                  </button>
+                </th>
+              ))}
+              {/* Misma regla de anchos que la columna del nombre. */}
+              <th className="sticky right-0 z-10 min-w-[5.5rem] max-w-[5.5rem] border-b border-l border-line bg-card p-2 text-center text-xs font-semibold text-muted">
+                Asistió
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {miembros.map((e) => {
+              const r = estadisticaEvento(e.studentId, comoEventos);
+              return (
+                <tr key={e.studentId}>
+                  <td className="sticky left-0 z-10 min-w-[10.5rem] max-w-[10.5rem] border-b border-r border-line bg-card p-1.5">
+                    <span className="flex items-center gap-2 text-left">
+                      <Avatar estudiante={e} tamano={32} />
+                      <span className="min-w-0 truncate text-xs leading-tight text-strong">
+                        <span className="block truncate font-semibold">{e.apellidos}</span>
+                        <span className="block truncate text-muted">{e.nombres}</span>
+                        {enConflicto.has(e.studentId) && (
+                          <span className="block truncate text-[0.6rem] text-warning-soft-fg">
+                            En dos centros
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                  </td>
+                  {ordenadas.map((s) => {
+                    const m = s.estudiantes?.[e.studentId];
+                    const def = m ? findMark(m.estado) : undefined;
+                    return (
+                      <td key={s.fecha} className="border-b border-line p-0">
+                        <button
+                          onClick={() => onAbrirCasilla(s.fecha, e)}
+                          title={
+                            def
+                              ? `${def.label} · registró ${m!.registradoPor}`
+                              : 'Sin registrar (no es una ausencia)'
+                          }
+                          className={[
+                            'h-9 w-14 text-xs font-bold',
+                            def
+                              ? CLASE_MARCA[def.code]
+                              : 'bg-elevated font-normal text-muted opacity-70',
+                          ].join(' ')}
+                        >
+                          {def ? SIGLA[def.code] : '·'}
+                        </button>
+                      </td>
+                    );
+                  })}
+                  {/* Asistencias SOBRE SESIONES REGISTRADAS. El denominador nunca es el
+                      calendario: si una semana no se paso lista, esa semana no existe. */}
+                  <td className="sticky right-0 z-10 min-w-[5.5rem] max-w-[5.5rem] border-b border-l border-line bg-card p-1 text-center text-xs text-soft">
+                    <b className="text-strong">{r.porMarca.asistencia}</b> de{' '}
+                    {ordenadas.length}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-muted">
+        Una columna por sesión registrada, de la más antigua a la más reciente. Un punto
+        «·» es una casilla <b>sin registrar</b>, que no es lo mismo que una falta. Toque
+        una casilla para marcarla o corregirla, o el encabezado para abrir ese día
+        completo.
+      </p>
+    </div>
+  );
 }
 
 /**
@@ -681,7 +1070,9 @@ function MenuLlenarLista({
         className="w-full max-w-md rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
         onClick={(ev) => ev.stopPropagation()}
       >
-        <p className="text-sm font-semibold text-strong">Llenar la lista del {fecha}</p>
+        <p className="text-sm font-semibold text-strong">
+          Llenar la lista del {fechaLegible(fecha)}
+        </p>
         <p className="mb-3 text-xs text-muted">
           {vacias === 0 ? (
             <>Ya están marcados los {total}. No queda ninguna casilla vacía que llenar.</>

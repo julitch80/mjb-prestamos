@@ -34,18 +34,6 @@ interface AppState {
 
   // Sede activa (Fase A — arquitectura multi-sede). Default 'central'.
   sedeActual: SedeId;
-  /**
-   * COMPATIBILIDAD. Antes guardaba la identidad real durante la simulacion local,
-   * que se retiro al implementar la suplantacion de verdad (docs/plan-suplantacion.md):
-   * aquella enganaba a la interfaz pero no al servidor, y por eso las planillas salian
-   * vacias. Ahora el servidor ve a la persona suplantada, asi que el aviso que dependia
-   * de este campo ya no aplica.
-   *
-   * Se conserva SIEMPRE en null porque `src/asistencia/index.tsx` todavia lo lee, y ese
-   * archivo se sincroniza desde otro repositorio: editarlo aqui lo perderia en la
-   * siguiente entrega. Quitarlo cuando esa referencia desaparezca de alla.
-   */
-  identidadReal: { userId: string; nombre: string; rol: string; jornada: string } | null;
 
   // Navegación — en Zustand para persistir entre re-renders
   vistaActual: VistaActual;
@@ -129,7 +117,6 @@ export const useAppStore = create<AppState>()(
       rol: null,
       jornada: null,
       sedeActual: 'central',
-      identidadReal: null,
       vistaActual: 'inicio',
       temaOscuro: true,
       notificaciones: [],
