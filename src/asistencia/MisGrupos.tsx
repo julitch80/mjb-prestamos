@@ -14,6 +14,7 @@ export default function MisGrupos({
   slotId,
   extras,
   perfil = 'docente',
+  todosLosGrados,
   onElegir,
   onSinAsignacion,
 }: {
@@ -42,6 +43,18 @@ export default function MisGrupos({
    *    les ofrece abrir sesion: el servidor solo deja registrar a quien dicta o dirige.
    */
   perfil?: 'docente' | 'coordinacion' | 'consulta';
+  /**
+   * TODOS los grados que existen en la sede, salgan o no en `extras`.
+   *
+   * Hace falta porque `extras` solo trae los cruces DONDE YA HAY SESIONES, y para un
+   * cargo de apoyo eso invierte la pregunta: la PTA no necesita ver los grupos que ya
+   * registran asistencia, necesita ver los que NO. Medido el 2026-08-25 en produccion:
+   * 7 grupos con sesiones, 13 sin ninguna — y los 13 invisibles eran justo los suyos.
+   *
+   * Un grado sin sesiones NO es pulsable: no hay planilla que abrir todavia. La tarjeta
+   * existe para que se sepa que el grupo existe y que nadie ha pasado lista.
+   */
+  todosLosGrados?: string[];
   onElegir: (grado: string, subjectId: string) => void;
   onSinAsignacion: () => void;
 }) {
@@ -67,11 +80,21 @@ export default function MisGrupos({
     .filter((e) => !yaListado.has(`${e.grado}|${e.subjectId}`))
     .sort((a, b) => gradoSortKey(a.grado).localeCompare(gradoSortKey(b.grado)));
 
+  // Cuantas planillas hay por grado. Sale de `extras`, que son los cruces CON sesiones
+  // dentro del alcance de quien mira: para coordinacion y consulta, toda la sede.
+  const conSesiones = new Map<string, number>();
+  for (const e of extras) conSesiones.set(e.grado, (conSesiones.get(e.grado) ?? 0) + 1);
+
   // Ni asignacion ni sesiones todavia. El mensaje depende de QUIEN mira: para un docente
   // es una falla que hay que explicar; para coordinacion y rectoria es sencillamente lo
   // normal, y decirles que "falta cargar su asignacion" los manda a buscar un problema
   // inexistente.
-  if (tarjetas.length === 0 && otros.length === 0) {
+  // El estado vacio NO se usa cuando hay panorama que enseñar: para coordinacion y
+  // consulta, "nadie ha pasado lista todavia" es justo la informacion mas util del dia,
+  // y esconderla tras un cartel de "no hay nada" es lo contrario de lo que necesitan.
+  const hayPanorama = perfil !== 'docente' && (todosLosGrados?.length ?? 0) > 0;
+
+  if (tarjetas.length === 0 && otros.length === 0 && !hayPanorama) {
     if (perfil !== 'docente') {
       return (
         <div className="rounded-xl border border-line bg-card p-4 text-center">
@@ -126,6 +149,54 @@ export default function MisGrupos({
           />
         ))}
       </div>
+
+      {/*
+        PANORAMA DEL COLEGIO — solo para quien no dicta clase (coordinacion y cargos de
+        apoyo). Para ellos la pregunta util no es "que grupos tengo" sino "quien NO esta
+        pasando lista", y esa no se puede responder con una lista que solo muestra los
+        grupos que ya tienen sesiones.
+      */}
+      {perfil !== 'docente' && (todosLosGrados?.length ?? 0) > 0 && (
+        <div className="rounded-xl border border-line bg-card p-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm font-semibold text-strong">Todos los grupos del colegio</p>
+            <p className="text-xs text-muted">
+              {conSesiones.size} de {todosLosGrados!.length} están registrando asistencia
+            </p>
+          </div>
+          <p className="mt-0.5 text-xs text-muted">
+            Los grupos en gris todavía no tienen ninguna planilla: nadie ha pasado lista
+            ahí. No es que falten permisos.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {[...todosLosGrados!]
+              .sort((a, b) => gradoSortKey(a).localeCompare(gradoSortKey(b)))
+              .map((g) => {
+                const activo = conSesiones.has(g);
+                return (
+                  <span
+                    key={g}
+                    title={
+                      activo
+                        ? `${g}: ${conSesiones.get(g)} planilla(s) registradas`
+                        : `${g}: todavía sin asistencia registrada`
+                    }
+                    style={activo ? { borderColor: colorGrado(g), color: colorGrado(g) } : undefined}
+                    className={[
+                      'rounded-full border px-2.5 py-1 text-sm font-semibold',
+                      activo ? 'bg-card' : 'border-line bg-elevated text-muted opacity-60',
+                    ].join(' ')}
+                  >
+                    {g}
+                    {activo && (
+                      <span className="ml-1 text-xs font-normal">· {conSesiones.get(g)}</span>
+                    )}
+                  </span>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {otros.length > 0 && (
         <div className="space-y-2">

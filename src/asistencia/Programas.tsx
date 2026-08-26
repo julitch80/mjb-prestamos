@@ -56,6 +56,8 @@ const OPCIONES_JORNADA: { valor: Jornada | ''; label: string }[] = [
 export default function Programas({
   puedeRegistrar,
   puedeCrearPrograma,
+  rolConsulta = null,
+  jornadaLimitada = null,
 }: {
   /** Si se ofrece marcar asistencia. NO decide quien crea un programa: ver abajo. */
   puedeRegistrar: boolean;
@@ -74,6 +76,22 @@ export default function Programas({
    * la de la regla que lo respalda, no una parecida.
    */
   puedeCrearPrograma: boolean;
+  /**
+   * Rol de CONSULTA sobre los programas: ve los centros y sus planillas, no administra.
+   * Espeja `asisConsultaDelPrograma()` de las reglas (decision de Julian, 2026-08-25).
+   *
+   *  - `total`: la rectora y los cargos de apoyo con `asistenciaConsulta` (PTA y apoyo).
+   *    Todos los programas, las dos jornadas, sin restriccion. Su trabajo es de sexto a
+   *    once, no de una jornada.
+   *  - `coordinador`: solo los de su sede, y si el programa declara jornada, solo la suya.
+   *    En la sede central hay dos, uno por jornada.
+   *
+   * `null` para todos los demas. Abrir la regla sin abrir tambien la CONSULTA no sirve de
+   * nada: la rama de docente filtra por `array-contains` y devolveria cero igual.
+   */
+  rolConsulta?: 'total' | 'coordinador' | null;
+  /** Jornada a la que esta limitada la cuenta, si lo esta. La rectora nunca lo esta. */
+  jornadaLimitada?: Jornada | null;
 }) {
   const [programas, setProgramas] = useState<Programa[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -114,6 +132,18 @@ export default function Programas({
     void leerCreadoresDeProgramas().then(setCreadores).catch(() => setCreadores([]));
   }, []);
 
+  /**
+   * Si esta cuenta puede VER los centros de ESTE programa sin coordinarlo. Se calcula por
+   * programa y no una sola vez, porque el coordinador de la manana no debe ver el de la
+   * tarde aunque los dos sean de su sede.
+   */
+  const puedeConsultar = (p: Programa): boolean => {
+    if (rolConsulta === 'total') return true;
+    if (rolConsulta !== 'coordinador') return false;
+    if (!p.jornada || !jornadaLimitada) return true;
+    return p.jornada === jornadaLimitada;
+  };
+
   const coordinaAlguno = useMemo(
     () => programas.some((p) => (p.coordinadores ?? []).includes(miCorreo ?? '')),
     [programas, miCorreo],
@@ -126,6 +156,7 @@ export default function Programas({
         programa={actualizado}
         miCorreo={miCorreo ?? ''}
         puedeRegistrar={puedeRegistrar}
+        soloConsulta={puedeConsultar(actualizado)}
         onEditarPrograma={() => setEditando(actualizado)}
         onVolver={() => {
           setAbierto(null);
@@ -255,12 +286,19 @@ function DetallePrograma({
   programa,
   miCorreo,
   puedeRegistrar,
+  soloConsulta,
   onEditarPrograma,
   onVolver,
 }: {
   programa: Programa;
   miCorreo: string;
   puedeRegistrar: boolean;
+  /**
+   * Ve todos los centros del programa pero NO los administra: rectora y coordinacion de
+   * la sede/jornada. Cambia la CONSULTA (rama sin filtro, o no ve ninguno) y NO cambia
+   * nada de lo que puede escribir: eso lo sigue decidiendo `esCoordinador`.
+   */
+  soloConsulta: boolean;
   onEditarPrograma: () => void;
   onVolver: () => void;
 }) {
@@ -285,7 +323,7 @@ function DetallePrograma({
   async function cargar() {
     setError(null);
     try {
-      setGrupos(await leerMisGruposDePrograma(programa.programaId));
+      setGrupos(await leerMisGruposDePrograma(programa.programaId, false, soloConsulta));
     } catch (e) {
       setError(
         `No fue posible cargar los centros de este programa. Intente de nuevo en un momento. (${(e as Error).message})`,

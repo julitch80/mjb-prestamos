@@ -663,6 +663,20 @@ export default function Asistencia() {
             // sede. NO es `puedeRegistrar` — el superusuario no marca asistencia y aun
             // asi es el unico que puede crear el primero.
             puedeCrearPrograma={rol === 'superusuario' || rol === 'coordinador'}
+            // Consulta sin administrar. Espeja `asisConsultaDelPrograma()` de las reglas.
+            //
+            // `total` = rectora y cargos de apoyo (PTA, apoyo): todo el colegio, las dos
+            // jornadas. Decision de Julian (2026-08-25): su trabajo es de sexto a once, no
+            // de una jornada, asi que la restriccion por jornada NO les aplica.
+            // `coordinador` = solo su sede, y solo su jornada si el programa la declara.
+            rolConsulta={
+              rol === 'rectora' || alcanceUsuario.soloConsulta
+                ? 'total'
+                : rol === 'coordinador'
+                  ? 'coordinador'
+                  : null
+            }
+            jornadaLimitada={alcanceUsuario.jornadaLimitada ?? null}
           />
         </Suspense>
       </div>
@@ -704,6 +718,27 @@ export default function Asistencia() {
         <MisGrupos
           slotId={slotId}
           extras={cruces}
+          // Todos los grados que le TOCAN, no solo los que ya tienen planilla. Sin esto,
+          // un cargo de apoyo solo ve los grupos donde alguien ya paso lista — y los que
+          // NO aparecen son precisamente los que tiene que ir a buscar.
+          //
+          // Se acota por jornada cuando la cuenta esta limitada a una: en la sede central
+          // hay dos coordinadores, uno por jornada, y `leerEstudiantesDeSede` trae la
+          // sede COMPLETA sin filtrar. Sin este recorte, al coordinador de la manana le
+          // saldrian los diez grupos de la tarde como "sin asistencia registrada" — trece
+          // grupos que no son asunto suyo, presentados como si tuviera que perseguirlos.
+          todosLosGrados={[
+            ...new Set(
+              estudiantes
+                .filter((e) => e.activo)
+                .map((e) => e.gradoActual)
+                .filter(
+                  (g) =>
+                    !alcanceUsuario.jornadaLimitada ||
+                    jornadaDeGrado(g) === alcanceUsuario.jornadaLimitada,
+                ),
+            ),
+          ]}
           perfil={
             rol === 'rectora' || alcanceUsuario.soloConsulta
               ? 'consulta'

@@ -16,6 +16,17 @@
 // las que restringen el acceso al dominio institucional. Despliega siempre
 // acotando el codebase: `--only functions:default` o `--only functions:asistencia`.
 
+// ⚠️ AL REEMPLAZAR EL BLOQUE DE ASISTENCIA, VOLVER A PONER LAS GUARDAS.
+//
+// Toda regla de escritura de este archivo lleva `!esSuplantacion() && (...)`, para que
+// una sesion de suplantacion sea de SOLO LECTURA (docs/plan-suplantacion.md). Esas
+// guardas NO estan en el fragmento del repo de asistencia: si se pega el fragmento tal
+// cual encima, las de ese bloque desaparecen y la suplantacion vuelve a poder escribir,
+// sin que nada falle ni avise.
+//
+// Comprobacion despues de cada sincronizacion: el numero de `allow` de escritura debe
+// coincidir con el de `esSuplantacion()`. Hoy son 57 escrituras y 28 lecturas libres.
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -730,6 +741,38 @@ service cloud.firestore {
     // documento NO existe todavia, y si existiera sin el campo, acceder directo LANZARIA
     // error — y un error en una regla es una denegacion. Es la misma trampa que tumbo la
     // asistencia de todo el colegio con `asistenciaConsulta`.
+    // CONSULTA DE UN PROGRAMA: ver los centros y sus planillas, SIN administrarlos.
+    //
+    // Decision de Julian (2026-08-25), sobre la alternativa de meterlos en
+    // `coordinadores`: eso les daria poder de crear centros, inscribir y rebarajar, al
+    // mismo nivel que la lider del proyecto — y con dos personas inscribiendo sin verse se
+    // rompe `exclusivo`. Ver es su trabajo; administrar no.
+    //
+    //  - Rectora: TODOS los programas, las dos jornadas, sin restriccion.
+    //  - Cargos de apoyo con `asistenciaConsulta` (PTA y apoyo): igual que la rectora.
+    //    "Sobre todo las planillas de sexto hasta once, pero solo consultar". Su trabajo
+    //    cubre el colegio entero, no una jornada.
+    //  - Coordinador de sede: solo los programas de SU sede, y si el programa declara
+    //    jornada, solo si no esta limitado a la otra (en central hay uno por jornada).
+    //
+    // NO abre ninguna escritura, y los `pendientes` NO se abren ni a lectura: resolverlos
+    // es administrar. `'jornada' in ...` como guarda: acceder a un campo inexistente
+    // LANZA error, y un error en una regla es una denegacion.
+    function asisConsultaDelPrograma(programaId) {
+      return asisIsRectora()
+        || asisConsultaAmpliada()
+        || (
+          asisCoordinaSede(asisProgramaDe(programaId).sede)
+          && (
+            !('jornada' in asisProgramaDe(programaId))
+            || asisCoordinaJornada(
+                 asisProgramaDe(programaId).sede,
+                 asisProgramaDe(programaId).jornada,
+               )
+          )
+        );
+    }
+
     function asisCreadoresDePrograma() {
       return exists(/databases/$(database)/documents/asistenciaConfig/programas)
         ? get(/databases/$(database)/documents/asistenciaConfig/programas).data.get('creadores', [])
@@ -841,6 +884,7 @@ service cloud.firestore {
         // Coste en get(): coordinadora = users + programa (2 documentos). Docente = users y
         // nada mas, porque el grupo ya viene resuelto en `resource`. Lejos del tope de 10.
         allow read: if asisCoordinaPrograma(programaId)
+                 || asisConsultaDelPrograma(programaId)
                  || (isActiveUser() && callerEmail() in resource.data.docentes);
 
         // Crear el centro, editarlo, inscribir y mover estudiantes: SOLO la coordinacion del
@@ -875,8 +919,10 @@ service cloud.firestore {
           // Tope de Firestore: 10 por evaluacion de documento unico o de consulta. Sobra
           // margen -- pero se cuenta a mano y se deja escrito porque EL EMULADOR NO APLICA
           // ESTE LIMITE: pasar en local no prueba nada sobre produccion.
+          // La consulta (rectora, apoyo y coordinacion de sede) tambien LEE las planillas.
           allow read: if asisEnGrupoPrograma(programaId, grupoId)
-                   || asisCoordinaPrograma(programaId);
+                   || asisCoordinaPrograma(programaId)
+                   || asisConsultaDelPrograma(programaId);
 
           // /!\ AQUI SI ENTRA asisCanRecord(), y va PRIMERO a proposito.
           // Es la unica puerta del programa que lo exige: escribir una sesion es registrar

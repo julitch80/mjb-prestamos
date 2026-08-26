@@ -1491,6 +1491,17 @@ export async function leerGruposDePrograma(
 export async function leerMisGruposDePrograma(
   programaId: string,
   incluirInactivos = false,
+  /**
+   * true = esta cuenta puede VER todos los centros del programa sin administrarlos:
+   * la rectora, y la coordinacion de la sede/jornada del programa. Espeja
+   * `asisConsultaDelPrograma()` de las reglas.
+   *
+   * Sin esto, la regla puede permitirles leer y la pantalla les mostraria CERO igual: la
+   * rama de docente consulta con where('docentes','array-contains', su correo), y como no
+   * lideran ningun centro, el resultado es vacio. Abrir la regla sin abrir la consulta no
+   * sirve de nada — le paso al coordinador de la manana el 2026-08-25.
+   */
+  consultaAmpliada = false,
 ): Promise<GrupoPrograma[]> {
   if (!(await listo())) return [];
   const correo = await exigirAutor();
@@ -1498,7 +1509,7 @@ export async function leerMisGruposDePrograma(
   const coordina = Boolean(programa?.coordinadores?.includes(correo));
   return leerGruposDePrograma(
     programaId,
-    coordina ? { tipo: 'coordinador' } : { tipo: 'docente' },
+    coordina || consultaAmpliada ? { tipo: 'coordinador' } : { tipo: 'docente' },
     incluirInactivos,
   );
 }
