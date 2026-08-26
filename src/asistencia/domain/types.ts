@@ -478,4 +478,23 @@ export interface PendientePrograma {
   decision?: string;           // studentId elegido, o grupoId ganador si es `duplicado`
   resueltoPor?: string;
   resueltoEn?: number;
+
+  // --- La propuesta del lider del centro (2026-08-25) ---
+  //
+  // El conocimiento y la autoridad viven en personas distintas, y forzarlas a la misma
+  // persona rompe una de las dos. Quien sabe cual de las dos "Jimenez Mariana" de 11-3 es
+  // la suya es el LIDER, que tiene la lista en papel; quien puede inscribir sin romper
+  // `exclusivo` es la COORDINACION, que ve los veintiun centros a la vez.
+  //
+  // Antes de esto la bandeja era solo de coordinacion: 63 casos para la unica persona que
+  // no conoce a ninguno de esos muchachos, mientras veintiun profesores que si los
+  // conocen no podian ni verlos.
+  //
+  // Con la propuesta, el lider senala y NO inscribe; la coordinacion confirma de un clic.
+  // Sus decisiones dejan de ser preguntas y pasan a ser confirmaciones ya respondidas.
+  /** studentId (o grupoId ganador en un `duplicado`) que propone el lider. */
+  propuestaLider?: string | null;
+  /** Correo del lider que propuso. Es quien responde por la propuesta. */
+  propuestaLiderPor?: string;
+  propuestaLiderEn?: number;
 }

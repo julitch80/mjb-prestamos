@@ -11,9 +11,11 @@ import {
   inscribirEnGrupoPrograma,
   leerEstudiantesDeSede,
   leerMisGruposDePrograma,
+  leerPendientesDeGrupo,
   leerSesionesPrograma,
   llenarColumnaPrograma,
   marcarEnPrograma,
+  proponerPendiente,
   retirarDeGrupoPrograma,
 } from './datos';
 import { estadisticaEvento, resumenSesionEvento } from './domain/eventos';
@@ -23,12 +25,15 @@ import { toDateKey } from './domain/ids';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
 import { nombreCompleto } from './domain/nombres';
 import type {
+  CandidatoPendiente,
   EventSession,
   GrupoPrograma,
+  PendientePrograma,
   Programa,
   SesionPrograma,
   Student,
 } from './domain/types';
+import { Check, UserSearch } from 'lucide-react';
 
 /**
  * TEXTO DEL CONFLICTO — se escribe una sola vez y se usa en la fila y en la hoja de
@@ -174,6 +179,16 @@ export default function PlanillaCentro({
   const [menuColumna, setMenuColumna] = useState<string | null>(null);
   const [estadisticaDe, setEstadisticaDe] = useState<Student | null>(null);
   const [inscribiendo, setInscribiendo] = useState(false);
+  /**
+   * Los estudiantes de la lista del lider que el cruce con la matricula NO pudo ubicar.
+   *
+   * Hasta ahora esperaban en la bandeja de coordinacion y el lider NI SIQUIERA SABIA QUE
+   * EXISTIAN: su lista en papel tenia veintiocho nombres y la planilla mostraba veinte,
+   * sin decir nada de los otros ocho. Aqui se los enseña a quien tiene la lista en papel
+   * y conoce las caras, que es la unica persona capaz de decir cual es cual.
+   */
+  const [pendientes, setPendientes] = useState<PendientePrograma[]>([]);
+  const [verPendientes, setVerPendientes] = useState(false);
 
   // La lista de inscritos es una FOTO FIJA de studentIds (`grupo.miembros`), igual que
   // `Event.miembros`: se resuelve contra los estudiantes activos de la sede y se
@@ -229,6 +244,51 @@ export default function PlanillaCentro({
       vivo = false;
     };
   }, [programa.programaId, gruposDelPrograma]);
+
+  // Los pendientes de ESTE centro. Se pide con `leerPendientesDeGrupo`, que ya lleva
+  // dentro el `where('grupoId','==',...)` obligatorio: la regla mira el documento y
+  // Firestore rechaza la consulta ENTERA si la consulta no filtra por ese mismo campo.
+  //
+  // Si falla no se enseña ningun error y el aviso simplemente no aparece. Hoy en
+  // produccion la regla de lectura para el lider TODAVIA no esta desplegada: hasta que lo
+  // este, esta llamada devuelve permission-denied, y un centro de interes tiene que poder
+  // pasar lista igual — a eso vino el docente.
+  useEffect(() => {
+    let vivo = true;
+    void leerPendientesDeGrupo(programa.programaId, grupo.grupoId)
+      .then((lista) => {
+        if (vivo) setPendientes(lista);
+      })
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, [programa.programaId, grupo.grupoId]);
+
+  /**
+   * Lo que se le enseña al lider: los casos que le dejan un hueco en la lista.
+   *
+   * Se dejan fuera los `duplicado`, y no por descuido: ese caso habla de alguien que YA
+   * esta inscrito y que ya sale señalado en la planilla y en el aviso de conflicto.
+   * Meterlo aqui seria decir dos veces la misma cosa con dos numeros distintos.
+   */
+  const sinUbicar = useMemo(
+    () => pendientes.filter((p) => p.estado === 'pendiente' && p.tipo !== 'duplicado'),
+    [pendientes],
+  );
+
+  /** Guarda la propuesta del lider. NO inscribe: eso lo hace la coordinacion. */
+  const proponer = useCallback(
+    async (pendienteId: string, propuesta: string | null) => {
+      await proponerPendiente(programa.programaId, pendienteId, propuesta);
+      setPendientes((lista) =>
+        lista.map((p) =>
+          p.pendienteId === pendienteId ? { ...p, propuestaLider: propuesta } : p,
+        ),
+      );
+    },
+    [programa.programaId],
+  );
 
   /**
    * Quien esta inscrito en DOS centros del programa a la vez.
@@ -522,6 +582,56 @@ export default function PlanillaCentro({
               Esa fecha queda fuera del semestre del programa ({programa.desde} a{' '}
               {programa.hasta}). Se puede registrar igual, pero revise que sea la correcta.
             </p>
+          )}
+        </div>
+      )}
+
+      {sinUbicar.length > 0 && (
+        <div className="rounded-xl border border-warning-soft bg-warning-soft text-warning-soft-fg">
+          <button
+            onClick={() => setVerPendientes((v) => !v)}
+            aria-expanded={verPendientes}
+            className="flex w-full items-center gap-2 p-3 text-left"
+          >
+            <UserSearch size={18} aria-hidden className="shrink-0" />
+            <span className="grow text-sm font-semibold">
+              {sinUbicar.length === 1
+                ? '1 estudiante de su lista no se pudo ubicar'
+                : `${sinUbicar.length} estudiantes de su lista no se pudieron ubicar`}
+            </span>
+            <span className="shrink-0 text-xs underline">
+              {verPendientes ? 'Ocultar' : 'Ver quiénes son'}
+            </span>
+          </button>
+
+          {verPendientes && (
+            <div className="border-t border-warning-soft p-3">
+              {esCoordinador ? (
+                // A la coordinacion no se la entretiene aqui: aqui solo ve los de ESTE
+                // centro y no puede comprobar `exclusivo`, que es unicidad entre los
+                // veintiun centros a la vez. Donde resuelve de verdad es en la bandeja.
+                <p className="text-xs">
+                  Usted coordina este programa: estos casos se resuelven —y quedan
+                  inscritos— en la <b>bandeja de pendientes del programa</b>, que los
+                  muestra todos juntos. Desde aquí solo se pueden señalar, porque esta
+                  pantalla ve un solo centro y no puede comprobar si el estudiante ya quedó
+                  en otro.
+                </p>
+              ) : (
+                <p className="text-xs">
+                  Estos nombres venían en la lista de su centro, pero no se pudo saber con
+                  seguridad a qué estudiante de la matrícula corresponden.{' '}
+                  <b>Señale cuál es cuál: usted los conoce de vista.</b>
+                </p>
+              )}
+              <ul className="mt-2 space-y-2">
+                {sinUbicar.map((p) => (
+                  <li key={p.pendienteId}>
+                    <TarjetaSinUbicar pendiente={p} onProponer={proponer} />
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}
@@ -880,6 +990,170 @@ function MarcaConflicto() {
         En dos centros de interés
       </span>
     </Ayuda>
+  );
+}
+
+/**
+ * Un estudiante de la lista del lider que el cruce con la matricula no pudo ubicar.
+ *
+ * LO CONTRAINTUITIVO, Y HAY QUE DECIRLO EN LA TARJETA: tocar un candidato NO INSCRIBE A
+ * NADIE. Guarda la propuesta del lider (`proponerPendiente`) y la coordinacion la
+ * confirma. Son dos actos separados a proposito —el lider sabe cual de las dos "Jimenez
+ * Mariana" es la suya, la coordinacion es la unica que ve los veintiun centros a la vez y
+ * puede inscribir sin romper `exclusivo`—, pero para quien toca el boton eso es invisible:
+ * si la pantalla no lo dice, el lider se va creyendo que el estudiante ya quedo y vuelve
+ * la semana siguiente a reclamar por que no aparece en la planilla.
+ *
+ * La FOTO no es adorno: en un homonimo —dos personas con el mismo nombre y el mismo
+ * grado— la cara es literalmente el unico dato que permite decidir. A los muchachos se los
+ * reconoce por la cara, no por el apellido.
+ */
+function TarjetaSinUbicar({
+  pendiente,
+  onProponer,
+}: {
+  pendiente: PendientePrograma;
+  onProponer: (pendienteId: string, propuesta: string | null) => Promise<void>;
+}) {
+  const [guardando, setGuardando] = useState(false);
+  const [fallo, setFallo] = useState<string | null>(null);
+  const p = pendiente;
+  const elegido = p.propuestaLider ?? null;
+  const nombreElegido = p.candidatos.find((c) => c.studentId === elegido)?.nombre ?? null;
+
+  async function elegir(studentId: string | null) {
+    setGuardando(true);
+    setFallo(null);
+    try {
+      await onProponer(p.pendienteId, studentId);
+    } catch (e) {
+      setFallo(
+        `No fue posible guardar lo que señaló: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <article className="rounded-xl border border-line bg-card p-3 text-soft">
+      <header className="flex flex-wrap items-baseline gap-x-2">
+        {/* El nombre TAL CUAL venia en la lista, sin corregir: es la evidencia, y es lo
+            que el lider va a reconocer de su papel. */}
+        <span className="text-sm font-semibold text-strong">{p.nombreArchivo}</span>
+        {p.grupoArchivo && <span className="text-xs text-muted">{p.grupoArchivo}</span>}
+      </header>
+
+      {p.tipo === 'no_encontrado' || p.candidatos.length === 0 ? (
+        // Aqui NO hay candidatos que ofrecer, y ofrecer una busqueda seria mandar al lider
+        // a buscar lo que no existe: ese nombre no esta en la matricula del colegio. El
+        // sitio donde se arregla no es esta aplicacion.
+        <p className="mt-1 text-xs">
+          Este nombre <b>no aparece en la matrícula del colegio</b>. No es algo que se
+          arregle desde aquí: puede estar mal escrito en su lista, o el estudiante no quedó
+          matriculado. Verifíquelo en <b>secretaría</b> y avise a la coordinación del
+          programa.
+        </p>
+      ) : (
+        <>
+          <p className="mt-1 text-xs">
+            {p.tipo === 'ortografia' ? (
+              <>
+                Puede ser la misma persona, escrita distinto. ¿Es esta?
+              </>
+            ) : (
+              <>
+                Hay {p.candidatos.length} estudiantes que pueden ser. ¿Cuál es el suyo?
+              </>
+            )}
+          </p>
+          <div className="mt-2 space-y-1.5">
+            {p.candidatos.map((c) => (
+              <BotonCandidatoLider
+                key={c.studentId}
+                candidato={c}
+                elegido={c.studentId === elegido}
+                disabled={guardando}
+                onClick={() => void elegir(c.studentId === elegido ? null : c.studentId)}
+              />
+            ))}
+          </div>
+
+          {elegido ? (
+            <p className="mt-2 rounded-lg border border-info-soft bg-info-soft p-2 text-xs text-info-soft-fg">
+              Usted señaló a <b>{nombreElegido ?? 'un estudiante'}</b>. Está esperando que
+              la coordinación lo confirme; en cuanto lo haga, queda inscrito y aparecerá en
+              esta planilla. <b>Usted no tiene que hacer nada más.</b> Si se equivocó, toque
+              otro nombre —o el mismo, para quitar lo que señaló— mientras el caso siga
+              abierto.
+            </p>
+          ) : (
+            <p className="mt-2 text-[0.7rem] text-muted">
+              Tocar un nombre <b>no lo inscribe</b>: solo señala quién cree usted que es.
+              Coordinación lo confirma y queda inscrito. Usted no tiene que hacer nada más.
+            </p>
+          )}
+        </>
+      )}
+
+      {fallo && (
+        <p className="mt-2 rounded-lg border border-danger-soft bg-danger-soft p-2 text-xs text-danger-soft-fg">
+          {fallo}
+        </p>
+      )}
+    </article>
+  );
+}
+
+/**
+ * Boton de candidato con la FOTO, igual que en la bandeja de coordinacion.
+ *
+ * `Avatar` usa `fotoPath` solo como señal de «este tiene foto, ve a buscarla»: la ruta
+ * real la calcula `urlDeFoto` a partir del `studentId`. Un pendiente no guarda `fotoPath`
+ * —guarda lo minimo, son datos de menores—, asi que se pone la señal y se deja que la
+ * busqueda decida: si no hay foto salen las iniciales, como en la planilla.
+ */
+function BotonCandidatoLider({
+  candidato,
+  elegido,
+  disabled,
+  onClick,
+}: {
+  candidato: CandidatoPendiente;
+  elegido: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const comoEstudiante = {
+    studentId: candidato.studentId,
+    nombres: candidato.nombre,
+    apellidos: '',
+    fotoPath: 'buscar',
+  };
+  return (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      aria-pressed={elegido}
+      className={[
+        'flex w-full items-center gap-3 rounded-xl border p-2 text-left disabled:opacity-50',
+        elegido ? 'border-accent bg-accent-soft' : 'border-line bg-elevated',
+      ].join(' ')}
+    >
+      <Avatar estudiante={comoEstudiante} tamano={52} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-strong">
+          {candidato.nombre}
+        </span>
+        <span className="block text-xs text-muted">{candidato.grado}</span>
+      </span>
+      {elegido && (
+        <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-fg">
+          <Check size={12} aria-hidden />
+          Es este
+        </span>
+      )}
+    </button>
   );
 }
 

@@ -946,26 +946,90 @@ service cloud.firestore {
       //
       // Tampoco pasa por asisCanRecord(): resolver un homonimo no es marcar asistencia.
       match /pendientes/{pendienteId} {
-        allow read: if asisCoordinaPrograma(programaId);
+
+        // El lider del centro que nombra `resource.data.grupoId`.
+        //
+        // `get('grupoId', '')` y no acceso directo: un campo ausente no devuelve falso,
+        // REVIENTA la evaluacion, y un error en una regla es una DENEGACION (la trampa que
+        // ya dejo al colegio entero sin pasar lista con `asistenciaConsulta`).
+        function asisLiderDelPendiente(programaId) {
+          return resource != null
+            && resource.data.get('grupoId', '') != ''
+            && asisEnGrupoPrograma(programaId, resource.data.grupoId);
+        }
+
+        // El lider solo puede mover los TRES campos de la propuesta, y firmarla con SU correo.
+        //
+        // Dos cierres, a proposito redundantes:
+        //   1) `diff().affectedKeys().hasOnly([...])` — total: cubre tambien los campos que
+        //      nadie enumero aqui y los que se anadan manana (`gruposEnConflicto`, `resueltoEn`).
+        //   2) La lista explicita campo a campo — documenta QUE es lo que no se puede tocar y
+        //      falla igual si alguien reordena el bloque de arriba.
+        //
+        // Todas las comparaciones que pueden tocar un campo AUSENTE van con `get(campo, def)`:
+        // en un pendiente recien importado (los 63 abiertos hoy) no existen `decision`,
+        // `resueltoPor` ni ninguno de los tres de la propuesta. Acceder directo los reventaria
+        // y la primera propuesta de cada lider seria imposible.
+        function asisSoloTocaLaPropuesta() {
+          return request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(['propuestaLider', 'propuestaLiderPor', 'propuestaLiderEn'])
+            && request.resource.data.tipo == resource.data.tipo
+            && request.resource.data.nombreArchivo == resource.data.nombreArchivo
+            && request.resource.data.grupoArchivo == resource.data.grupoArchivo
+            && request.resource.data.grupoId == resource.data.grupoId
+            && request.resource.data.candidatos == resource.data.candidatos
+            && request.resource.data.get('sugerido', '') == resource.data.get('sugerido', '')
+            && request.resource.data.estado == resource.data.estado
+            && request.resource.data.get('decision', '') == resource.data.get('decision', '')
+            && request.resource.data.get('resueltoPor', '') == resource.data.get('resueltoPor', '')
+            && request.resource.data.get('propuestaLiderPor', '') == callerEmail();
+        }
+
+        // /!\ LA FORMA DE ESTA LECTURA ES DELIBERADA, NO ESTILISTICA (igual que en /grupos).
+        //
+        // La primera rama NO mira `resource`: solo la ruta y el documento padre. Por eso la
+        // consulta SIN filtro de la coordinacion es DEMOSTRABLE y le devuelve la bandeja
+        // entera de un tiron.
+        //
+        // La segunda SI mira `resource.data.grupoId`, asi que el lider DEBE consultar con
+        // where('grupoId', '==', <su centro>). Sin ese filtro Firestore rechaza la CONSULTA
+        // ENTERA con permission-denied, aunque tuviera derecho a cada documento uno por uno.
+        // Es justo lo que hace `leerPendientesDeGrupo` en src/asistencia/datos.ts, y no es
+        // opcional: quitar ese where de la consulta apaga la bandeja del lider.
+        //
+        // Coste en get(): coordinacion = users + programa (2). Lider = users + programa +
+        // grupo (3, por el cortocircuito del || solo si no coordina). Lejos del tope de 10
+        // — pero se cuenta a mano porque EL EMULADOR NO APLICA ESE LIMITE.
+        allow read: if asisCoordinaPrograma(programaId)
+                 || asisLiderDelPendiente(programaId);
 
         allow create: if !esSuplantacion() && (asisCoordinaPrograma(programaId)
           && request.resource.data.tipo in ['homonimo', 'no_encontrado', 'ortografia', 'duplicado']
           && request.resource.data.estado == 'pendiente'
           && request.resource.data.candidatos is list);
 
-        // Resolver: la evidencia del archivo es inmutable (`tipo`, `nombreArchivo`,
-        // `grupoArchivo`), porque es lo que permite auditar la decision despues. Y quien
-        // resuelve firma con su propio correo.
+        // Resolver (COORDINACION): la evidencia del archivo es inmutable (`tipo`,
+        // `nombreArchivo`, `grupoArchivo`), porque es lo que permite auditar la decision
+        // despues. Y quien resuelve firma con su propio correo.
         //
         // `get('resueltoPor', '')` sobre request.resource: mientras el pendiente sigue en
         // `pendiente` el campo NO existe, y leerlo directo reventaria la evaluacion.
-        allow update: if !esSuplantacion() && (asisCoordinaPrograma(programaId)
-          && request.resource.data.tipo == resource.data.tipo
-          && request.resource.data.nombreArchivo == resource.data.nombreArchivo
-          && request.resource.data.grupoArchivo == resource.data.grupoArchivo
-          && request.resource.data.estado in ['pendiente', 'resuelto', 'descartado']
-          && (request.resource.data.estado == 'pendiente'
-              || request.resource.data.get('resueltoPor', '') == callerEmail()));
+        //
+        // Proponer (LIDER): la segunda rama. No toca `estado`, ni `decision`, ni la
+        // evidencia, ni `grupoId` — no podria llevarse el pendiente a otro centro ni
+        // inscribir a nadie. Lo unico que deja es una propuesta firmada.
+        allow update: if !esSuplantacion() && ((
+            asisCoordinaPrograma(programaId)
+            && request.resource.data.tipo == resource.data.tipo
+            && request.resource.data.nombreArchivo == resource.data.nombreArchivo
+            && request.resource.data.grupoArchivo == resource.data.grupoArchivo
+            && request.resource.data.estado in ['pendiente', 'resuelto', 'descartado']
+            && (request.resource.data.estado == 'pendiente'
+                || request.resource.data.get('resueltoPor', '') == callerEmail())
+          ) || (
+            asisLiderDelPendiente(programaId)
+            && asisSoloTocaLaPropuesta()
+          ));
 
         allow delete: if !esSuplantacion() && (false);   // un pendiente se descarta (estado), no se borra: es rastro
       }

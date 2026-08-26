@@ -16,12 +16,19 @@ import {
   editarGrupoPrograma,
   editarPrograma,
   leerMisGruposDePrograma,
+  leerPendientesPrograma,
   leerProgramasVisibles,
 } from './datos';
 import { correoAutorAsync } from './identidad';
 import { detectarDuplicados, slugGrupo, slugPrograma, validarPrograma } from './domain/programas';
 import { toDateKey } from './domain/ids';
-import type { GrupoPrograma, Jornada, Programa, Sede } from './domain/types';
+import type {
+  GrupoPrograma,
+  Jornada,
+  PendientePrograma,
+  Programa,
+  Sede,
+} from './domain/types';
 
 /** Nombre para mostrar de cada sede. El id real sigue siendo la clave. */
 const NOMBRE_SEDE: Record<string, string> = {
@@ -317,6 +324,20 @@ function DetallePrograma({
   const [seccion, setSeccion] = useState<'centros' | 'pendientes' | 'panel' | 'cargar'>(
     'centros',
   );
+  /**
+   * Los pendientes abiertos del programa entero, solo para CONTARLOS por centro.
+   *
+   * La bandeja vive a nivel de programa y los centros a otro nivel, y eso hizo que la
+   * coordinadora entrara a un centro, no viera nada y creyera que no habia pendientes: los
+   * 63 casos estaban en otra pestaña. Aqui cada centro dice cuantos tiene y lleva a la
+   * bandeja ya filtrada por el.
+   *
+   * Si la lectura falla no se rompe la pantalla ni se inventa un cero explicado: se queda
+   * sin avisos y los centros se siguen viendo, que es lo que se vino a hacer.
+   */
+  const [pendientes, setPendientes] = useState<PendientePrograma[]>([]);
+  /** Centro con el que se entra a la bandeja, cuando se llega desde su aviso. */
+  const [grupoPendientes, setGrupoPendientes] = useState<string | undefined>(undefined);
 
   const esCoordinador = (programa.coordinadores ?? []).includes(miCorreo);
 
@@ -338,6 +359,39 @@ function DetallePrograma({
   useEffect(() => {
     void cargar();
   }, [programa.programaId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Solo la coordinacion puede leer la bandeja: pedirla desde una cuenta de lider seria
+  // un permission-denied garantizado, y el lider no ve la seccion de todos modos.
+  useEffect(() => {
+    if (!esCoordinador) {
+      setPendientes([]);
+      return;
+    }
+    let vivo = true;
+    void leerPendientesPrograma(programa.programaId)
+      .then((lista) => vivo && setPendientes(lista))
+      .catch(() => vivo && setPendientes([]));
+    return () => {
+      vivo = false;
+    };
+    // `seccion` esta a proposito: al volver de la bandeja los numeros tienen que reflejar
+    // lo que se acaba de resolver. Es una consulta de una coleccion pequena y solo la hace
+    // la coordinacion, que es una sola persona.
+  }, [programa.programaId, esCoordinador, seccion]);
+
+  /**
+   * Cuantos pendientes abiertos toca a cada centro. Un `duplicado` cuenta en LOS DOS
+   * centros en conflicto —el caso es de los dos y cualquiera de los dos lideres lo
+   * reconoce—, y por eso la suma de los avisos puede pasar del total del programa.
+   */
+  const pendientesPorGrupo = useMemo(() => {
+    const cuenta = new Map<string, number>();
+    for (const p of pendientes) {
+      const centros = new Set<string>([p.grupoId, ...(p.gruposEnConflicto ?? [])]);
+      for (const id of centros) cuenta.set(id, (cuenta.get(id) ?? 0) + 1);
+    }
+    return cuenta;
+  }, [pendientes]);
 
   /** Quien quedo inscrito en dos centros a la vez, sobre los centros que se alcanzan a ver. */
   const conflictos = useMemo(() => {
@@ -432,7 +486,12 @@ function DetallePrograma({
           ).map(([v, nombre]) => (
             <button
               key={v}
-              onClick={() => setSeccion(v)}
+              onClick={() => {
+                setSeccion(v);
+                // Entrar por la pastilla es entrar a la bandeja entera: el filtro por
+                // centro solo lo pone el aviso de cada centro.
+                if (v === 'pendientes') setGrupoPendientes(undefined);
+              }}
               className={[
                 'min-h-[34px] rounded-full border px-3 py-1 text-sm',
                 seccion === v
@@ -440,14 +499,21 @@ function DetallePrograma({
                   : 'border-line text-soft',
               ].join(' ')}
             >
-              {nombre}
+              {/* El total va en la pastilla: es el numero que dice si queda trabajo. */}
+              {v === 'pendientes' && pendientes.length > 0
+                ? `${nombre} (${pendientes.length})`
+                : nombre}
             </button>
           ))}
         </div>
       )}
 
       {esCoordinador && seccion === 'pendientes' && (
-        <PendientesPrograma programaId={programa.programaId} sede={programa.sede} />
+        <PendientesPrograma
+          programaId={programa.programaId}
+          sede={programa.sede}
+          grupoInicial={grupoPendientes}
+        />
       )}
       {esCoordinador && seccion === 'panel' && (
         <PanelPrograma programaId={programa.programaId} sede={programa.sede} />
@@ -496,34 +562,51 @@ function DetallePrograma({
         <ul className="space-y-1.5">
           {grupos.map((g) => {
             const dobles = conflictoPorGrupo.get(g.grupoId) ?? 0;
+            const porConfirmar = pendientesPorGrupo.get(g.grupoId) ?? 0;
             return (
-              <li
-                key={g.grupoId}
-                className="flex items-stretch gap-1.5 rounded-xl border border-line bg-card"
-              >
-                <button
-                  onClick={() => setCentroAbierto(g)}
-                  className="grow rounded-xl p-3 text-left hover:bg-hover"
-                >
-                  <p className="text-sm font-semibold text-strong">{g.nombre}</p>
-                  <p className="text-xs text-muted">
-                    {g.miembros.length} {g.miembros.length === 1 ? 'inscrito' : 'inscritos'}
-                    {g.cupo ? ` de ${g.cupo}` : ''} · lidera {g.lider}
-                  </p>
-                  {dobles > 0 && (
-                    <p className="mt-0.5 text-xs text-warning-soft-fg">
-                      {dobles} {dobles === 1 ? 'estudiante está' : 'estudiantes están'}{' '}
-                      también en otro centro
-                    </p>
-                  )}
-                </button>
-                {esCoordinador && (
+              <li key={g.grupoId} className="rounded-xl border border-line bg-card">
+                <div className="flex items-stretch gap-1.5">
                   <button
-                    onClick={() => setEditando(g)}
-                    aria-label={`Editar ${g.nombre}`}
-                    className="shrink-0 rounded-r-xl border-l border-line px-3 text-xs text-muted hover:bg-hover"
+                    onClick={() => setCentroAbierto(g)}
+                    className="grow rounded-xl p-3 text-left hover:bg-hover"
                   >
-                    Editar
+                    <p className="text-sm font-semibold text-strong">{g.nombre}</p>
+                    <p className="text-xs text-muted">
+                      {g.miembros.length} {g.miembros.length === 1 ? 'inscrito' : 'inscritos'}
+                      {g.cupo ? ` de ${g.cupo}` : ''} · lidera {g.lider}
+                    </p>
+                    {dobles > 0 && (
+                      <p className="mt-0.5 text-xs text-warning-soft-fg">
+                        {dobles} {dobles === 1 ? 'estudiante está' : 'estudiantes están'}{' '}
+                        también en otro centro
+                      </p>
+                    )}
+                  </button>
+                  {esCoordinador && (
+                    <button
+                      onClick={() => setEditando(g)}
+                      aria-label={`Editar ${g.nombre}`}
+                      className="shrink-0 rounded-r-xl border-l border-line px-3 text-xs text-muted hover:bg-hover"
+                    >
+                      Editar
+                    </button>
+                  )}
+                </div>
+
+                {/* El aviso que faltaba: los pendientes de ESTE centro, donde la
+                    coordinadora los fue a buscar. Lleva a la bandeja ya filtrada. */}
+                {esCoordinador && porConfirmar > 0 && (
+                  <button
+                    onClick={() => {
+                      setGrupoPendientes(g.grupoId);
+                      setSeccion('pendientes');
+                    }}
+                    className="flex w-full items-center justify-between gap-2 border-t border-line px-3 py-2 text-left text-xs font-medium text-accent-soft-fg hover:bg-hover"
+                  >
+                    <span>
+                      {porConfirmar} por confirmar en «{g.nombre}»
+                    </span>
+                    <span aria-hidden>→</span>
                   </button>
                 )}
               </li>

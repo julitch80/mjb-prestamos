@@ -20,7 +20,7 @@ import type {
   Student,
   TipoPendiente,
 } from './domain/types';
-import { Check, Search, UserX, X } from 'lucide-react';
+import { Check, Search, UserCheck, UserX, X } from 'lucide-react';
 
 /**
  * Bandeja de pendientes de un programa — la pantalla de la coordinadora.
@@ -34,6 +34,14 @@ import { Check, Search, UserX, X } from 'lucide-react';
  * Las fotografias no son decoracion: la coordinadora reconoce a los muchachos por la
  * cara, no por el apellido. En un homonimo —dos "Quiroz Quiroz Samanta"— la foto es
  * literalmente el unico dato que le permite decidir.
+ *
+ * LA PROPUESTA DEL LIDER MANDA EN LA PANTALLA (2026-08-26). Quien conoce a los muchachos
+ * es el lider del centro, que les da clase; la coordinadora no. Cuando un pendiente trae
+ * `propuestaLider`, la tarjeta lo dice arriba con el nombre de quien lo propuso, deja ese
+ * candidato preseleccionado y ofrece un boton de «Confirmar» que resuelve de un clic. La
+ * propuesta es INFORMACION, no una orden: la coordinadora sigue pudiendo escoger otro
+ * candidato o descartar, y si el lider y el sistema (`sugerido`) discrepan se DICE — son
+ * dos opiniones distintas y esconder una seria decidir por ella.
  *
  * DOS ESCRITURAS, EN ESTE ORDEN. Resolver el pendiente y mover la inscripcion son dos
  * documentos distintos y `resolverPendientePrograma` no inscribe por si solo (a
@@ -53,12 +61,40 @@ const ETIQUETA_TIPO: Record<TipoPendiente, string> = {
 
 const ORDEN_TIPO: TipoPendiente[] = ['homonimo', 'ortografia', 'no_encontrado', 'duplicado'];
 
+/**
+ * Un correo institucional puesto en palabras. No hay directorio de nombres en el modulo,
+ * asi que el unico dato disponible es el correo — y ensenarlo crudo en una frase («
+ * julian.medina@… dice que es esta») la vuelve ilegible.
+ *
+ * La regla es ESTRECHA a proposito: solo se traduce cuando el correo trae el nombre
+ * separado por puntos, guiones o barrabajos («julian.medina» → «Julián Medina», sin los
+ * acentos que el correo no lleva). Un buzon como «jmedina» o «coord2» no se disfraza de
+ * nombre: se muestra el correo entero, que es informacion honesta. Nunca un identificador
+ * tecnico.
+ */
+export function nombreLegibleDeCorreo(correo: string): string {
+  const limpio = (correo ?? '').trim();
+  const local = limpio.split('@')[0] ?? '';
+  if (!/^[a-zA-ZñÑáéíóúÁÉÍÓÚ]{2,}([._-][a-zA-ZñÑáéíóúÁÉÍÓÚ]{2,})+$/.test(local)) return limpio;
+  return local
+    .split(/[._-]/)
+    .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1).toLowerCase())
+    .join(' ');
+}
+
 export default function PendientesPrograma({
   programaId,
   sede,
+  grupoInicial,
 }: {
   programaId: string;
   sede: string;
+  /**
+   * Centro por el que llega ya filtrada la bandeja. Existe porque la coordinadora entro a
+   * un centro, no encontro sus pendientes y creyo que no habia ninguno: desde la lista de
+   * centros ahora se llega aqui con el filtro puesto.
+   */
+  grupoInicial?: string;
 }) {
   const [pendientes, setPendientes] = useState<PendientePrograma[]>([]);
   const [grupos, setGrupos] = useState<GrupoPrograma[]>([]);
@@ -68,8 +104,15 @@ export default function PendientesPrograma({
   const [error, setError] = useState<string | null>(null);
 
   const [filtroTipo, setFiltroTipo] = useState<TipoPendiente | 'todos'>('todos');
-  const [filtroGrupo, setFiltroGrupo] = useState<string>('todos');
+  const [filtroGrupo, setFiltroGrupo] = useState<string>(grupoInicial ?? 'todos');
   const [verResueltos, setVerResueltos] = useState(false);
+  /** Solo los que ya traen la propuesta del lider: son los que se despachan rapido. */
+  const [soloConPropuesta, setSoloConPropuesta] = useState(false);
+
+  // Si se vuelve a entrar desde otro centro, el filtro sigue al centro elegido.
+  useEffect(() => {
+    if (grupoInicial) setFiltroGrupo(grupoInicial);
+  }, [grupoInicial]);
 
   const recargar = useCallback(async () => {
     setError(null);
@@ -120,11 +163,32 @@ export default function PendientesPrograma({
     [grupos],
   );
 
+  /** Correo de quien lidera un centro, para poder decir «que lidera este centro». */
+  const liderDelCentro = useCallback(
+    (grupoId: string) => grupos.find((g) => g.grupoId === grupoId)?.lider ?? null,
+    [grupos],
+  );
+
+  /**
+   * Nombre de un estudiante de la matricula. Hace falta porque la propuesta del lider es
+   * un `studentId` y puede senalar a alguien que NO esta entre los candidatos (en un
+   * `no_encontrado` el lider lo busco en toda la sede). Sin esto la tarjeta diria «dice
+   * que es est_0412», que es exactamente el identificador tecnico que no se muestra.
+   */
+  const nombreEstudiante = useCallback(
+    (studentId: string) => {
+      const e = matriculados.find((x) => x.studentId === studentId);
+      return e ? nombreCompleto(e) : null;
+    },
+    [matriculados],
+  );
+
   if (cargando) {
     return <p className="p-3 text-sm text-muted">Cargando la bandeja de pendientes…</p>;
   }
 
   const abiertos = pendientes.filter((p) => p.estado === 'pendiente');
+  const conPropuesta = abiertos.filter((p) => Boolean(p.propuestaLider));
   const visibles = pendientes
     .filter((p) => (verResueltos ? true : p.estado === 'pendiente'))
     .filter((p) => filtroTipo === 'todos' || p.tipo === filtroTipo)
@@ -133,7 +197,13 @@ export default function PendientesPrograma({
         filtroGrupo === 'todos' ||
         p.grupoId === filtroGrupo ||
         (p.gruposEnConflicto ?? []).includes(filtroGrupo),
-    );
+    )
+    .filter((p) => !soloConPropuesta || Boolean(p.propuestaLider))
+    // Primero los que ya traen propuesta del lider: son confirmaciones de un clic, y
+    // despacharlas de entrada deja la bandeja en los pocos casos que hay que pensar.
+    // `sort` sobre una copia ya filtrada, y estable: dentro de cada bloque se conserva el
+    // orden alfabetico con que llegaron de `leerPendientesPrograma`.
+    .sort((a, b) => Number(Boolean(b.propuestaLider)) - Number(Boolean(a.propuestaLider)));
 
   const cobertura = coberturaPrograma(matriculados, grupos);
 
@@ -161,6 +231,25 @@ export default function PendientesPrograma({
             {ETIQUETA_TIPO[t]} ({conteo?.[t] ?? 0})
           </Pastilla>
         ))}
+      </div>
+
+      {/* La propuesta del lider primero, y con su propio filtro: de los 63 casos, los que
+          ya traen respuesta se cierran confirmando. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Pastilla
+          activa={soloConPropuesta}
+          onClick={() => setSoloConPropuesta((v) => !v)}
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <UserCheck size={14} aria-hidden />
+            Con propuesta del líder ({conPropuesta.length})
+          </span>
+        </Pastilla>
+        {conPropuesta.length > 0 && !soloConPropuesta && (
+          <span className="text-xs text-muted">
+            Aparecen de primeras en la lista: solo hay que confirmarlas.
+          </span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -198,6 +287,8 @@ export default function PendientesPrograma({
                 pendiente={p}
                 sede={sede}
                 nombreGrupo={nombreGrupo}
+                liderDelCentro={liderDelCentro}
+                nombreEstudiante={nombreEstudiante}
                 onAplicado={aplicarEnLocal}
               />
             </li>
@@ -275,11 +366,15 @@ function Tarjeta({
   pendiente,
   sede,
   nombreGrupo,
+  liderDelCentro,
+  nombreEstudiante,
   onAplicado,
 }: {
   pendiente: PendientePrograma;
   sede: string;
   nombreGrupo: (grupoId: string) => string;
+  liderDelCentro: (grupoId: string) => string | null;
+  nombreEstudiante: (studentId: string) => string | null;
   onAplicado: (pendienteId: string, cambio: Partial<PendientePrograma>) => void;
 }) {
   const [trabajando, setTrabajando] = useState(false);
@@ -371,6 +466,14 @@ function Tarjeta({
         </p>
       ) : (
         <>
+          <AvisoPropuesta
+            pendiente={p}
+            nombreGrupo={nombreGrupo}
+            liderDelCentro={liderDelCentro}
+            nombreEstudiante={nombreEstudiante}
+            trabajando={trabajando}
+            onDecidir={decidir}
+          />
           {p.tipo === 'homonimo' && (
             <Homonimo pendiente={p} trabajando={trabajando} onDecidir={decidir} />
           )}
@@ -405,24 +508,159 @@ function Tarjeta({
   );
 }
 
-type Decidir = (opciones: {
+type OpcionesDecidir = {
   inscribirEn?: { grupoId: string; studentId: string };
   retirarDe?: { grupoId: string; studentId: string }[];
   /** Centro que gana un `duplicado`: se le levanta la marca de conflicto. */
   limpiarConflictoEn?: { grupoId: string; studentId: string };
   estado: 'resuelto' | 'descartado';
   decision?: string;
-}) => void | Promise<void>;
+};
+
+type Decidir = (opciones: OpcionesDecidir) => void | Promise<void>;
+
+/**
+ * La propuesta del lider traducida a la MISMA decision que tomaria la coordinadora a
+ * mano. Confirmar no es un atajo con reglas propias: produce exactamente las escrituras
+ * que produce pulsar el candidato (o el centro ganador) en la tarjeta, en el mismo orden.
+ *
+ * Devuelve `null` cuando la propuesta no se puede aplicar tal cual —un `duplicado` que
+ * senala un centro que ya no esta en conflicto, por ejemplo—; entonces no se ofrece el
+ * boton y la tarjeta se resuelve como siempre. Antes que aplicar una decision que no se
+ * entiende, no ofrecerla.
+ */
+function accionDePropuesta(p: PendientePrograma): OpcionesDecidir | null {
+  const propuesta = p.propuestaLider;
+  if (!propuesta) return null;
+
+  if (p.tipo === 'duplicado') {
+    const enConflicto =
+      p.gruposEnConflicto && p.gruposEnConflicto.length > 0
+        ? p.gruposEnConflicto
+        : [p.grupoId];
+    const studentId = p.sugerido ?? p.candidatos[0]?.studentId ?? null;
+    if (!studentId || !enConflicto.includes(propuesta)) return null;
+    return {
+      retirarDe: enConflicto
+        .filter((otro) => otro !== propuesta)
+        .map((otro) => ({ grupoId: otro, studentId })),
+      limpiarConflictoEn: { grupoId: propuesta, studentId },
+      estado: 'resuelto',
+      decision: propuesta,
+    };
+  }
+
+  return {
+    inscribirEn: { grupoId: p.grupoId, studentId: propuesta },
+    estado: 'resuelto',
+    decision: propuesta,
+  };
+}
+
+/**
+ * El aviso de arriba: quien propuso, que propuso, y el boton de confirmarlo.
+ *
+ * Va con nombre propio —«Julián Medina, que lidera este centro, dice que es esta»— porque
+ * lo que convierte una pregunta en una confirmacion es saber QUIEN responde: la
+ * coordinadora no conoce a los muchachos, pero si conoce a los veintiun lideres.
+ *
+ * Si el sistema habia propuesto a otra persona, se dice. Son dos opiniones distintas y
+ * esconder la del sistema seria decidir por ella; el candidato del sistema sigue visible
+ * y pulsable mas abajo.
+ */
+function AvisoPropuesta({
+  pendiente,
+  nombreGrupo,
+  liderDelCentro,
+  nombreEstudiante,
+  trabajando,
+  onDecidir,
+}: {
+  pendiente: PendientePrograma;
+  nombreGrupo: (grupoId: string) => string;
+  liderDelCentro: (grupoId: string) => string | null;
+  nombreEstudiante: (studentId: string) => string | null;
+  trabajando: boolean;
+  onDecidir: Decidir;
+}) {
+  const p = pendiente;
+  const propuesta = p.propuestaLider;
+  if (!propuesta) return null;
+
+  const correo = (p.propuestaLiderPor ?? '').trim();
+  const quien = correo ? nombreLegibleDeCorreo(correo) : null;
+  const esElLider = Boolean(correo) && liderDelCentro(p.grupoId) === correo.toLowerCase();
+
+  const duplicado = p.tipo === 'duplicado';
+  const nombrePropuesto = duplicado
+    ? nombreGrupo(propuesta)
+    : (p.candidatos.find((c) => c.studentId === propuesta)?.nombre ??
+      nombreEstudiante(propuesta));
+
+  const accion = accionDePropuesta(p);
+
+  // La propuesta senala a alguien que ya no se puede mostrar (salio de la matricula, o el
+  // centro dejo de estar en conflicto). Se dice y no se ofrece confirmar a ciegas.
+  if (!nombrePropuesto || !accion) {
+    return (
+      <p className="mt-2 rounded-lg border border-warning-soft bg-warning-soft p-2 text-sm text-warning-soft-fg">
+        {quien ?? 'El líder del centro'} dejó una propuesta para este caso, pero ya no se
+        puede aplicar tal cual. Resuélvalo abajo como siempre.
+      </p>
+    );
+  }
+
+  const sugeridoDistinto =
+    !duplicado && p.sugerido && p.sugerido !== propuesta
+      ? (p.candidatos.find((c) => c.studentId === p.sugerido)?.nombre ??
+        nombreEstudiante(p.sugerido))
+      : null;
+
+  return (
+    <div className="mt-2 rounded-xl border border-accent bg-accent-soft p-2.5">
+      <p className="text-sm text-accent-soft-fg">
+        <UserCheck size={16} className="mr-1 inline align-text-bottom" aria-hidden />
+        <b>{quien ?? 'El líder de este centro'}</b>
+        {quien ? (esElLider ? ', que lidera este centro,' : ', docente de este centro,') : ''} dice
+        que {duplicado ? 'se queda en' : 'es'} <b>{nombrePropuesto}</b>.
+      </p>
+
+      {sugeridoDistinto && (
+        <p className="mt-1 text-xs text-accent-soft-fg">
+          El sistema había propuesto a <b>{sugeridoDistinto}</b>. Son dos opiniones
+          distintas: las dos están abajo y decide usted.
+        </p>
+      )}
+
+      <button
+        disabled={trabajando}
+        onClick={() => void onDecidir(accion)}
+        className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2.5 text-sm font-semibold text-accent-fg disabled:opacity-50"
+      >
+        <Check size={18} aria-hidden />
+        {trabajando ? 'Guardando…' : `Confirmar: ${nombrePropuesto}`}
+      </button>
+      <p className="mt-1 text-xs text-accent-soft-fg">
+        Es una propuesta, no una orden: abajo puede escoger otra persona o descartar.
+      </p>
+    </div>
+  );
+}
 
 /** Boton grande con la FOTO del candidato. La cara es el dato que decide. */
 function BotonCandidato({
   candidato,
-  sugerido,
+  tono,
   disabled,
   onClick,
 }: {
   candidato: CandidatoPendiente;
-  sugerido?: boolean;
+  /**
+   * De quien es la propuesta que marca a este candidato. `lider` pesa mas que `sistema`
+   * —quien conoce al muchacho es el docente que le da clase—, pero el del sistema no se
+   * esconde: se marca en gris y se deja pulsable.
+   */
+  tono?: 'lider' | 'sistema';
   disabled: boolean;
   onClick: () => void;
 }) {
@@ -443,7 +681,7 @@ function BotonCandidato({
       onClick={onClick}
       className={[
         'flex w-full items-center gap-3 rounded-xl border p-2 text-left disabled:opacity-50',
-        sugerido ? 'border-accent bg-accent-soft' : 'border-line bg-elevated',
+        tono === 'lider' ? 'border-accent bg-accent-soft' : 'border-line bg-elevated',
       ].join(' ')}
     >
       <Avatar estudiante={comoEstudiante} tamano={52} />
@@ -453,9 +691,14 @@ function BotonCandidato({
         </span>
         <span className="block text-xs text-muted">{candidato.grado}</span>
       </span>
-      {sugerido && (
+      {tono === 'lider' && (
         <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-fg">
-          Propuesta
+          Dice el líder
+        </span>
+      )}
+      {tono === 'sistema' && (
+        <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-xs text-muted">
+          Dice el sistema
         </span>
       )}
     </button>
@@ -492,17 +735,32 @@ function Homonimo({
   trabajando: boolean;
   onDecidir: Decidir;
 }) {
+  // El candidato que senala el lider sube al primer puesto: es el que se va a pulsar.
+  const ordenados = [...pendiente.candidatos].sort(
+    (a, b) =>
+      Number(b.studentId === pendiente.propuestaLider) -
+      Number(a.studentId === pendiente.propuestaLider),
+  );
+
   return (
     <>
       <p className="mt-1 text-sm text-soft">
-        No estoy seguro de quién es. ¿Cuál de estas {pendiente.candidatos.length}?
+        {pendiente.propuestaLider
+          ? `Estas son las ${pendiente.candidatos.length} que se llaman igual.`
+          : `No estoy seguro de quién es. ¿Cuál de estas ${pendiente.candidatos.length}?`}
       </p>
       <div className="mt-2 space-y-1.5">
-        {pendiente.candidatos.map((c) => (
+        {ordenados.map((c) => (
           <BotonCandidato
             key={c.studentId}
             candidato={c}
-            sugerido={c.studentId === pendiente.sugerido}
+            tono={
+              c.studentId === pendiente.propuestaLider
+                ? 'lider'
+                : c.studentId === pendiente.sugerido
+                  ? 'sistema'
+                  : undefined
+            }
             disabled={trabajando}
             onClick={() =>
               void onDecidir({
@@ -537,7 +795,10 @@ function Ortografia({
   trabajando: boolean;
   onDecidir: Decidir;
 }) {
+  // Manda el lider sobre el sistema: si senalo a alguien de la lista, es ese el que se
+  // compara lado a lado con el nombre del archivo.
   const propuesto =
+    pendiente.candidatos.find((c) => c.studentId === pendiente.propuestaLider) ??
     pendiente.candidatos.find((c) => c.studentId === pendiente.sugerido) ??
     pendiente.candidatos[0];
 
@@ -570,7 +831,7 @@ function Ortografia({
       <div className="mt-2 space-y-1.5">
         <BotonCandidato
           candidato={propuesto}
-          sugerido
+          tono={propuesto.studentId === pendiente.propuestaLider ? 'lider' : 'sistema'}
           disabled={trabajando}
           onClick={() =>
             void onDecidir({
@@ -720,7 +981,12 @@ function Duplicado({
       </p>
 
       <div className="mt-2 space-y-1.5">
-        {enConflicto.map((g) => (
+        {[...enConflicto]
+          .sort(
+            (a, b) =>
+              Number(b === pendiente.propuestaLider) - Number(a === pendiente.propuestaLider),
+          )
+          .map((g) => (
           <button
             key={g}
             disabled={trabajando || !studentId}
@@ -736,10 +1002,20 @@ function Duplicado({
                 decision: g,
               })
             }
-            className="flex w-full items-center gap-2 rounded-xl border border-line bg-elevated p-3 text-left text-sm font-semibold text-strong disabled:opacity-50"
+            className={[
+              'flex w-full items-center gap-2 rounded-xl border p-3 text-left text-sm font-semibold text-strong disabled:opacity-50',
+              g === pendiente.propuestaLider
+                ? 'border-accent bg-accent-soft'
+                : 'border-line bg-elevated',
+            ].join(' ')}
           >
             <Check size={18} className="shrink-0 text-accent" aria-hidden />
-            Se queda en {nombreGrupo(g)}
+            <span className="min-w-0 flex-1">Se queda en {nombreGrupo(g)}</span>
+            {g === pendiente.propuestaLider && (
+              <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-fg">
+                Dice el líder
+              </span>
+            )}
           </button>
         ))}
         <button

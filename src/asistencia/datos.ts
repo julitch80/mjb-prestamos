@@ -1896,6 +1896,55 @@ export async function leerPendientesPrograma(
 }
 
 /**
+ * Los pendientes de UN centro, para su lider.
+ *
+ * ⚠️ EL FILTRO POR `grupoId` NO ES OPCIONAL NI ES UNA COMODIDAD. La regla deja leer un
+ * pendiente al docente del grupo que nombra `resource.data.grupoId`, o sea que MIRA el
+ * documento; Firestore entonces exige que la consulta filtre por ese mismo campo para
+ * poder probar de antemano que todo el resultado sera legible. Sin el filtro rechaza la
+ * consulta ENTERA con permission-denied, aunque tuviera derecho a cada documento.
+ *
+ * Por eso `grupoId` es obligatorio en la firma: no hay forma de llamar mal a esta funcion.
+ */
+export async function leerPendientesDeGrupo(
+  programaId: string,
+  grupoId: string,
+  soloPendientes = true,
+): Promise<PendientePrograma[]> {
+  if (!(await listo())) return [];
+  const cons: QueryConstraint[] = [where('grupoId', '==', grupoId)];
+  if (soloPendientes) cons.push(where('estado', '==', 'pendiente'));
+  const pendientes = aLista<PendientePrograma>(
+    await getDocs(query(coleccionPendientes(programaId), ...cons)),
+  );
+  return pendientes.sort((a, b) => a.nombreArchivo.localeCompare(b.nombreArchivo));
+}
+
+/**
+ * El lider senala quien cree que es. NO inscribe a nadie.
+ *
+ * Son dos actos distintos a proposito: el lider sabe cual de las dos "Jimenez Mariana" es
+ * la suya —tiene la lista en papel—, pero solo la coordinacion ve los veintiun centros a
+ * la vez y puede inscribir sin romper `exclusivo`. Si el lider inscribiera, dos personas
+ * estarian inscribiendo sin verse y aparecerian duplicados que nadie detecta.
+ *
+ * Se escriben SOLO los tres campos de la propuesta: la regla rechaza cualquier intento de
+ * tocar `estado`, `decision` o la evidencia del archivo desde una cuenta que no coordina.
+ */
+export async function proponerPendiente(
+  programaId: string,
+  pendienteId: string,
+  propuesta: string | null,
+): Promise<void> {
+  const autor = await exigirAutor();
+  await updateDoc(doc(baseDatos(), PROGRAMAS, programaId, 'pendientes', pendienteId), {
+    propuestaLider: propuesta,
+    propuestaLiderPor: autor,
+    propuestaLiderEn: serverTimestamp(),
+  });
+}
+
+/**
  * Guarda de golpe lo que el cruce con la matricula no pudo decidir solo.
  *
  * Lo que no cruza NO se descarta: se convierte en un pendiente con sus candidatos y con
