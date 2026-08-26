@@ -82,9 +82,42 @@ export async function suplantarUsuario(correo: string): Promise<void> {
  * normal. Recarga al final porque cachés locales (reservas, notificaciones)
  * quedaron con datos de la identidad suplantada.
  */
+/**
+ * Correo del superusuario que esta suplantando, cacheado en memoria.
+ *
+ * Se guarda para poder salir SIN esperar a leer el token: si `salirDeSuplantacion`
+ * hiciera un `await` antes de abrir el popup, el navegador ya no lo asocia al clic y
+ * lo bloquea. Con el correo a mano, el popup es lo primero que ocurre.
+ */
+let correoSuplantador: string | null = null;
+
+/**
+ * Vuelve a la cuenta real del superusuario.
+ *
+ * NO se cierra sesion primero, aunque parezca lo natural: `signInWithPopup` ya
+ * reemplaza al usuario actual. Hacer `signOut` antes dejaba al superusuario FUERA de
+ * la aplicacion en cuanto el popup se bloqueaba o lo cerraba, y le tocaba volver a
+ * entrar a mano — que es justo lo que reporto Julian. Asi, si el popup falla, la
+ * sesion suplantada sigue en pie y se puede reintentar.
+ *
+ * `login_hint` con el correo del superusuario evita que Google le pregunte cual
+ * cuenta usar: volver de una suplantacion siempre es volver a la misma persona.
+ */
 export async function salirDeSuplantacion(): Promise<void> {
-  await cerrarSesionGoogle();
-  await loginConGoogle();
+  if (!auth) throw new Error('Firebase no está configurado.');
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters(
+    correoSuplantador
+      ? { hd: DOMAIN, login_hint: correoSuplantador }
+      : { hd: DOMAIN, prompt: 'select_account' },
+  );
+  const cred = await signInWithPopup(auth, provider);
+  const email = cred.user.email?.toLowerCase() ?? '';
+  if (!email.endsWith('@' + DOMAIN)) {
+    await signOut(auth);
+    throw new Error('Usa tu cuenta institucional.');
+  }
+  correoSuplantador = null;
   window.location.reload();
 }
 
@@ -104,5 +137,9 @@ export async function estaSuplantando(): Promise<boolean> {
 export async function quienSuplanta(): Promise<string | null> {
   if (!auth?.currentUser) return null;
   const r = await getIdTokenResult(auth.currentUser);
-  return (r.claims.suplantadoPor as string | undefined) ?? null;
+  const correo = (r.claims.suplantadoPor as string | undefined) ?? null;
+  // Se cachea para que salir no tenga que esperar a leer el token: ver la nota en
+  // `correoSuplantador`, el popup debe ser lo primero tras el clic.
+  correoSuplantador = correo;
+  return correo;
 }

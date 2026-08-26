@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { onIdTokenChanged, getIdTokenResult } from 'firebase/auth';
+import { onIdTokenChanged } from 'firebase/auth';
 import { Sun, Moon, LogOut, Bell, BellRing, Home } from 'lucide-react';
 import { useAppStore } from './data/store';
 import { useTheme } from './hooks/useTheme';
 import { useNotificacionesSistema } from './hooks/useNotificacionesSistema';
 import { auth } from './lib/firebase';
-import { salirDeSuplantacion } from './lib/auth';
+import { salirDeSuplantacion, quienSuplanta } from './lib/auth';
 import BarraSuplantacion from './components/BarraSuplantacion';
 import LoginScreen from './components/LoginScreen';
 import PanelInicio from './components/PanelInicio';
@@ -98,8 +98,10 @@ export default function App() {
     return onIdTokenChanged(auth, async (user) => {
       if (!user) { setSesionSuplantada(false); return; }
       try {
-        const r = await getIdTokenResult(user);
-        setSesionSuplantada(Boolean(r.claims.suplantadoPor));
+        // Se usa quienSuplanta() y no getIdTokenResult directo porque ademas
+        // cachea el correo del superusuario, que es lo que permite salir de la
+        // suplantacion sin que Google pregunte por la cuenta.
+        setSesionSuplantada((await quienSuplanta()) !== null);
       } catch {
         setSesionSuplantada(false);
       }
