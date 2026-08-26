@@ -722,23 +722,23 @@ export default function Asistencia() {
           // un cargo de apoyo solo ve los grupos donde alguien ya paso lista — y los que
           // NO aparecen son precisamente los que tiene que ir a buscar.
           //
+          // La fuente es `asistenciaConfig/directores`, NO la lista de estudiantes. Los
+          // estudiantes se cargan solo DESPUES de elegir un grupo (ver el efecto de
+          // `cruce`), asi que en esta pantalla venian vacios y el panel no se pintaba
+          // nunca — fallo real: a la PTA le seguian saliendo solo los siete grupos con
+          // sesiones. `directores` ya esta cargado aqui, es UN documento diminuto y tiene
+          // exactamente los veinte grados del colegio.
+          //
           // Se acota por jornada cuando la cuenta esta limitada a una: en la sede central
           // hay dos coordinadores, uno por jornada, y `leerEstudiantesDeSede` trae la
           // sede COMPLETA sin filtrar. Sin este recorte, al coordinador de la manana le
           // saldrian los diez grupos de la tarde como "sin asistencia registrada" — trece
           // grupos que no son asunto suyo, presentados como si tuviera que perseguirlos.
-          todosLosGrados={[
-            ...new Set(
-              estudiantes
-                .filter((e) => e.activo)
-                .map((e) => e.gradoActual)
-                .filter(
-                  (g) =>
-                    !alcanceUsuario.jornadaLimitada ||
-                    jornadaDeGrado(g) === alcanceUsuario.jornadaLimitada,
-                ),
-            ),
-          ]}
+          todosLosGrados={Object.keys(directores).filter(
+            (g) =>
+              !alcanceUsuario.jornadaLimitada ||
+              jornadaDeGrado(g) === alcanceUsuario.jornadaLimitada,
+          )}
           perfil={
             rol === 'rectora' || alcanceUsuario.soloConsulta
               ? 'consulta'

@@ -242,6 +242,21 @@ function conteo(total: number, inscritos: number): ConteoCobertura {
 export function coberturaPrograma(
   matriculados: Student[],
   grupos: Pick<GrupoPrograma, 'grupoId' | 'miembros' | 'activo'>[],
+  /**
+   * Jornada del programa. Cuando el programa declara una, SOLO cuentan los estudiantes de
+   * esa jornada.
+   *
+   * ⚠️ SIN ESTO LA CIFRA MIENTE, y mintio en produccion (2026-08-26). El panel del
+   * programa de la TARDE decia "45% con centro de interes · 375 sin centro" — porque
+   * metia en el denominador a los 324 de la MAÑANA, que si tienen centro, solo que en el
+   * otro programa. Lo correcto para la tarde es 313 de 364 = 86%, y 51 sin centro.
+   *
+   * Y el numero equivocado no era inofensivo: "375 sin centro" es una lista de estudiantes
+   * a los que salir a buscar, y 324 de ellos no habia que buscarlos.
+   *
+   * Ausente = el programa cubre las dos jornadas y cuentan todos.
+   */
+  jornada?: Jornada,
 ): CoberturaPrograma {
   const inscritos = new Set<string>();
   for (const g of grupos) {
@@ -249,7 +264,9 @@ export function coberturaPrograma(
     for (const id of g.miembros ?? []) inscritos.add(id);
   }
 
-  const activos = matriculados.filter((e) => e.activo);
+  const activos = matriculados.filter(
+    (e) => e.activo && (!jornada || jornadaDeGrado(e.gradoActual) === jornada),
+  );
   const faltantes: Student[] = [];
   const totalPorGrado = new Map<string, number>();
   const inscritosPorGrado = new Map<string, number>();

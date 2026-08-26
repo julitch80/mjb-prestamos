@@ -15,7 +15,7 @@ import {
 import { nombreCompleto } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import type { Hoja } from './domain/exports';
-import type { GrupoPrograma, SesionPrograma, Student } from './domain/types';
+import type { GrupoPrograma, Jornada, SesionPrograma, Student } from './domain/types';
 import { Download, Search } from 'lucide-react';
 
 /**
@@ -40,9 +40,16 @@ import { Download, Search } from 'lucide-react';
 export default function PanelPrograma({
   programaId,
   sede,
+  jornada,
 }: {
   programaId: string;
   sede: string;
+  /**
+   * Jornada del programa, si declara una. Decide el DENOMINADOR de la cobertura: contra
+   * los 364 de la tarde, no contra los 688 de la sede. Sin esto la cifra mete en el
+   * "sin centro de interes" a los de la otra jornada, que si tienen — paso en produccion.
+   */
+  jornada?: Jornada;
 }) {
   const [grupos, setGrupos] = useState<GrupoPrograma[]>([]);
   const [matriculados, setMatriculados] = useState<Student[]>([]);
@@ -81,8 +88,8 @@ export default function PanelPrograma({
   }, [programaId, sede]);
 
   const cobertura = useMemo(
-    () => coberturaPrograma(matriculados, grupos),
-    [matriculados, grupos],
+    () => coberturaPrograma(matriculados, grupos, jornada),
+    [matriculados, grupos, jornada],
   );
 
   const estadistica = useMemo(

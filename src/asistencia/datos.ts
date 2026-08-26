@@ -26,6 +26,7 @@ import {
   deleteField,
   doc,
   getDoc,
+  getDocFromCache,
   getDocs,
   query,
   serverTimestamp,
@@ -33,6 +34,7 @@ import {
   updateDoc,
   where,
   writeBatch,
+  type DocumentReference,
   type QueryConstraint,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -62,7 +64,7 @@ import type {
 } from './domain/types';
 import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
 import { exigirAutor } from './identidad';
-import { registrarEnvio } from './sincronizacion';
+import { hayConexion, registrarEnvio } from './sincronizacion';
 
 /** El servidor rechazo la escritura porque alguien sincronizo primero. */
 export class ConflictoError extends Error {
@@ -706,6 +708,52 @@ export async function actualizarFicha(
  * origen la crean a la vez, es el mismo documento: el segundo la reutiliza en vez de
  * duplicarla.
  */
+/**
+ * Crea un documento que se abre para trabajar (una sesion, un cuaderno) SIN colgar la
+ * pantalla cuando no hay señal.
+ *
+ * EL PROBLEMA. `setDoc` no resuelve hasta que el SERVIDOR confirma. Con la cache local la
+ * escritura ya quedo aplicada en el telefono al instante, pero esperar ese acuse sin señal
+ * deja la pantalla congelada indefinidamente. Y abrir la sesion es el PRIMER paso de pasar
+ * lista: si eso se cuelga, no se puede marcar a nadie. Varios centros de interes funcionan
+ * en espacios sin wifi.
+ *
+ * LA SOLUCION, y por que tiene dos caminos y no uno:
+ *
+ *  - CON señal se ESPERA, como siempre. El error inmediato es lo unico que permite
+ *    distinguir "la sesion ya existia" (la abrio otro docente) de "no tiene permiso", y esa
+ *    distincion vale un mensaje entendible en vez de uno generico.
+ *  - SIN señal NO se espera. Se mira la cache —que no consulta al servidor ni evalua
+ *    reglas, asi que responde al instante y offline— y si el documento no esta, se lanza la
+ *    escritura por `registrarEnvio` y se devuelve el objeto local. El docente marca de
+ *    inmediato; Firestore reintenta sola cuando vuelva la red, y el indicador de envio ya
+ *    muestra si algo quedo rechazado.
+ *
+ * Lo que se acepta a cambio: sin señal y sin el documento en cache, se asume que no existe.
+ * Si otro docente lo habia creado, el servidor rechazara esta escritura al reconectar y el
+ * aviso lo dira. Es el precio correcto: el caso comun —abrir la sesion de hoy, que nadie
+ * mas ha abierto— funciona sin red, y el raro avisa.
+ */
+async function abrirDocumento<T>(
+  ref: DocumentReference,
+  nuevo: Record<string, unknown>,
+  optimista: T,
+  alFallar: (e: unknown) => Promise<T>,
+): Promise<T> {
+  if (!hayConexion()) {
+    const enCache = await getDocFromCache(ref).catch(() => null);
+    if (enCache?.exists()) return enCache.data() as T;
+    registrarEnvio(setDoc(ref, nuevo));
+    return optimista;
+  }
+  try {
+    await setDoc(ref, nuevo);
+    return optimista;
+  } catch (e) {
+    return alFallar(e);
+  }
+}
+
 export async function abrirSesion(input: {
   sede: Session['sede'];
   grado: string;
@@ -742,17 +790,21 @@ export async function abrirSesion(input: {
     ultimaEscrituraEn: serverTimestamp(),
   };
 
-  try {
-    await setDoc(ref, nueva);
-  } catch (e) {
-    // O la sesión ya existía (la abrió otro, o el mismo docente antes), o de verdad no
-    // tiene permiso. Se distingue leyendo: si el documento existe y puede leerlo, se
-    // reutiliza; si no, el error original es el bueno.
+  const optimista = {
+    ...nueva,
+    createdAt: Date.now(),
+    ultimaEscrituraEn: Date.now(),
+  } as unknown as Session;
+
+  // Con señal: se escribe directo y, si rebota, se lee para distinguir "ya existia" de
+  // "no tiene permiso" (ver la nota de arriba sobre por que no se comprueba antes).
+  // Sin señal: `abrirDocumento` mira la cache y lanza la escritura sin esperar el acuse,
+  // que es lo que permite empezar a marcar sin red.
+  return abrirDocumento<Session>(ref, nueva, optimista, async (e) => {
     const otra = await getDoc(ref).catch(() => null);
     if (otra?.exists()) return otra.data() as Session;
     throw e;
-  }
-  return { ...nueva, createdAt: Date.now(), ultimaEscrituraEn: Date.now() } as Session;
+  });
 }
 
 /**
@@ -864,13 +916,19 @@ export async function llenarColumna(
 /** Cierre manual y explícito. Las casillas vacías NO se convierten en nada. */
 export async function cerrarSesion(sessionIdDoc: string): Promise<void> {
   const autor = await exigirAutor();
-  await updateDoc(doc(baseDatos(), 'asistenciaSessions', sessionIdDoc), {
-    closed: true,
-    closedBy: autor,
-    closedAt: serverTimestamp(),
-    ultimaEscrituraPor: autor,
-    ultimaEscrituraEn: serverTimestamp(),
-  });
+  // Sin await, como las marcas: cerrar es el ultimo gesto de la clase y ocurre con el
+  // curso saliendo del salon. Esperar el acuse del servidor congelaba el boton sin señal,
+  // justo cuando el docente ya se va. La escritura queda aplicada en local al instante y
+  // Firestore la reintenta sola; si el servidor la rechaza, el indicador de envio lo dice.
+  registrarEnvio(
+    updateDoc(doc(baseDatos(), 'asistenciaSessions', sessionIdDoc), {
+      closed: true,
+      closedBy: autor,
+      closedAt: serverTimestamp(),
+      ultimaEscrituraPor: autor,
+      ultimaEscrituraEn: serverTimestamp(),
+    }),
+  );
 }
 
 // ---------- Eventos: grupos temporales ----------
@@ -1041,14 +1099,14 @@ export async function abrirSesionEvento(eventId: string, fecha: string): Promise
     ultimaEscrituraEn: serverTimestamp(),
   };
 
-  try {
-    await setDoc(ref, nueva);
-  } catch (e) {
+  // Un evento es de un solo dia y a menudo fuera del colegio (una salida): es
+  // justamente donde menos señal hay. Mismo camino doble que la sesion de clase.
+  const optimista = { ...nueva, ultimaEscrituraEn: Date.now() } as EventSession;
+  return abrirDocumento<EventSession>(ref, nueva, optimista, async (e) => {
     const otra = await getDoc(ref).catch(() => null);
     if (otra?.exists()) return otra.data() as EventSession;
     throw e;
-  }
-  return { ...nueva, ultimaEscrituraEn: Date.now() } as EventSession;
+  });
 }
 
 /**
@@ -1142,8 +1200,26 @@ export async function abrirDireccionGrupo(grado: string, anio: number): Promise<
   const autor = await exigirAutor();
   const ref = doc(baseDatos(), 'asistenciaDireccionGrupo', grado, 'anios', String(anio));
 
-  const existente = await getDoc(ref);
-  if (existente.exists()) return existente.data() as DireccionGrupo;
+  const existente = await getDoc(ref).catch(() => null);
+  if (existente?.exists()) return existente.data() as DireccionGrupo;
+
+  // ⚠️ AQUI **NO** SE APLICA EL CAMINO OPTIMISTA DE `abrirDocumento`, Y ES DELIBERADO.
+  //
+  // Ese camino asume "si no esta en la cache, no existe" y escribe. Para una sesion de
+  // asistencia el precio es barato: el documento nace vacio y no habia nada que perder.
+  // Aqui el documento es el CUADERNO del director —sus columnas, sus cuotas, sus equipos
+  // de aseo, el trabajo de todo un año— y crearlo vacio encima del que ya existe lo BORRA.
+  // Es exactamente el accidente que ya ocurrio una vez con este mismo documento.
+  //
+  // Sin señal y sin cuaderno en cache se prefiere no abrir nada y decirlo. Un cuaderno se
+  // estrena una vez al año y con calma; una sesion de asistencia se abre a diario y con el
+  // curso esperando. No es la misma urgencia y no merece el mismo riesgo.
+  if (!hayConexion()) {
+    throw new Error(
+      'Sin conexión no se puede estrenar el cuaderno de este año. Ábralo una primera vez ' +
+        'con señal; después funciona sin ella.',
+    );
+  }
 
   const nuevo = {
     grado,
@@ -1763,8 +1839,10 @@ export async function abrirSesionPrograma(
   const autor = await exigirAutor();
   const ref = refSesionPrograma(programaId, grupoId, fecha);
 
-  const existente = await getDoc(ref);
-  if (existente.exists()) return existente.data() as SesionPrograma;
+  // Con señal se comprueba contra el servidor; sin ella, `getDoc` cae a la cache sola y
+  // resuelve igual, asi que este paso NO cuelga en ningun caso.
+  const existente = await getDoc(ref).catch(() => null);
+  if (existente?.exists()) return existente.data() as SesionPrograma;
 
   const nueva = {
     programaId,
@@ -1774,8 +1852,15 @@ export async function abrirSesionPrograma(
     ultimaEscrituraPor: autor,
     ultimaEscrituraEn: serverTimestamp(),
   };
-  await setDoc(ref, nueva);
-  return { ...nueva, ultimaEscrituraEn: Date.now() } as SesionPrograma;
+  const optimista = { ...nueva, ultimaEscrituraEn: Date.now() } as SesionPrograma;
+
+  // Varios centros de interes funcionan en espacios sin wifi: si abrir la sesion se
+  // colgara, no se podria marcar a nadie.
+  return abrirDocumento<SesionPrograma>(ref, nueva, optimista, async (e) => {
+    const otra = await getDoc(ref).catch(() => null);
+    if (otra?.exists()) return otra.data() as SesionPrograma;
+    throw e;
+  });
 }
 
 /**

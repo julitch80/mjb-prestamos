@@ -109,6 +109,26 @@ export default function Programas({
   const [creando, setCreando] = useState(false);
   const [editando, setEditando] = useState<Programa | null>(null);
   const [creadores, setCreadores] = useState<string[]>([]);
+  /**
+   * Los centros que lidera esta cuenta, de TODOS los programas a la vez.
+   *
+   * Existe para que un lider no tenga que escoger jornada. Julian, 2026-08-26: "¿Que
+   * sentido tiene que yo escoja cuando ya estoy clasificado en la manana y ya se sabe cual
+   * es mi centro de interes?". Tenia razon: el programa es un concepto de ADMINISTRACION
+   * —sirve para cargar listas, resolver pendientes y cerrar el semestre— y para quien solo
+   * dicta su centro es un peaje sin contenido, ademas de una pantalla donde la mitad de
+   * las opciones no llevan a ninguna parte.
+   *
+   * OJO: la separacion en dos programas NO sobra y no se toca. Es lo que impide que
+   * "Musica en el 'J'" de la manana y el de la tarde —mismo profesor, mismo nombre, mismo
+   * identificador— se fundan en una sola lista de cincuenta estudiantes de dos jornadas.
+   * Lo que sobraba era hacer ESCOGER, no la separacion.
+   *
+   * `null` mientras se averigua; `[]` = no lidera ninguno.
+   */
+  const [misCentros, setMisCentros] = useState<
+    { programa: Programa; grupo: GrupoPrograma }[] | null
+  >(null);
 
   /**
    * El permiso final es el de la regla: rol O lista. Se lee aparte porque `rol` viene del
@@ -151,10 +171,101 @@ export default function Programas({
     return p.jornada === jornadaLimitada;
   };
 
+  /**
+   * Solo administra quien coordina algun programa o tiene consulta ampliada. Para el
+   * resto —los veinte lideres— el nivel de "programa" no significa nada.
+   */
+  const soloLidera =
+    !rolConsulta &&
+    miCorreo !== null &&
+    !programas.some((p) => (p.coordinadores ?? []).includes(miCorreo));
+
+  // Se buscan los centros del lider en TODOS los programas a la vez. Son dos consultas
+  // pequeñas, ya filtradas por `array-contains` dentro de `leerMisGruposDePrograma`.
+  useEffect(() => {
+    if (!soloLidera || programas.length === 0) return;
+    let vivo = true;
+    void (async () => {
+      const encontrados: { programa: Programa; grupo: GrupoPrograma }[] = [];
+      for (const p of programas.filter((x) => x.activo)) {
+        const gs = await leerMisGruposDePrograma(p.programaId).catch(() => []);
+        for (const g of gs) if (g.activo) encontrados.push({ programa: p, grupo: g });
+      }
+      if (vivo) setMisCentros(encontrados);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [soloLidera, programas]);
+
   const coordinaAlguno = useMemo(
     () => programas.some((p) => (p.coordinadores ?? []).includes(miCorreo ?? '')),
     [programas, miCorreo],
   );
+
+  // ---------- El camino del LIDER: sin escoger jornada ----------
+  //
+  // Va ANTES de todo lo demas a proposito. Para quien solo dicta su centro, la lista de
+  // programas es un peaje: la mitad de las opciones no llevan a ninguna parte (entrar al
+  // programa de la otra jornada muestra una pantalla vacia) y la otra mitad tiene un solo
+  // resultado.
+  if (soloLidera && !abierto) {
+    if (misCentros === null) {
+      return <p className="p-3 text-sm text-muted">Buscando su centro de interés…</p>;
+    }
+    if (misCentros.length === 0) {
+      return (
+        <div className="rounded-xl border border-line bg-card p-4 text-center">
+          <p className="text-sm text-strong">No tiene ningún centro de interés asignado.</p>
+          <p className="mt-1 text-xs text-muted">
+            Si debería tener uno, pídaselo a la coordinación del programa: es quien crea los
+            centros y asigna a su responsable.
+          </p>
+        </div>
+      );
+    }
+    // Uno solo: se entra directo. Es el caso de veinte de los veintiun lideres.
+    if (misCentros.length === 1) {
+      const { programa, grupo } = misCentros[0];
+      return (
+        <PlanillaCentro
+          programa={programa}
+          grupo={grupo}
+          puedeRegistrar={puedeRegistrar}
+          esCoordinador={false}
+          gruposDelPrograma={[grupo]}
+          onVolver={() => setMisCentros(null)}
+        />
+      );
+    }
+    // Varios (Edgar Perez lleva Musica en el 'J' en las dos jornadas): se listan los
+    // CENTROS, no los programas, con la jornada como subtitulo para distinguirlos.
+    return (
+      <div className="space-y-3">
+        <h2 className="text-base font-semibold text-strong">Sus centros de interés</h2>
+        <ul className="space-y-1.5">
+          {misCentros.map(({ programa, grupo }) => (
+            <li key={`${programa.programaId}|${grupo.grupoId}`}>
+              <button
+                onClick={() => setAbierto(programa)}
+                className="w-full rounded-xl border border-line bg-card p-3 text-left hover:bg-hover"
+              >
+                <p className="text-sm font-semibold text-strong">{grupo.nombre}</p>
+                <p className="text-xs text-muted">
+                  {programa.jornada === 'manana'
+                    ? 'Jornada de la mañana'
+                    : programa.jornada === 'tarde'
+                      ? 'Jornada de la tarde'
+                      : programa.nombre}{' '}
+                  · {(grupo.miembros ?? []).length} estudiantes
+                </p>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
 
   if (abierto) {
     const actualizado = programas.find((p) => p.programaId === abierto.programaId) ?? abierto;
@@ -516,7 +627,11 @@ function DetallePrograma({
         />
       )}
       {esCoordinador && seccion === 'panel' && (
-        <PanelPrograma programaId={programa.programaId} sede={programa.sede} />
+        <PanelPrograma
+          programaId={programa.programaId}
+          sede={programa.sede}
+          jornada={programa.jornada}
+        />
       )}
       {esCoordinador && seccion === 'cargar' && (
         <Suspense

@@ -46,6 +46,24 @@ if (typeof window !== 'undefined') {
   });
 }
 
+/**
+ * ¿Hay señal ahora mismo?
+ *
+ * Se usa para decidir si una escritura se ESPERA o se lanza sin esperar. La diferencia no
+ * es de estilo: `setDoc` no resuelve hasta que el SERVIDOR confirma, asi que esperarla sin
+ * señal cuelga la pantalla indefinidamente. Con señal se espera, porque el error inmediato
+ * es lo que permite distinguir "ya existia" de "no tiene permiso".
+ *
+ * `navigator.onLine` miente en un solo sentido: puede decir que hay red cuando la red no
+ * llega a ninguna parte (wifi del colegio sin salida). Eso NO rompe nada aqui: se toma el
+ * camino de esperar, y si el acuse no llega, la escritura ya quedo aplicada en local y
+ * Firestore la reintenta sola. Al reves —decir que no hay red cuando si la hay— es lo que
+ * si haria daño, y `navigator.onLine` no se equivoca en esa direccion.
+ */
+export function hayConexion(): boolean {
+  return estado.enLinea;
+}
+
 /** Se suscribe a los cambios. Devuelve la funcion para darse de baja. */
 export function observarSync(fn: (e: EstadoSync) => void): () => void {
   suscriptores.add(fn);
