@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
+import { onIdTokenChanged, getIdTokenResult } from 'firebase/auth';
 import { Sun, Moon, LogOut, Bell, BellRing, Home } from 'lucide-react';
 import { useAppStore } from './data/store';
 import { useTheme } from './hooks/useTheme';
 import { useNotificacionesSistema } from './hooks/useNotificacionesSistema';
+import { auth } from './lib/firebase';
+import { salirDeSuplantacion } from './lib/auth';
+import BarraSuplantacion from './components/BarraSuplantacion';
 import LoginScreen from './components/LoginScreen';
 import PanelInicio from './components/PanelInicio';
 import PanelAdmin from './components/PanelAdmin';
@@ -79,11 +83,28 @@ export default function App() {
   const { userId, nombre, rol, cerrarSesion, vistaActual, setVistaActual, setNotificaciones, mergeSync } =
     useAppStore();
   const sedeActual = useAppStore(s => s.sedeActual);
-  const identidadReal = useAppStore(s => s.identidadReal);
-  const salirSimulacion = useAppStore(s => s.salirSimulacion);
-  const entrarModoDocente = useAppStore(s => s.entrarModoDocente);
-  const volverModoSuperusuario = useAppStore(s => s.volverModoSuperusuario);
   const [menuSedeAbierto, setMenuSedeAbierto] = useState(false);
+
+  // Suplantación real (Cloud Function `suplantar`): el claim `suplantadoPor`
+  // del token vigente es la ÚNICA fuente de verdad de si esta sesión está
+  // suplantada. Nunca se decide con estado local -- userId/nombre/rol del
+  // store ya reflejan la identidad suplantada (authStore los recarga solo
+  // con cada cambio de sesión de Firebase), así que lo único que falta es
+  // saber SI el token trae la marca. onIdTokenChanged también dispara en
+  // cada refresco de token, no solo al iniciar sesión.
+  const [sesionSuplantada, setSesionSuplantada] = useState(false);
+  useEffect(() => {
+    if (!auth) return;
+    return onIdTokenChanged(auth, async (user) => {
+      if (!user) { setSesionSuplantada(false); return; }
+      try {
+        const r = await getIdTokenResult(user);
+        setSesionSuplantada(Boolean(r.claims.suplantadoPor));
+      } catch {
+        setSesionSuplantada(false);
+      }
+    });
+  }, []);
 
   const notificaciones = useAppStore(s => s.notificaciones);
   const notifNoLeidas = notificaciones.filter(n => !n.leida).length;
@@ -152,23 +173,15 @@ export default function App() {
     // El chat solo tiene sentido en modo google (Firebase). En modo pin se oculta.
     .filter(item => item.id !== 'chat' || AUTH_MODE === 'google');
   const usuario  = USUARIOS.find(u => u.id === userId);
-  const rolReal = identidadReal?.rol ?? rol;
-  // El interruptor Docente/Superusuario solo tiene sentido si el superusuario
-  // ocupa además un puesto docente (tiene entrada en USUARIOS): es lo que le da
-  // horario y clases propias. Una cuenta puramente administrativa como
-  // admin.asistencia no tiene a qué cambiar, y el botón se quedaba visible pero
-  // muerto — entrarModoDocente() no encuentra el puesto y no hace nada.
-  const userIdReal = identidadReal?.userId ?? userId;
-  const tienePuestoDocente = USUARIOS.some(u => u.id === userIdReal);
-  const esSuperusuarioReal = rolReal === 'superusuario' && tienePuestoDocente;
-  const esModoDocentePropio = !!identidadReal && identidadReal.userId === userId;
-  const simulandoOtro = !!identidadReal && identidadReal.userId !== userId;
 
   return (
     <div className={cn('min-h-screen flex flex-col')}>
 
-      {/* ── Header ───────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 border-b border-line bg-card/85 backdrop-blur-xl shadow-sm">
+      {/* Barra de suplantación + header, pegados como un solo bloque sticky:
+          así la barra nunca se pierde de vista aunque se desplace la página. */}
+      <div className="sticky top-0 z-40">
+      {sesionSuplantada && <BarraSuplantacion nombre={nombre} onSalir={salirDeSuplantacion} />}
+      <header className="border-b border-line bg-card/85 backdrop-blur-xl shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
 
           {/* Logo — también es el botón de regreso al panel de inicio, para no
@@ -219,47 +232,13 @@ export default function App() {
           {/* Acciones derecha */}
           <div className="flex items-center gap-1 ml-auto flex-shrink-0">
 
-            {/* Interruptor modo docente / superusuario — solo si el rol REAL es
-                superusuario. En móvil no cabe en el header (se superponía con el
-                menú), así que ahí se muestra en su propia barra bajo el header. */}
-            {esSuperusuarioReal && (
-              <div className="hidden sm:flex items-center rounded-full border border-line bg-elevated p-0.5 text-xs font-medium flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={entrarModoDocente}
-                  className={cn(
-                    'px-2.5 py-1 rounded-full transition',
-                    rol !== 'superusuario' ? 'bg-hover text-strong' : 'text-muted hover:text-strong'
-                  )}
-                  title="Modo docente — tu propio perfil"
-                >
-                  👤 Docente
-                </button>
-                <button
-                  type="button"
-                  onClick={volverModoSuperusuario}
-                  className={cn(
-                    'px-2.5 py-1 rounded-full transition',
-                    rol === 'superusuario' ? 'bg-hover text-strong' : 'text-muted hover:text-strong'
-                  )}
-                  title="Modo superusuario — panel administrativo"
-                >
-                  🛡 Superusuario
-                </button>
-              </div>
-            )}
-
             {/* Pastilla de sede — solo directivos, pueden cambiar en cualquier momento */}
             {esDirectivo(rol) && <SelectorSedePastilla />}
 
             {/* Pastilla usuario */}
             <div
-              className={cn(
-                'hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border',
-                simulandoOtro ? 'border-dashed border-warning' : 'border-line'
-              )}
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border border-line"
               style={{ backgroundColor: ROL_COLOR[rol ?? 'docente'], color: usuario?.color ?? 'var(--color-strong)' }}
-              title={simulandoOtro ? `Viendo como ${nombre} — identidad real: ${identidadReal?.nombre}` : undefined}
             >
               <span
                 className="w-1.5 h-1.5 rounded-full flex-shrink-0"
@@ -323,72 +302,7 @@ export default function App() {
           </div>
         </div>
       </header>
-
-      {/* ── Interruptor de modo en móvil ──────────────────────────────────
-          En pantallas pequeñas el header no tiene espacio (el interruptor se
-          superponía con el menú), así que aquí va en su propia barra. */}
-      {esSuperusuarioReal && (
-        <div className="sm:hidden w-full border-b border-line bg-card/70">
-          <div className="max-w-7xl mx-auto px-4 py-2 flex items-center gap-2">
-            <span className="text-[11px] text-muted flex-shrink-0">Modo:</span>
-            <div className="flex items-center rounded-full border border-line bg-elevated p-0.5 text-xs font-medium flex-1">
-              <button
-                type="button"
-                onClick={entrarModoDocente}
-                className={cn(
-                  'flex-1 px-3 py-1.5 rounded-full transition',
-                  rol !== 'superusuario' ? 'bg-hover text-strong' : 'text-muted'
-                )}
-              >
-                👤 Docente
-              </button>
-              <button
-                type="button"
-                onClick={volverModoSuperusuario}
-                className={cn(
-                  'flex-1 px-3 py-1.5 rounded-full transition',
-                  rol === 'superusuario' ? 'bg-hover text-strong' : 'text-muted'
-                )}
-              >
-                🛡 Superusuario
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Franja "modo docente" — el superusuario viéndose a sí mismo ── */}
-      {esModoDocentePropio && (
-        <div className="w-full bg-info-soft border-b border-info text-info-soft-fg">
-          <div className="max-w-7xl mx-auto px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="leading-snug">Estás viendo la app en modo docente.</span>
-            <button
-              onClick={volverModoSuperusuario}
-              className="flex-shrink-0 underline hover:opacity-80 transition font-medium"
-            >
-              Volver a superusuario
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Banner "Ver como" — visible en toda la app mientras se simula a OTRA persona ── */}
-      {simulandoOtro && identidadReal && (
-        <div className="w-full bg-warning-soft border-b border-warning text-warning-soft-fg">
-          <div className="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
-            <span className="leading-snug">
-              👁 Viendo la app como <strong>{nombre}</strong> ({rol}).
-              <span className="hidden sm:inline"> Tu identidad real: {identidadReal.nombre}.</span>
-            </span>
-            <button
-              onClick={salirSimulacion}
-              className="flex-shrink-0 px-3 py-1 rounded-full bg-warning-soft border border-warning hover:opacity-80 transition font-medium"
-            >
-              Volver a mi identidad
-            </button>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* ── Banner notificaciones ─────────────────────────────────── */}
       {rol === 'docente' && <BannerNotificaciones />}

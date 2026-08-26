@@ -3,6 +3,7 @@ import { mapaDirectores, sincronizarAutoridadSede, sincronizarDirectores } from 
 import { sincronizarCuentasUsuarios } from '../data/usuariosSync';
 import { useAppStore } from '../data/store';
 import { firebaseConfigurado, functions, db } from '../lib/firebase';
+import { suplantarUsuario } from '../lib/auth';
 import { httpsCallable } from 'firebase/functions';
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import {
@@ -49,16 +50,14 @@ const ROL_VER_COMO_LABEL: Record<string, string> = {
 
 export default function PanelSuperusuario() {
   const { userId, nombre, rol } = useAppStore();
-  const identidadReal = useAppStore((s) => s.identidadReal);
-  const simularUsuario = useAppStore((s) => s.simularUsuario);
-  const salirSimulacion = useAppStore((s) => s.salirSimulacion);
   const [usuarios, setUsuarios] = useState<UsuarioFirestore[]>([]);
   const [cargando, setCargando] = useState(true);
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
 
-  // "Ver como" — buscador + selección
+  // "Ver como" — suplantación real (Cloud Function `suplantar`)
   const [busquedaVerComo, setBusquedaVerComo] = useState('');
-  const [seleccionVerComo, setSeleccionVerComo] = useState('');
+  const [suplantando, setSuplantando] = useState<string | null>(null); // correo en curso
+  const [errorSuplantacion, setErrorSuplantacion] = useState<string | null>(null);
 
   // Formulario de alta
   const [correo, setCorreo] = useState('');
@@ -219,73 +218,77 @@ export default function PanelSuperusuario() {
     }
   }
 
-  const puedeVerComo = rol === 'superusuario' || !!identidadReal;
-  const propioIdReal = identidadReal?.userId ?? userId;
-  const usuariosFiltrados = USUARIOS.filter((u) => {
-    if (u.id === propioIdReal) return false; // para verse a sí mismo está el interruptor del header
+  // "Ver como" ahora es suplantación real: solo tiene sentido ofrecerla para
+  // cuentas activas que no sean superusuario (la función las rechaza igual,
+  // pero no tiene sentido mostrar un botón que va a fallar siempre).
+  const yoEmailLower = (userId ?? '').toLowerCase();
+  const candidatosVerComo = usuarios.filter((u) => {
+    if (!u.active) return false;
+    if (u.role === 'superusuario') return false;
+    if (u.email.toLowerCase() === yoEmailLower) return false;
     const q = busquedaVerComo.trim().toLowerCase();
     if (!q) return true;
-    return u.nombre.toLowerCase().includes(q) || u.nombreCorto.toLowerCase().includes(q) || u.rol.includes(q);
+    return u.displayName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.includes(q);
   });
 
-  function handleVerComo() {
-    if (!seleccionVerComo) return;
-    simularUsuario(seleccionVerComo);
-    setSeleccionVerComo('');
+  async function handleVerComo(correo: string) {
+    setErrorSuplantacion(null);
+    setSuplantando(correo);
+    try {
+      await suplantarUsuario(correo);
+      // Recarga total: authStore ya reacciona al cambio de sesión y recarga
+      // el perfil, pero las cachés locales (reservas, notificaciones) siguen
+      // con datos de la identidad anterior. Recargar deja todo consistente.
+      window.location.reload();
+    } catch (e) {
+      setErrorSuplantacion((e as Error).message);
+      setSuplantando(null);
+    }
   }
 
-  const seccionVerComo = puedeVerComo && (
+  const seccionVerComo = rol === 'superusuario' && (
     <div className="bg-card rounded-xl p-5 space-y-3 max-w-xl">
       <h3 className="text-strong font-semibold">👁 Ver como otro usuario</h3>
       <p className="text-muted text-xs leading-snug">
-        Revisa la app tal como la vería otro rol. Tu identidad real sigue
-        siendo la tuya; puedes volver en cualquier momento.
+        Abre una sesión real y de <b>solo lectura</b> como esa persona: el servidor
+        también la ve como ella, así que ve exactamente lo que ella ve. No se puede
+        escribir nada mientras dure. Usa «Salir» en la barra de arriba para volver.
       </p>
 
-      {identidadReal ? (
-        <div className="rounded-lg bg-warning-soft text-warning-soft-fg text-xs px-3 py-2 flex items-center justify-between gap-3">
-          <span>
-            Simulando a <strong>{nombre}</strong> ({rol}). Identidad real: {identidadReal.nombre}.
-          </span>
-          <button
-            type="button"
-            onClick={salirSimulacion}
-            className="flex-shrink-0 px-3 py-1.5 rounded-md bg-elevated text-strong text-xs font-medium hover:opacity-90 transition"
-          >
-            Volver a mi identidad
-          </button>
-        </div>
-      ) : (
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="text"
-            placeholder="Buscar por nombre o rol…"
-            value={busquedaVerComo}
-            onChange={(e) => setBusquedaVerComo(e.target.value)}
-            className="w-full sm:w-48 px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
-          />
-          <select
-            value={seleccionVerComo}
-            onChange={(e) => setSeleccionVerComo(e.target.value)}
-            className="flex-1 px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm focus:outline-none focus:border-line-strong"
-          >
-            <option value="">Seleccionar usuario…</option>
-            {usuariosFiltrados.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.nombreCorto} — {ROL_VER_COMO_LABEL[u.rol] ?? u.rol}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={handleVerComo}
-            disabled={!seleccionVerComo}
-            className="px-4 py-2 rounded-lg bg-accent text-strong text-sm font-medium hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-          >
-            Ver como este usuario
-          </button>
-        </div>
-      )}
+      <input
+        type="text"
+        placeholder="Buscar por nombre, correo o rol…"
+        value={busquedaVerComo}
+        onChange={(e) => setBusquedaVerComo(e.target.value)}
+        className="w-full sm:w-64 px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
+      />
+
+      {errorSuplantacion && <p className="text-xs text-danger">{errorSuplantacion}</p>}
+
+      <div className="max-h-64 overflow-y-auto divide-y divide-line/60">
+        {candidatosVerComo.length === 0 ? (
+          <p className="text-muted text-xs py-2">Sin resultados.</p>
+        ) : (
+          candidatosVerComo.map((u) => (
+            <div key={u.email} className="flex items-center justify-between gap-3 py-1.5">
+              <div className="min-w-0">
+                <p className="text-strong text-sm truncate">{u.displayName}</p>
+                <p className="text-muted text-xs truncate">
+                  {u.email} · {ROL_VER_COMO_LABEL[u.role] ?? u.role}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleVerComo(u.email)}
+                disabled={suplantando !== null}
+                className="flex-shrink-0 px-3 py-1.5 rounded-md bg-accent text-strong text-xs font-medium hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {suplantando === u.email ? 'Entrando…' : 'Ver como'}
+              </button>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 
