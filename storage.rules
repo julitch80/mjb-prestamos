@@ -48,12 +48,12 @@ service firebase.storage {
       // `write` incluye delete y las reglas se evaluan en union, asi que el
       // `allow delete: if false` de abajo no revocaba nada: cualquier usuario
       // institucional podia borrar los adjuntos de otro. Con create/update no.
-      allow create, update: if isInstitutional()
+      allow create, update: if !esSuplantacion() && (isInstitutional()
         && request.resource.size < 10 * 1024 * 1024
-        && contentTypeValido();
+        && contentTypeValido());
       // El borrado lo hace la regla de ciclo de vida del bucket a los 90
       // días, no el cliente.
-      allow delete: if false;
+      allow delete: if !esSuplantacion() && (false);
     }
 
     // Adjuntos de las tareas: guias, talleres, plantillas.
@@ -71,12 +71,12 @@ service firebase.storage {
     // desincroniza en silencio, que ya nos costo caro con las fotos.
     match /tareas/{archivo} {
       allow read: if true;
-      allow create: if isInstitutional()
+      allow create: if !esSuplantacion() && (isInstitutional()
         && request.resource.size < 10 * 1024 * 1024
-        && contentTypeValido();
+        && contentTypeValido());
       // Se sube uno nuevo, no se pisa ni se borra: la agenda ya publicada
       // seguiria apuntando al enlace viejo.
-      allow update, delete: if false;
+      allow update, delete: if !esSuplantacion() && (false);
     }
 
     // =========================================================================
@@ -127,6 +127,13 @@ service firebase.storage {
 
     function asisRol() {
       return asisUserDoc().role;
+    }
+
+    // Espeja `esSuplantacion()` de firestore.rules: mientras el token traiga el claim
+    // `suplantadoPor`, la sesion es de SOLO LECTURA. Se suplanta para ver lo que ve
+    // otra persona, nunca para subir un archivo a su nombre.
+    function esSuplantacion() {
+      return request.auth != null && 'suplantadoPor' in request.auth.token;
     }
 
     // Director del grupo del estudiante: mismo mecanismo que en Firestore — el documento
@@ -205,19 +212,19 @@ service firebase.storage {
       //
       // PRESUPUESTO: asisPuedeEditarFotoDe gasta las 2 consultas. Cualquier condicion
       // nueva que lea Firestore rompe esto en produccion sin que ninguna prueba lo vea.
-      allow create, update: if asisEsInstitucional()
+      allow create, update: if !esSuplantacion() && (asisEsInstitucional()
         && archivo.matches('.*[.]jpg')
         && asisPuedeEditarFotoDe(archivo.split('[.]')[0])
         && request.resource.size < 2 * 1024 * 1024
-        && request.resource.contentType.matches('image/jpeg');
+        && request.resource.contentType.matches('image/jpeg'));
 
-      allow delete: if false;   // se reemplaza, no se borra
+      allow delete: if !esSuplantacion() && (false);   // se reemplaza, no se borra
     }
 
     // Copias previas al reemplazar una foto. Evidencia, no consulta general.
     match /asistencia/photos/history/{studentId}/{ts} {
       allow read: if asisActivo() && asisRol() in ['superusuario', 'coordinador'];
-      allow write: if false;    // las escribe una Cloud Function con Admin SDK
+      allow write: if !esSuplantacion() && (false);    // las escribe una Cloud Function con Admin SDK
     }
 
     // ---------- Archivos importados de Master2000 ----------

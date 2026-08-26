@@ -40,6 +40,18 @@ service cloud.firestore {
     function isSuper() {
       return isActiveUser() && callerDoc().role == 'superusuario';
     }
+
+    // Sesion de SUPLANTACION (docs/plan-suplantacion.md). El superusuario puede abrir
+    // una sesion como otra persona para ver exactamente lo que ella ve; el token que
+    // emite la funcion `suplantar` lleva el claim `suplantadoPor`.
+    //
+    // Se mira para NO ESCRIBIR: toda escritura se niega mientras el claim este
+    // presente. Sin esto, un acto quedaria firmado a nombre de alguien que no lo hizo,
+    // que es justo la razon por la que el superusuario estaba excluido del modulo de
+    // asistencia. Las LECTURAS no se tocan: verlas es el proposito.
+    function esSuplantacion() {
+      return request.auth != null && 'suplantadoPor' in request.auth.token;
+    }
     // Valida el mapa `adjunto` opcional de un mensaje (imagen, audio o
     // archivo subido a Cloud Storage). El límite de 10 MB espeja el de
     // storage.rules.
@@ -66,14 +78,14 @@ service cloud.firestore {
 
     match /users/{email} {
       allow read: if isActiveUser();
-      allow create: if isSuper()
+      allow create: if !esSuplantacion() && (isSuper()
         && email == email.lower()
         && email.matches('.*@iemanueljbetancur[.]edu[.]co')
         && request.resource.data.email == email
         && request.resource.data.role in ['docente', 'coordinador', 'superusuario', 'rectora']
         && request.resource.data.active is bool
-        && request.resource.data.displayName is string;
-      allow update: if isSuper()
+        && request.resource.data.displayName is string);
+      allow update: if !esSuplantacion() && (isSuper()
         && request.resource.data.diff(resource.data).affectedKeys()
              // 'asistenciaConsulta' habilita la consulta ampliada del modulo de
              // asistencia (ver asisConsultaAmpliada mas abajo): cargos de apoyo sin
@@ -85,16 +97,17 @@ service cloud.firestore {
              .hasOnly(['displayName', 'role', 'active', 'replacedBy', 'replacedAt', 'slotId', 'sede', 'jornada', 'asistenciaConsulta'])
         && !(email == callerEmail()
              && (request.resource.data.role != resource.data.role
-                 || request.resource.data.active != resource.data.active));
-      allow delete: if false;
+                 || request.resource.data.active != resource.data.active)));
+      allow delete: if !esSuplantacion() && (false);
       match /readStates/{channelId} {
-        allow read, write: if isActiveUser() && callerEmail() == email;
+        allow read: if isActiveUser() && callerEmail() == email;
+        allow write: if !esSuplantacion() && (isActiveUser() && callerEmail() == email);
       }
     }
 
     match /channels/{channelId} {
       allow read: if isActiveUser() && canAccessChannel(resource.data);
-      allow create: if isActiveUser() && (
+      allow create: if !esSuplantacion() && (isActiveUser() && (
         (request.resource.data.type in ['general', 'rol'] && isSuper())
         ||
         (request.resource.data.type == 'directo'
@@ -111,16 +124,16 @@ service cloud.firestore {
           && request.resource.data.createdBy == callerEmail()
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0)
-      );
-      allow update: if isSuper()
+      ));
+      allow update: if !esSuplantacion() && (isSuper()
         && request.resource.data.type == resource.data.type
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['name', 'allowedRoles']);
-      allow delete: if false;
+             .hasOnly(['name', 'allowedRoles']));
+      allow delete: if !esSuplantacion() && (false);
       match /messages/{messageId} {
         allow read: if isActiveUser()
           && canAccessChannel(get(/databases/$(database)/documents/channels/$(channelId)).data);
-        allow create: if isActiveUser()
+        allow create: if !esSuplantacion() && (isActiveUser()
           && canAccessChannel(get(/databases/$(database)/documents/channels/$(channelId)).data)
           && request.resource.data.keys().hasOnly(
                ['authorEmail', 'authorName', 'text', 'createdAt', 'deleted', 'adjunto'])
@@ -130,8 +143,8 @@ service cloud.firestore {
           && (request.resource.data.text.size() > 0 || 'adjunto' in request.resource.data)
           && (!('adjunto' in request.resource.data) || adjuntoValido(request.resource.data.adjunto))
           && request.resource.data.createdAt == request.time
-          && request.resource.data.deleted == false;
-        allow update: if isActiveUser() && (
+          && request.resource.data.deleted == false);
+        allow update: if !esSuplantacion() && (isActiveUser() && (
           (resource.data.authorEmail == callerEmail()
             && request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['text', 'editedAt', 'deleted']))
@@ -139,18 +152,18 @@ service cloud.firestore {
           (isSuper()
             && request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['deleted']))
-        );
-        allow delete: if false;
+        ));
+        allow delete: if !esSuplantacion() && (false);
       }
     }
 
     match /auditLogs/{logId} {
       allow read: if isSuper();
-      allow write: if false;
+      allow write: if !esSuplantacion() && (false);
     }
     match /config/{docId} {
       allow read, write: if isSuper();
-      allow delete: if false;
+      allow delete: if !esSuplantacion() && (false);
     }
     // =========================================================================
     //  BLOQUE DE REGLAS DEL MODULO DE ASISTENCIA
@@ -348,7 +361,7 @@ service cloud.firestore {
       // Decision (a) del contrato: cualquier docente activo puede abrir una sesion. El
       // horario propone, no prohibe — los reemplazos improvisados son el dia a dia, y una
       // sesion bloqueada es una sesion que no existe para la estadistica.
-      allow create: if asisCanRecord()
+      allow create: if !esSuplantacion() && (asisCanRecord()
         && request.resource.data.createdBy == callerEmail()
         && request.resource.data.createdAt == request.time
         && request.resource.data.closed == false
@@ -359,11 +372,11 @@ service cloud.firestore {
         && request.resource.data.bloque <= 6
         && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
         && request.resource.data.jornada in ['manana', 'tarde']
-        && asisAuthorStamp();
+        && asisAuthorStamp());
 
       // Actualizacion: o se marcan estudiantes, o se cierra la sesion. Nunca se puede
       // reescribir la identidad de la sesion ni quien la creo.
-      allow update: if asisCanRecord()
+      allow update: if !esSuplantacion() && (asisCanRecord()
         && asisAuthorStamp()
         && request.resource.data.grado == resource.data.grado
         && request.resource.data.fecha == resource.data.fecha
@@ -376,9 +389,9 @@ service cloud.firestore {
                        'ultimaEscrituraPor', 'ultimaEscrituraEn'])
         // Si se cierra la sesion, queda dicho quien la cerro.
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['closed'])
-            || request.resource.data.closedBy == callerEmail());
+            || request.resource.data.closedBy == callerEmail()));
 
-      allow delete: if false;   // no se borra: se corrige, y la correccion deja rastro
+      allow delete: if !esSuplantacion() && (false);   // no se borra: se corrige, y la correccion deja rastro
 
       // El historial lo escribe una Cloud Function con Admin SDK. Jamas el cliente: si
       // dependiera del cliente, una correccion sin rastro seria trivial, y el rastro es
@@ -388,7 +401,7 @@ service cloud.firestore {
         // y volvia decorativas las dos primeras condiciones. El historial de correcciones
         // es material de coordinacion, no de consulta general.
         allow read: if isSuper() || asisIsCoordinador();
-        allow write: if false;
+        allow write: if !esSuplantacion() && (false);
       }
     }
 
@@ -402,18 +415,18 @@ service cloud.firestore {
         || asisIsDirectorOf(resource.data.grado);
 
       // Autoridad exclusiva del coordinador. Un director de grupo las VE pero no las crea.
-      allow create: if asisCoordinaSede(request.resource.data.sede)
+      allow create: if !esSuplantacion() && (asisCoordinaSede(request.resource.data.sede)
         && request.resource.data.registradoPor == callerEmail()
         && request.resource.data.registradoEn == request.time
         && request.resource.data.studentId is string
         && request.resource.data.grado is string
         && request.resource.data.fecha is string
         && request.resource.data.bloqueIngreso is int
-        && request.resource.data.estado in ['sin_justificar', 'pendiente_verificacion', 'justificada'];
+        && request.resource.data.estado in ['sin_justificar', 'pendiente_verificacion', 'justificada']);
 
       // La verificacion posterior (llamar al acudiente y cerrar el estado) es del
       // coordinador. La autoria original es inmutable.
-      allow update: if asisCoordinaSede(resource.data.sede)
+      allow update: if !esSuplantacion() && (asisCoordinaSede(resource.data.sede)
         && request.resource.data.studentId == resource.data.studentId
         && request.resource.data.fecha == resource.data.fecha
         && request.resource.data.registradoPor == resource.data.registradoPor
@@ -422,13 +435,13 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['estado', 'motivo', 'observacion', 'horaLlegada', 'bloqueIngreso',
                        'resueltoPor', 'resueltoEn'])
-        && request.resource.data.resueltoPor == callerEmail();
+        && request.resource.data.resueltoPor == callerEmail());
 
-      allow delete: if false;
+      allow delete: if !esSuplantacion() && (false);
 
       match /historial/{entryId} {
         allow read: if isSuper() || asisIsCoordinador();
-        allow write: if false;
+        allow write: if !esSuplantacion() && (false);
       }
     }
 
@@ -440,17 +453,17 @@ service cloud.firestore {
         || asisCoordinaSede(resource.data.sede)
         || asisIsDirectorOf(resource.data.grado);
 
-      allow create: if (asisCoordinaSede(request.resource.data.sede) || asisIsDirectorOf(request.resource.data.grado))
+      allow create: if !esSuplantacion() && ((asisCoordinaSede(request.resource.data.sede) || asisIsDirectorOf(request.resource.data.grado))
         && request.resource.data.llamadoPor == callerEmail()
         && request.resource.data.llamadoEn == request.time
-        && request.resource.data.resultado in ['contesto', 'no_contesto', 'pendiente'];
+        && request.resource.data.resultado in ['contesto', 'no_contesto', 'pendiente']);
 
-      allow update: if (asisCoordinaSede(resource.data.sede) || asisIsDirectorOf(resource.data.grado))
+      allow update: if !esSuplantacion() && ((asisCoordinaSede(resource.data.sede) || asisIsDirectorOf(resource.data.grado))
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['resultado', 'observacion'])
-        && request.resource.data.resultado in ['contesto', 'no_contesto', 'pendiente'];
+        && request.resource.data.resultado in ['contesto', 'no_contesto', 'pendiente']);
 
-      allow delete: if false;
+      allow delete: if !esSuplantacion() && (false);
     }
 
     // ---------- Fichas de estudiantes ----------
@@ -458,13 +471,13 @@ service cloud.firestore {
       allow read: if isActiveUser();
 
       // La creacion masiva la hace la Cloud Function de importacion (Admin SDK).
-      allow create: if isSuper();
+      allow create: if !esSuplantacion() && (isSuper());
 
       // Edita el superusuario, el coordinador o el director del grupo del estudiante.
       // Campos blindados: el hash del documento, el token QR y el grado vigente. Si un
       // director pudiera reescribir `gradoActual`, se auto-otorgaria permiso sobre
       // cualquier ficha del colegio.
-      allow update: if (isSuper() || asisCoordinaSede(resource.data.sede) || asisIsDirectorOf(resource.data.gradoActual))
+      allow update: if !esSuplantacion() && ((isSuper() || asisCoordinaSede(resource.data.sede) || asisIsDirectorOf(resource.data.gradoActual))
         && request.resource.data.docHash == resource.data.docHash
         && request.resource.data.qrToken == resource.data.qrToken
         && request.resource.data.gradoActual == resource.data.gradoActual
@@ -476,13 +489,13 @@ service cloud.firestore {
         // Se compara con affectedKeys y no con igualdad directa porque las fichas
         // importadas antes de que el campo existiera NO lo tienen: `resource.data.docNumber`
         // reventaria la evaluacion en esos documentos.
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['docNumber']);
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['docNumber']));
 
-      allow delete: if false;   // baja logica con activo:false
+      allow delete: if !esSuplantacion() && (false);   // baja logica con activo:false
 
       match /historial/{entryId} {
         allow read: if isSuper() || asisIsCoordinador();
-        allow write: if false;
+        allow write: if !esSuplantacion() && (false);
       }
     }
 
@@ -494,48 +507,48 @@ service cloud.firestore {
       // identifica la sede solo por una convencion implicita (Gustavo Rodas usa 1 y 2 en el
       // ultimo digito, La Finquita el 3) que se rompe el dia que se abra un tercer grupo.
       // La redundancia del campo es lo que hace la regla demostrable.
-      allow create: if isSuper()
+      allow create: if !esSuplantacion() && (isSuper()
         || (asisCoordinaSede(request.resource.data.sede)
-            && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']);
+            && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']));
 
-      allow update: if isSuper()
+      allow update: if !esSuplantacion() && (isSuper()
         || (asisCoordinaSede(resource.data.sede)
-            && request.resource.data.sede == resource.data.sede);
+            && request.resource.data.sede == resource.data.sede));
 
-      allow delete: if false;
+      allow delete: if !esSuplantacion() && (false);
     }
 
     // ---------- Datos base: los carga el superusuario ----------
     match /asistenciaPeriods/{periodId} {
       allow read: if isActiveUser();
-      allow create, update: if isSuper();
-      allow delete: if false;
+      allow create, update: if !esSuplantacion() && (isSuper());
+      allow delete: if !esSuplantacion() && (false);
     }
 
     // Catalogo de las siete marcas. Se desactivan, nunca se borran: el historico ya
     // registrado apunta a ellas.
     match /asistenciaCatalog/{code} {
       allow read: if isActiveUser();
-      allow create, update: if isSuper();
-      allow delete: if false;
+      allow create, update: if !esSuplantacion() && (isSuper());
+      allow delete: if !esSuplantacion() && (false);
     }
 
     // La eleccion Master2000 vs. app, por asignatura y periodo.
     match /asistenciaSubjectConfigs/{configId} {
       allow read: if isActiveUser();
-      allow create, update: if asisCanRecord()
+      allow create, update: if !esSuplantacion() && (asisCanRecord()
         && request.resource.data.fuente in ['app', 'master2000']
-        && request.resource.data.fijadoPor == callerEmail();
-      allow delete: if false;
+        && request.resource.data.fijadoPor == callerEmail());
+      allow delete: if !esSuplantacion() && (false);
     }
 
     // Umbrales de alerta. Cada docente puede ajustar el suyo de retrasos; el resto de la
     // configuracion es del superusuario.
     match /asistenciaConfig/{docId} {
       allow read: if isActiveUser();
-      allow write: if isSuper()
+      allow write: if !esSuplantacion() && (isSuper()
         || (docId == 'alertas' && asisIsCoordinador())
-        || (docId == 'umbralesPorDocente' && asisCanRecord());
+        || (docId == 'umbralesPorDocente' && asisCanRecord()));
     }
 
     // ---------- Eventos: grupos temporales ----------
@@ -581,11 +594,11 @@ service cloud.firestore {
       // Se exige que el creador quede dentro de `docentes` para que no pueda fabricar un
       // evento al que el mismo no tenga acceso — un documento invisible para todos, que
       // nadie podria corregir ni dar de baja despues.
-      allow create: if asisCanRecord()
+      allow create: if !esSuplantacion() && (asisCanRecord()
         && request.resource.data.creadoPor == callerEmail()
         && callerEmail() in request.resource.data.docentes
         && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
-        && request.resource.data.desde <= request.resource.data.hasta;
+        && request.resource.data.desde <= request.resource.data.hasta);
 
       // Editar el evento: cualquiera de sus docentes. Con dos candados:
       //
@@ -593,16 +606,16 @@ service cloud.firestore {
       //  2. La lista de docentes SOLO la cambia el creador, y no puede sacarse a si mismo.
       //     Sin esto, alguien con quien se compartio el evento podria expulsar al resto y
       //     quedarse con el — incluido el creador, que perderia el acceso a algo suyo.
-      allow update: if isActiveUser()
+      allow update: if !esSuplantacion() && (isActiveUser()
         && callerEmail() in resource.data.docentes
         && request.resource.data.creadoPor == resource.data.creadoPor
         && resource.data.creadoPor in request.resource.data.docentes
         && (
           callerEmail() == resource.data.creadoPor
           || request.resource.data.docentes == resource.data.docentes
-        );
+        ));
 
-      allow delete: if false;   // baja logica con activo:false, como en todo el modulo
+      allow delete: if !esSuplantacion() && (false);   // baja logica con activo:false, como en todo el modulo
 
       // Las sesiones van como SUBCOLECCION, no sueltas. La razon es de demostrabilidad:
       // aqui el `eventId` viene en la RUTA, asi que la regla puede ir a buscar la lista de
@@ -619,11 +632,11 @@ service cloud.firestore {
         // Se escribe con rutas de campo puntuales (`estudiantes.est_0412.estado`), igual que
         // las sesiones de clase: varios docentes comparten el evento y pueden estar marcando
         // a la vez. Reemplazar el mapa completo borraria el trabajo del otro.
-        allow create, update: if asisEnEvento(eventId)
+        allow create, update: if !esSuplantacion() && (asisEnEvento(eventId)
           && asisCanRecord()
-          && asisAuthorStamp();
+          && asisAuthorStamp());
 
-        allow delete: if false;
+        allow delete: if !esSuplantacion() && (false);
       }
     }
 
@@ -657,29 +670,29 @@ service cloud.firestore {
       //
       // Por eso `abrirDireccionGrupo` LEE antes de escribir. El 2026-08-12 no lo hacia, y
       // borraba las columnas del director cada vez que abria la pantalla.
-      allow create, update: if asisIsDirectorOf(grado)
+      allow create, update: if !esSuplantacion() && (asisIsDirectorOf(grado)
         && asisCanRecord()
         && asisAuthorStamp()
         // Lo unico que si se puede blindar: el cuaderno no cambia de dueño ni de año.
         && request.resource.data.grado == grado
-        && request.resource.data.anio == int(anio);
+        && request.resource.data.anio == int(anio));
 
       // Se borran COLUMNAS desde la aplicacion (quitandolas del arreglo), nunca el cuaderno
       // entero de un manotazo.
-      allow delete: if false;
+      allow delete: if !esSuplantacion() && (false);
     }
 
     // ---------- Tokens QR ----------
     // El token es la unica carga util del QR: una cadena opaca sin datos personales.
     match /asistenciaQrTokens/{token} {
       allow read: if isActiveUser();     // hay que poder resolver un escaneo, incluso offline
-      allow write: if false;             // los genera y rota una Cloud Function
+      allow write: if !esSuplantacion() && (false);             // los genera y rota una Cloud Function
     }
 
     // ---------- Revision manual de importacion ----------
     match /asistenciaImportReviews/{reviewId} {
       allow read: if isSuper();
-      allow write: if false;
+      allow write: if !esSuplantacion() && (false);
     }
 
     // ---------- Programas: centros de interes y todo lo que se reparte por semestre ----------
@@ -770,7 +783,7 @@ service cloud.firestore {
       // Tres puertas, no dos: superusuario, coordinacion de la sede, y quien este en la
       // lista de `asistenciaConfig/programas` (ver `asisCreadoresDePrograma`). La tercera
       // es la que le permite a la lider del proyecto arrancar el semestre siguiente.
-      allow create: if (
+      allow create: if !esSuplantacion() && ((
           isSuper()
           || asisCoordinaSede(request.resource.data.sede)
           || callerEmail() in asisCreadoresDePrograma()
@@ -781,7 +794,7 @@ service cloud.firestore {
         && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
         && request.resource.data.desde <= request.resource.data.hasta
         && request.resource.data.exclusivo is bool
-        && request.resource.data.activo is bool;
+        && request.resource.data.activo is bool);
 
       // Aqui se lee `resource.data.coordinadores` en vez de llamar a asisCoordinaPrograma():
       // el documento del programa ES este documento, asi que el get() sobraria. Un get()
@@ -796,13 +809,13 @@ service cloud.firestore {
       // siempre. Lo que si se blinda es que la lista no quede VACIA: un programa sin
       // coordinacion es un programa que nadie puede volver a tocar — ni sus grupos, ni sus
       // pendientes — porque toda la autoridad de las subcolecciones cuelga de esta lista.
-      allow update: if isActiveUser()
+      allow update: if !esSuplantacion() && (isActiveUser()
         && (isSuper() || (callerEmail() in resource.data.get('coordinadores', [])))
         && request.resource.data.creadoPor == resource.data.creadoPor
         && request.resource.data.sede == resource.data.sede
-        && request.resource.data.coordinadores.size() > 0;
+        && request.resource.data.coordinadores.size() > 0);
 
-      allow delete: if false;   // baja logica con activo:false, como en todo el modulo
+      allow delete: if !esSuplantacion() && (false);   // baja logica con activo:false, como en todo el modulo
 
       // ---------- Los centros de interes concretos ----------
       //
@@ -835,21 +848,21 @@ service cloud.firestore {
         //
         // Se exige que el lider este tambien en `docentes` para que el grupo no nazca con un
         // responsable que no puede ni verlo.
-        allow create: if asisCoordinaPrograma(programaId)
+        allow create: if !esSuplantacion() && (asisCoordinaPrograma(programaId)
           && request.resource.data.creadoPor == callerEmail()
           && request.resource.data.lider in request.resource.data.docentes
           && request.resource.data.miembros is list
-          && request.resource.data.activo is bool;
+          && request.resource.data.activo is bool);
 
         // El lider/docente NO edita el grupo: ni `miembros`, ni `docentes`, ni nada. Su
         // autoridad llega hasta las sesiones. Un centro se inscribe y se rebaraja desde
         // coordinacion, que es quien ve los 21 a la vez y por tanto la unica que puede
         // detectar que un estudiante quedo en dos (`exclusivo`).
-        allow update: if asisCoordinaPrograma(programaId)
+        allow update: if !esSuplantacion() && (asisCoordinaPrograma(programaId)
           && request.resource.data.creadoPor == resource.data.creadoPor
-          && request.resource.data.lider in request.resource.data.docentes;
+          && request.resource.data.lider in request.resource.data.docentes);
 
-        allow delete: if false;   // baja logica con activo:false
+        allow delete: if !esSuplantacion() && (false);   // baja logica con activo:false
 
         // ---------- La planilla de cada fecha ----------
         // Identica en forma a la sesion de un evento y calculada con las MISMAS funciones de
@@ -871,11 +884,11 @@ service cloud.firestore {
           // `asistenciaConsulta:true`) tampoco registra aqui -- ni coordinando el programa.
           // Se reutiliza la funcion, no se reescribe la condicion: el dia que se excluya a un
           // rol mas, este match tiene que enterarse solo.
-          allow create, update: if asisCanRecord()
+          allow create, update: if !esSuplantacion() && (asisCanRecord()
             && (asisEnGrupoPrograma(programaId, grupoId) || asisCoordinaPrograma(programaId))
-            && asisAuthorStamp();
+            && asisAuthorStamp());
 
-          allow delete: if false;
+          allow delete: if !esSuplantacion() && (false);
         }
       }
 
@@ -889,10 +902,10 @@ service cloud.firestore {
       match /pendientes/{pendienteId} {
         allow read: if asisCoordinaPrograma(programaId);
 
-        allow create: if asisCoordinaPrograma(programaId)
+        allow create: if !esSuplantacion() && (asisCoordinaPrograma(programaId)
           && request.resource.data.tipo in ['homonimo', 'no_encontrado', 'ortografia', 'duplicado']
           && request.resource.data.estado == 'pendiente'
-          && request.resource.data.candidatos is list;
+          && request.resource.data.candidatos is list);
 
         // Resolver: la evidencia del archivo es inmutable (`tipo`, `nombreArchivo`,
         // `grupoArchivo`), porque es lo que permite auditar la decision despues. Y quien
@@ -900,15 +913,15 @@ service cloud.firestore {
         //
         // `get('resueltoPor', '')` sobre request.resource: mientras el pendiente sigue en
         // `pendiente` el campo NO existe, y leerlo directo reventaria la evaluacion.
-        allow update: if asisCoordinaPrograma(programaId)
+        allow update: if !esSuplantacion() && (asisCoordinaPrograma(programaId)
           && request.resource.data.tipo == resource.data.tipo
           && request.resource.data.nombreArchivo == resource.data.nombreArchivo
           && request.resource.data.grupoArchivo == resource.data.grupoArchivo
           && request.resource.data.estado in ['pendiente', 'resuelto', 'descartado']
           && (request.resource.data.estado == 'pendiente'
-              || request.resource.data.get('resueltoPor', '') == callerEmail());
+              || request.resource.data.get('resueltoPor', '') == callerEmail()));
 
-        allow delete: if false;   // un pendiente se descarta (estado), no se borra: es rastro
+        allow delete: if !esSuplantacion() && (false);   // un pendiente se descarta (estado), no se borra: es rastro
       }
     }
 

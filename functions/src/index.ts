@@ -163,6 +163,100 @@ export const replaceTeacher = onCall(
     }
   });
 
+// ── Suplantación real de solo lectura (Lote 1) ──────────────────────────────
+// Emite un token personalizado que hace que Firestore/Storage evalúen al
+// superusuario como si fuera el docente objetivo (mismas reglas, mismos
+// datos). La atribución se preserva con la marca `suplantadoPor` en el token;
+// las reglas (Lote 2, aún no desplegado en el momento de escribir esto)
+// niegan TODA escritura mientras esa marca esté presente.
+//
+// ⚠️ INVESTIGACIÓN (no verificada con una prueba en vivo en este entorno,
+// solo con la documentación oficial de Firebase Identity Platform sobre
+// disparadores de "blocking functions"): las funciones `beforeUserCreated` y
+// `beforeUserSignedIn` de este archivo se documentan como disparadas para
+// email/contraseña, enlace de email, proveedores federados (OAuth/SAML/OIDC),
+// anónimo y teléfono — el inicio de sesión con `signInWithCustomToken` NO
+// aparece en esa lista y, según esa misma documentación, NO dispara
+// blocking functions. Si eso es correcto, `beforesignedin` NO vuelve a
+// validar dominio/activo cuando el navegador entra con el token que emite
+// `suplantar`: la única barrera de dominio institucional para ese inicio de
+// sesión es el cerrojo 4 de abajo. Esto queda anotado como lo mejor
+// verificable desde este entorno (sin acceso a un proyecto Firebase real
+// para probarlo en vivo); antes de confiar en ello para producción, Julián
+// debería confirmarlo con una prueba real: suplantar y observar si
+// `beforesignedin` se ejecuta (p. ej. con un log adicional temporal).
+export const suplantar = onCall(
+  { region: 'us-central1', invoker: 'public' },
+  async (request) => {
+    // Cerrojo 1: debe haber sesión.
+    if (!request.auth) {
+      throw new HttpsErrorCall('permission-denied', 'Debes iniciar sesión.');
+    }
+
+    // Cerrojo 2: el llamante debe ser superusuario activo, leído de
+    // Firestore con el Admin SDK — nunca de un claim que mande el cliente.
+    const callerEmail = (request.auth.token?.email ?? '').toLowerCase();
+    if (!callerEmail) {
+      throw new HttpsErrorCall('permission-denied', 'No se pudo determinar tu correo.');
+    }
+    const callerSnap = await db.doc(`users/${callerEmail}`).get();
+    if (!callerSnap.exists || callerSnap.get('active') !== true || callerSnap.get('role') !== 'superusuario') {
+      throw new HttpsErrorCall('permission-denied', 'Solo el superusuario puede suplantar.');
+    }
+
+    // Cerrojo 3: el llamante no puede venir ya suplantando. Sin esto la
+    // suplantación sería encadenable (suplantar desde una sesión ya
+    // suplantada) y permitiría "lavar" la marca de atribución.
+    if (request.auth.token?.suplantadoPor) {
+      throw new HttpsErrorCall('permission-denied', 'No puedes suplantar mientras ya estás suplantando a alguien.');
+    }
+
+    // Cerrojo 4: correo objetivo — dominio institucional, existe y activo.
+    const targetEmail = String(request.data?.correo ?? '').toLowerCase().trim();
+    if (!targetEmail || !targetEmail.endsWith('@' + DOMAIN)) {
+      throw new HttpsErrorCall('permission-denied', 'El correo debe ser una cuenta institucional del colegio.');
+    }
+    const targetSnap = await db.doc(`users/${targetEmail}`).get();
+    if (!targetSnap.exists || targetSnap.get('active') !== true) {
+      throw new HttpsErrorCall('permission-denied', 'Esa persona no existe o está desactivada en el sistema.');
+    }
+
+    // Cerrojo 5: no se suplanta a un par (superusuario). No aporta a la
+    // labor de auditoría y solo amplía el daño de un error.
+    if (targetSnap.get('role') === 'superusuario') {
+      throw new HttpsErrorCall('permission-denied', 'No se puede suplantar a otro superusuario.');
+    }
+
+    // El uid del custom token debe ser el uid REAL en Firebase Auth, no el
+    // correo — createCustomToken firma para un uid de Auth. Si la persona
+    // nunca ha iniciado sesión, no tiene uid todavía.
+    let uid: string;
+    try {
+      const userRecord = await getAuth().getUserByEmail(targetEmail);
+      uid = userRecord.uid;
+    } catch {
+      throw new HttpsErrorCall(
+        'not-found',
+        'Esa persona aún no ha iniciado sesión nunca en la aplicación, así que no se puede suplantar todavía.'
+      );
+    }
+
+    const token = await getAuth().createCustomToken(uid, { suplantadoPor: callerEmail });
+
+    // Auditoría con Admin SDK (las reglas de Firestore prohíben que el
+    // cliente escriba en auditLogs; el Admin SDK las salta).
+    await db.collection('auditLogs').doc().set({
+      tipo: 'suplantacion',
+      action: 'suplantar',
+      executedBy: callerEmail,
+      targetEmail,
+      targetUid: uid,
+      executedAt: FieldValue.serverTimestamp(),
+    });
+
+    return { token };
+  });
+
 // ── Etapa 4: chat interno — metadatos del último mensaje por canal ──────────
 // Al crear un mensaje, actualiza el documento del canal con el resumen del
 // último mensaje para poder ordenar la lista de canales y mostrar preview.
