@@ -241,7 +241,27 @@ export const suplantar = onCall(
       );
     }
 
-    const token = await getAuth().createCustomToken(uid, { suplantadoPor: callerEmail });
+    // Firmar un custom token exige que la cuenta de servicio de las funciones tenga el
+    // permiso `iam.serviceAccounts.signBlob`, que NO viene por defecto. Sin el, el SDK
+    // lanza y el cliente solo veia un `internal` opaco que no dice que hacer. Se traduce
+    // a un mensaje accionable: el arreglo es dar el rol "Creador de tokens de cuenta de
+    // servicio" a la propia cuenta de servicio, no tocar este codigo.
+    let token: string;
+    try {
+      token = await getAuth().createCustomToken(uid, { suplantadoPor: callerEmail });
+    } catch (e) {
+      const err = e as { code?: string };
+      if (err.code === 'auth/insufficient-permission') {
+        throw new HttpsErrorCall(
+          'failed-precondition',
+          'Falta un permiso en Google Cloud para firmar la sesión: la cuenta de servicio de ' +
+            'las funciones necesita el rol "Creador de tokens de cuenta de servicio" ' +
+            '(iam.serviceAccountTokenCreator) sobre sí misma. Es una configuración del ' +
+            'proyecto, no un error de la aplicación.'
+        );
+      }
+      throw e;
+    }
 
     // Auditoría con Admin SDK (las reglas de Firestore prohíben que el
     // cliente escriba en auditLogs; el Admin SDK las salta).
