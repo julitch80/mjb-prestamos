@@ -11,6 +11,7 @@ const ImportarCentros = lazy(() => import('./ImportarCentros'));
 import {
   crearGrupoPrograma,
   crearPrograma,
+  desactivarPrograma,
   leerCreadoresDeProgramas,
   editarGrupoPrograma,
   editarPrograma,
@@ -558,6 +559,7 @@ function FormularioPrograma({
   const [coordinadores, setCoordinadores] = useState((programa?.coordinadores ?? []).join(', '));
   const [exclusivo, setExclusivo] = useState(programa?.exclusivo ?? true);
   const [enviando, setEnviando] = useState(false);
+  const [confirmandoBaja, setConfirmandoBaja] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const listaCoordinadores = coordinadores
@@ -580,6 +582,20 @@ function FormularioPrograma({
     : nombre.trim()
       ? intentarSlug(() => slugPrograma(nombre, idsUsados))
       : '';
+
+  async function darDeBaja() {
+    if (!programa) return;
+    setEnviando(true);
+    setError(null);
+    try {
+      await desactivarPrograma(programa.programaId);
+      onGuardado({ ...programa, activo: false });
+      onCerrar();
+    } catch (e) {
+      setError(`No se pudo dar de baja. (${(e as Error).message})`);
+      setEnviando(false);
+    }
+  }
 
   async function enviar() {
     if (problemas.length > 0 || (!edicion && !idPropuesto)) return;
@@ -781,6 +797,50 @@ function FormularioPrograma({
       >
         Cancelar
       </button>
+
+      {/*
+        Dar de baja. Solo al editar, y con confirmación en dos pasos.
+
+        Hace falta porque un programa creado por error —o el del semestre pasado— se
+        queda para siempre estorbando en la lista de todos los líderes, y no había forma
+        de quitarlo desde la aplicación. Es baja LÓGICA (`activo: false`), como todo en
+        este módulo: los centros, las inscripciones y las planillas siguen ahí, solo deja
+        de aparecer. Nada de lo registrado se pierde.
+      */}
+      {edicion && (
+        <div className="mt-4 border-t border-line pt-3">
+          {!confirmandoBaja ? (
+            <button
+              onClick={() => setConfirmandoBaja(true)}
+              className="w-full rounded-lg border border-danger-soft p-2 text-sm text-danger-soft-fg"
+            >
+              Dar de baja este programa
+            </button>
+          ) : (
+            <div className="rounded-lg border border-danger-soft bg-danger-soft p-3">
+              <p className="text-sm text-danger-soft-fg">
+                Deja de aparecer para todo el mundo. <b>No se borra nada</b>: los centros,
+                los inscritos y las planillas quedan guardados y vuelven si se reactiva.
+              </p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  disabled={enviando}
+                  onClick={() => void darDeBaja()}
+                  className="flex-1 rounded-lg bg-danger px-3 py-2 text-sm font-medium text-danger-fg disabled:opacity-50"
+                >
+                  {enviando ? 'Dando de baja…' : 'Sí, darlo de baja'}
+                </button>
+                <button
+                  onClick={() => setConfirmandoBaja(false)}
+                  className="flex-1 rounded-lg border border-line px-3 py-2 text-sm text-soft"
+                >
+                  No
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </Hoja>
   );
 }
