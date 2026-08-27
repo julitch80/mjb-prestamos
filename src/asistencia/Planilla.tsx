@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import Avatar from './Avatar';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
 import { nombreCompleto, nombresDePila } from './domain/nombres';
@@ -9,6 +9,14 @@ import { COLORES_GRUPO, estiloAnillo, estiloBorde, type ColorGrupo } from './dom
 import { toDateKey } from './domain/ids';
 import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './domain/types';
 import { getAsignatura } from '../data/asignacionAcademica';
+
+/**
+ * Caratula del observador fisico. Va con `lazy` a proposito: arrastra `datos.ts` entero
+ * para resolver el director de grupo, y esta planilla es presentacional —se puede ver y
+ * probar sin Firestore detras—. Con `lazy` eso se mantiene: el modulo solo se descarga
+ * cuando alguien pulsa el boton, que es una vez al año.
+ */
+const MosaicoGrupo = lazy(() => import('./MosaicoGrupo'));
 
 /**
  * Planilla del docente, al estilo del cuaderno de Additio.
@@ -133,6 +141,8 @@ export default function Planilla({
   /** Cuando hay más de una sesión de hoy (dos bloques del mismo grupo), hay que
    * preguntar en cuál se escanea antes de abrir la cámara. */
   const [eligiendoSesionQr, setEligiendoSesionQr] = useState<Session[] | null>(null);
+  /** Mosaico de fotos para la caratula del observador. Se abre encima de la planilla. */
+  const [mosaico, setMosaico] = useState(false);
 
   const ordenadas = useMemo(
     () =>
@@ -229,6 +239,15 @@ export default function Planilla({
           ))}
         </div>
         <span className="grow" />
+        {/* La caratula del observador la imprime coordinacion o el director de grupo, y
+            ninguno de los dos necesita `puedeRegistrar`: es un papel, no un registro. */}
+        <button
+          onClick={() => setMosaico(true)}
+          title="Mosaico de fotos del grupo para la carátula del observador"
+          className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
+        >
+          Mosaico de fotos
+        </button>
         {puedeRegistrar && (
           <button
             onClick={manejarPasarListaQr}
@@ -246,6 +265,16 @@ export default function Planilla({
           </button>
         )}
       </div>
+
+      {mosaico && (
+        <Suspense fallback={null}>
+          <MosaicoGrupo
+            grado={grado}
+            estudiantes={estudiantes}
+            onCerrar={() => setMosaico(false)}
+          />
+        </Suspense>
+      )}
 
       {avisoSinSesionHoy && (
         <div className="rounded-xl border border-info-soft bg-info-soft p-3 text-sm text-info-soft-fg">

@@ -437,6 +437,41 @@ export async function leerDirectores(): Promise<Record<string, string>> {
 }
 
 /**
+ * Grado -> NOMBRE del director de grupo, ya resuelto.
+ *
+ * `asistenciaConfig/directores` guarda el `slotId` del puesto, no un nombre — correcto,
+ * porque el horario es del PUESTO y el puesto sobrevive al cambio de docente. Pero para
+ * imprimir la caratula del observador hace falta el nombre de la persona.
+ *
+ * Por que no se resuelve "solo si quien mira ES el director": esa caratula la imprime
+ * COORDINACION, que es donde reposa la carpeta fisica. Si el nombre solo se autocompletara
+ * para el director, en el caso real siempre habria que escribirlo a mano.
+ *
+ * `users` se lee sin filtro porque su regla es `isActiveUser()`, que no mira `resource`:
+ * la consulta es demostrable. Son 48 documentos.
+ */
+export async function leerNombresDeDirectores(): Promise<Record<string, string>> {
+  if (!(await listo())) return {};
+  const [porGrado, usuarios] = await Promise.all([
+    leerDirectores(),
+    getDocs(collection(baseDatos(), 'users')),
+  ]);
+  const nombrePorSlot = new Map<string, string>();
+  usuarios.forEach((d) => {
+    const u = d.data() as { slotId?: string; displayName?: string; email?: string };
+    if (u.slotId) nombrePorSlot.set(u.slotId, (u.displayName || u.email || '').trim());
+  });
+  const salida: Record<string, string> = {};
+  for (const [grado, slotId] of Object.entries(porGrado)) {
+    const nombre = nombrePorSlot.get(slotId);
+    // Sin nombre NO se escribe el slotId: un identificador tecnico en una caratula
+    // impresa es peor que dejar la linea vacia para que alguien la llene a mano.
+    if (nombre) salida[grado] = nombre;
+  }
+  return salida;
+}
+
+/**
  * Mapa sede -> correos con autoridad de coordinacion, desde
  * `asistenciaConfig/autoridadSede`. Es el mismo documento espejo que evalua
  * `asisCoordinaSede` en las reglas (ver `rules/asistencia.rules`): se lee aqui solo para

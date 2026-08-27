@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Avatar from './Avatar';
 import Ayuda from './Ayuda';
 import EscanerQr from './EscanerQr';
@@ -18,6 +18,12 @@ import {
   proponerPendiente,
   retirarDeGrupoPrograma,
 } from './datos';
+
+/**
+ * Caratula del centro de interes con las fotos de sus integrantes. `lazy` porque solo se
+ * usa una vez al semestre y no tiene por que viajar en el paquete de la planilla.
+ */
+const MosaicoGrupo = lazy(() => import('./MosaicoGrupo'));
 import { estadisticaEvento, resumenSesionEvento } from './domain/eventos';
 import { detectarDuplicados } from './domain/programas';
 import { conDenominador } from './domain/stats';
@@ -179,6 +185,8 @@ export default function PlanillaCentro({
   const [menuColumna, setMenuColumna] = useState<string | null>(null);
   const [estadisticaDe, setEstadisticaDe] = useState<Student | null>(null);
   const [inscribiendo, setInscribiendo] = useState(false);
+  /** Mosaico de fotos del centro, para la caratula de su carpeta. */
+  const [mosaico, setMosaico] = useState(false);
   /**
    * Los estudiantes de la lista del lider que el cruce con la matricula NO pudo ubicar.
    *
@@ -495,6 +503,17 @@ export default function PlanillaCentro({
         </p>
       </div>
 
+      {mosaico && (
+        <Suspense fallback={null}>
+          <MosaicoGrupo
+            grado={grupo.nombre}
+            subtitulo={programa.nombre}
+            estudiantes={miembros}
+            onCerrar={() => setMosaico(false)}
+          />
+        </Suspense>
+      )}
+
       {/* Barra de acciones. Todo lo que antes vivia en pestañas se hace desde aqui, sin
           cambiar de pantalla. */}
       <div className="flex flex-wrap items-center gap-2">
@@ -516,6 +535,14 @@ export default function PlanillaCentro({
           ))}
         </div>
         <span className="grow" />
+        {/* Imprimir la caratula no es registrar: la ve tambien quien solo puede leer. */}
+        <button
+          onClick={() => setMosaico(true)}
+          title="Mosaico de fotos del centro para la carátula de su carpeta"
+          className="min-h-[36px] shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
+        >
+          Mosaico de fotos
+        </button>
         {esCoordinador && (
           <Ayuda texto="Inscribir o retirar estudiantes de este centro. Solo la coordinación del programa puede hacerlo.">
             <button
