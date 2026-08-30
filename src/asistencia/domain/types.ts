@@ -498,3 +498,76 @@ export interface PendientePrograma {
   propuestaLiderPor?: string;
   propuestaLiderEn?: number;
 }
+
+// ---------------------------------------------------------------------------
+//  Restaurante — vaso de leche y restaurante (2026-08-27)
+// ---------------------------------------------------------------------------
+//
+// "Restaurante" es el nombre INSTITUCIONAL de la pestaña, el que usa el colegio. Adentro
+// viven los DOS servicios: el vaso de leche (refrigerio del primer descanso) y el
+// restaurante propiamente dicho (el menu del final de la jornada). Que la pestaña y uno
+// de los servicios compartan nombre es deliberado: es como se habla en el colegio, y
+// renombrarlo "Comedor" o "Alimentacion" seria inventar vocabulario que nadie usa.
+//
+// ESTO NO ES ASISTENCIA, Y LA DIFERENCIA MANDA SOBRE TODO EL DISEÑO. No hay marcas, no
+// hay faltas, no hay denominador. Solo existe "paso" o no hay registro.
+//
+// Y sobre todo: NO RESTRINGE. Julian, 2026-08-27: "muchas veces estos grupos no se agotan
+// y la comida no se puede perder (...) preferible darle el vaso de leche o la comida a un
+// estudiante que no esta inscrito en ninguno de los dos". Asi que un estudiante se
+// registra SIEMPRE, este o no en la lista oficial, sin advertencia ni friccion. Si esto se
+// hubiera construido como un centro de interes —donde solo se puede marcar a quien esta
+// en la lista— la pantalla habria rechazado justo el caso que hay que permitir.
+//
+// La lista oficial existe solo para PODER CONTRASTAR despues: de los inscritos, quienes
+// usaron el servicio y cuantas veces; y quienes lo usaron sin estar inscritos.
+
+export type ServicioRestaurante = 'vaso_leche' | 'restaurante';
+
+/**
+ * Un paso por el servicio. Ruta: `asistenciaRestaurante/{registroId}`.
+ *
+ * El id es DETERMINISTA (sede + servicio + fecha + studentId) a proposito: en una fila
+ * es normal escanear dos veces al mismo estudiante por error, y con id calculado el
+ * segundo escaneo sobrescribe el primero en vez de inflar el conteo. El reporte cuenta
+ * documentos, asi que un duplicado seria una comida de mas en la cifra que le llega al
+ * proveedor.
+ */
+export interface RegistroRestaurante {
+  registroId: string;
+  studentId: string;
+  /** Grado literal, denormalizado: el reporte agrupa por grupo sin releer la ficha. */
+  grado: string;
+  sede: Sede;
+  fecha: string;                 // 'YYYY-MM-DD'
+  servicio: ServicioRestaurante;
+  registradoPor: string;         // correo en minusculas
+  registradoEn: number;
+  /**
+   * Baja logica de un registro equivocado (se escaneo a quien no era). NO se borra, como
+   * en todo el modulo: un conteo que baja sin dejar rastro no se puede auditar despues
+   * contra lo que el proveedor sirvio ese dia.
+   */
+  anulado?: boolean;
+  anuladoPor?: string;
+  anuladoEn?: number;
+}
+
+/**
+ * La lista oficial de inscritos. Ruta: `asistenciaRestauranteInscritos/{inscritoId}`,
+ * con `inscritoId` = `{anio}_{sede}_{studentId}`.
+ *
+ * NO controla el acceso — no decide quien puede pasar, solo con que se compara el
+ * registro al final. Se sube desde Excel, una lista por servicio.
+ */
+export interface InscritoRestaurante {
+  inscritoId: string;
+  studentId: string;
+  grado: string;
+  sede: Sede;
+  anio: number;
+  servicio: ServicioRestaurante;
+  activo: boolean;
+  cargadoPor: string;
+  cargadoEn: number;
+}

@@ -53,9 +53,12 @@ import type {
   GrupoPrograma,
   Jornada,
   LateArrival,
+  InscritoRestaurante,
   PendientePrograma,
   Programa,
+  RegistroRestaurante,
   Sede,
+  ServicioRestaurante,
   SesionPrograma,
   Session,
   Student,
@@ -2144,4 +2147,159 @@ export async function contarPendientesPrograma(
   };
   for (const p of await leerPendientesPrograma(programaId)) conteo[p.tipo] += 1;
   return conteo;
+}
+
+// ---------- Restaurante: vaso de leche y restaurante ----------
+//
+// ESTO NO ES ASISTENCIA. No hay marcas, ni faltas, ni denominador: solo existe "paso" o no
+// hay registro. Y NO RESTRINGE — un estudiante se registra este o no en la lista oficial,
+// porque la comida que sobra se le da a quien este ahi. La lista oficial existe solo para
+// contrastar despues. Ver la cabecera de `domain/types.ts`, seccion Restaurante.
+
+const RESTAURANTE = 'asistenciaRestaurante';
+const RESTAURANTE_INSCRITOS = 'asistenciaRestauranteInscritos';
+
+/**
+ * Registra que un estudiante paso por el servicio.
+ *
+ * El id lo calcula `registroRestauranteId` a partir de (sede, servicio, fecha,
+ * studentId): escanear dos veces al mismo estudiante en la fila sobrescribe el mismo
+ * documento en vez de inflar el conteo que le llega al proveedor.
+ *
+ * Sin `await`, como las marcas de asistencia: esto se usa DE PIE, en una fila que avanza.
+ * La promesa de Firestore es el acuse del SERVIDOR, no la escritura local; esperarla
+ * congelaria la pantalla entre estudiante y estudiante, y sin señal indefinidamente. La
+ * escritura queda aplicada en local al instante y el indicador de envio avisa si el
+ * servidor la rechaza.
+ */
+export async function registrarPasoRestaurante(input: {
+  registroId: string;
+  studentId: string;
+  grado: string;
+  sede: Sede;
+  fecha: string;
+  servicio: ServicioRestaurante;
+}): Promise<void> {
+  const autor = await exigirAutor();
+  registrarEnvio(
+    setDoc(doc(baseDatos(), RESTAURANTE, input.registroId), {
+      ...input,
+      registradoPor: autor,
+      registradoEn: serverTimestamp(),
+      anulado: false,
+    }),
+  );
+}
+
+/**
+ * Anula un registro equivocado (se escaneo a quien no era). Baja LOGICA: el documento se
+ * queda y solo deja de contar. Un conteo que baja sin dejar rastro no se puede auditar
+ * despues contra lo que el proveedor sirvio ese dia.
+ */
+export async function anularPasoRestaurante(registroId: string): Promise<void> {
+  const autor = await exigirAutor();
+  registrarEnvio(
+    updateDoc(doc(baseDatos(), RESTAURANTE, registroId), {
+      anulado: true,
+      anuladoPor: autor,
+      anuladoEn: serverTimestamp(),
+    }),
+  );
+}
+
+/**
+ * Los pasos de UN dia, para la pantalla de la fila: quien ya paso hoy por este servicio.
+ *
+ * Filtra por sede + fecha + servicio, que es exactamente lo que la pantalla muestra. Los
+ * anulados vienen incluidos a proposito: la lista debe poder enseñarlos tachados para que
+ * quien se equivoco vea que su correccion surtio efecto, en vez de que el nombre
+ * desaparezca sin explicacion.
+ */
+export async function leerPasosDelDia(
+  sede: Sede,
+  fecha: string,
+  servicio: ServicioRestaurante,
+): Promise<RegistroRestaurante[]> {
+  if (!(await listo())) return [];
+  return aLista<RegistroRestaurante>(
+    await getDocs(
+      query(
+        collection(baseDatos(), RESTAURANTE),
+        where('sede', '==', sede),
+        where('fecha', '==', fecha),
+        where('servicio', '==', servicio),
+      ),
+    ),
+  );
+}
+
+/**
+ * Los pasos de un RANGO de fechas, para el reporte que se le entrega al proveedor.
+ *
+ * `desde` y `hasta` son inclusivos y van sobre `fecha`, que es texto 'YYYY-MM-DD': ese
+ * formato ordena igual como texto que como fecha, asi que la desigualdad funciona sin
+ * convertir nada. Es la misma razon por la que el modulo guarda las fechas asi.
+ */
+export async function leerPasosDeRango(
+  sede: Sede,
+  desde: string,
+  hasta: string,
+): Promise<RegistroRestaurante[]> {
+  if (!(await listo())) return [];
+  return aLista<RegistroRestaurante>(
+    await getDocs(
+      query(
+        collection(baseDatos(), RESTAURANTE),
+        where('sede', '==', sede),
+        where('fecha', '>=', desde),
+        where('fecha', '<=', hasta),
+      ),
+    ),
+  );
+}
+
+/** La lista oficial de inscritos de un año y una sede. Solo sirve para contrastar. */
+export async function leerInscritosRestaurante(
+  sede: Sede,
+  anio: number,
+): Promise<InscritoRestaurante[]> {
+  if (!(await listo())) return [];
+  const todos = aLista<InscritoRestaurante>(
+    await getDocs(
+      query(
+        collection(baseDatos(), RESTAURANTE_INSCRITOS),
+        where('sede', '==', sede),
+        where('anio', '==', anio),
+      ),
+    ),
+  );
+  return todos.filter((i) => i.activo);
+}
+
+/**
+ * Sube la lista oficial que viene del Excel.
+ *
+ * En LOTES de 400 y no uno por uno: son varios cientos de estudiantes y cada escritura
+ * suelta seria un viaje al servidor. El tope de una operacion por lote en Firestore es
+ * 500; 400 deja margen.
+ *
+ * `setDoc` con id determinista, no `addDoc`: volver a subir la misma lista corregida debe
+ * ACTUALIZAR, no duplicar. Es la misma decision que en la importacion de estudiantes y en
+ * la de centros de interes.
+ */
+export async function guardarInscritosRestaurante(
+  inscritos: Omit<InscritoRestaurante, 'cargadoPor' | 'cargadoEn'>[],
+): Promise<void> {
+  const autor = await exigirAutor();
+  for (let i = 0; i < inscritos.length; i += 400) {
+    const lote = writeBatch(baseDatos());
+    for (const ins of inscritos.slice(i, i + 400)) {
+      lote.set(doc(baseDatos(), RESTAURANTE_INSCRITOS, ins.inscritoId), {
+        ...ins,
+        cargadoPor: autor,
+        cargadoEn: serverTimestamp(),
+      });
+    }
+    await lote.commit();
+  }
 }

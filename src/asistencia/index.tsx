@@ -30,7 +30,18 @@ const DireccionGrupo = lazy(() => import('./DireccionGrupo'));
  * quien solo va a pasar lista.
  */
 const Programas = lazy(() => import('./Programas'));
+/**
+ * El REPORTE va con lazy(): lo abre coordinacion una vez al mes.
+ *
+ * La pantalla de la FILA (`Restaurante`) va con import normal, mas abajo: se abre de pie,
+ * con estudiantes esperando, y un salto de red para traer el trozo de codigo justo ahi es
+ * el peor momento posible.
+ */
+const ReporteRestaurante = lazy(() => import('./ReporteRestaurante'));
+/** Arrastra exceljs al leer el archivo: va con lazy() como Importar y DireccionGrupo. */
+const ImportarInscritosRestaurante = lazy(() => import('./ImportarInscritosRestaurante'));
 import CargaFotos from './CargaFotos';
+import Restaurante from './Restaurante';
 import DiagnosticoPermisos from './DiagnosticoPermisos';
 import Ficha from './Ficha';
 import PanelEstudiante from './PanelEstudiante';
@@ -73,14 +84,20 @@ import { ASIGNATURAS, getAsignatura } from '../data/asignacionAcademica';
 import { exigirAutor } from './identidad';
 import { observarSync, type EstadoSync } from './sincronizacion';
 import { atras, useNivelAtras } from './useNivelAtras';
-import type { StudentMark } from './domain/types';
+import type { Sede, StudentMark } from './domain/types';
 
 /**
  * Navegacion interna del modulo. `eventos` esta disponible para cualquier rol que llegue
  * hasta aqui (coordinador o docente) porque cualquier docente puede crear un evento; las
  * otras tres pestanas quedan filtradas por rol dentro de `Pestanas`.
  */
-type VistaAsistencia = 'planilla' | 'tercera_hora' | 'llegadas' | 'eventos' | 'programas';
+type VistaAsistencia =
+  | 'planilla'
+  | 'tercera_hora'
+  | 'llegadas'
+  | 'eventos'
+  | 'programas'
+  | 'restaurante';
 
 /**
  * Componente raiz del modulo de asistencia. ESTE es el punto de pegado.
@@ -145,6 +162,14 @@ export default function Asistencia() {
   useNivelAtras(fichaAbierta !== null, () => setFichaAbierta(null));
   const [directores, setDirectores] = useState<Record<string, string>>({});
   const [vista, setVista] = useState<VistaAsistencia>('planilla');
+  /**
+   * Seccion dentro de Restaurante. Arranca en 'registrar' incluso para coordinacion: lo
+   * que se hace a diario es atender la fila; el reporte se mira una vez al mes.
+   */
+  const [seccionRestaurante, setSeccionRestaurante] = useState<
+    'registrar' | 'reporte' | 'lista'
+  >('registrar');
+  useNivelAtras(seccionRestaurante !== 'registrar', () => setSeccionRestaurante('registrar'));
 
   /**
    * Cruce grado+asignatura ya elegido (desde "Mis grupos" o desde "nueva sesión" sobre
@@ -651,6 +676,60 @@ export default function Asistencia() {
 
   // Eventos es para cualquier docente, no solo coordinacion: por eso NO va detras de un
   // `rol === 'coordinador'` como las dos pestanas anteriores.
+  if (vista === 'restaurante') {
+    // Reporte y lista oficial: solo coordinacion, superusuario, rectoria y cargos de
+    // apoyo. El docente de turno entra a registrar y nada mas — el reporte es de quien
+    // negocia con el proveedor, no de quien atiende la fila.
+    const administra =
+      rol === 'coordinador' || rol === 'superusuario' || rol === 'rectora' ||
+      alcanceUsuario.soloConsulta;
+    return (
+      <div className="space-y-3">
+        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
+        {administra && (
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                ['registrar', 'Registrar'],
+                ['reporte', 'Reporte'],
+                ['lista', 'Lista oficial'],
+              ] as const
+            ).map(([v, nombre]) => (
+              <button
+                key={v}
+                onClick={() => setSeccionRestaurante(v)}
+                className={[
+                  'min-h-[34px] rounded-full border px-3 py-1 text-sm',
+                  seccionRestaurante === v
+                    ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                    : 'border-line text-soft',
+                ].join(' ')}
+              >
+                {nombre}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {(!administra || seccionRestaurante === 'registrar') && (
+          <Restaurante sede={sede} puedeRegistrar={puedeRegistrar} />
+        )}
+        {administra && seccionRestaurante === 'reporte' && (
+          <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando el reporte…</p>}>
+            <ReporteRestaurante sedeInicial={sede as Sede} />
+          </Suspense>
+        )}
+        {administra && seccionRestaurante === 'lista' && (
+          <Suspense
+            fallback={<p className="p-3 text-sm text-muted">Cargando la lectura de Excel…</p>}
+          >
+            <ImportarInscritosRestaurante sedeInicial={sede as Sede} />
+          </Suspense>
+        )}
+      </div>
+    );
+  }
+
   if (vista === 'programas') {
     return (
       <div className="space-y-3">
@@ -1496,6 +1575,12 @@ const SECCIONES: {
     nombre: 'Centros de interés',
     descripcion:
       'Los centros de interés del semestre. Cada profesor entra a la planilla del suyo; la coordinación del programa los ve todos, carga las listas desde Excel y resuelve los casos que no cruzaron.',
+  },
+  {
+    vista: 'restaurante',
+    nombre: 'Restaurante',
+    descripcion:
+      'Vaso de leche y restaurante: registrar quién pasa por el servicio. No es asistencia y no restringe — se registra a cualquiera, esté o no en la lista oficial, para que no se pierda comida. La lista sirve solo para contrastar después.',
   },
 ];
 

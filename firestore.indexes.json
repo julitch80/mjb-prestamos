@@ -243,6 +243,52 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "asistenciaRestaurante",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sede",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fecha",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "servicio",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "asistenciaRestaurante",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sede",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fecha",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "asistenciaRestauranteInscritos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sede",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "anio",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

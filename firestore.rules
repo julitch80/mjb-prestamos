@@ -24,8 +24,12 @@
 // cual encima, las de ese bloque desaparecen y la suplantacion vuelve a poder escribir,
 // sin que nada falle ni avise.
 //
+// Al contar, incluye las formas combinadas: `allow read, write` es una ESCRITURA y no
+// aparece si buscas lineas que empiecen por `allow write`. Asi se colo durante meses una
+// escritura sin guarda en /config. Cuenta con: grep -E '^\s*allow [a-z, ]*(write|create|update|delete)'
+//
 // Comprobacion despues de cada sincronizacion: el numero de `allow` de escritura debe
-// coincidir con el de `esSuplantacion()`. Hoy son 61 escrituras y 30 lecturas libres.
+// coincidir con el de `esSuplantacion()`. Hoy son 67 escrituras y 31 lecturas libres.
 //
 // El 2026-08-30 esta cifra decia 57 cuando ya eran 58: se habia quedado atras sin que
 // nada avisara. Si vuelves a tocar el archivo, actualizala en el mismo commit — es el
@@ -267,7 +271,12 @@ service cloud.firestore {
       allow write: if !esSuplantacion() && (false);
     }
     match /config/{docId} {
-      allow read, write: if isSuper();
+      allow read: if isSuper();
+      // Estaba como `allow read, write: if isSuper()`, en una sola linea y sin
+      // guarda: una sesion de suplantacion de un superusuario podia escribir la
+      // configuracion. Escapaba porque la comprobacion de la cabecera cuenta
+      // `allow` de ESCRITURA, y esa linea empieza por `read`.
+      allow write: if !esSuplantacion() && (isSuper());
       allow delete: if !esSuplantacion() && (false);
     }
     // =========================================================================
@@ -1129,6 +1138,112 @@ service cloud.firestore {
       }
     }
 
+
+    // ---------- Restaurante: vaso de leche y restaurante (2026-08-27) ----------
+    //
+    // ESTO NO ES ASISTENCIA. Ver la cabecera de la seccion "Restaurante" en
+    // `src/asistencia/domain/types.ts`: no hay marcas, ni faltas, ni denominador. Solo
+    // existe "paso por el servicio" o no hay registro.
+    //
+    // ⚠️ NO SE VALIDA QUE EL ESTUDIANTE ESTE INSCRITO, Y ES DELIBERADO. NO LO "ARREGLES".
+    // Julian, 2026-08-27: los grupos no se agotan y la comida no se puede perder, asi que es
+    // preferible darle el vaso de leche o el almuerzo a un estudiante que no esta en ninguna
+    // de las dos listas. Un estudiante se registra SIEMPRE, este o no en la lista oficial,
+    // sin advertencia ni friccion. La lista oficial (`asistenciaRestauranteInscritos`) NO
+    // controla el acceso: existe solo para PODER CONTRASTAR despues quien uso el servicio sin
+    // estar inscrito. Aqui no falta ninguna comprobacion: la ausencia ES la regla de negocio.
+    //
+    // Tampoco se cruza contra `asistenciaRestauranteInscritos` por una razon tecnica que
+    // apunta al mismo sitio: exigirlo obligaria a un get() por registro para negar justo el
+    // caso que hay que permitir.
+    match /asistenciaRestaurante/{registroId} {
+
+      // Se abre a cualquier usuario activo, igual que `asistenciaStudents`, y por dos motivos
+      // concretos: quien esta atendiendo la fila necesita ver quien ya paso hoy (para no
+      // servir dos veces), y coordinacion necesita el reporte del dia contra lo que el
+      // proveedor sirvio. El documento no lleva datos personales mas alla del `studentId` y
+      // el grado, que ya son legibles en la ficha para cualquier usuario activo.
+      allow read: if isActiveUser();
+
+      // Registra el docente o el coordinador de turno: se reutiliza `asisCanRecord()`, asi que
+      // quedan fuera el superusuario (clave transferible, actos no atribuibles) y la rectora
+      // (consulta, no registra), y tambien los cargos de apoyo con `asistenciaConsulta`. El
+      // dia que se excluya un rol mas, este match se entera solo.
+      //
+      // ACOTADO POR SEDE, igual que `asistenciaLateArrivals`: en `create` se mira
+      // `request.resource.data.sede`, porque el documento todavia no existe. Se registra en la
+      // sede propia; la coordinacion de una sede puede registrar en la suya aunque su ficha
+      // diga otra cosa.
+      //
+      // `get('sede', '')` y no `.sede`: una ficha de usuario sin el campo REVIENTA la
+      // evaluacion, y un error en una regla es una DENEGACION (la trampa que ya dejo al
+      // colegio entero sin pasar lista con `asistenciaConsulta`).
+      allow create: if !esSuplantacion() && (asisCanRecord()
+        && (callerDoc().get('sede', '') == request.resource.data.sede
+            || asisCoordinaSede(request.resource.data.sede))
+        && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
+        && request.resource.data.servicio in ['vaso_leche', 'restaurante']
+        && request.resource.data.studentId is string
+        && request.resource.data.grado is string
+        && request.resource.data.fecha is string
+        && request.resource.data.registradoPor == callerEmail()
+        && request.resource.data.registradoEn == request.time);
+
+      // ANULAR un registro equivocado (se escaneo a quien no era): baja logica con
+      // `anulado: true`. Lo hace quien lo registro —que es quien se dio cuenta— o la
+      // coordinacion de esa sede. Ningun otro docente: no es su fila.
+      //
+      // La EVIDENCIA ES INMUTABLE. `studentId`, `fecha`, `servicio`, `sede` y `registradoPor`
+      // no cambian nunca: son lo que permite auditar el conteo del dia contra lo que el
+      // proveedor sirvio.
+      //
+      // ⚠️ `get(campo, defecto)` EN TODA COMPARACION QUE TOQUE `anulado*`: mientras el
+      // registro esta VIVO esos tres campos NO EXISTEN, y leer un campo ausente no devuelve
+      // falso, LANZA — y un error en una regla es una DENEGACION. Con acceso directo, la
+      // primera anulacion de cada registro (o sea, todas) seria imposible.
+      allow update: if !esSuplantacion() && ((
+          resource.data.registradoPor == callerEmail()
+          || asisCoordinaSede(resource.data.sede)
+        )
+        && isActiveUser()
+        && request.resource.data.studentId == resource.data.studentId
+        && request.resource.data.fecha == resource.data.fecha
+        && request.resource.data.servicio == resource.data.servicio
+        && request.resource.data.sede == resource.data.sede
+        && request.resource.data.registradoPor == resource.data.registradoPor
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['anulado', 'anuladoPor', 'anuladoEn'])
+        && request.resource.data.get('anulado', false) == true
+        && request.resource.data.get('anuladoPor', '') == callerEmail());
+
+      // Nadie borra: un conteo que baja sin dejar rastro no se puede auditar despues contra
+      // lo que el proveedor sirvio ese dia. Se anula, y la anulacion queda escrita.
+      allow delete: if !esSuplantacion() && (false);
+    }
+
+    // La lista oficial de inscritos. NO controla el acceso (ver arriba): solo es el termino
+    // de comparacion del reporte. La sube coordinacion desde Excel, una lista por servicio, o
+    // el superusuario en la carga inicial.
+    match /asistenciaRestauranteInscritos/{inscritoId} {
+
+      // Mismo criterio que el registro y que `asistenciaStudents`: quien atiende la fila
+      // necesita saber si a quien tiene delante le corresponde, aunque eso no le impida
+      // servirle igual.
+      allow read: if isActiveUser();
+
+      allow create, update: if !esSuplantacion() && ((isSuper()
+          || asisCoordinaSede(request.resource.data.sede))
+        && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
+        && request.resource.data.servicio in ['vaso_leche', 'restaurante']
+        && request.resource.data.studentId is string
+        && request.resource.data.activo is bool
+        && request.resource.data.cargadoPor == callerEmail());
+
+      // Baja logica con `activo: false`, como en todo el modulo: si la lista pudiera
+      // adelgazar sin rastro, el contraste de "uso el servicio sin estar inscrito" cambiaria
+      // de resultado a posteriori y nadie sabria por que.
+      allow delete: if !esSuplantacion() && (false);
+    }
 
     match /{document=**} {
       allow read, write: if false;
