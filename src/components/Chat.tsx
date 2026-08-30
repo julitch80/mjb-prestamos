@@ -2,7 +2,7 @@
 // Solo funciona en modo google con Firebase configurado. En modo pin el item de
 // navegación 'chat' ni siquiera aparece (filtrado en App.tsx).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Paperclip, Mic, Trash2, Send, FileText, X, Pin, SmilePlus } from 'lucide-react';
+import { Paperclip, Mic, Trash2, Send, FileText, X, Pin, SmilePlus, Reply, Forward } from 'lucide-react';
 import { useAppStore } from '../data/store';
 import { useChatStore } from '../data/chatStore';
 import { esperarAuth, firebaseConfigurado } from '../lib/firebase';
@@ -10,11 +10,13 @@ import { esDirectivo } from '../data/maestros';
 import {
   abrirDm,
   borrarMensaje,
+  citarMensaje,
   crearCanal,
   editarMensaje,
   EMOJIS_REACCION,
   listarUsuariosParaDm,
   miEmail,
+  puedePublicarEn,
   type Canal,
   type EmojiReaccion,
   type Mensaje,
@@ -52,6 +54,7 @@ export default function Chat() {
     canalActivo,
     abrirCanal,
     enviar,
+    reenviar,
     noLeidos,
     crearGrupoStore,
     errorCanales,
@@ -71,6 +74,11 @@ export default function Chat() {
   const [errorAdjunto, setErrorAdjunto] = useState('');
   const [grabando, setGrabando] = useState(false);
   const [segundosGrabados, setSegundosGrabados] = useState(0);
+  // D1 — mensaje que se está citando en el compositor. Se limpia al enviar y
+  // al cambiar de conversación (citar de un canal en otro no tiene sentido).
+  const [respondiendoA, setRespondiendoA] = useState<Mensaje | null>(null);
+  // D2 — mensaje pendiente de reenviar: abre el selector de canal destino.
+  const [reenviandoMensaje, setReenviandoMensaje] = useState<Mensaje | null>(null);
   const finRef = useRef<HTMLDivElement>(null);
   const inputArchivoRef = useRef<HTMLInputElement>(null);
   const grabadoraRef = useRef<Grabadora | null>(null);
@@ -101,6 +109,11 @@ export default function Chat() {
   useEffect(() => {
     finRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mensajes.length, canalActivo]);
+
+  // D1 — al cambiar de conversación, la cita pendiente ya no aplica.
+  useEffect(() => {
+    setRespondiendoA(null);
+  }, [canalActivo]);
 
   // Mapa email -> displayName para nombrar DMs.
   const dirMap = useMemo(() => {
@@ -139,13 +152,17 @@ export default function Chat() {
     const t = texto.trim();
     if (!t && !archivoPendiente) return;
     setErrorAdjunto('');
+    // D1 — la cita, si hay una activa, se copia (no se referencia) en el
+    // momento de enviar, igual que hace citarMensaje().
+    const respondeA = respondiendoA ? citarMensaje(respondiendoA) : undefined;
     if (archivoPendiente && canalActivo) {
       setSubiendoPct(0);
       try {
         const adjunto: AdjuntoSubido = await subirAdjunto(canalActivo, archivoPendiente, setSubiendoPct);
         setTexto('');
         setArchivoPendiente(null);
-        await enviar(t, adjunto);
+        setRespondiendoA(null);
+        await enviar(t, adjunto, respondeA);
       } catch (e: any) {
         setErrorAdjunto(e?.message || 'No se pudo subir el archivo.');
       } finally {
@@ -154,7 +171,8 @@ export default function Chat() {
       return;
     }
     setTexto('');
-    await enviar(t);
+    setRespondiendoA(null);
+    await enviar(t, undefined, respondeA);
   }
 
   function handleElegirArchivo(e: React.ChangeEvent<HTMLInputElement>) {
@@ -454,6 +472,11 @@ export default function Chat() {
                   canal={canalActual}
                   miRol={rol}
                   registrarRef={registrarRefMensaje}
+                  onIrACita={saltarAMensaje}
+                  onResponder={
+                    !canalActual || puedoPublicarEn(canalActual, rol) ? setRespondiendoA : undefined
+                  }
+                  onReenviar={setReenviandoMensaje}
                 />
               ))}
               <div ref={finRef} />
@@ -466,6 +489,29 @@ export default function Chat() {
                 </div>
               ) : (
               <>
+
+              {/* D1 — tira de cita activa, encima del compositor. Se limpia
+                  al enviar o al tocar la X (no exige cancelar todo lo demás:
+                  el adjunto pendiente, si lo hay, sigue en pie). */}
+              {respondiendoA && (
+                <div className="mx-3 mt-2 flex items-start gap-2 px-3 py-2 rounded-lg bg-elevated border-l-2 border-accent">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] text-accent font-medium">
+                      Respondiendo a {respondiendoA.authorName}
+                    </div>
+                    <div className="text-xs text-muted truncate">
+                      {respondiendoA.text || (respondiendoA.adjunto ? 'Adjunto' : '')}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setRespondiendoA(null)}
+                    className="text-muted hover:text-strong flex-shrink-0"
+                    aria-label="Descartar respuesta"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
 
               {errorAdjunto && (
                 <div className="mx-3 mt-2 px-3 py-2 rounded-lg bg-danger-soft text-danger text-xs">
@@ -629,6 +675,19 @@ export default function Chat() {
           }}
         />
       )}
+
+      {/* ── Modal: reenviar mensaje (D2) ─────────────────────────────── */}
+      {reenviandoMensaje && canalActual && (
+        <ModalReenviar
+          mensaje={reenviandoMensaje}
+          canales={canales}
+          canalOrigen={canalActual}
+          nombreCanal={nombreCanal}
+          miRol={rol}
+          onReenviar={reenviar}
+          onClose={() => setReenviandoMensaje(null)}
+        />
+      )}
     </div>
   );
 }
@@ -646,6 +705,9 @@ function Burbuja({
   canal,
   miRol,
   registrarRef,
+  onIrACita,
+  onResponder,
+  onReenviar,
 }: {
   m: Mensaje;
   propio: boolean;
@@ -654,6 +716,13 @@ function Burbuja({
   canal: Canal | null;
   miRol: string;
   registrarRef: (id: string, el: HTMLDivElement | null) => void;
+  /** D1 — salta al mensaje citado si está entre los cargados. */
+  onIrACita: (id: string) => void;
+  /** D1 — pone este mensaje como cita activa del compositor. `undefined` si
+   * el canal es de solo lectura para mí (no tiene sentido ofrecer responder). */
+  onResponder?: (m: Mensaje) => void;
+  /** D2 — abre el selector de canal destino para reenviar este mensaje. */
+  onReenviar: (m: Mensaje) => void;
 }) {
   const [editando, setEditando] = useState(false);
   const [valor, setValor] = useState(m.text);
@@ -749,6 +818,34 @@ function Burbuja({
         {!propio && (
           <div className="text-xs font-semibold text-info mb-0.5">{m.authorName}</div>
         )}
+        {/* D2 — etiqueta de reenvío. Deliberadamente no se puede ocultar:
+            reenviar saca contenido de su contexto original y en un colegio
+            eso puede exponer a alguien; el mínimo es que siempre se vea. */}
+        {m.reenviadoDe && (
+          <div className="flex items-center gap-1 text-[10px] text-muted italic mb-1">
+            <Forward size={10} className="flex-shrink-0" />
+            Reenviado de {m.reenviadoDe.canalNombre} · {m.reenviadoDe.autorNombre}
+          </div>
+        )}
+        {/* D1 — cita subordinada dentro de la burbuja. Al tocarla, salta al
+            original SI está entre los mensajes cargados; si no, no pasa nada
+            (la cita ya se lee sola, para eso se guardó copia y no solo el id). */}
+        {m.respondeA && !editando && (
+          <button
+            onClick={() => onIrACita(m.respondeA!.id)}
+            className={
+              'block w-full text-left mb-1.5 pl-2 border-l-2 rounded-sm ' +
+              (propio ? 'border-strong/40' : 'border-line-strong')
+            }
+          >
+            <div className={'text-[10px] font-medium truncate ' + (propio ? 'text-strong/80' : 'text-info')}>
+              {m.respondeA.autorNombre}
+            </div>
+            <div className={'text-[11px] truncate ' + (propio ? 'text-strong/60' : 'text-muted')}>
+              {m.respondeA.extracto}
+            </div>
+          </button>
+        )}
         {editando ? (
           <div className="space-y-2">
             <textarea
@@ -783,6 +880,24 @@ function Burbuja({
           <span className="text-[10px] text-muted">
             {fechaCorta(m.createdAt)} {horaCorta(m.createdAt)}
           </span>
+          {!editando && onResponder && (
+            <button
+              onClick={() => onResponder(m)}
+              className="text-[10px] text-muted hover:text-strong flex items-center gap-0.5"
+              aria-label="Responder citando"
+            >
+              <Reply size={10} /> responder
+            </button>
+          )}
+          {!editando && (
+            <button
+              onClick={() => onReenviar(m)}
+              className="text-[10px] text-muted hover:text-strong flex items-center gap-0.5"
+              aria-label="Reenviar mensaje"
+            >
+              <Forward size={10} /> reenviar
+            </button>
+          )}
           {(propio || puedeModerar) && !editando && (
             <>
               {propio && (
@@ -1152,6 +1267,80 @@ function ModalNuevoGrupo({
       >
         {creando ? 'Creando…' : 'Crear grupo'}
       </button>
+    </Modal>
+  );
+}
+
+// ── Modal: reenviar mensaje (D2) ────────────────────────────────────────────
+// Solo ofrece canales donde puedo publicar de verdad (puedePublicarEn) — si
+// no se filtra aquí, las reglas de Firestore rechazan el envío y el usuario
+// no entiende por qué. Y si el origen es un 'directo', pide confirmación
+// explícita ANTES de reenviar: mover algo de un privado a otro sitio puede
+// exponer a un estudiante o a un compañero.
+function ModalReenviar({
+  mensaje,
+  canales,
+  canalOrigen,
+  nombreCanal,
+  miRol,
+  onReenviar,
+  onClose,
+}: {
+  mensaje: Mensaje;
+  canales: Canal[];
+  canalOrigen: Canal;
+  nombreCanal: (c: Canal) => string;
+  miRol: string;
+  onReenviar: (destinoChannelId: string, mensaje: Mensaje, canalOrigenNombre: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [enviando, setEnviando] = useState<string | null>(null);
+
+  const destinos = canales
+    .filter((c) => c.id !== canalOrigen.id && puedePublicarEn(c, miRol))
+    .sort((a, b) => nombreCanal(a).localeCompare(nombreCanal(b), 'es'));
+
+  async function handleElegir(destino: Canal) {
+    const destinoNombre = nombreCanal(destino);
+    if (canalOrigen.type === 'directo') {
+      const ok = window.confirm(`¿Reenviar a ${destinoNombre}? Es un mensaje privado.`);
+      if (!ok) return;
+    }
+    setEnviando(destino.id);
+    try {
+      await onReenviar(destino.id, mensaje, nombreCanal(canalOrigen));
+      onClose();
+    } finally {
+      setEnviando(null);
+    }
+  }
+
+  return (
+    <Modal titulo="Reenviar mensaje" onClose={onClose}>
+      <div className="text-xs text-muted px-1 pb-1 truncate">
+        {mensaje.text || (mensaje.adjunto ? 'Adjunto' : '')}
+      </div>
+      <div className="max-h-72 overflow-y-auto rounded-lg border border-line divide-y divide-line/50">
+        {destinos.length === 0 ? (
+          <div className="text-muted text-sm py-4 text-center px-3">
+            No tienes ningún otro canal donde puedas publicar.
+          </div>
+        ) : (
+          destinos.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => handleElegir(c)}
+              disabled={enviando !== null}
+              className="w-full text-left px-3 py-2.5 hover:bg-elevated transition disabled:opacity-40"
+            >
+              <div className="text-sm text-strong truncate">
+                {nombreCanal(c)}
+                {enviando === c.id ? '…' : ''}
+              </div>
+            </button>
+          ))
+        )}
+      </div>
     </Modal>
   );
 }
