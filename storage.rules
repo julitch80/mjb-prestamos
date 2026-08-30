@@ -42,9 +42,36 @@ service firebase.storage {
         || request.resource.contentType == 'text/plain';
     }
 
+    // G1 — Helpers para cerrar la lectura de adjuntos al canal. Reutilizan la
+    // consulta a users/{correo} que ya hacen asisCaller/asisUserDoc/asisActivo
+    // (declaradas mas abajo, en el bloque de asistencia): son genericas, no
+    // especificas de ese modulo, y Firestore/Storage cachea por documento
+    // dentro de una misma evaluacion, asi que reusarlas no cuesta lecturas
+    // extra. Replica `canAccessChannel` de firestore.rules, pero SIN
+    // `hasAny()` ni `map.get(clave, defecto)`: no existen en el lenguaje de
+    // reglas de Storage (solo en el de Firestore) y una regla que los use
+    // compila igual y revienta recien al evaluarse.
+    function chatChannelDoc(channelId) {
+      return firestore.get(/databases/(default)/documents/channels/$(channelId)).data;
+    }
+    function chatCanAccessChannel(ch) {
+      return ch.type == 'general'
+        || (ch.type == 'rol' && (asisRol() in ch.allowedRoles || asisRol() == 'superusuario'))
+        || (ch.type == 'directo' && asisCaller() in ch.members)
+        || (ch.type == 'segmento'
+            && (asisRol() in ['coordinador', 'rectora', 'superusuario']
+                || ((ch.sede == null || asisUserDoc().sede == ch.sede)
+                    && (ch.jornada == null || asisUserDoc().jornada == ch.jornada || asisUserDoc().jornada == 'ambas'))))
+        || (ch.type == 'grupo' && asisCaller() in ch.members);
+    }
+
     // Adjuntos del chat interno: chat/{channelId}/{fileName}.
     match /chat/{channelId}/{fileName} {
-      allow read: if isInstitutional();
+      // G1 — antes bastaba con `isInstitutional()`: cualquier cuenta del
+      // colegio con la URL podia leer el adjunto de cualquier canal, incluidos
+      // los directos. Ahora exige ademas pertenecer al canal, con la misma
+      // logica que `canAccessChannel` de firestore.rules.
+      allow read: if asisActivo() && chatCanAccessChannel(chatChannelDoc(channelId));
       // `write` incluye delete y las reglas se evaluan en union, asi que el
       // `allow delete: if false` de abajo no revocaba nada: cualquier usuario
       // institucional podia borrar los adjuntos de otro. Con create/update no.

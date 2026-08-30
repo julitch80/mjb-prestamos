@@ -6,6 +6,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   limit,
@@ -31,6 +32,19 @@ export type Canal = {
   lastMessageAt?: any;
   lastMessagePreview?: string;
   lastMessageBy?: string;
+  /** A1 — mensaje fijado del canal. Vive aquí (no en el mensaje) porque es
+   * propiedad del canal: pintarlo no exige buscar el mensaje entre los
+   * cargados. `null` para soltarlo. */
+  fijado?: {
+    messageId: string;
+    text: string;
+    autorNombre: string;
+    fijadoPor: string;
+    fijadoEn: any;
+  } | null;
+  /** A3 — canal de avisos: si es true, solo publican coordinador/rectora/
+   * superusuario. Ausente se trata como false. */
+  soloLectura?: boolean;
 };
 
 /**
@@ -74,6 +88,33 @@ export type Mensaje = {
     bytes: number;
     duracionSeg?: number;
   };
+  /** D1 — copia (no referencia) del mensaje citado. Se guarda copia porque el
+   * original puede estar borrado o fuera de los 50 mensajes cargados; el id
+   * se conserva solo para saltar al original cuando sí está a la vista. */
+  respondeA?: {
+    id: string;
+    autorNombre: string;
+    extracto: string; // <= 120 caracteres
+  };
+  /** D2 — marca de reenvío. Nombres, no ids: es una etiqueta para el lector,
+   * no un enlace (reenviar saca contenido de su contexto original). */
+  reenviadoDe?: {
+    canalNombre: string;
+    autorNombre: string;
+  };
+};
+
+/** C2 — lista cerrada de emojis de reacción. Cerrada a propósito (evita que
+ * el chat institucional se convierta en otra cosa, y hay que poder validarla
+ * en las reglas de Firestore). La interfaz debe usar esta constante en vez
+ * de duplicar la lista. */
+export const EMOJIS_REACCION = ['👍', '✅', '❤️', '😄', '🎉', '👀'] as const;
+export type EmojiReaccion = (typeof EMOJIS_REACCION)[number];
+
+export type Reaccion = {
+  correo: string; // id del documento
+  emoji: string;
+  en: any;
 };
 
 /** Email del usuario actual (identidad del chat), en minúsculas. */
@@ -220,6 +261,7 @@ export async function enviarMensaje(
   channelId: string,
   texto: string,
   adjunto?: Mensaje['adjunto'],
+  respondeA?: Mensaje['respondeA'],
 ): Promise<void> {
   if (!db || !auth?.currentUser) return;
   const limpio = texto.slice(0, 4000);
@@ -232,6 +274,49 @@ export async function enviarMensaje(
     createdAt: serverTimestamp(),
     deleted: false,
     ...(adjunto ? { adjunto } : {}),
+    ...(respondeA
+      ? { respondeA: { id: respondeA.id, autorNombre: respondeA.autorNombre, extracto: respondeA.extracto.slice(0, 120) } }
+      : {}),
+  });
+}
+
+/**
+ * D1 — construye la copia `respondeA` a partir del mensaje citado. Vive
+ * aparte de `enviarMensaje` para que la interfaz arme el objeto sin
+ * duplicar la regla del extracto de 120 caracteres.
+ */
+export function citarMensaje(mensaje: Mensaje): NonNullable<Mensaje['respondeA']> {
+  return {
+    id: mensaje.id,
+    autorNombre: mensaje.authorName,
+    extracto: (mensaje.text || '').slice(0, 120),
+  };
+}
+
+/**
+ * D2 — reenvía un mensaje a otro canal: crea un mensaje NUEVO (autor = quien
+ * reenvía) en `destinoChannelId`, con `reenviadoDe` apuntando al canal y
+ * autor originales (por nombre, no por id — es una etiqueta, no un enlace).
+ * Conserva el adjunto si lo hay. No copia `respondeA` del original: la cita
+ * pertenece al hilo de origen, no tiene sentido fuera de él.
+ */
+export async function reenviarMensaje(
+  destinoChannelId: string,
+  mensaje: Mensaje,
+  canalOrigenNombre: string,
+): Promise<void> {
+  if (!db || !auth?.currentUser) return;
+  await addDoc(collection(db, 'channels', destinoChannelId, 'messages'), {
+    authorEmail: miEmail(),
+    authorName: miNombre(),
+    text: (mensaje.text || '').slice(0, 4000),
+    createdAt: serverTimestamp(),
+    deleted: false,
+    ...(mensaje.adjunto ? { adjunto: mensaje.adjunto } : {}),
+    reenviadoDe: {
+      canalNombre: canalOrigenNombre,
+      autorNombre: mensaje.authorName,
+    },
   });
 }
 
@@ -329,4 +414,139 @@ export async function cargarReadStates(): Promise<Record<string, any>> {
     out[s.id] = (s.data() as { lastReadAt?: any }).lastReadAt;
   });
   return out;
+}
+
+// ── A1 — Mensajes fijados ────────────────────────────────────────────────────
+// Vive en el canal (channels/{id}.fijado), no en el mensaje: el contrato dice
+// que así se pinta sin buscar el mensaje entre los cargados. Puede fijar
+// coordinador/rectora/superusuario; en 'directo' y 'grupo', cualquier miembro
+// — esa distinción de permisos la aplican las reglas de Firestore, no aquí.
+export async function fijarMensaje(channelId: string, mensaje: Mensaje): Promise<void> {
+  if (!db || !auth?.currentUser) return;
+  await updateDoc(doc(db, 'channels', channelId), {
+    fijado: {
+      messageId: mensaje.id,
+      text: (mensaje.text || '').slice(0, 200),
+      autorNombre: mensaje.authorName,
+      fijadoPor: miEmail(),
+      fijadoEn: serverTimestamp(),
+    },
+  });
+}
+
+export async function soltarFijado(channelId: string): Promise<void> {
+  if (!db || !auth?.currentUser) return;
+  await updateDoc(doc(db, 'channels', channelId), { fijado: null });
+}
+
+// ── A3 — Canal de avisos (solo lectura) ──────────────────────────────────────
+const ROLES_PUBLICAN_EN_SOLO_LECTURA = ['coordinador', 'rectora', 'superusuario'];
+
+/**
+ * true si `miRol` puede publicar en `canal`. `soloLectura` ausente se trata
+ * como false (canal normal). La interfaz usa esto para esconder el
+ * compositor, no para hacer cumplir el permiso (eso lo hacen las reglas).
+ */
+export function puedePublicarEn(canal: Canal, miRol: string): boolean {
+  if (!canal.soloLectura) return true;
+  return ROLES_PUBLICAN_EN_SOLO_LECTURA.includes(miRol);
+}
+
+// ── C2 — Reacciones ──────────────────────────────────────────────────────────
+// Decisión de rendimiento: NO se adjunta un listener por mensaje cargado (50
+// mensajes = 50 suscripciones permanentes). En su lugar se escucha "bajo
+// demanda": la interfaz llama a escucharReacciones() solo para el mensaje
+// cuyo detalle/tira de reacciones esté visible en pantalla en un momento
+// dado, y se desuscribe al dejar de verlo. Con treinta docentes reaccionando
+// de forma esporádica esto es más que suficiente y evita pagar listeners de
+// sobra en cada apertura de canal.
+export function escucharReacciones(
+  channelId: string,
+  messageId: string,
+  onReacciones: (reacciones: Reaccion[]) => void,
+): () => void {
+  if (!db || !auth?.currentUser) return () => {};
+  const q = collection(db, 'channels', channelId, 'messages', messageId, 'reacciones');
+  return onSnapshot(
+    q,
+    (snap) => {
+      const out = snap.docs.map((s) => ({ correo: s.id, ...(s.data() as object) })) as Reaccion[];
+      onReacciones(out);
+    },
+    () => onReacciones([]),
+  );
+}
+
+/** Pone (o cambia) mi reacción propia. Un documento por persona: `{correo}` == mi correo. */
+export async function ponerReaccion(channelId: string, messageId: string, emoji: EmojiReaccion): Promise<void> {
+  if (!db || !auth?.currentUser) return;
+  await setDoc(doc(db, 'channels', channelId, 'messages', messageId, 'reacciones', miEmail()), {
+    emoji,
+    en: serverTimestamp(),
+  });
+}
+
+/** Quita mi reacción propia (borra el documento). */
+export async function quitarReaccion(channelId: string, messageId: string): Promise<void> {
+  if (!db || !auth?.currentUser) return;
+  await deleteDoc(doc(db, 'channels', channelId, 'messages', messageId, 'reacciones', miEmail())).catch(() => {});
+}
+
+// ── B1 — "Leído por" (acuse dentro del canal, NO toca readStates) ───────────
+// channels/{c}/lecturas/{correo} -> { hasta: <fecha del último mensaje visto> }
+// Un documento por persona (no un campo compartido en el mensaje) porque con
+// treinta docentes abriendo a la vez un campo compartido se pisa. Esto es
+// ADICIONAL a readStates/marcarLeido, que sigue sirviendo a los no-leídos y
+// no se toca.
+export async function marcarLecturaCanal(channelId: string, hasta: any): Promise<void> {
+  if (!db || !auth?.currentUser || !hasta) return;
+  await setDoc(
+    doc(db, 'channels', channelId, 'lecturas', miEmail()),
+    { hasta },
+    { merge: true },
+  ).catch(() => {});
+}
+
+export type Lectura = { correo: string; hasta: any };
+
+/**
+ * Escucha las lecturas del canal (para poder mostrar "leído por N" en vivo).
+ * Un solo listener por canal abierto — no uno por mensaje — igual que la
+ * decisión de reacciones.
+ */
+export function escucharLecturas(channelId: string, onLecturas: (lecturas: Lectura[]) => void): () => void {
+  if (!db || !auth?.currentUser) return () => {};
+  const q = collection(db, 'channels', channelId, 'lecturas');
+  return onSnapshot(
+    q,
+    (snap) => {
+      const out = snap.docs.map((s) => ({ correo: s.id, ...(s.data() as object) })) as Lectura[];
+      onLecturas(out);
+    },
+    () => onLecturas([]),
+  );
+}
+
+/**
+ * Cuenta cuántas de las `lecturas` dadas cubren `mensaje` (hasta >= createdAt
+ * del mensaje). El numerador ("leído por 18"); el denominador ("de 32") NO
+ * se calcula aquí — el contrato es explícito en que en canales 'general',
+ * 'rol' y 'segmento' no hay lista de miembros de la que sacarlo, así que
+ * inventar un porcentaje sería prometer más de lo que es. La interfaz decide
+ * si tiene un denominador fiable (p. ej. canal.members.length en 'directo'/
+ * 'grupo') y solo entonces lo muestra junto a este numerador.
+ */
+export function contarLecturasDe(mensaje: Mensaje, lecturas: Lectura[]): number {
+  const msgMs = toMillis(mensaje.createdAt);
+  if (!msgMs) return 0;
+  return lecturas.filter((l) => toMillis(l.hasta) >= msgMs).length;
+}
+
+/** Convierte un Timestamp de Firestore (o valor suelto) a milisegundos. */
+function toMillis(ts: any): number {
+  if (!ts) return 0;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (typeof ts.seconds === 'number') return ts.seconds * 1000;
+  if (ts instanceof Date) return ts.getTime();
+  return 0;
 }

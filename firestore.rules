@@ -25,7 +25,11 @@
 // sin que nada falle ni avise.
 //
 // Comprobacion despues de cada sincronizacion: el numero de `allow` de escritura debe
-// coincidir con el de `esSuplantacion()`. Hoy son 57 escrituras y 28 lecturas libres.
+// coincidir con el de `esSuplantacion()`. Hoy son 61 escrituras y 30 lecturas libres.
+//
+// El 2026-08-30 esta cifra decia 57 cuando ya eran 58: se habia quedado atras sin que
+// nada avisara. Si vuelves a tocar el archivo, actualizala en el mismo commit — es el
+// unico aviso que tendra quien sincronice el bloque de asistencia.
 
 rules_version = '2';
 
@@ -73,6 +77,49 @@ service cloud.firestore {
         && a.bytes is number && a.bytes > 0 && a.bytes <= 10485760
         && a.keys().hasOnly(['tipo', 'url', 'nombre', 'bytes', 'duracionSeg'])
         && (!('duracionSeg' in a) || a.duracionSeg is number);
+    }
+
+    // D1 — Valida el mapa `respondeA` opcional de un mensaje: copia (no
+    // referencia) del mensaje citado, para poder pintarlo aunque el original
+    // este borrado o fuera de los 50 mensajes cargados.
+    function respondeAValido(r) {
+      return r.keys().hasOnly(['id', 'autorNombre', 'extracto'])
+        && r.id is string
+        && r.autorNombre is string
+        && r.extracto is string
+        && r.extracto.size() <= 120;
+    }
+
+    // D2 — Valida el mapa `reenviadoDe` opcional: nombres, no ids. Es una
+    // etiqueta para el lector, no un enlace al canal de origen.
+    function reenviadoDeValido(r) {
+      return r.keys().hasOnly(['canalNombre', 'autorNombre'])
+        && r.canalNombre is string
+        && r.autorNombre is string;
+    }
+
+    // A1 — Valida el campo `fijado` del canal. Admite ausencia (no se toca) o
+    // `null` (soltar el mensaje fijado); si trae mapa, exige la forma completa
+    // y que quien fija firme con su propio correo y la hora del servidor.
+    function fijadoValido() {
+      return !('fijado' in request.resource.data)
+        || request.resource.data.fijado == null
+        || (
+          request.resource.data.fijado.keys().hasOnly(
+            ['messageId', 'text', 'autorNombre', 'fijadoPor', 'fijadoEn'])
+          && request.resource.data.fijado.messageId is string
+          && request.resource.data.fijado.text is string
+          && request.resource.data.fijado.text.size() <= 200
+          && request.resource.data.fijado.autorNombre is string
+          && request.resource.data.fijado.fijadoPor == callerEmail()
+          && request.resource.data.fijado.fijadoEn == request.time
+        );
+    }
+
+    // A3 — Valida el campo `soloLectura` del canal, si esta presente.
+    function soloLecturaValido() {
+      return !('soloLectura' in request.resource.data)
+        || request.resource.data.soloLectura is bool;
     }
 
     function canAccessChannel(ch) {
@@ -136,23 +183,44 @@ service cloud.firestore {
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0)
       ));
-      allow update: if !esSuplantacion() && (isSuper()
-        && request.resource.data.type == resource.data.type
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['name', 'allowedRoles']));
+      // A1 — fijado / A3 — soloLectura. Dos vias de update, ademas de la del
+      // superusuario sobre name/allowedRoles: coordinador/rectora/superusuario
+      // pueden fijar o marcar solo-lectura en CUALQUIER canal; en 'directo' y
+      // 'grupo' tambien puede cualquier miembro. `fijado` admite null (soltar).
+      allow update: if !esSuplantacion() && (
+        (isSuper()
+          && request.resource.data.type == resource.data.type
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['name', 'allowedRoles']))
+        ||
+        (isActiveUser()
+          && request.resource.data.type == resource.data.type
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['fijado', 'soloLectura'])
+          && (callerDoc().role in ['coordinador', 'rectora', 'superusuario']
+              || (resource.data.type in ['directo', 'grupo'] && callerEmail() in resource.data.members))
+          && fijadoValido()
+          && soloLecturaValido())
+      );
       allow delete: if !esSuplantacion() && (false);
       match /messages/{messageId} {
         allow read: if isActiveUser()
           && canAccessChannel(get(/databases/$(database)/documents/channels/$(channelId)).data);
         allow create: if !esSuplantacion() && (isActiveUser()
           && canAccessChannel(get(/databases/$(database)/documents/channels/$(channelId)).data)
+          // A3: canal soloLectura -> solo coordinador/rectora/superusuario publican.
+          // 'soloLectura' puede no existir en el documento: se trata como false.
+          && (get(/databases/$(database)/documents/channels/$(channelId)).data.get('soloLectura', false) != true
+              || callerDoc().role in ['coordinador', 'rectora', 'superusuario'])
           && request.resource.data.keys().hasOnly(
-               ['authorEmail', 'authorName', 'text', 'createdAt', 'deleted', 'adjunto'])
+               ['authorEmail', 'authorName', 'text', 'createdAt', 'deleted', 'adjunto', 'respondeA', 'reenviadoDe'])
           && request.resource.data.authorEmail == callerEmail()
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 4000
           && (request.resource.data.text.size() > 0 || 'adjunto' in request.resource.data)
           && (!('adjunto' in request.resource.data) || adjuntoValido(request.resource.data.adjunto))
+          && (!('respondeA' in request.resource.data) || respondeAValido(request.resource.data.respondeA))
+          && (!('reenviadoDe' in request.resource.data) || reenviadoDeValido(request.resource.data.reenviadoDe))
           && request.resource.data.createdAt == request.time
           && request.resource.data.deleted == false);
         allow update: if !esSuplantacion() && (isActiveUser() && (
@@ -165,6 +233,32 @@ service cloud.firestore {
                  .hasOnly(['deleted']))
         ));
         allow delete: if !esSuplantacion() && (false);
+
+        // C2 — Reacciones: un documento por persona. Lectura para quien tenga
+        // acceso al canal; escritura y borrado SOLO del propio documento.
+        match /reacciones/{correo} {
+          allow read: if isActiveUser()
+            && canAccessChannel(get(/databases/$(database)/documents/channels/$(channelId)).data);
+          allow create, update: if !esSuplantacion() && (isActiveUser()
+            && canAccessChannel(get(/databases/$(database)/documents/channels/$(channelId)).data)
+            && correo == callerEmail()
+            && request.resource.data.keys().hasOnly(['emoji', 'en'])
+            && request.resource.data.emoji in ['👍', '✅', '❤️', '😄', '🎉', '👀']
+            && request.resource.data.en == request.time);
+          allow delete: if !esSuplantacion() && (isActiveUser() && correo == callerEmail());
+        }
+      }
+
+      // B1 — Lecturas: un acuse por persona, dentro del canal. Lectura para
+      // quien tenga acceso al canal; escritura solo del propio documento.
+      match /lecturas/{correo} {
+        allow read: if isActiveUser()
+          && canAccessChannel(get(/databases/$(database)/documents/channels/$(channelId)).data);
+        allow write: if !esSuplantacion() && (isActiveUser()
+          && canAccessChannel(get(/databases/$(database)/documents/channels/$(channelId)).data)
+          && correo == callerEmail()
+          && request.resource.data.keys().hasOnly(['hasta'])
+          && request.resource.data.hasta is timestamp);
       }
     }
 
