@@ -2,7 +2,7 @@
 // Solo funciona en modo google con Firebase configurado. En modo pin el item de
 // navegación 'chat' ni siquiera aparece (filtrado en App.tsx).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Paperclip, Mic, Trash2, Send, FileText, X } from 'lucide-react';
+import { Paperclip, Mic, Trash2, Send, FileText, X, Pin, SmilePlus } from 'lucide-react';
 import { useAppStore } from '../data/store';
 import { useChatStore } from '../data/chatStore';
 import { esperarAuth, firebaseConfigurado } from '../lib/firebase';
@@ -12,9 +12,11 @@ import {
   borrarMensaje,
   crearCanal,
   editarMensaje,
+  EMOJIS_REACCION,
   listarUsuariosParaDm,
   miEmail,
   type Canal,
+  type EmojiReaccion,
   type Mensaje,
 } from '../data/chat';
 import { subirAdjunto, pesoLegible, TAMANO_MAXIMO_BYTES, type AdjuntoSubido } from '../data/adjuntos';
@@ -54,6 +56,7 @@ export default function Chat() {
     crearGrupoStore,
     errorCanales,
     emailSesion,
+    puedoPublicarEn,
   } = useChatStore();
 
   const [directorio, setDirectorio] = useState<Array<{ email: string; displayName: string }>>([]);
@@ -72,6 +75,17 @@ export default function Chat() {
   const inputArchivoRef = useRef<HTMLInputElement>(null);
   const grabadoraRef = useRef<Grabadora | null>(null);
   const timerGrabacionRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // A1 — refs de cada burbuja cargada, para poder saltar al mensaje fijado
+  // cuando está entre los que ya están en pantalla (los 50 más recientes).
+  const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  function registrarRefMensaje(id: string, el: HTMLDivElement | null) {
+    msgRefs.current[id] = el;
+  }
+
+  function saltarAMensaje(id: string) {
+    msgRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
   // initChat lo dispara App.tsx, que sí conoce sede y jornada del usuario.
   useEffect(() => {
@@ -409,6 +423,26 @@ export default function Chat() {
               </span>
             </header>
 
+            {/* A1 — franja del mensaje fijado. Al tocarla, salta al original
+                si está entre los ya cargados; si no, no hay nada que hacer
+                (no se piden mensajes viejos solo para esto). */}
+            {canalActual?.fijado && (
+              <button
+                onClick={() => saltarAMensaje(canalActual.fijado!.messageId)}
+                className="w-full flex items-center gap-2 px-4 py-2 border-b border-line bg-elevated text-left hover:bg-elevated/70 transition"
+              >
+                <Pin size={14} className="text-accent flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] text-muted">
+                    Fijado por {dirMap.get(canalActual.fijado.fijadoPor) || canalActual.fijado.fijadoPor}
+                  </div>
+                  <div className="text-xs text-strong truncate">
+                    {canalActual.fijado.text || `Mensaje de ${canalActual.fijado.autorNombre}`}
+                  </div>
+                </div>
+              </button>
+            )}
+
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {mensajes.map((m) => (
                 <Burbuja
@@ -417,12 +451,22 @@ export default function Chat() {
                   propio={m.authorEmail === yo}
                   puedeModerar={esSuper}
                   channelId={canalActivo}
+                  canal={canalActual}
+                  miRol={rol}
+                  registrarRef={registrarRefMensaje}
                 />
               ))}
               <div ref={finRef} />
             </div>
 
             <div className="border-t border-line">
+              {canalActual && !puedoPublicarEn(canalActual, rol) ? (
+                <div className="px-4 py-3 text-xs text-muted text-center">
+                  Solo coordinación y rectoría publican en este canal.
+                </div>
+              ) : (
+              <>
+
               {errorAdjunto && (
                 <div className="mx-3 mt-2 px-3 py-2 rounded-lg bg-danger-soft text-danger text-xs">
                   {errorAdjunto}
@@ -533,6 +577,8 @@ export default function Chat() {
                   </button>
                 </div>
               )}
+              </>
+              )}
             </div>
           </>
         )}
@@ -588,19 +634,87 @@ export default function Chat() {
 }
 
 // ── Burbuja de mensaje ────────────────────────────────────────────────────
+// Roles que pueden fijar en canales que no son 'directo'/'grupo' (ver
+// contrato A1). En directo/grupo cualquier miembro puede fijar.
+const ROLES_PUEDEN_FIJAR = ['coordinador', 'rectora', 'superusuario'];
+
 function Burbuja({
   m,
   propio,
   puedeModerar,
   channelId,
+  canal,
+  miRol,
+  registrarRef,
 }: {
   m: Mensaje;
   propio: boolean;
   puedeModerar: boolean;
   channelId: string;
+  canal: Canal | null;
+  miRol: string;
+  registrarRef: (id: string, el: HTMLDivElement | null) => void;
 }) {
   const [editando, setEditando] = useState(false);
   const [valor, setValor] = useState(m.text);
+  const [pickerAbierto, setPickerAbierto] = useState(false);
+  const yo = miEmail();
+
+  // C2 — reacciones bajo demanda: el listener del store solo se abre
+  // mientras la burbuja está de verdad visible en pantalla (IntersectionObserver
+  // sobre el propio nodo), y se cierra al salir de vista o desmontar. Con los
+  // 50 mensajes cargados sin virtualizar, abrir un listener por mensaje
+  // montado sería exactamente lo que el contrato pide evitar.
+  const bubbleElRef = useRef<HTMLDivElement>(null);
+  const abrirReacciones = useChatStore((s) => s.abrirReacciones);
+  const cerrarReacciones = useChatStore((s) => s.cerrarReacciones);
+  const reaccionar = useChatStore((s) => s.reaccionar);
+  const quitarMiReaccion = useChatStore((s) => s.quitarMiReaccion);
+  const reacciones = useChatStore((s) => s.reaccionesPorMensaje[m.id]) ?? [];
+  const contarLeidoPor = useChatStore((s) => s.contarLeidoPor);
+  const fijar = useChatStore((s) => s.fijar);
+  const soltarFijadoStore = useChatStore((s) => s.soltarFijadoStore);
+
+  useEffect(() => {
+    const el = bubbleElRef.current;
+    if (!el || m.deleted) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) abrirReacciones(m.id);
+        else cerrarReacciones(m.id);
+      },
+      { threshold: 0.15 },
+    );
+    obs.observe(el);
+    return () => {
+      obs.disconnect();
+      cerrarReacciones(m.id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [m.id, m.deleted]);
+
+  const agrupadas = useMemo(() => {
+    const out: Record<string, number> = {};
+    reacciones.forEach((r) => { out[r.emoji] = (out[r.emoji] ?? 0) + 1; });
+    return out;
+  }, [reacciones]);
+  const miReaccion = reacciones.find((r) => r.correo === yo)?.emoji;
+
+  const esFijado = canal?.fijado?.messageId === m.id;
+  const puedeFijar =
+    !!canal &&
+    (canal.type === 'directo' || canal.type === 'grupo' || ROLES_PUEDEN_FIJAR.includes(miRol));
+
+  async function handleFijar() {
+    if (!canal) return;
+    // A1 — fijar sobre un canal que ya tiene un fijado lo REEMPLAZA: hay que
+    // advertirlo ANTES de fijar, no después.
+    if (canal.fijado && canal.fijado.messageId !== m.id) {
+      const ok = window.confirm('Ya hay un mensaje fijado en este canal. ¿Reemplazarlo por este?');
+      if (!ok) return;
+    }
+    await fijar(channelId, m);
+  }
 
   if (m.deleted) {
     return (
@@ -613,10 +727,22 @@ function Burbuja({
   }
 
   return (
-    <div className={'flex ' + (propio ? 'justify-end' : 'justify-start')}>
+    <div
+      ref={(el) => {
+        bubbleElRef.current = el;
+        registrarRef(m.id, el);
+      }}
+      className={'flex flex-col ' + (propio ? 'items-end' : 'items-start')}
+    >
+      {esFijado && (
+        <div className="flex items-center gap-1 text-[10px] text-accent mb-0.5">
+          <Pin size={10} /> fijado
+        </div>
+      )}
+      <div className="relative group max-w-[80%]">
       <div
         className={
-          'max-w-[80%] rounded-2xl px-3 py-2 ' +
+          'rounded-2xl px-3 py-2 ' +
           (propio ? 'bg-accent text-strong' : 'bg-elevated text-strong')
         }
       >
@@ -675,8 +801,99 @@ function Burbuja({
               </button>
             </>
           )}
+          {puedeFijar && !editando && (
+            <button
+              onClick={() => (esFijado ? soltarFijadoStore(channelId) : handleFijar())}
+              className="text-[10px] text-muted hover:text-strong flex items-center gap-0.5"
+              aria-label={esFijado ? 'Soltar fijado' : 'Fijar mensaje'}
+            >
+              <Pin size={10} /> {esFijado ? 'soltar' : 'fijar'}
+            </button>
+          )}
         </div>
+
+        {/* B1 — leído por: solo en mis propios mensajes. Sin denominador
+            fiable fuera de 'directo'/'grupo' — nunca inventar un porcentaje. */}
+        {propio && !editando && (() => {
+          const n = contarLeidoPor(m);
+          if (n <= 0) return null;
+          // El denominador tambien excluye al autor: en un directo de dos,
+          // el unico que puede leerlo es el otro, y "de 2" sugeriria que falta
+          // alguien para siempre.
+          const otros =
+            canal && (canal.type === 'directo' || canal.type === 'grupo')
+              ? (canal.members?.length ?? 0) - 1
+              : 0;
+          const denom = otros > 0 ? otros : undefined;
+          return (
+            <div className="text-[10px] text-muted text-right mt-0.5">
+              Leído por {n}{denom ? ` de ${denom}` : ''}
+            </div>
+          );
+        })()}
       </div>
+
+      {/* C2 — botón de reacción: siempre táctil, no depende de hover para
+          aparecer (móvil primero). El picker se cierra al elegir un emoji. */}
+      {!editando && (
+        <button
+          onClick={() => setPickerAbierto((v) => !v)}
+          className={
+            'absolute -bottom-2 flex items-center justify-center w-7 h-7 rounded-full bg-card border border-line text-muted hover:text-strong transition ' +
+            (propio ? 'left-0 -translate-x-1/2' : 'right-0 translate-x-1/2')
+          }
+          aria-label="Reaccionar"
+        >
+          <SmilePlus size={13} />
+        </button>
+      )}
+      {pickerAbierto && (
+        <div
+          className={
+            'absolute z-10 -bottom-11 flex gap-1 bg-card border border-line rounded-full px-2 py-1.5 shadow-lg ' +
+            (propio ? 'right-0' : 'left-0')
+          }
+        >
+          {EMOJIS_REACCION.map((e) => (
+            <button
+              key={e}
+              onClick={() => {
+                if (miReaccion === e) quitarMiReaccion(m.id);
+                else reaccionar(m.id, e as EmojiReaccion);
+                setPickerAbierto(false);
+              }}
+              className={
+                'text-base leading-none w-7 h-7 flex items-center justify-center rounded-full transition ' +
+                (miReaccion === e ? 'bg-accent/30' : 'hover:bg-elevated')
+              }
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
+      </div>
+
+      {/* Recuento de reacciones agregadas, con la propia resaltada. */}
+      {Object.keys(agrupadas).length > 0 && (
+        <div className={'flex flex-wrap gap-1 mt-1 ' + (propio ? 'justify-end' : 'justify-start')}>
+          {Object.entries(agrupadas).map(([emoji, count]) => {
+            const esMia = miReaccion === emoji;
+            return (
+              <button
+                key={emoji}
+                onClick={() => (esMia ? quitarMiReaccion(m.id) : reaccionar(m.id, emoji as EmojiReaccion))}
+                className={
+                  'text-xs px-1.5 py-0.5 rounded-full border transition ' +
+                  (esMia ? 'bg-accent/30 border-accent text-strong' : 'bg-elevated border-line text-soft hover:text-strong')
+                }
+              >
+                {emoji} {count}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

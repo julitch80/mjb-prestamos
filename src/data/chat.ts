@@ -539,7 +539,14 @@ export function escucharLecturas(channelId: string, onLecturas: (lecturas: Lectu
 export function contarLecturasDe(mensaje: Mensaje, lecturas: Lectura[]): number {
   const msgMs = toMillis(mensaje.createdAt);
   if (!msgMs) return 0;
-  return lecturas.filter((l) => toMillis(l.hasta) >= msgMs).length;
+  // Sin descontar al autor, el numero nace en 1 y miente: quien envia acusa su
+  // propia lectura al escribir, asi que la app le diria "leido por 1" al
+  // instante, sin que nadie hubiera abierto nada. "Leido por" significa leido
+  // por OTROS.
+  const autor = (mensaje.authorEmail || '').toLowerCase();
+  return lecturas.filter(
+    (l) => (l.correo || '').toLowerCase() !== autor && toMillis(l.hasta) >= msgMs,
+  ).length;
 }
 
 /** Convierte un Timestamp de Firestore (o valor suelto) a milisegundos. */
