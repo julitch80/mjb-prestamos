@@ -22,6 +22,7 @@ import {
 import { correoAutorAsync } from './identidad';
 import { detectarDuplicados, slugGrupo, slugPrograma, validarPrograma } from './domain/programas';
 import { toDateKey } from './domain/ids';
+import { atras, useNivelAtras } from './useNivelAtras';
 import type {
   GrupoPrograma,
   Jornada,
@@ -106,6 +107,10 @@ export default function Programas({
   const [aviso, setAviso] = useState<string | null>(null);
   const [miCorreo, setMiCorreo] = useState<string | null>(null);
   const [abierto, setAbierto] = useState<Programa | null>(null);
+  useNivelAtras(abierto !== null, () => {
+    setAbierto(null);
+    void cargar();
+  });
   const [creando, setCreando] = useState(false);
   const [editando, setEditando] = useState<Programa | null>(null);
   const [creadores, setCreadores] = useState<string[]>([]);
@@ -225,6 +230,13 @@ export default function Programas({
       );
     }
     // Uno solo: se entra directo. Es el caso de veinte de los veintiun lideres.
+    //
+    // SIN `onVolver`: aqui no hay ninguna lista detras a la que volver, ni de
+    // programas ni de centros — esta pantalla ES la entrada a "Centros de interes"
+    // para este lider. Antes se pasaba `() => setMisCentros(null)`, que no revivia la
+    // busqueda (el efecto de arriba no depende de `misCentros`) y dejaba a la persona
+    // atascada en "Buscando su centro de interes..." para siempre. `PlanillaCentro` ya
+    // sabe ocultar el enlace "Volver" cuando no lo recibe.
     if (misCentros.length === 1) {
       const { programa, grupo } = misCentros[0];
       return (
@@ -234,7 +246,6 @@ export default function Programas({
           puedeRegistrar={puedeRegistrar}
           esCoordinador={false}
           gruposDelPrograma={[grupo]}
-          onVolver={() => setMisCentros(null)}
         />
       );
     }
@@ -276,10 +287,7 @@ export default function Programas({
         puedeRegistrar={puedeRegistrar}
         soloConsulta={puedeConsultar(actualizado)}
         onEditarPrograma={() => setEditando(actualizado)}
-        onVolver={() => {
-          setAbierto(null);
-          void cargar();
-        }}
+        onVolver={atras}
       />
     );
   }
@@ -427,6 +435,10 @@ function DetallePrograma({
   const [creando, setCreando] = useState(false);
   const [editando, setEditando] = useState<GrupoPrograma | null>(null);
   const [centroAbierto, setCentroAbierto] = useState<GrupoPrograma | null>(null);
+  useNivelAtras(centroAbierto !== null, () => {
+    setCentroAbierto(null);
+    void cargar();
+  });
   /**
    * Las tres pantallas de coordinacion cuelgan de aqui y no del menu principal a
    * proposito: todas necesitan un programa concreto para significar algo. "Pendientes"
@@ -435,6 +447,7 @@ function DetallePrograma({
   const [seccion, setSeccion] = useState<'centros' | 'pendientes' | 'panel' | 'cargar'>(
     'centros',
   );
+  useNivelAtras(seccion !== 'centros', () => setSeccion('centros'));
   /**
    * Los pendientes abiertos del programa entero, solo para CONTARLOS por centro.
    *
@@ -529,10 +542,7 @@ function DetallePrograma({
         puedeRegistrar={puedeRegistrar}
         esCoordinador={esCoordinador}
         gruposDelPrograma={grupos}
-        onVolver={() => {
-          setCentroAbierto(null);
-          void cargar();
-        }}
+        onVolver={atras}
       />
     );
   }

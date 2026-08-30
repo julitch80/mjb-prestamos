@@ -66,16 +66,35 @@ export default function MisGrupos({
   // abrir una planilla que no tiene sentido — ese registro vive en la pestaña Eventos.
   const tieneCentroInteres = resumenes.some((r) => r.asignatura.id === 'ci');
 
-  const tarjetas = resumenes
+  const cruces = resumenes
     .filter((r) => r.asignatura.id !== 'ci')
     .flatMap((r) => r.grupos.map((g) => ({ grado: g.grupo, asignatura: r.asignatura, horas: g.horas })))
     // Jornada primero (mañana antes que tarde), luego grado: es el orden en que un
     // docente de pie recorre su horario, no el orden alfabético del grupo.
     .sort((a, b) => gradoSortKey(a.grado).localeCompare(gradoSortKey(b.grado)));
 
+  /**
+   * Agrupados por grado: un docente puede dictar mas de una asignatura en el MISMO
+   * grado (34 casos reales en la asignacion de 2026 — Carlos con Quimica y Biologia en
+   * los siete grupos de 10 y 11, por ejemplo). Antes cada cruce sacaba su propia
+   * tarjeta y dos tarjetas de "11.2" quedaban identicas salvo por una linea de texto
+   * chico: facil de confundir entre clases. Ahora es UNA tarjeta por grado, con un
+   * boton por asignatura adentro.
+   */
+  const tarjetas = (() => {
+    const porGrado = new Map<string, typeof cruces>();
+    for (const c of cruces) {
+      if (!porGrado.has(c.grado)) porGrado.set(c.grado, []);
+      porGrado.get(c.grado)!.push(c);
+    }
+    return [...porGrado.entries()]
+      .map(([grado, materias]) => ({ grado, materias }))
+      .sort((a, b) => gradoSortKey(a.grado).localeCompare(gradoSortKey(b.grado)));
+  })();
+
   // Cruces con sesiones que NO estan en la asignacion. Se descartan los que ya salen
   // arriba para no ofrecer el mismo grupo dos veces.
-  const yaListado = new Set(tarjetas.map((t) => `${t.grado}|${t.asignatura.id}`));
+  const yaListado = new Set(cruces.map((t) => `${t.grado}|${t.asignatura.id}`));
   const otros = extras
     .filter((e) => !yaListado.has(`${e.grado}|${e.subjectId}`))
     .sort((a, b) => gradoSortKey(a.grado).localeCompare(gradoSortKey(b.grado)));
@@ -140,14 +159,23 @@ export default function MisGrupos({
   return (
     <div className="space-y-3">
       <div className="grid gap-2 sm:grid-cols-2">
-        {tarjetas.map((t) => (
-          <TarjetaGrupo
-            key={`${t.grado}|${t.asignatura.id}`}
-            grado={t.grado}
-            detalle={`${t.asignatura.nombre} · ${t.horas}h/semana`}
-            onElegir={() => onElegir(t.grado, t.asignatura.id)}
-          />
-        ))}
+        {tarjetas.map((t) =>
+          t.materias.length === 1 ? (
+            <TarjetaGrupo
+              key={t.grado}
+              grado={t.grado}
+              detalle={`${t.materias[0].asignatura.nombre} · ${t.materias[0].horas}h/semana`}
+              onElegir={() => onElegir(t.grado, t.materias[0].asignatura.id)}
+            />
+          ) : (
+            <TarjetaGrupoConMaterias
+              key={t.grado}
+              grado={t.grado}
+              materias={t.materias}
+              onElegir={onElegir}
+            />
+          ),
+        )}
       </div>
 
       {/*
@@ -248,6 +276,48 @@ export default function MisGrupos({
  * y el color refuerza el numero en vez de competir con el. Con el filete del borde solo,
  * el color casi no se percibe en el celular.
  */
+/**
+ * Un grado donde el docente dicta MAS de una asignatura. Una sola tarjeta con el numero
+ * del grado arriba (mismo estilo que la de una sola materia, mismo color por grado) y
+ * abajo un boton por asignatura, cada uno con su propia planilla detras.
+ *
+ * Antes esto salian como tarjetas sueltas identicas salvo por una linea de texto chico:
+ * facil de confundir entre clases. Agruparlas deja claro de una mirada que es el MISMO
+ * curso con dos cuadernos distintos, no dos grupos parecidos.
+ */
+function TarjetaGrupoConMaterias({
+  grado,
+  materias,
+  onElegir,
+}: {
+  grado: string;
+  materias: { asignatura: { id: string; nombre: string }; horas: number }[];
+  onElegir: (grado: string, subjectId: string) => void;
+}) {
+  return (
+    <div
+      style={{ borderLeftColor: colorGrado(grado) }}
+      className="min-h-[72px] w-full rounded-xl border border-line border-l-4 bg-card p-3"
+    >
+      <p style={{ color: colorGrado(grado) }} className="text-2xl font-bold leading-tight">
+        {grado}
+      </p>
+      <div className="mt-1.5 space-y-1">
+        {materias.map((m) => (
+          <button
+            key={m.asignatura.id}
+            onClick={() => onElegir(grado, m.asignatura.id)}
+            className="block w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-left hover:bg-hover"
+          >
+            <span className="text-sm font-semibold text-strong">{m.asignatura.nombre}</span>
+            <span className="ml-1.5 text-xs text-muted">· {m.horas}h/semana</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function TarjetaGrupo({
   grado,
   detalle,

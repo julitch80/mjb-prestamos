@@ -147,7 +147,10 @@ function FichaGustavoRodas() {
           sede y de cada jornada, y sus docentes entran solos.{' '}
           La <strong className="text-soft">agenda semanal</strong> y la{' '}
           <strong className="text-soft">gestión del riesgo</strong> también son de toda la
-          institución — las brigadas de esta sede ya están cargadas desde la Resolución 33.
+          institución — las brigadas de esta sede ya están cargadas desde la Resolución 33.{' '}
+          Y los <strong className="text-soft">asistentes institucionales</strong> (el chatbot del
+          Manual de Convivencia) también están disponibles: no dependen de datos académicos de la
+          sede, así que ya funcionan igual que en central.
         </p>
       </Bloque>
     </div>

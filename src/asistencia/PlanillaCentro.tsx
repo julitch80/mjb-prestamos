@@ -40,6 +40,7 @@ import type {
   Student,
 } from './domain/types';
 import { Check, UserSearch } from 'lucide-react';
+import { atras, useNivelAtras } from './useNivelAtras';
 
 /**
  * TEXTO DEL CONFLICTO — se escribe una sola vez y se usa en la fila y en la hoja de
@@ -157,7 +158,15 @@ export default function PlanillaCentro({
    * o Firestore rechaza la consulta entera con permission-denied—.
    */
   gruposDelPrograma?: GrupoPrograma[];
-  onVolver: () => void;
+  /**
+   * Ausente para el lider de UN solo centro (20 de los 21): ahi esta pantalla ES la
+   * entrada directa a "Centros de interes", sin ninguna lista detras a la que volver.
+   * `setMisCentros(null)` en Programas.tsx nunca revivia la busqueda —quedaba atascado
+   * en "Buscando su centro de interes..." para siempre—, y el texto "Volver a los
+   * centros de interes" tampoco tenia sentido en singular. Julian, 2026-08-27: "resuelve
+   * eso para que quede listo", aunque no era parte del encargo de turno.
+   */
+  onVolver?: () => void;
 }) {
   /**
    * La columna sobre la que actuan los atajos de sesion (escáner de QR y «Llenar la
@@ -187,6 +196,7 @@ export default function PlanillaCentro({
   const [inscribiendo, setInscribiendo] = useState(false);
   /** Mosaico de fotos del centro, para la caratula de su carpeta. */
   const [mosaico, setMosaico] = useState(false);
+  useNivelAtras(mosaico, () => setMosaico(false));
   /**
    * Los estudiantes de la lista del lider que el cruce con la matricula NO pudo ubicar.
    *
@@ -493,9 +503,11 @@ export default function PlanillaCentro({
   return (
     <div className="space-y-3">
       <div>
-        <button onClick={onVolver} className="text-xs text-muted underline">
-          ← Volver a los centros de interés
-        </button>
+        {onVolver && (
+          <button onClick={onVolver} className="text-xs text-muted underline">
+            ← Volver a los centros de interés
+          </button>
+        )}
         <h2 className="text-base font-semibold text-strong">{grupo.nombre}</h2>
         <p className="text-xs text-muted">
           {programa.nombre} · {grupo.miembros.length}{' '}
@@ -509,7 +521,7 @@ export default function PlanillaCentro({
             grado={grupo.nombre}
             subtitulo={programa.nombre}
             estudiantes={miembros}
-            onCerrar={() => setMosaico(false)}
+            onCerrar={atras}
           />
         </Suspense>
       )}

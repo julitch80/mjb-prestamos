@@ -5,6 +5,7 @@ import { correoAutorAsync } from './identidad';
 import { eventoVigente, resolverIntegrantes, validarRangoEvento } from './domain/eventos';
 import { gradoSortKey, toDateKey } from './domain/ids';
 import { nombreCompleto } from './domain/nombres';
+import { atras, useNivelAtras } from './useNivelAtras';
 import type { Event, EventMemberSource, Jornada, Student } from './domain/types';
 
 /**
@@ -36,6 +37,10 @@ export default function Eventos({
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const [eventoAbierto, setEventoAbierto] = useState<Event | null>(null);
+  useNivelAtras(eventoAbierto !== null, () => {
+    setEventoAbierto(null);
+    void cargar();
+  });
   const [miCorreo, setMiCorreo] = useState<string | null>(null);
   /** Confirmación de un borrado: la pantalla que lo hizo ya no existe cuando llega. */
   const [aviso, setAviso] = useState<string | null>(null);
@@ -62,10 +67,7 @@ export default function Eventos({
         evento={eventoAbierto}
         miCorreo={miCorreo ?? ''}
         puedeRegistrar={puedeRegistrar}
-        onVolver={() => {
-          setEventoAbierto(null);
-          void cargar();
-        }}
+        onVolver={atras}
         onEliminado={(mensaje) => {
           setAviso(mensaje);
           setEventoAbierto(null);

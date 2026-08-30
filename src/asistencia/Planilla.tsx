@@ -9,6 +9,7 @@ import { COLORES_GRUPO, estiloAnillo, estiloBorde, type ColorGrupo } from './dom
 import { toDateKey } from './domain/ids';
 import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './domain/types';
 import { getAsignatura } from '../data/asignacionAcademica';
+import { atras, useNivelAtras } from './useNivelAtras';
 
 /**
  * Caratula del observador fisico. Va con `lazy` a proposito: arrastra `datos.ts` entero
@@ -143,6 +144,7 @@ export default function Planilla({
   const [eligiendoSesionQr, setEligiendoSesionQr] = useState<Session[] | null>(null);
   /** Mosaico de fotos para la caratula del observador. Se abre encima de la planilla. */
   const [mosaico, setMosaico] = useState(false);
+  useNivelAtras(mosaico, () => setMosaico(false));
 
   const ordenadas = useMemo(
     () =>
@@ -271,7 +273,7 @@ export default function Planilla({
           <MosaicoGrupo
             grado={grado}
             estudiantes={estudiantes}
-            onCerrar={() => setMosaico(false)}
+            onCerrar={atras}
           />
         </Suspense>
       )}

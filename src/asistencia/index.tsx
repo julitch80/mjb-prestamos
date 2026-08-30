@@ -72,6 +72,7 @@ import Ayuda from './Ayuda';
 import { ASIGNATURAS, getAsignatura } from '../data/asignacionAcademica';
 import { exigirAutor } from './identidad';
 import { observarSync, type EstadoSync } from './sincronizacion';
+import { atras, useNivelAtras } from './useNivelAtras';
 import type { StudentMark } from './domain/types';
 
 /**
@@ -138,8 +139,10 @@ export default function Asistencia() {
   const [estudiantes, setEstudiantes] = useState<Student[]>([]);
   const [matriculas, setMatriculas] = useState<Enrollment[]>([]);
   const [cruce, setCruce] = useState<{ grado: string; subjectId: string } | null>(null);
+  useNivelAtras(cruce !== null, () => setCruce(null));
   /** Navegacion interna: por estado, nunca por URL (contrato, seccion 6). */
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
+  useNivelAtras(fichaAbierta !== null, () => setFichaAbierta(null));
   const [directores, setDirectores] = useState<Record<string, string>>({});
   const [vista, setVista] = useState<VistaAsistencia>('planilla');
 
@@ -280,6 +283,7 @@ export default function Asistencia() {
   // fotos. Vuelve a "asistencia" al cambiar de grado, para no dejar abierto por accidente
   // el cuaderno o la carga de fotos de un grupo que ya no es este.
   const [vistaGrupo, setVistaGrupo] = useState<'asistencia' | 'direccion' | 'fotos'>('asistencia');
+  useNivelAtras(vistaGrupo !== 'asistencia', () => setVistaGrupo('asistencia'));
   useEffect(() => {
     setVistaGrupo('asistencia');
   }, [cruce?.grado]);
@@ -573,7 +577,7 @@ export default function Asistencia() {
           rol={rol}
           slotId={slotId}
           directores={directores}
-          onVolver={() => setFichaAbierta(null)}
+          onVolver={atras}
         />
       );
     }
@@ -619,7 +623,7 @@ export default function Asistencia() {
         rol={rol}
         slotId={slotId}
         directores={directores}
-        onVolver={() => setFichaAbierta(null)}
+        onVolver={atras}
       />
     );
   }
