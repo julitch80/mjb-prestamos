@@ -133,7 +133,13 @@ export const useAppStore = create<AppState>()(
           nombre,
           rol,
           jornada,
-          vistaActual: vistaInicialDeRol(rol),
+          // Solo se vuelve a Inicio cuando cambia QUIEN esta dentro. Antes se
+          // reiniciaba siempre, y como el escucha de autenticacion llama a esto
+          // despues de tres consultas de red, al usuario le daba tiempo de navegar
+          // y la app lo devolvia a Inicio de golpe. Ese era el "brinco raro" que
+          // reporto Julian: no era lag del telefono, era la app pisando su
+          // navegacion cuando la red iba lenta.
+          vistaActual: s.userId === userId ? s.vistaActual : vistaInicialDeRol(rol),
           // Docentes quedan fijos en su propia sede; directivos eligen con el
           // selector (SelectorSede), así que no se les toca aquí.
           sedeActual: esDirectivo(rol) ? s.sedeActual : sedeDeUsuario(userId),

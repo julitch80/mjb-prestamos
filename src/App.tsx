@@ -32,6 +32,7 @@ import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
 import { getNotificaciones } from './data/api';
 import { useCasosVencidos } from './hooks/useCasosVencidos';
+import { useHistorialDeVistas } from './hooks/useHistorialDeVistas';
 import { cargarSyncEditor } from './data/syncEditor';
 import { USUARIOS, SEDES, esDirectivo, sedeDeUsuario } from './data/maestros';
 import { AUTH_MODE } from './data/authStore';
@@ -115,6 +116,9 @@ export default function App() {
   // (docs/plan-gestor-casos.md sección 4). El backend ya filtra qué casos ve
   // cada rol (sección 3); aquí solo se cuenta lo que llega.
   const casosVencidos = useCasosVencidos(userId);
+
+  // El boton atras de Android debe volver a la seccion anterior, no cerrar la app.
+  useHistorialDeVistas();
 
   const { data: notifData } = useQuery({
     queryKey: ['notificaciones', userId],
