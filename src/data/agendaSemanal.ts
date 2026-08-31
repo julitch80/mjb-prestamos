@@ -852,7 +852,200 @@ export const AGENDAS: AgendaSemanal[] = [
       },
     ],
   },
+  {
+    semana: 2,
+    periodo: 3,
+    desde: '2026-08-31',
+    hasta: '2026-09-04',
+    publicadaPor: 'Equipo Técnico Institucional',
+    notaFinal: 'La agenda de profesionales (orientación escolar y programa Escuela Entorno Protector) viene dentro del mismo documento, aparte de la agenda institucional.',
+    dias: [
+      {
+        fecha: '2026-08-31',
+        dia: 'lunes',
+        notas: [
+          'Se continúan las actividades de apoyo y recuperación del segundo periodo',
+          'Cada director baja estadísticas del master, revisa consolidados y llena acta de precomisiones',
+        ],
+        actividades: [
+          {
+            hora: '8:00 am',
+            actividad: 'Reunión de seguimiento con IUPB de la media técnica',
+            asisten: 'Coordinadora',
+            lugar: 'Coordinación',
+            responsables: 'IUPB',
+          },
+          {
+            hora: '9:05 am',
+            actividad: 'Prevención de violencias escolares - bullying',
+            asisten: 'Estudiantes del grado 10°4',
+            lugar: 'Aula de clases',
+            responsables: 'Erika Gómez - PEEP',
+          },
+          {
+            hora: '1:10 pm',
+            actividad: 'Prevención del consumo de SPA',
+            asisten: 'Estudiantes del grado 7°1',
+            lugar: 'Aula de clases',
+            responsables: 'Erika Gómez - PEEP',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-01',
+        dia: 'martes',
+        actividades: [
+          {
+            hora: '11:00 am',
+            actividad: 'Reunión de equipo directivo y profesionales: ajustes al PEI',
+            asisten: 'Coordinadores y profesionales',
+            lugar: 'Biblioteca',
+            responsables: 'Rectora',
+          },
+          {
+            hora: '1ra hora',
+            actividad: 'Asesoría a docentes: Ajustes Razonables',
+            asisten: 'Docente Hugo y DAP',
+            lugar: 'Oficina UAI',
+            responsables: 'DAP - Docente',
+          },
+          {
+            hora: '3ra hora',
+            actividad: 'Asesoría a docentes: Ajustes Razonables',
+            asisten: 'Docente Fredy García y DAP',
+            lugar: 'Oficina UAI',
+            responsables: 'DAP - Docente',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-02',
+        dia: 'miércoles',
+        notas: [
+          'JORNADA PEDAGÓGICA DE DOCENTES Y DIRECTIVOS',
+          'Este día no tienen clase los estudiantes, se envían talleres para trabajar desde casa',
+        ],
+        actividades: [
+          {
+            hora: '7:00 am a 8:00 am',
+            actividad: 'Formación docente: Círculos de palabra',
+            asisten: 'Docentes bachillerato',
+            lugar: 'Auditorio y aulas',
+            responsables: 'Erika, psicóloga EEP',
+          },
+          {
+            hora: '7:00 am a 10:00 am',
+            actividad: 'Comisiones de evaluación de básica primaria',
+            asisten: 'Docentes y profesionales',
+            lugar: 'Aulas',
+            responsables: 'Coordinadores',
+          },
+          {
+            hora: '8:00 am a 9:00 am',
+            actividad: 'Exposición de herramienta tecnológica de tareas escolares y otras funciones',
+            asisten: 'Docentes de bachillerato jornada AM',
+            lugar: 'Biblioteca',
+            responsables: 'Julián Medina',
+          },
+          {
+            hora: '9:00 am a 9:30 am',
+            actividad: 'Descanso',
+          },
+          {
+            hora: '9:30 am a 1:00 pm',
+            actividad: 'Comisiones de evaluación de segundo periodo, sede Bachillerato',
+            asisten: 'Docentes por jornadas y profesionales',
+            lugar: 'Aula 1 y 2',
+            responsables: 'Coordinadores y rectora',
+          },
+          {
+            hora: '11:00 am a 1:00 pm',
+            actividad: 'Formación docente: Círculos de palabra',
+            asisten: 'Docentes de primaria',
+            lugar: 'Auditorio y aulas',
+            responsables: 'Erika, psicóloga EEP',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-03',
+        dia: 'jueves',
+        actividades: [
+          {
+            hora: '7:00 am a 1:00 pm',
+            actividad: 'Salida pedagógica: participación en el programa Sabia Mente, dirigida a estudiantes pilos de 5º y 11º',
+            asisten: 'Estudiantes seleccionados de los grupos 5 y 11º (6 por grupo); acompaña el psicólogo Alexander Sánchez y Paula Zapata',
+            lugar: 'COMFAMA de La Estrella',
+            responsables: 'COMFAMA',
+          },
+          {
+            hora: '8:00 am a 2:00 pm',
+            actividad: 'Visita guiada a la Universidad de Antioquia',
+            asisten: 'Estudiantes de 11º2 y director de grupo',
+            lugar: 'Universidad de Antioquia',
+            responsables: 'UdeA y director de grupo',
+          },
+          {
+            hora: '9:05 am',
+            actividad: 'Desarrollo de competencias comunicativas',
+            asisten: 'Estudiantes 11°1',
+            lugar: 'Aula de clases',
+            responsables: 'Erika Gómez - PEEP',
+          },
+          {
+            hora: '10:10 am',
+            actividad: 'Desarrollo de competencias comunicativas',
+            asisten: 'Estudiantes 11°2',
+            lugar: 'Aula de clases',
+            responsables: 'Erika Gómez - PEEP',
+          },
+          {
+            hora: '2:00 pm a 5:00 pm',
+            actividad: 'Capacitación con el SENA, formación digital',
+            asisten: 'Rectora',
+            lugar: 'UVA',
+            responsables: 'SENA',
+          },
+          {
+            hora: '4ta hora',
+            actividad: 'Asesoría a docentes: Ajustes Razonables',
+            asisten: 'Docente Uriel y DAP',
+            lugar: 'Oficina UAI',
+            responsables: 'DAP - Docente',
+          },
+          {
+            hora: '5ta hora',
+            actividad: 'Asesoría a docentes: Ajustes Razonables',
+            asisten: 'Docente Doris y DAP',
+            lugar: 'Oficina UAI',
+            responsables: 'DAP - Docente',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-04',
+        dia: 'viernes',
+        actividades: [
+          {
+            hora: '7:00 am',
+            actividad: 'Encuentro Familias en sintonía - corresponsabilidad familiar',
+            asisten: 'Familias del grado Transición',
+            lugar: 'Sede GRI',
+            responsables: 'Erika Gómez - PEEP',
+          },
+          {
+            hora: '11:00 am a 12:00 pm',
+            actividad: 'Reunión del macroproyecto Leer bien para estar mejor: muestras pedagógicas 2026',
+            asisten: 'Docentes integrantes',
+            lugar: 'Sede Finca',
+            responsables: 'Líder de macroproyecto',
+          },
+        ],
+      },
+    ],
+  },
 ];
+
 
 /** La agenda vigente: siempre la última publicada. */
 export const AGENDA_ACTUAL: AgendaSemanal = AGENDAS[AGENDAS.length - 1];
