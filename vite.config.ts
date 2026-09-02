@@ -27,19 +27,22 @@ export default defineConfig({
         start_url: '/mjb-prestamos/',
         scope: '/mjb-prestamos/',
         lang: 'es',
+        // Los genera scripts/generar-iconos.py a partir de UNA imagen fuente.
+        // Antes esto declaraba 192x192 y 512x512 apuntando las dos al MISMO
+        // archivo, que en realidad mide 699x796 y ni siquiera es cuadrado.
+        // Mentir en `sizes` hace que el navegador elija mal.
+        //
+        // Y sobre todo: el de 512 estaba marcado `maskable` sin serlo. Android
+        // recorta los maskable a la forma del lanzador dando por hecho que lo
+        // importante cabe en el 80% central; un dibujo a sangre sale aplastado
+        // y con los bordes cortados. Eso era lo que Julian veia en su telefono.
+        // Ahora son archivos DISTINTOS: los `any` van a sangre, los `maskable`
+        // con su zona segura.
         icons: [
-          {
-            src: '/mjb-prestamos/mjb_escudo.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: '/mjb-prestamos/mjb_escudo.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
+          { src: '/mjb-prestamos/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/mjb-prestamos/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/mjb-prestamos/icons/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/mjb-prestamos/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
