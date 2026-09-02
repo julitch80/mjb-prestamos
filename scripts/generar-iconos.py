@@ -20,6 +20,9 @@ import sys, os
 from PIL import Image, ImageDraw, ImageFilter
 
 DESTINO = 'public/icons'
+# Se sube al cambiar el dibujo. Los nombres viajan al manifiesto y al HTML:
+# renombrar es la unica forma segura de que nadie sirva el icono anterior.
+V = 'v3'
 # Fondo del icono enmascarado. Blanco y no el gris casi negro del tema: el
 # escudo es a color y esta pensado para fondo claro; sobre negro pierde
 # contorno en los lanzadores que recortan en circulo.
@@ -152,7 +155,7 @@ def fondo_degradado(lado):
     return im.convert('RGBA')
 
 
-def componer_icono(flor, lado, inset=0.085, alto_flor=0.68, marco=True, radio=0.145):
+def componer_icono(flor, lado, inset=0.18, alto_flor=0.52, marco=True, radio=0.145):
     """Arma el icono: ROJO A SANGRE + interior con degradado + flor de lis.
 
     La idea es de Julian y es la correcta: el rojo no es un marco dibujado
@@ -200,7 +203,7 @@ def main():
     if componer:
         # `origen` es la flor de lis aislada, con transparencia.
         for lado in (192, 512):
-            componer_icono(im, lado).save('%s/icon-%d.png' % (DESTINO, lado))
+            componer_icono(im, lado).save('%s/icon-%d-%s.png' % (DESTINO, lado, V))
             # El maskable mete el marco al 11%: un lanzador circular recorta un
             # circulo del 80% del icono, y un marco pegado al borde perderia
             # las cuatro esquinas. El degradado sigue llegando a sangre, asi
@@ -217,13 +220,13 @@ def main():
             # notarse. 0.18 da 0.3925 y entra. Si algun dia se cambia el
             # redondeo, hay que rehacer esta cuenta: al bajarlo de 0.20 a 0.145
             # el 16% que antes valia dejo de valer, sin que nada fallara.
-            componer_icono(im, lado, inset=0.18, alto_flor=0.52).save(
-                '%s/icon-maskable-%d.png' % (DESTINO, lado))
-        componer_icono(im, 180).save('%s/apple-touch-icon.png' % DESTINO)
+            componer_icono(im, lado).save(
+                '%s/icon-maskable-%d-%s.png' % (DESTINO, lado, V))
+        componer_icono(im, 180).save('%s/apple-touch-icon-%s.png' % (DESTINO, V))
         for lado in (16, 32, 48):
             # A 16 px el marco es un pixel y solo ensucia: solo flor y fondo.
             componer_icono(im, lado, alto_flor=0.80, marco=False).save(
-                '%s/favicon-%d.png' % (DESTINO, lado))
+                '%s/favicon-%d-%s.png' % (DESTINO, lado, V))
         for f in sorted(os.listdir(DESTINO)):
             print('  %-26s %dx%d  %d KB' % (
                 f, Image.open('%s/%s' % (DESTINO, f)).size[0],
@@ -234,12 +237,12 @@ def main():
     if baldosa:
         # El arte ya trae fondo, marco y figura: aqui solo se escala.
         for lado in (192, 512):
-            desde_baldosa(im, lado).save('%s/icon-%d.png' % (DESTINO, lado))
+            desde_baldosa(im, lado).save('%s/icon-%d-%s.png' % (DESTINO, lado, V))
             desde_baldosa(im, lado, encoge=0.78).save(
-                '%s/icon-maskable-%d.png' % (DESTINO, lado))
-        desde_baldosa(im, 180).save('%s/apple-touch-icon.png' % DESTINO)
+                '%s/icon-maskable-%d-%s.png' % (DESTINO, lado, V))
+        desde_baldosa(im, 180).save('%s/apple-touch-icon-%s.png' % (DESTINO, V))
         for lado in (16, 32, 48):
-            desde_baldosa(im, lado).save('%s/favicon-%d.png' % (DESTINO, lado))
+            desde_baldosa(im, lado).save('%s/favicon-%d-%s.png' % (DESTINO, lado, V))
         for f in sorted(os.listdir(DESTINO)):
             ruta = '%s/%s' % (DESTINO, f)
             if not f.endswith('.png') or f.startswith('fuente'):
@@ -252,14 +255,14 @@ def main():
         # transparente: el verde y el aro los pone este script. Si se le pasa
         # la baldosa entera se duplicarian el fondo y el marco.
         for lado in (192, 512):
-            componer_con_aro(im, lado).save('%s/icon-%d.png' % (DESTINO, lado))
+            componer_con_aro(im, lado).save('%s/icon-%d-%s.png' % (DESTINO, lado, V))
             componer_con_aro(im, lado, margen_arte=0.28).save(
-                '%s/icon-maskable-%d.png' % (DESTINO, lado))
-        componer_con_aro(im, 180).save('%s/apple-touch-icon.png' % DESTINO)
+                '%s/icon-maskable-%d-%s.png' % (DESTINO, lado, V))
+        componer_con_aro(im, 180).save('%s/apple-touch-icon-%s.png' % (DESTINO, V))
         for lado in (16, 32, 48):
             # En 16 px un aro de 1 px se convierte en suciedad: a esos tamanos
             # solo el arte sobre el verde, sin marco.
-            cuadrar(im, lado, VERDE, margen=0.12).save('%s/favicon-%d.png' % (DESTINO, lado))
+            cuadrar(im, lado, VERDE, margen=0.12).save('%s/favicon-%d-%s.png' % (DESTINO, lado, V))
         for f in sorted(os.listdir(DESTINO)):
             ruta = '%s/%s' % (DESTINO, f)
             print('  %-26s %s  %d KB' % (f, '%dx%d' % Image.open(ruta).size, os.path.getsize(ruta) // 1024))
@@ -267,17 +270,17 @@ def main():
 
     # 'any': sin margen y con transparencia. El sistema lo pinta tal cual.
     for lado in (192, 512):
-        cuadrar(im, lado).save('%s/icon-%d.png' % (DESTINO, lado))
+        cuadrar(im, lado).save('%s/icon-%d-%s.png' % (DESTINO, lado, V))
     # 'maskable': con zona segura y fondo solido, para que el recorte del
     # lanzador se vea intencionado y no un accidente.
     for lado in (192, 512):
         cuadrar(im, lado, FONDO_MASKABLE, margen=0.10).save(
-            '%s/icon-maskable-%d.png' % (DESTINO, lado))
+            '%s/icon-maskable-%d-%s.png' % (DESTINO, lado, V))
     # Favicon y iOS: cuadrados y con fondo, que a 16 px la transparencia se
     # confunde con el color de la pestana.
-    cuadrar(im, 180, FONDO_MASKABLE, margen=0.06).save('%s/apple-touch-icon.png' % DESTINO)
+    cuadrar(im, 180, FONDO_MASKABLE, margen=0.06).save('%s/apple-touch-icon-%s.png' % (DESTINO, V))
     for lado in (16, 32, 48):
-        cuadrar(im, lado, FONDO_MASKABLE, margen=0.04).save('%s/favicon-%d.png' % (DESTINO, lado))
+        cuadrar(im, lado, FONDO_MASKABLE, margen=0.04).save('%s/favicon-%d-%s.png' % (DESTINO, lado, V))
 
     for f in sorted(os.listdir(DESTINO)):
         ruta = '%s/%s' % (DESTINO, f)
