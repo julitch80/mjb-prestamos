@@ -13,9 +13,10 @@ Por que existe este script y no se recortan a mano:
     699x796. Mentir en `sizes` hace que el navegador elija mal.
 
 Uso:  py -3 scripts/generar-iconos.py public/mjb_hd.png
+      py -3 scripts/generar-iconos.py arte.png --aro   (verde a sangre + aro rojo)
 """
 import sys, os
-from PIL import Image
+from PIL import Image, ImageDraw
 
 DESTINO = 'public/icons'
 # Fondo del icono enmascarado. Blanco y no el gris casi negro del tema: el
@@ -39,14 +40,70 @@ def cuadrar(im, lado, fondo=None, margen=0.0):
     return lienzo
 
 
+# Colores institucionales, tomados del icono que eligio Julian.
+VERDE = (21, 138, 76, 255)
+ROJO = (206, 33, 51, 255)
+
+
+def componer_con_aro(arte, lado, margen_arte=0.22):
+    """Icono a sangre: verde hasta el borde y aro rojo POR DENTRO.
+
+    Julian eligio conservar los tres colores institucionales, pero el marco
+    rojo no puede ir pegado al borde: ahi es lo primero que se come el
+    recorte del lanzador, y en uno circular desaparece entero por los lados.
+    Metido hacia adentro, dentro de la zona segura, sobrevive a cualquier
+    forma y ademas se lee mejor en pequeno.
+
+    El fondo va a SANGRE a proposito: las esquinas redondeadas las pone el
+    sistema. Pintarlas dentro de la imagen es lo que producia esquinas con
+    doble corte.
+    """
+    lienzo = Image.new('RGBA', (lado, lado), VERDE)
+    dib = ImageDraw.Draw(lienzo)
+    # El aro se apoya justo dentro del 80% central que Android promete no
+    # recortar. El grosor escala con el lado para que no se afine al reducir.
+    inset = int(lado * 0.115)
+    grosor = max(2, int(lado * 0.035))
+    radio = int(lado * 0.22)
+    dib.rounded_rectangle(
+        [inset, inset, lado - inset - 1, lado - inset - 1],
+        radius=radio, outline=ROJO, width=grosor,
+    )
+    # El arte, centrado y por dentro del aro.
+    util = int(lado * (1 - 2 * margen_arte))
+    copia = arte.copy()
+    copia.thumbnail((util, util), Image.LANCZOS)
+    lienzo.paste(copia, ((lado - copia.width) // 2, (lado - copia.height) // 2), copia)
+    return lienzo
+
+
 def main():
     if len(sys.argv) < 2:
         print('Falta la imagen fuente. Ej: py -3 scripts/generar-iconos.py public/mjb_hd.png')
         return 1
     origen = sys.argv[1]
+    aro = '--aro' in sys.argv
     im = Image.open(origen).convert('RGBA')
-    print('fuente: %s  %sx%s' % (origen, im.width, im.height))
+    print('fuente: %s  %sx%s%s' % (origen, im.width, im.height, '  (modo aro)' if aro else ''))
     os.makedirs(DESTINO, exist_ok=True)
+
+    if aro:
+        # `origen` debe ser SOLO el arte (la flor de lis) con fondo
+        # transparente: el verde y el aro los pone este script. Si se le pasa
+        # la baldosa entera se duplicarian el fondo y el marco.
+        for lado in (192, 512):
+            componer_con_aro(im, lado).save('%s/icon-%d.png' % (DESTINO, lado))
+            componer_con_aro(im, lado, margen_arte=0.28).save(
+                '%s/icon-maskable-%d.png' % (DESTINO, lado))
+        componer_con_aro(im, 180).save('%s/apple-touch-icon.png' % DESTINO)
+        for lado in (16, 32, 48):
+            # En 16 px un aro de 1 px se convierte en suciedad: a esos tamanos
+            # solo el arte sobre el verde, sin marco.
+            cuadrar(im, lado, VERDE, margen=0.12).save('%s/favicon-%d.png' % (DESTINO, lado))
+        for f in sorted(os.listdir(DESTINO)):
+            ruta = '%s/%s' % (DESTINO, f)
+            print('  %-26s %s  %d KB' % (f, '%dx%d' % Image.open(ruta).size, os.path.getsize(ruta) // 1024))
+        return 0
 
     # 'any': sin margen y con transparencia. El sistema lo pinta tal cual.
     for lado in (192, 512):
