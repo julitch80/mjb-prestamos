@@ -152,34 +152,34 @@ def fondo_degradado(lado):
     return im.convert('RGBA')
 
 
-def componer_icono(flor, lado, inset=0.04, alto_flor=0.74, marco=True):
-    """Arma el icono entero: degradado a sangre + marco rojo + flor de lis.
+def componer_icono(flor, lado, inset=0.085, alto_flor=0.68, marco=True, radio=0.145):
+    """Arma el icono: ROJO A SANGRE + interior con degradado + flor de lis.
 
-    `inset` es lo que se separa el marco del borde, y `alto_flor` cuanto del
-    lado ocupa la flor. Julian pidio el marco pegado al borde y la flor mucho
-    mas grande: antes venia al 12.5% y ocupaba poco mas de un tercio, lo que
-    dejaba un anillo de fondo vacio que no aportaba nada.
+    La idea es de Julian y es la correcta: el rojo no es un marco dibujado
+    dentro del icono, es el FONDO, y llega hasta el canto. Asi, recorte lo que
+    recorte el lanzador —circulo, cuadrado redondeado, gota— el filo siempre
+    es rojo y el corte no se nota. Antes el marco era una linea pintada a
+    cierta distancia del borde, y cualquier mascara delataba que habia una
+    forma por debajo siendo recortada.
 
-    Componerlo aqui en vez de reescalar la imagen del generador es lo que
-    permite mover esas dos medidas sin volver a pedirle nada a Gemini.
+    `inset` es cuanto entra el rojo desde el borde antes de empezar el
+    degradado; o sea, el grosor visible del marco.
     """
-    lienzo = fondo_degradado(lado)
-    borde = int(lado * inset)
-    if not marco:
-        # A 16 px un marco es un pixel suelto: ensucia mas de lo que aporta.
-        alto = int(lado * alto_flor)
-        ancho = max(1, int(flor.width * alto / flor.height))
-        f = flor.resize((ancho, alto), Image.LANCZOS)
-        lienzo.paste(f, ((lado - ancho) // 2, (lado - alto) // 2), f)
-        return lienzo
-    grosor = max(2, int(round(lado * 0.052)))
-    radio = int(lado * 0.20)
-    ImageDraw.Draw(lienzo).rounded_rectangle(
-        [borde, borde, lado - borde - 1, lado - borde - 1],
-        radius=radio, outline=ROJO_MARCO, width=grosor,
-    )
+    lienzo = Image.new('RGBA', (lado, lado), ROJO_MARCO)
+    if marco:
+        borde = int(lado * inset)
+        mascara = Image.new('L', (lado, lado), 0)
+        ImageDraw.Draw(mascara).rounded_rectangle(
+            [borde, borde, lado - borde - 1, lado - borde - 1],
+            radius=int(lado * radio), fill=255,
+        )
+        lienzo.paste(fondo_degradado(lado), (0, 0), mascara)
+    else:
+        # A 16 px un marco es un pixel suelto que solo ensucia.
+        lienzo = fondo_degradado(lado)
+
     alto = int(lado * alto_flor)
-    ancho = int(flor.width * alto / flor.height)
+    ancho = max(1, int(flor.width * alto / flor.height))
     f = flor.resize((ancho, alto), Image.LANCZOS)
     lienzo.paste(f, ((lado - ancho) // 2, (lado - alto) // 2), f)
     return lienzo
@@ -205,7 +205,19 @@ def main():
             # circulo del 80% del icono, y un marco pegado al borde perderia
             # las cuatro esquinas. El degradado sigue llegando a sangre, asi
             # que no se ve ningun anillo suelto alrededor.
-            componer_icono(im, lado, inset=0.11, alto_flor=0.58).save(
+            # El maskable mete mas rojo (18%) por geometria, no por gusto: un
+            # lanzador circular recorta un circulo de radio 0.40 del centro, y
+            # para que ese circulo caiga TODO sobre rojo, la esquina mas lejana
+            # del interior redondeado tiene que quedar dentro de el:
+            #
+            #     distancia = raiz(2) * (0.5 - inset - radio) + radio <= 0.40
+            #
+            # Con radio 0.145: inset 0.16 da 0.4208 y 0.17 da 0.4066 — en ambos
+            # ASOMA el degradado por las diagonales y el recorte vuelve a
+            # notarse. 0.18 da 0.3925 y entra. Si algun dia se cambia el
+            # redondeo, hay que rehacer esta cuenta: al bajarlo de 0.20 a 0.145
+            # el 16% que antes valia dejo de valer, sin que nada fallara.
+            componer_icono(im, lado, inset=0.18, alto_flor=0.52).save(
                 '%s/icon-maskable-%d.png' % (DESTINO, lado))
         componer_icono(im, 180).save('%s/apple-touch-icon.png' % DESTINO)
         for lado in (16, 32, 48):
