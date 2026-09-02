@@ -108,6 +108,15 @@ const CORREO_A_DOCENTE_ID = {
   'dolly.gutierrez@iemanueljbetancur.edu.co': 'gri_dolly',
 };
 
+// Camino inverso de CORREO_A_DOCENTE_ID (id de docente → correo), construido
+// UNA vez a nivel de módulo. Se usa para avisar al docente que atendió una
+// remisión al seguro (RemisionesSeguro.docenteId) en la alerta diaria de
+// casos sin seguimiento — ver revisarCasosVencidos más abajo.
+const DOCENTE_ID_A_CORREO = Object.keys(CORREO_A_DOCENTE_ID).reduce(function(acc, correo) {
+  acc[CORREO_A_DOCENTE_ID[correo]] = correo;
+  return acc;
+}, {});
+
 // Esquemas de las hojas (se crean solas si no existen)
 const RESERVAS_HEADERS    = ['id','recurso','fecha','bloque','solicitante','proposito','equipos','estado','motivo','timestamp'];
 const NOTIF_HEADERS       = ['id','destinatario','tipo','mensaje','leida','timestamp'];
@@ -946,7 +955,7 @@ function listarInformesContencion(p, correoAutenticado) {
     const sheet = getSheet('InformesContencion', INFORMES_CONTENCION_HEADERS);
     asegurarEncabezados_(sheet, INFORMES_CONTENCION_HEADERS);
     const acceso = resolverAcceso_(correoAutenticado);
-    return { ok: true, informes: filtrarCasosPorAcceso_(hojaAObjetos(sheet), acceso) };
+    return { ok: true, informes: filtrarCasosPorAcceso_(hojaAObjetos(sheet), acceso, 'contencion') };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
@@ -998,7 +1007,7 @@ function listarRemisionesSeguro(p, correoAutenticado) {
     const sheet = getSheet('RemisionesSeguro', REMISIONES_SEGURO_HEADERS);
     asegurarEncabezados_(sheet, REMISIONES_SEGURO_HEADERS);
     const acceso = resolverAcceso_(correoAutenticado);
-    return { ok: true, remisiones: filtrarCasosPorAcceso_(hojaAObjetos(sheet), acceso) };
+    return { ok: true, remisiones: filtrarCasosPorAcceso_(hojaAObjetos(sheet), acceso, 'seguro') };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
@@ -1015,7 +1024,11 @@ function obtenerCarpetaRemisionesSeguro_() {
 function resolverAcceso_(correoAutenticado) {
   const correo = String(correoAutenticado || '').toLowerCase();
   if (correo === String(CONFIG.RECTORA).toLowerCase()) return { tipo: 'todos' };
-  if (correo === String(CONFIG.PSICOORIENTADOR).toLowerCase()) return { tipo: 'todos' };
+  // El psicoorientador NO ve remisiones al seguro (primeros auxilios): esas
+  // son incidentes físicos/de salud, no contención emocional, y no es su
+  // ámbito. 'solo_contencion' es un tipo de acceso propio (ver
+  // filtrarCasosPorAcceso_) que solo deja pasar InformesContencion.
+  if (correo === String(CONFIG.PSICOORIENTADOR).toLowerCase()) return { tipo: 'solo_contencion' };
   if (correo === String(CONFIG.COORD_MANANA).toLowerCase()) return { tipo: 'jornada', jornada: 'manana' };
   if (correo === String(CONFIG.COORD_TARDE).toLowerCase()) return { tipo: 'jornada', jornada: 'tarde' };
   const grados = Object.keys(DIRECTORES_CORREO).filter(function(g) {
@@ -1033,14 +1046,22 @@ function resolverAcceso_(correoAutenticado) {
 function casosVisiblesIds_(acceso) {
   const informes = hojaAObjetos(getSheet('InformesContencion', INFORMES_CONTENCION_HEADERS));
   const remisiones = hojaAObjetos(getSheet('RemisionesSeguro', REMISIONES_SEGURO_HEADERS));
-  const visibles = filtrarCasosPorAcceso_(informes, acceso)
-    .concat(filtrarCasosPorAcceso_(remisiones, acceso));
+  const visibles = filtrarCasosPorAcceso_(informes, acceso, 'contencion')
+    .concat(filtrarCasosPorAcceso_(remisiones, acceso, 'seguro'));
   const ids = {};
   visibles.forEach(function(c) { ids[String(c.id)] = true; });
   return ids;
 }
 
-function filtrarCasosPorAcceso_(items, acceso) {
+// casoTipo indica de qué hoja vienen los `items` que se están filtrando
+// ('contencion' = InformesContencion, 'seguro' = RemisionesSeguro). Hace
+// falta porque el acceso 'solo_contencion' del psicoorientador depende del
+// tipo de caso, no solo de quién pregunta: a él se le debe devolver vacío
+// cuando casoTipo es 'seguro', sin tocar el resto de tipos de acceso.
+function filtrarCasosPorAcceso_(items, acceso, casoTipo) {
+  if (acceso.tipo === 'solo_contencion') {
+    return casoTipo === 'contencion' ? items : [];
+  }
   if (acceso.tipo === 'todos') return items;
   if (acceso.tipo === 'jornada') {
     return items.filter(function(c) { return String(c.jornada) === acceso.jornada; });
@@ -1168,8 +1189,36 @@ function revisarCasosVencidos() {
   });
 
   [
-    { hoja: 'InformesContencion', headers: INFORMES_CONTENCION_HEADERS, etiqueta: 'Informe de contención emocional' },
-    { hoja: 'RemisionesSeguro',   headers: REMISIONES_SEGURO_HEADERS,   etiqueta: 'Remisión al seguro estudiantil' },
+    // Contención emocional SÍ incluye al psicoorientador: es su ámbito de
+    // trabajo (apoyo emocional al estudiante), y el correo no lleva datos de
+    // salud física ni del incidente de un accidente/lesión.
+    {
+      hoja: 'InformesContencion', headers: INFORMES_CONTENCION_HEADERS,
+      etiqueta: 'Informe de contención emocional',
+      destinatarios: function(c) {
+        const coordCorreo = String(c.jornada) === 'tarde' ? CONFIG.COORD_TARDE : CONFIG.COORD_MANANA;
+        const directorCorreo = DIRECTORES_CORREO[String(c.grado)] || '';
+        return [coordCorreo, CONFIG.PSICOORIENTADOR, directorCorreo];
+      },
+    },
+    // Primeros auxilios NO lleva al psicoorientador: no es contención
+    // emocional, es un incidente físico/de salud del estudiante, y ampliar
+    // su acceso aquí filtraría información médica sensible fuera de su rol.
+    // En su lugar recibe el docente que atendió el caso (docenteId de la
+    // hoja) — es quien realmente necesita saber si el caso quedó sin
+    // seguimiento. Si su correo no se puede resolver, el aviso igual sale
+    // para coordinación y el director (mismo criterio que ya existía con
+    // directorCorreo, que también puede venir vacío).
+    {
+      hoja: 'RemisionesSeguro', headers: REMISIONES_SEGURO_HEADERS,
+      etiqueta: 'Remisión al seguro estudiantil',
+      destinatarios: function(c) {
+        const coordCorreo = String(c.jornada) === 'tarde' ? CONFIG.COORD_TARDE : CONFIG.COORD_MANANA;
+        const directorCorreo = DIRECTORES_CORREO[String(c.grado)] || '';
+        const docenteCorreo = DOCENTE_ID_A_CORREO[String(c.docenteId)] || '';
+        return [coordCorreo, directorCorreo, docenteCorreo];
+      },
+    },
   ].forEach(function(cfg) {
     const sheet = getSheet(cfg.hoja, cfg.headers);
     asegurarEncabezados_(sheet, cfg.headers);
@@ -1186,9 +1235,7 @@ function revisarCasosVencidos() {
       const dias = Math.floor((hoy.getTime() - fechaRef.getTime()) / 86400000);
       if (dias < 8) return;
 
-      const coordCorreo = String(c.jornada) === 'tarde' ? CONFIG.COORD_TARDE : CONFIG.COORD_MANANA;
-      const directorCorreo = DIRECTORES_CORREO[String(c.grado)] || '';
-      const destinatarios = [coordCorreo, CONFIG.PSICOORIENTADOR, directorCorreo].filter(Boolean).join(',');
+      const destinatarios = cfg.destinatarios(c).filter(Boolean).join(',');
       if (!destinatarios) return;
 
       const html = '<p><b>Caso sin seguimiento hace ' + dias + ' días</b></p>' +

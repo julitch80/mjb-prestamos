@@ -58,14 +58,24 @@ const ESTILO_ALERTA: Record<'ambar' | 'roja', string> = {
   roja: 'bg-danger-soft border-danger text-danger-soft-fg',
 };
 
+// Icono + color + texto para cada tipo de caso — nunca solo color, porque hay
+// docentes con dificultad para distinguir colores y el tablero se usa con
+// prisa desde el celular. El vocabulario y los emojis son los mismos que ya
+// usa el submenú de Ruta de Emergencia en GestionRiesgo.tsx (🚑/💚), para no
+// introducir una segunda convención visual dentro de la misma app.
 const ESTILO_TIPO: Record<CasoResumen['tipo'], string> = {
   contencion: 'bg-purple-soft border-purple text-purple-soft-fg',
   seguro: 'bg-teal-soft border-teal text-teal-soft-fg',
 };
 
+const ICONO_TIPO: Record<CasoResumen['tipo'], string> = {
+  contencion: '💚',
+  seguro: '🚑',
+};
+
 const LABEL_TIPO: Record<CasoResumen['tipo'], string> = {
-  contencion: 'Contención',
-  seguro: 'Seguro',
+  contencion: 'Contención emocional',
+  seguro: 'Primeros auxilios',
 };
 
 type FiltroTipo = 'todos' | CasoResumen['tipo'];
@@ -105,6 +115,20 @@ function BadgeAlerta({ caso }: { caso: CasoResumen }) {
   );
 }
 
+// Marca de tipo de caso: icono + texto, deliberadamente más grande y sólida
+// que las demás pastillas (estado, alerta) para que sea lo primero que se lee
+// en la fila, y en su propia línea — así nunca compite por espacio ni por
+// atención con la alerta ámbar/roja de nivelAlerta(), que señala otra cosa
+// (urgencia por días sin seguimiento) y debe seguir viéndose aparte.
+function BadgeTipo({ tipo }: { tipo: CasoResumen['tipo'] }) {
+  return (
+    <span className={cn('inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border w-fit', ESTILO_TIPO[tipo])}>
+      <span aria-hidden="true">{ICONO_TIPO[tipo]}</span>
+      {LABEL_TIPO[tipo]}
+    </span>
+  );
+}
+
 function TarjetaCaso({ caso, onClick }: { caso: CasoCompleto; onClick: () => void }) {
   return (
     <button
@@ -115,10 +139,8 @@ function TarjetaCaso({ caso, onClick }: { caso: CasoCompleto; onClick: () => voi
         <span className="text-sm font-semibold text-strong truncate">{caso.estudianteNombre}</span>
         <span className="text-[11px] text-muted whitespace-nowrap">{caso.fecha}</span>
       </div>
+      <BadgeTipo tipo={caso.tipo} />
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap', ESTILO_TIPO[caso.tipo])}>
-          {LABEL_TIPO[caso.tipo]}
-        </span>
         <span className="text-[11px] text-muted">Grado {caso.grado}</span>
         <PastillaEstado estado={caso.estado} />
         <BadgeAlerta caso={caso} />
@@ -193,13 +215,9 @@ function DetalleCaso({ caso, onVolver, onActualizado }: {
       <div className="rounded-2xl border border-line bg-card px-4 py-4 flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <span className="text-base font-semibold text-strong">{caso.estudianteNombre}</span>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap', ESTILO_TIPO[caso.tipo])}>
-              {LABEL_TIPO[caso.tipo]}
-            </span>
-            <PastillaEstado estado={caso.estado} />
-          </div>
+          <PastillaEstado estado={caso.estado} />
         </div>
+        <BadgeTipo tipo={caso.tipo} />
         <p className="text-xs text-muted">Grado {caso.grado} · Creado {caso.fecha}</p>
         <BadgeAlerta caso={caso} />
 
@@ -367,8 +385,8 @@ export default function TableroCasos() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-1.5 flex-wrap">
         <ChipFiltro activo={filtroTipo === 'todos'} onClick={() => setFiltroTipo('todos')}>Todos</ChipFiltro>
-        <ChipFiltro activo={filtroTipo === 'contencion'} onClick={() => setFiltroTipo('contencion')}>Contención</ChipFiltro>
-        <ChipFiltro activo={filtroTipo === 'seguro'} onClick={() => setFiltroTipo('seguro')}>Seguro</ChipFiltro>
+        <ChipFiltro activo={filtroTipo === 'contencion'} onClick={() => setFiltroTipo('contencion')}>💚 Contención emocional</ChipFiltro>
+        <ChipFiltro activo={filtroTipo === 'seguro'} onClick={() => setFiltroTipo('seguro')}>🚑 Primeros auxilios</ChipFiltro>
       </div>
 
       <div className="flex items-center gap-1.5 flex-wrap">
