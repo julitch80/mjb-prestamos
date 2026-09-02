@@ -18,6 +18,8 @@ import {
 } from './SeguimientoCaso';
 import type { CasoResumen } from './SeguimientoCaso';
 import type { SeguimientoCaso as SeguimientoCasoTipo } from '../data/api';
+import { VistaImprimibleHistorial } from './HistorialCaso';
+import type { DatosHistorialCaso } from './HistorialCaso';
 
 // Un caso conserva el registro original (informe o remisión) para poder
 // mostrar los datos completos en el detalle — CasoResumen (el contrato del
@@ -162,6 +164,7 @@ function DetalleCaso({ caso, onVolver, onActualizado }: {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [vistaHistorial, setVistaHistorial] = useState(false);
 
   const cargarSeguimientos = useCallback(() => {
     setCargando(true);
@@ -222,16 +225,32 @@ function DetalleCaso({ caso, onVolver, onActualizado }: {
       </div>
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <h3 className="text-sm font-semibold text-strong">Línea de tiempo</h3>
-          {!mostrarFormulario && (
-            <button
-              onClick={() => setMostrarFormulario(true)}
-              className="px-3 py-1.5 rounded-full bg-accent text-accent-fg text-xs font-semibold hover:opacity-90 transition"
-            >
-              + Agregar seguimiento
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Hermano del botón "Descargar PDF" del informe puntual, pero para
+                TODO el caso: sirve para presentarlo ante una comisión o una
+                entidad externa cuando ha habido dos o tres seguimientos.
+                Se ofrece siempre que haya terminado de cargar — si no hay
+                seguimientos, el documento lo dice explícitamente en vez de
+                mostrar una tabla vacía sin explicación. */}
+            {!cargando && !error && (
+              <button
+                onClick={() => setVistaHistorial(true)}
+                className="px-3 py-1.5 rounded-full border border-line text-soft bg-elevated text-xs font-semibold hover:bg-hover transition"
+              >
+                📄 Exportar historial
+              </button>
+            )}
+            {!mostrarFormulario && (
+              <button
+                onClick={() => setMostrarFormulario(true)}
+                className="px-3 py-1.5 rounded-full bg-accent text-accent-fg text-xs font-semibold hover:opacity-90 transition"
+              >
+                + Agregar seguimiento
+              </button>
+            )}
+          </div>
         </div>
 
         {mostrarFormulario && (
@@ -254,6 +273,29 @@ function DetalleCaso({ caso, onVolver, onActualizado }: {
         )}
         {!cargando && !error && <LineaTiempo seguimientos={seguimientos} />}
       </div>
+
+      {vistaHistorial && (
+        <VistaImprimibleHistorial
+          datos={{
+            estudianteNombre: caso.estudianteNombre,
+            // La remisión al seguro no trae acudiente/teléfono en su registro
+            // original (solo el informe de contención los captura) — se deja
+            // en blanco en vez de inventar el dato; el documento ya muestra
+            // "Sin registrar" en ese caso, igual que hace el informe puntual.
+            estudianteDocumento: informe?.estudianteDocumento ?? remision?.estudianteDocumento ?? '',
+            grado: caso.grado,
+            acudienteNombre: informe
+              ? `${informe.acudienteNombre}${informe.acudienteParentesco ? ` (${informe.acudienteParentesco})` : ''}`
+              : '',
+            acudienteTelefonos: informe?.estudianteTelefonos ?? '',
+            tipo: caso.tipo,
+            estado: caso.estado,
+            fechaCreacion: caso.fecha,
+            seguimientos,
+          } satisfies DatosHistorialCaso}
+          onCerrar={() => setVistaHistorial(false)}
+        />
+      )}
     </div>
   );
 }
