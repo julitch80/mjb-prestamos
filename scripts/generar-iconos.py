@@ -123,16 +123,101 @@ def desde_baldosa(baldosa, lado, encoge=1.0):
     return lienzo
 
 
+# Degradado diagonal del icono, muestreado del arte que aprobo Julian:
+# verde abajo-izquierda, aguamarina en medio, azul solo arriba-derecha.
+GRAD = [(0.0, (18, 126, 72)), (0.68, (42, 158, 140)), (1.0, (54, 132, 181))]
+ROJO_MARCO = (196, 34, 47, 255)
+
+
+def fondo_degradado(lado):
+    """Degradado diagonal calculado, no copiado.
+
+    Se genera en vez de reescalar el JPEG original por dos razones: no arrastra
+    los artefactos de compresion, y permite componer el icono a cualquier
+    proporcion sin que el marco quede donde lo puso el generador de imagenes.
+    """
+    im = Image.new('RGB', (lado, lado))
+    px = im.load()
+    for y in range(lado):
+        for x in range(lado):
+            # Posicion sobre la diagonal inferior-izquierda -> superior-derecha.
+            t = (x / (lado - 1) + (1 - y / (lado - 1))) / 2
+            for i in range(len(GRAD) - 1):
+                t0, c0 = GRAD[i]
+                t1, c1 = GRAD[i + 1]
+                if t <= t1 or i == len(GRAD) - 2:
+                    k = 0.0 if t1 == t0 else max(0.0, min(1.0, (t - t0) / (t1 - t0)))
+                    px[x, y] = tuple(int(c0[j] + (c1[j] - c0[j]) * k) for j in range(3))
+                    break
+    return im.convert('RGBA')
+
+
+def componer_icono(flor, lado, inset=0.04, alto_flor=0.74, marco=True):
+    """Arma el icono entero: degradado a sangre + marco rojo + flor de lis.
+
+    `inset` es lo que se separa el marco del borde, y `alto_flor` cuanto del
+    lado ocupa la flor. Julian pidio el marco pegado al borde y la flor mucho
+    mas grande: antes venia al 12.5% y ocupaba poco mas de un tercio, lo que
+    dejaba un anillo de fondo vacio que no aportaba nada.
+
+    Componerlo aqui en vez de reescalar la imagen del generador es lo que
+    permite mover esas dos medidas sin volver a pedirle nada a Gemini.
+    """
+    lienzo = fondo_degradado(lado)
+    borde = int(lado * inset)
+    if not marco:
+        # A 16 px un marco es un pixel suelto: ensucia mas de lo que aporta.
+        alto = int(lado * alto_flor)
+        ancho = max(1, int(flor.width * alto / flor.height))
+        f = flor.resize((ancho, alto), Image.LANCZOS)
+        lienzo.paste(f, ((lado - ancho) // 2, (lado - alto) // 2), f)
+        return lienzo
+    grosor = max(2, int(round(lado * 0.052)))
+    radio = int(lado * 0.20)
+    ImageDraw.Draw(lienzo).rounded_rectangle(
+        [borde, borde, lado - borde - 1, lado - borde - 1],
+        radius=radio, outline=ROJO_MARCO, width=grosor,
+    )
+    alto = int(lado * alto_flor)
+    ancho = int(flor.width * alto / flor.height)
+    f = flor.resize((ancho, alto), Image.LANCZOS)
+    lienzo.paste(f, ((lado - ancho) // 2, (lado - alto) // 2), f)
+    return lienzo
+
+
 def main():
     if len(sys.argv) < 2:
         print('Falta la imagen fuente. Ej: py -3 scripts/generar-iconos.py public/mjb_hd.png')
         return 1
     origen = sys.argv[1]
+    componer = '--componer' in sys.argv
     baldosa = '--baldosa' in sys.argv
     aro = '--aro' in sys.argv
     im = Image.open(origen).convert('RGBA')
     print('fuente: %s  %sx%s%s' % (origen, im.width, im.height, '  (modo aro)' if aro else ''))
     os.makedirs(DESTINO, exist_ok=True)
+
+    if componer:
+        # `origen` es la flor de lis aislada, con transparencia.
+        for lado in (192, 512):
+            componer_icono(im, lado).save('%s/icon-%d.png' % (DESTINO, lado))
+            # El maskable mete el marco al 11%: un lanzador circular recorta un
+            # circulo del 80% del icono, y un marco pegado al borde perderia
+            # las cuatro esquinas. El degradado sigue llegando a sangre, asi
+            # que no se ve ningun anillo suelto alrededor.
+            componer_icono(im, lado, inset=0.11, alto_flor=0.58).save(
+                '%s/icon-maskable-%d.png' % (DESTINO, lado))
+        componer_icono(im, 180).save('%s/apple-touch-icon.png' % DESTINO)
+        for lado in (16, 32, 48):
+            # A 16 px el marco es un pixel y solo ensucia: solo flor y fondo.
+            componer_icono(im, lado, alto_flor=0.80, marco=False).save(
+                '%s/favicon-%d.png' % (DESTINO, lado))
+        for f in sorted(os.listdir(DESTINO)):
+            print('  %-26s %dx%d  %d KB' % (
+                f, Image.open('%s/%s' % (DESTINO, f)).size[0],
+                Image.open('%s/%s' % (DESTINO, f)).size[1],
+                os.path.getsize('%s/%s' % (DESTINO, f)) // 1024))
+        return 0
 
     if baldosa:
         # El arte ya trae fondo, marco y figura: aqui solo se escala.
