@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   buscarEstudiantes,
+  inscribirEnGrupoPrograma,
   leerEstudiantesDeSede,
   leerMisGruposDePrograma,
   leerSesionesPrograma,
@@ -41,9 +42,27 @@ export default function PanelPrograma({
   programaId,
   sede,
   jornada,
+  matriculadosPrecargados,
+  grupos: gruposPrecargados,
+  puedeInscribir = false,
+  onInscrito,
 }: {
   programaId: string;
   sede: string;
+  /**
+   * La matricula ya leida por la pantalla de arriba, que la necesita para el conteo de la
+   * pastilla. Evita leer las 688 fichas de la sede dos veces en la misma pantalla.
+   */
+  matriculadosPrecargados?: Student[];
+  /** Los centros ya leidos arriba, para ofrecerlos al asignar. */
+  grupos?: GrupoPrograma[];
+  /**
+   * Si se ofrece asignar centro desde la lista de "sin centro". Solo la coordinacion:
+   * inscribir es administrar, y es lo unico que protege la exclusividad.
+   */
+  puedeInscribir?: boolean;
+  /** Para que la pantalla de arriba recargue los centros tras una asignacion. */
+  onInscrito?: () => void;
   /**
    * Jornada del programa, si declara una. Decide el DENOMINADOR de la cobertura: contra
    * los 364 de la tarde, no contra los 688 de la sede. Sin esto la cifra mete en el
@@ -61,9 +80,15 @@ export default function PanelPrograma({
     let vivo = true;
     void (async () => {
       try {
+        // Si la pantalla de arriba ya los tiene cargados, no se vuelven a pedir: son las
+        // mismas 688 fichas y los mismos centros de la misma sede.
         const [gs, ms] = await Promise.all([
-          leerMisGruposDePrograma(programaId),
-          leerEstudiantesDeSede(sede),
+          gruposPrecargados?.length
+            ? Promise.resolve(gruposPrecargados)
+            : leerMisGruposDePrograma(programaId),
+          matriculadosPrecargados?.length
+            ? Promise.resolve(matriculadosPrecargados)
+            : leerEstudiantesDeSede(sede),
         ]);
         if (!vivo) return;
         setGrupos(gs);
@@ -85,7 +110,7 @@ export default function PanelPrograma({
     return () => {
       vivo = false;
     };
-  }, [programaId, sede]);
+  }, [programaId, sede, gruposPrecargados, matriculadosPrecargados]);
 
   const cobertura = useMemo(
     () => coberturaPrograma(matriculados, grupos, jornada),
@@ -112,7 +137,13 @@ export default function PanelPrograma({
         </p>
       )}
 
-      <Cobertura cobertura={cobertura} />
+      <Cobertura
+        cobertura={cobertura}
+        programaId={programaId}
+        grupos={grupos}
+        puedeInscribir={puedeInscribir}
+        onInscrito={onInscrito}
+      />
       <AsistenciaPorCentro estadistica={estadistica} grupos={grupos} />
       <BuscadorDelPanel
         sede={sede}
@@ -156,8 +187,24 @@ function FilaConteo({ etiqueta, c }: { etiqueta: string; c: ConteoCobertura }) {
   );
 }
 
-function Cobertura({ cobertura }: { cobertura: ReturnType<typeof coberturaPrograma> }) {
+function Cobertura({
+  cobertura,
+  programaId,
+  grupos,
+  puedeInscribir,
+  onInscrito,
+}: {
+  cobertura: ReturnType<typeof coberturaPrograma>;
+  programaId: string;
+  grupos: GrupoPrograma[];
+  puedeInscribir: boolean;
+  onInscrito?: () => void;
+}) {
   const [verFaltantes, setVerFaltantes] = useState(false);
+  /** Estudiante al que se le esta escogiendo centro, y los que ya se asignaron aqui. */
+  const [asignando, setAsignando] = useState<Student | null>(null);
+  const [asignados, setAsignados] = useState<Set<string>>(new Set());
+  const [fallaAsignar, setFallaAsignar] = useState<string | null>(null);
   const [descargando, setDescargando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
 
@@ -289,6 +336,25 @@ function Cobertura({ cobertura }: { cobertura: ReturnType<typeof coberturaProgra
                     <li key={e.studentId} className="flex items-center gap-2">
                       <Avatar estudiante={e} tamano={24} />
                       <span className="truncate text-sm text-soft">{nombreCompleto(e)}</span>
+                      <span className="grow" />
+                      {/* Ver el problema y resolverlo, en el mismo sitio. Antes esta lista
+                          solo se miraba: para inscribir habia que salir, entrar al centro,
+                          abrir "Inscribir o retirar" y buscar el nombre otra vez. */}
+                      {asignados.has(e.studentId) ? (
+                        <span className="shrink-0 text-xs text-success-soft-fg">Asignado ✓</span>
+                      ) : (
+                        puedeInscribir && (
+                          <button
+                            onClick={() => {
+                              setFallaAsignar(null);
+                              setAsignando(e);
+                            }}
+                            className="shrink-0 rounded-lg border border-line px-2 py-1 text-xs font-medium text-strong"
+                          >
+                            Asignar centro
+                          </button>
+                        )
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -296,7 +362,60 @@ function Cobertura({ cobertura }: { cobertura: ReturnType<typeof coberturaProgra
             ))}
           </div>
         )}
+
+        {fallaAsignar && <p className="mt-2 text-xs text-danger">{fallaAsignar}</p>}
       </div>
+
+      {/* Escoger a cual centro. No se asigna automaticamente al que tenga cupo: eso
+          decidiria por el estudiante algo que en este colegio se escoge, y con los centros
+          llenandose a distinto ritmo terminaria metiendo gente donde sobro puesto. */}
+      {asignando && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center">
+          <div className="w-full max-w-md rounded-2xl border border-line bg-card p-3">
+            <p className="text-sm font-semibold text-strong">
+              ¿A cuál centro entra {nombreCompleto(asignando)}?
+            </p>
+            <p className="mt-0.5 text-xs text-muted">{asignando.gradoActual}</p>
+            <ul className="mt-2 max-h-[50vh] space-y-1 overflow-y-auto">
+              {grupos
+                .filter((g) => g.activo)
+                .map((g) => (
+                  <li key={g.grupoId}>
+                    <button
+                      onClick={() => {
+                        const est = asignando;
+                        setAsignando(null);
+                        void inscribirEnGrupoPrograma(programaId, g.grupoId, [est.studentId])
+                          .then(() => {
+                            setAsignados((s2) => new Set(s2).add(est.studentId));
+                            onInscrito?.();
+                          })
+                          .catch((e) =>
+                            setFallaAsignar(
+                              `No se pudo inscribir a ${nombreCompleto(est)}. (${(e as Error).message})`,
+                            ),
+                          );
+                      }}
+                      className="w-full rounded-xl border border-line bg-elevated p-2 text-left hover:bg-hover"
+                    >
+                      <p className="text-sm font-semibold text-strong">{g.nombre}</p>
+                      <p className="text-xs text-muted">
+                        {(g.miembros ?? []).length} estudiantes
+                        {g.cupo ? ` · cupo ${g.cupo}` : ''}
+                      </p>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+            <button
+              onClick={() => setAsignando(null)}
+              className="mt-2 w-full rounded-lg border border-line p-2 text-sm text-soft"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

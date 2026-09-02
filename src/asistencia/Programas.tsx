@@ -16,11 +16,18 @@ import {
   editarGrupoPrograma,
   editarPrograma,
   leerMisGruposDePrograma,
+  leerEstudiantesDeSede,
   leerPendientesPrograma,
   leerProgramasVisibles,
 } from './datos';
 import { correoAutorAsync } from './identidad';
-import { detectarDuplicados, slugGrupo, slugPrograma, validarPrograma } from './domain/programas';
+import {
+  coberturaPrograma,
+  detectarDuplicados,
+  slugGrupo,
+  slugPrograma,
+  validarPrograma,
+} from './domain/programas';
 import { toDateKey } from './domain/ids';
 import { atras, useNivelAtras } from './useNivelAtras';
 import type {
@@ -29,6 +36,7 @@ import type {
   PendientePrograma,
   Programa,
   Sede,
+  Student,
 } from './domain/types';
 
 /** Nombre para mostrar de cada sede. El id real sigue siendo la clave. */
@@ -462,6 +470,15 @@ function DetallePrograma({
   const [pendientes, setPendientes] = useState<PendientePrograma[]>([]);
   /** Centro con el que se entra a la bandeja, cuando se llega desde su aviso. */
   const [grupoPendientes, setGrupoPendientes] = useState<string | undefined>(undefined);
+  /**
+   * La matricula de la sede, cargada AQUI y no dentro del panel.
+   *
+   * Hace falta en dos sitios: la pastilla necesita el numero de "sin centro" ANTES de que
+   * nadie abra el panel —si no, el problema solo se descubre cuando alguien se acuerda de
+   * ir a mirar—, y el panel necesita la lista entera. Cargarla en los dos seria leer 688
+   * fichas dos veces para la misma pantalla.
+   */
+  const [matriculados, setMatriculados] = useState<Student[]>([]);
 
   const esCoordinador = (programa.coordinadores ?? []).includes(miCorreo);
 
@@ -502,6 +519,36 @@ function DetallePrograma({
     // lo que se acaba de resolver. Es una consulta de una coleccion pequena y solo la hace
     // la coordinacion, que es una sola persona.
   }, [programa.programaId, esCoordinador, seccion]);
+
+  // La matricula de la sede: solo la coordinacion la necesita aqui (para el conteo de la
+  // pastilla y para el panel). Si falla, la pantalla sigue viva sin el aviso.
+  useEffect(() => {
+    if (!esCoordinador) {
+      setMatriculados([]);
+      return;
+    }
+    let vivo = true;
+    void leerEstudiantesDeSede(programa.sede)
+      .then((lista) => vivo && setMatriculados(lista))
+      .catch(() => vivo && setMatriculados([]));
+    return () => {
+      vivo = false;
+    };
+  }, [programa.sede, esCoordinador, seccion]);
+
+  /**
+   * Cuantos matriculados no estan en ningun centro. Es el numero que va en la pastilla:
+   * sin el, la lista de "sin centro" es pasiva y solo se descubre cuando alguien se
+   * acuerda de entrar a mirarla. Un estudiante que ingresa a mitad de año puede pasar
+   * semanas sin centro y nada lo señala.
+   */
+  const sinCentro = useMemo(
+    () =>
+      matriculados.length === 0
+        ? 0
+        : coberturaPrograma(matriculados, grupos, programa.jornada).faltantes.length,
+    [matriculados, grupos, programa.jornada],
+  );
 
   /**
    * Cuantos pendientes abiertos toca a cada centro. Un `duplicado` cuenta en LOS DOS
@@ -620,10 +667,15 @@ function DetallePrograma({
                   : 'border-line text-soft',
               ].join(' ')}
             >
-              {/* El total va en la pastilla: es el numero que dice si queda trabajo. */}
+              {/* El total va en la pastilla: es el numero que dice si queda trabajo.
+                  "Sin centro" tambien, porque si no, un estudiante que ingresa a mitad de
+                  año puede pasar semanas sin asignar y nada lo señala: la lista existe,
+                  pero es pasiva y hay que acordarse de ir a mirarla. */}
               {v === 'pendientes' && pendientes.length > 0
                 ? `${nombre} (${pendientes.length})`
-                : nombre}
+                : v === 'panel' && sinCentro > 0
+                  ? `${nombre} · ${sinCentro} sin centro`
+                  : nombre}
             </button>
           ))}
         </div>
@@ -641,6 +693,12 @@ function DetallePrograma({
           programaId={programa.programaId}
           sede={programa.sede}
           jornada={programa.jornada}
+          // La matricula ya esta cargada aqui para el conteo de la pastilla: pasarla
+          // evita que el panel vuelva a leer las 688 fichas de la misma sede.
+          matriculadosPrecargados={matriculados}
+          grupos={grupos}
+          puedeInscribir={esCoordinador}
+          onInscrito={() => void cargar()}
         />
       )}
       {esCoordinador && seccion === 'cargar' && (
