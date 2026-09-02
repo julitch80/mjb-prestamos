@@ -4,7 +4,10 @@ import { useAppStore } from '../data/store';
 import { DIRECTORES_MANANA, DIRECTORES_TARDE, getUsuario } from '../data/maestros';
 import { guardarInformeContencion } from '../data/api';
 import { useDictado } from '../hooks/useDictado';
-import { exportarInformeContencion } from '../lib/exportarDoc';
+import { exportarInformeContencion, compartirInformeContencion, RUTA_LABEL, type DatosInformeContencion } from '../lib/exportarDoc';
+
+const ESCUDO = `${import.meta.env.BASE_URL}mjb_escudo.png`;
+const ID_IMPRIMIBLE = 'informe-contencion-imprimible';
 
 interface EstudianteBusqueda {
   studentId: string;
@@ -33,6 +36,135 @@ const RUTAS: Array<{ id: RutaDetalle; tipo: 'institucional' | 'externa'; label: 
   { id: 'externa', tipo: 'externa', label: 'Se orienta a ayuda externa al colegio (familia busca apoyo por fuera)' },
 ];
 
+/**
+ * Vista imprimible del informe: se monta como overlay sobre toda la app y se
+ * imprime con `window.print()`, igual que el mosaico de asistencia
+ * (src/asistencia/MosaicoGrupo.tsx) — sin librería de PDF, apoyándose en
+ * "Guardar como PDF" del diálogo de impresión nativo de Android/escritorio.
+ * La técnica de `visibility: hidden` en TODO menos el informe evita que el
+ * menú, la cabecera o el resto de la app se cuelen en la hoja impresa.
+ */
+function VistaImprimibleInforme({ datos, onCerrar }: { datos: DatosInformeContencion; onCerrar: () => void }) {
+  const rutaTexto = RUTA_LABEL[datos.rutaDetalle] ?? datos.rutaDetalle;
+  return (
+    <div className="informe-overlay fixed inset-0 z-50 overflow-auto bg-[#525659] p-4">
+      <style>{CSS_INFORME_IMPRIMIBLE}</style>
+
+      <div className="informe-solo-pantalla mx-auto mb-4 flex max-w-[210mm] flex-wrap items-center gap-2 rounded-xl bg-surface p-3">
+        <h2 className="text-sm font-semibold text-strong">Vista previa del informe (PDF)</h2>
+        <span className="grow" />
+        <button
+          onClick={() => window.print()}
+          className="flex min-h-[36px] items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
+        >
+          Imprimir / Guardar PDF
+        </button>
+        <button
+          onClick={onCerrar}
+          className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-strong"
+        >
+          Cerrar
+        </button>
+      </div>
+
+      <div id={ID_IMPRIMIBLE} className="informe-hoja">
+        <div className="informe-encabezado">
+          <img src={ESCUDO} alt="" className="informe-escudo" />
+          <div>
+            <h1 className="informe-titulo">Institución Educativa Manuel J. Betancur</h1>
+            <h2 className="informe-subtitulo">INFORME DE CONTENCIÓN EMOCIONAL</h2>
+          </div>
+        </div>
+
+        <table className="informe-tabla">
+          <tbody>
+            <tr><td className="informe-etiqueta">Nombres y apellidos del estudiante</td><td>{datos.estudianteNombre}</td></tr>
+            <tr><td className="informe-etiqueta">Documento de identidad</td><td>{datos.estudianteDocumento || 'Sin registrar'}</td></tr>
+            <tr><td className="informe-etiqueta">Grado / Grupo</td><td>{datos.grado}</td></tr>
+            <tr><td className="informe-etiqueta">Director de grupo</td><td>{datos.director || '—'}</td></tr>
+            <tr>
+              <td className="informe-etiqueta">Acudiente</td>
+              <td>{datos.acudienteNombre || 'Sin registrar'}{datos.acudienteParentesco ? ` (${datos.acudienteParentesco})` : ''}</td>
+            </tr>
+            <tr><td className="informe-etiqueta">Teléfono del acudiente</td><td>{datos.acudienteTelefonos || 'Sin registrar'}</td></tr>
+            <tr><td className="informe-etiqueta">Fecha de generación del informe</td><td>{datos.fecha}</td></tr>
+            <tr><td className="informe-etiqueta">Docente que genera el informe</td><td>{datos.docenteNombre}</td></tr>
+          </tbody>
+        </table>
+
+        <table className="informe-tabla informe-tabla-bloque">
+          <thead><tr><th colSpan={2}>DESCRIPCIÓN DEL INFORME</th></tr></thead>
+          <tbody><tr><td colSpan={2} style={{ whiteSpace: 'pre-wrap' }}>{datos.descripcion}</td></tr></tbody>
+        </table>
+
+        <table className="informe-tabla informe-tabla-bloque">
+          <thead><tr><th colSpan={2}>RUTA DE ATENCIÓN</th></tr></thead>
+          <tbody><tr><td colSpan={2}>{rutaTexto}</td></tr></tbody>
+        </table>
+
+        <p className="informe-nota">
+          Este informe fue registrado automáticamente por el sistema y notificado a coordinación y psicoorientación.
+        </p>
+
+        <div className="informe-firma">
+          <div className="informe-firma-linea">Firma del docente</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Colores literales (no tokens del tema): el papel siempre es blanco con
+ * texto negro, independientemente de si el docente tenía el modo oscuro
+ * activado al momento de imprimir.
+ */
+const CSS_INFORME_IMPRIMIBLE = `
+@page { size: letter; margin: 18mm 16mm; }
+
+.informe-hoja {
+  width: 210mm;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 10mm;
+  background: #fff;
+  color: #000;
+  box-sizing: border-box;
+  font-family: Arial, sans-serif;
+  font-size: 11pt;
+}
+.informe-encabezado { display: flex; align-items: center; gap: 4mm; justify-content: center; text-align: center; margin-bottom: 6mm; }
+.informe-escudo { width: 18mm; height: 18mm; object-fit: contain; }
+.informe-titulo { font-size: 14pt; margin: 0; }
+.informe-subtitulo { font-size: 11pt; margin: 2pt 0 0; color: #444; }
+.informe-tabla { border-collapse: collapse; width: 100%; margin: 0 0 4mm; break-inside: avoid; page-break-inside: avoid; }
+.informe-tabla td, .informe-tabla th { border: 1px solid #000; padding: 5pt 8pt; font-size: 10pt; vertical-align: top; text-align: left; }
+.informe-tabla th { background: #eaf1dd; }
+.informe-etiqueta { font-weight: bold; background: #eaf1dd; width: 32%; }
+.informe-tabla-bloque { break-inside: avoid; page-break-inside: avoid; }
+.informe-nota { font-size: 9pt; color: #555; margin-top: 6mm; }
+.informe-firma { margin-top: 16mm; break-inside: avoid; page-break-inside: avoid; }
+.informe-firma-linea { border-top: 1px solid #000; width: 70mm; margin-top: 12mm; padding-top: 3pt; font-size: 10pt; }
+
+@media print {
+  /* El imprimible cuelga de un contenedor de posicion fija con scroll propio, y Chrome
+     RECORTA A UNA SOLA PAGINA lo que hay dentro de un position:fixed. Con el
+     informe no se nota porque cabe en una hoja; con un historial de varias
+     atenciones se perderia todo menos la primera pagina, y justo el dia que hay
+     que presentar el caso. En papel el overlay deja de ser overlay. */
+  .informe-overlay {
+    position: static !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  body * { visibility: hidden !important; }
+  #${ID_IMPRIMIBLE}, #${ID_IMPRIMIBLE} * { visibility: visible !important; }
+  .informe-solo-pantalla, .informe-solo-pantalla * { display: none !important; }
+  .informe-hoja { width: auto; margin: 0; padding: 0; }
+}
+`;
+
 function directorDeGrupo(grado: string): string {
   const id = DIRECTORES_MANANA[grado] ?? DIRECTORES_TARDE[grado];
   return id ? (getUsuario(id)?.nombre ?? id) : '';
@@ -60,6 +192,8 @@ export function InformeContencion({ onTerminado, onCancelar }: {
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; correoEnviado?: boolean; error?: string } | null>(null);
   const [datosParaExportar, setDatosParaExportar] = useState<Parameters<typeof exportarInformeContencion>[0] | null>(null);
+  const [vistaImprimir, setVistaImprimir] = useState(false);
+  const [compartiendo, setCompartiendo] = useState(false);
 
   const dictado = useDictado(useCallback((texto: string) => {
     setDescripcion(prev => (prev ? `${prev} ${texto}` : texto));
@@ -123,6 +257,7 @@ export function InformeContencion({ onTerminado, onCancelar }: {
 
   if (resultado) {
     return (
+      <>
       <div className="flex flex-col gap-4 items-center text-center py-6">
         <span className="text-3xl">{resultado.ok ? '✅' : '⚠️'}</span>
         <p className="text-sm font-semibold text-strong">
@@ -136,23 +271,56 @@ export function InformeContencion({ onTerminado, onCancelar }: {
           </p>
         )}
         {!resultado.ok && <p className="text-xs text-danger">{resultado.error}</p>}
-        <div className="flex gap-2">
-          {resultado.ok && datosParaExportar && (
-            <button
-              onClick={() => exportarInformeContencion(datosParaExportar)}
-              className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition"
-            >
-              📄 Exportar (.doc)
-            </button>
-          )}
-          <button
-            onClick={onTerminado}
-            className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-accent-fg bg-accent hover:brightness-110 transition"
-          >
-            Terminar
-          </button>
-        </div>
+        {resultado.ok && datosParaExportar && (
+          <div className="flex flex-col gap-2 w-full max-w-xs">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setVistaImprimir(true)}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-accent-fg bg-accent hover:brightness-110 transition"
+              >
+                📄 Descargar PDF
+              </button>
+              <button
+                onClick={() => exportarInformeContencion(datosParaExportar)}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition"
+              >
+                📝 Editable (Word)
+              </button>
+            </div>
+            {/* PDF = para firmar/entregar tal cual (funciona igual en celular y PC).
+                Word = por si hay que editar el texto antes de firmarlo; en Android
+                puede que el .doc no abra directo en la app de Word/Drive — si eso
+                sigue pasando, Julián decide si se retira, no se oculta por defecto. */}
+            <p className="text-[10px] text-muted text-center">
+              PDF: para firmar e imprimir tal cual. Word: si necesitas editarlo antes de firmarlo (en algunos celulares puede no abrir directo — mejor desde computador).
+            </p>
+            {typeof navigator !== 'undefined' && !!navigator.share && (
+              <button
+                onClick={async () => {
+                  setCompartiendo(true);
+                  const ok = await compartirInformeContencion(datosParaExportar);
+                  setCompartiendo(false);
+                  if (!ok) exportarInformeContencion(datosParaExportar);
+                }}
+                disabled={compartiendo}
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition disabled:opacity-50"
+              >
+                {compartiendo ? 'Abriendo…' : '📤 Compartir (Word)'}
+              </button>
+            )}
+          </div>
+        )}
+        <button
+          onClick={onTerminado}
+          className="w-full max-w-xs px-5 py-2.5 rounded-xl text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition"
+        >
+          Terminar
+        </button>
       </div>
+      {vistaImprimir && datosParaExportar && (
+        <VistaImprimibleInforme datos={datosParaExportar} onCerrar={() => setVistaImprimir(false)} />
+      )}
+    </>
     );
   }
 

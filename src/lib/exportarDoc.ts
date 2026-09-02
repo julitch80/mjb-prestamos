@@ -51,8 +51,7 @@ ${cuerpoHtml}
 </html>`;
 }
 
-function descargar(nombreArchivo: string, html: string) {
-  const blob = new Blob(['﻿', html], { type: 'application/msword' });
+function descargar(nombreArchivo: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -60,7 +59,16 @@ function descargar(nombreArchivo: string, html: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // OJO: revocar la URL aquí mismo, de forma síncrona, es una condición de
+  // carrera real (no una fuga que "limpiar"). En escritorio el navegador ya
+  // leyó el blob antes de que el hilo de JS termine, pero en Android el
+  // gestor de descargas recibe el intent y lee la blob: URL de forma
+  // asíncrona — si la revocamos ya, a veces todavía no la leyó, y sale
+  // "descarga con error". Se le da margen con un setTimeout antes de
+  // revocar. No se puede detectar de forma fiable cuándo terminó de leerla
+  // (no hay evento para eso), así que el margen es una estimación generosa,
+  // no una garantía matemática.
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 export interface DatosInformeContencion {
@@ -77,7 +85,7 @@ export interface DatosInformeContencion {
   rutaDetalle: string;
 }
 
-const RUTA_LABEL: Record<string, string> = {
+export const RUTA_LABEL: Record<string, string> = {
   psicoorientador: 'Atención por psicoorientador del colegio',
   uai: 'Remisión a la UAI (Unidad de Atención Integral)',
   medellin_me_cuida: 'Remisión a Medellín Te Quiere Saludable',
@@ -88,7 +96,11 @@ const RUTA_LABEL: Record<string, string> = {
   sin_seleccionar: 'Sin especificar',
 };
 
-export async function exportarInformeContencion(datos: DatosInformeContencion) {
+// Separado de exportarInformeContencion() para que el mismo .doc se pueda
+// tanto descargar (<a download>) como adjuntar al menú nativo de compartir
+// de Android (navigator.share con `files`), que necesita el Blob/File en
+// mano en vez de un link.
+async function construirArchivoInforme(datos: DatosInformeContencion): Promise<{ blob: Blob; nombreArchivo: string }> {
   const rutaTexto = RUTA_LABEL[datos.rutaDetalle] ?? datos.rutaDetalle;
   const escudo = await escudoBase64();
   const cuerpo = `
@@ -122,5 +134,36 @@ export async function exportarInformeContencion(datos: DatosInformeContencion) {
   `;
   const html = documentoHtml('Informe de contención emocional', cuerpo);
   const nombreLimpio = datos.estudianteNombre.replace(/[^\w\s]/g, '').trim().replace(/\s+/g, '_');
-  descargar(`Informe_contencion_${nombreLimpio}_${datos.fecha}.doc`, html);
+  const nombreArchivo = `Informe_contencion_${nombreLimpio}_${datos.fecha}.doc`;
+  const blob = new Blob(['﻿', html], { type: 'application/msword' });
+  return { blob, nombreArchivo };
+}
+
+export async function exportarInformeContencion(datos: DatosInformeContencion) {
+  const { blob, nombreArchivo } = await construirArchivoInforme(datos);
+  descargar(nombreArchivo, blob);
+}
+
+/**
+ * Comparte el .doc por el menú nativo de Android (WhatsApp, Drive, correo…)
+ * cuando el navegador lo soporta (`navigator.canShare` con `files`). Si no,
+ * el llamador debe caer de vuelta a exportarInformeContencion(). No se
+ * intenta compartir el PDF aquí: el PDF lo genera el propio diálogo de
+ * impresión del sistema operativo, y JS no tiene forma de leer ese archivo
+ * de vuelta para adjuntarlo.
+ */
+export async function compartirInformeContencion(datos: DatosInformeContencion): Promise<boolean> {
+  if (!navigator.share) return false;
+  const { blob, nombreArchivo } = await construirArchivoInforme(datos);
+  const archivo = new File([blob], nombreArchivo, { type: 'application/msword' });
+  if (!navigator.canShare?.({ files: [archivo] })) return false;
+  try {
+    await navigator.share({ files: [archivo], title: 'Informe de contención emocional' });
+    return true;
+  } catch (e) {
+    // AbortError = el usuario cerró el panel de compartir sin elegir nada;
+    // no es un fallo real, no hay que caer a la descarga por esto.
+    if (e instanceof Error && e.name === 'AbortError') return true;
+    return false;
+  }
 }
