@@ -13,10 +13,11 @@ Por que existe este script y no se recortan a mano:
     699x796. Mentir en `sizes` hace que el navegador elija mal.
 
 Uso:  py -3 scripts/generar-iconos.py public/mjb_hd.png
-      py -3 scripts/generar-iconos.py arte.png --aro   (verde a sangre + aro rojo)
+      py -3 scripts/generar-iconos.py arte.png --aro       (verde a sangre + aro rojo)
+      py -3 scripts/generar-iconos.py baldosa.png --baldosa (arte ya disenado entero)
 """
 import sys, os
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 DESTINO = 'public/icons'
 # Fondo del icono enmascarado. Blanco y no el gris casi negro del tema: el
@@ -77,15 +78,77 @@ def componer_con_aro(arte, lado, margen_arte=0.22):
     return lienzo
 
 
+def desde_baldosa(baldosa, lado, encoge=1.0):
+    """Icono a partir de una baldosa ya disenada (fondo + marco + figura).
+
+    Con `encoge` < 1 la baldosa se reduce y alrededor va un degradado
+    SINTETICO construido interpolando los cuatro colores de esquina de la
+    propia baldosa. Es el tercer intento y el unico limpio: rellenar con una
+    copia desenfocada dejaba ver un cuadro dentro de otro, y estirar la fila
+    del borde producia bandas. Un degradado calculado no tiene costura
+    posible, porque no copia nada.
+
+    Por que hace falta encoger: un lanzador circular recorta un circulo de
+    diametro 80% del icono. Las ESQUINAS de un marco cuadrado puesto al 12%
+    del borde caen fuera de ese circulo, y el marco se veria cortado en las
+    cuatro. Encogiendo el conjunto, entra entero.
+    """
+    if encoge >= 1.0:
+        return baldosa.resize((lado, lado), Image.LANCZOS).convert('RGBA')
+
+    rgb = baldosa.convert('RGB')
+    b = rgb.width - 1
+    esquinas = Image.new('RGB', (2, 2))
+    esquinas.putpixel((0, 0), rgb.getpixel((0, 0)))
+    esquinas.putpixel((1, 0), rgb.getpixel((b, 0)))
+    esquinas.putpixel((0, 1), rgb.getpixel((0, b)))
+    esquinas.putpixel((1, 1), rgb.getpixel((b, b)))
+    lienzo = esquinas.resize((lado, lado), Image.BICUBIC).convert('RGBA')
+
+    util = int(lado * encoge)
+    off = (lado - util) // 2
+    frente = baldosa.resize((util, util), Image.LANCZOS).convert('RGBA')
+
+    # La baldosa se funde en el degradado por los bordes en vez de pegarse con
+    # canto duro: si no, se adivina el contorno del cuadrado interior. El
+    # fundido solo come el 8% exterior, que es fondo liso; el marco rojo esta
+    # al 12% hacia adentro y no lo toca.
+    difuminado = max(1, int(util * 0.08))
+    mascara = Image.new('L', (util, util), 0)
+    ImageDraw.Draw(mascara).rectangle(
+        [difuminado, difuminado, util - difuminado - 1, util - difuminado - 1], fill=255)
+    mascara = mascara.filter(ImageFilter.GaussianBlur(radius=difuminado * 0.7))
+
+    lienzo.paste(frente, (off, off), mascara)
+    return lienzo
+
+
 def main():
     if len(sys.argv) < 2:
         print('Falta la imagen fuente. Ej: py -3 scripts/generar-iconos.py public/mjb_hd.png')
         return 1
     origen = sys.argv[1]
+    baldosa = '--baldosa' in sys.argv
     aro = '--aro' in sys.argv
     im = Image.open(origen).convert('RGBA')
     print('fuente: %s  %sx%s%s' % (origen, im.width, im.height, '  (modo aro)' if aro else ''))
     os.makedirs(DESTINO, exist_ok=True)
+
+    if baldosa:
+        # El arte ya trae fondo, marco y figura: aqui solo se escala.
+        for lado in (192, 512):
+            desde_baldosa(im, lado).save('%s/icon-%d.png' % (DESTINO, lado))
+            desde_baldosa(im, lado, encoge=0.78).save(
+                '%s/icon-maskable-%d.png' % (DESTINO, lado))
+        desde_baldosa(im, 180).save('%s/apple-touch-icon.png' % DESTINO)
+        for lado in (16, 32, 48):
+            desde_baldosa(im, lado).save('%s/favicon-%d.png' % (DESTINO, lado))
+        for f in sorted(os.listdir(DESTINO)):
+            ruta = '%s/%s' % (DESTINO, f)
+            if not f.endswith('.png') or f.startswith('fuente'):
+                continue
+            print('  %-26s %s  %d KB' % (f, '%dx%d' % Image.open(ruta).size, os.path.getsize(ruta) // 1024))
+        return 0
 
     if aro:
         # `origen` debe ser SOLO el arte (la flor de lis) con fondo
