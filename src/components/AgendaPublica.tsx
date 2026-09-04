@@ -37,7 +37,7 @@ export default function AgendaPublica({ grupo }: { grupo: string }) {
           </div>
         ) : (
           <>
-            <AgendaGrupo grupo={grupo} tareas={data?.tareas ?? []} mostrarQR={false} />
+            <AgendaGrupo grupo={grupo} tareas={data?.tareas ?? []} mostrarQR={false} anclasPorGrupo={data?.anclas} />
             <footer className="flex justify-between items-center text-[10px] text-muted px-1">
               <span className="flex items-center gap-1"><RefreshCw size={10} /> actualizado hace {minAtras} min</span>
               <span>se actualiza automáticamente</span>

@@ -40,13 +40,36 @@ export const ANCLAS_TARDE: Ancla[] = [
 export const ANCLA_OTRO = 'otro';
 export const ANCLA_OTRO_MAX = 30;
 
+// ── Anclas por grupo (docs/anclas-por-grupo-contrato.md) ────────────────────
+//
+// El director de grupo puede reemplazar estas anclas por el acuerdo real de
+// SU curso ("nosotros dijimos que estudiamos al llegar..."). Se guardan en
+// Apps Script (hoja AnclasGrupo) y llegan en `getDatosTareas().anclas`, bajo
+// la clave del grupo. Tope validado también en servidor: no confiar solo en
+// el cliente.
+export const ANCLAS_GRUPO_MAX = 6;
+export const ANCLA_LABEL_MAX = 30;
+
 /** Jornada del grupo por su notación: 'º' = tarde (6º1, 7º2), punto = mañana (9.1, 10.2). */
 export function jornadaDeGrupo(grupo: string): 'manana' | 'tarde' {
   return grupo.includes('º') ? 'tarde' : 'manana';
 }
 
-export function anclasDeGrupo(grupo: string): Ancla[] {
+/** Anclas por defecto de la jornada del grupo — el punto de partida antes de que el director las edite. */
+export function anclasPorDefecto(grupo: string): Ancla[] {
   return jornadaDeGrupo(grupo) === 'tarde' ? ANCLAS_TARDE : ANCLAS_MANANA;
+}
+
+/**
+ * Anclas efectivas de un grupo: las que definió su director si existen, si no
+ * las de por defecto de su jornada. `anclasPorGrupo` es lo que llega de
+ * `getDatosTareas().anclas` — un backend que todavía no manda esa clave (o
+ * que no tiene nada para este grupo) hace que esto se comporte exactamente
+ * como antes de este cambio.
+ */
+export function anclasDeGrupo(grupo: string, anclasPorGrupo?: Record<string, Ancla[]>): Ancla[] {
+  const propias = anclasPorGrupo?.[grupo];
+  return propias && propias.length > 0 ? propias : anclasPorDefecto(grupo);
 }
 
 // ── Almacenamiento por dispositivo ───────────────────────────────────────────
@@ -100,12 +123,13 @@ export function guardarMomento(
   grupo: string,
   tareaId: string,
   momento: MomentoElegido | null,
+  anclasPorGrupo?: Record<string, Ancla[]>,
 ): void {
   const mapa = leerMomentos();
   if (momento) {
     // Se guarda tambien el TEXTO del ancla, no solo su id (ver MomentoElegido):
     // asi la eleccion del estudiante sobrevive a que la lista de anclas cambie.
-    const ancla = anclasDeGrupo(grupo).find(a => a.id === momento.anclaId);
+    const ancla = anclasDeGrupo(grupo, anclasPorGrupo).find(a => a.id === momento.anclaId);
     mapa[tareaId] = ancla ? { ...momento, label: ancla.label } : momento;
   } else {
     delete mapa[tareaId];
@@ -126,10 +150,14 @@ export function alternarTachada(tareaId: string): boolean {
   return nuevoValor;
 }
 
-export function etiquetaMomento(grupo: string, momento: MomentoElegido | undefined): string | null {
+export function etiquetaMomento(
+  grupo: string,
+  momento: MomentoElegido | undefined,
+  anclasPorGrupo?: Record<string, Ancla[]>,
+): string | null {
   if (!momento) return null;
   if (momento.anclaId === ANCLA_OTRO) return momento.texto || null;
-  const ancla = anclasDeGrupo(grupo).find(a => a.id === momento.anclaId);
+  const ancla = anclasDeGrupo(grupo, anclasPorGrupo).find(a => a.id === momento.anclaId);
   // La lista manda si el ancla sigue existiendo (asi un cambio de redaccion se
   // ve al instante), pero si ya no esta se recurre a la copia guardada en vez
   // de devolver null: perder la eleccion del estudiante es peor que mostrarle

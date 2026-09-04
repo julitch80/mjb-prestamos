@@ -241,6 +241,7 @@ export async function enviarCorreoMasivo(
 // ── Tareas (módulo de momentos) ────────────────────────────────────────────────
 
 import type { Tarea, Cesion, SolicitudCesion } from './tareas/tipos';
+import type { Ancla } from './tareas/habitos';
 
 export interface CupoNivel {
   nivel: string;
@@ -254,6 +255,12 @@ export interface DatosTareas {
   cesiones: Cesion[];
   solicitudes: SolicitudCesion[];
   cupos: CupoNivel[];
+  // Anclas de "¿cuándo la vas a hacer?" que cada director definió con su
+  // grupo (docs/anclas-por-grupo-contrato.md). Solo trae los grupos que
+  // tengan algo guardado; el resto sigue usando las de por defecto de su
+  // jornada (ver anclasDeGrupo en data/tareas/habitos.ts). Un backend que
+  // todavía no manda esta clave llega aquí como {} y nada se rompe.
+  anclas: Record<string, Ancla[]>;
   error?: string;
 }
 
@@ -268,8 +275,23 @@ export async function getDatosTareas(grupo?: string): Promise<DatosTareas> {
     cesiones: res.cesiones ?? [],
     solicitudes: res.solicitudes ?? [],
     cupos: res.cupos ?? [],
+    anclas: res.anclas ?? {},
     error: res.error,
   };
+}
+
+// Guarda las anclas de un grupo (solo el director de ese grupo, coordinación,
+// rectoría o superusuario — el servidor valida quién es y aplica los topes de
+// 6 anclas / 30 caracteres; el cliente los valida también, pero no basta).
+export async function guardarAnclasGrupo(
+  grupo: string,
+  anclas: Ancla[],
+): Promise<{ ok: boolean; error?: string }> {
+  return callApi(await conIdToken({
+    action: 'guardarAnclasGrupo',
+    grupo,
+    anclas: JSON.stringify(anclas),
+  }));
 }
 
 export async function guardarCupos(

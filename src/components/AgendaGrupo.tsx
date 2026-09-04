@@ -9,7 +9,7 @@ import { CONFIG_NIVEL, nivelDeGrupo } from '../data/tareas/config';
 import { planificarAgenda, ocupacionPorDia, fechaLegible } from '../data/tareas/motor';
 import {
   ANCLA_OTRO, ANCLA_OTRO_MAX, anclasDeGrupo, etiquetaMomento,
-  guardarMomento, leerMomentos, leerTachadas, alternarTachada, type MomentoElegido,
+  guardarMomento, leerMomentos, leerTachadas, alternarTachada, type MomentoElegido, type Ancla,
 } from '../data/tareas/habitos';
 import AgendaImprimible from './AgendaImprimible';
 import AgendaProyeccion from './AgendaProyeccion';
@@ -36,13 +36,14 @@ function diaLegibleLargo(f: FechaISO): string {
  * que ya ocurre sola (el almuerzo, la llegada a casa), así que tiene que
  * invitar, no esconderse en un ajuste.
  */
-function SelectorMomento({ grupo, actual, onGuardar, onCerrar }: {
+function SelectorMomento({ grupo, actual, anclasPorGrupo, onGuardar, onCerrar }: {
   grupo: string;
   actual?: MomentoElegido;
+  anclasPorGrupo?: Record<string, Ancla[]>;
   onGuardar: (m: MomentoElegido | null) => void;
   onCerrar: () => void;
 }) {
-  const anclas = anclasDeGrupo(grupo);
+  const anclas = anclasDeGrupo(grupo, anclasPorGrupo);
   const [otroTexto, setOtroTexto] = useState(actual?.anclaId === ANCLA_OTRO ? (actual.texto ?? '') : '');
   const [mostrarOtro, setMostrarOtro] = useState(actual?.anclaId === ANCLA_OTRO);
 
@@ -120,8 +121,10 @@ function fondoCarga(n: number, tope: number): string {
  * Agenda de un grupo: vista semanal + diaria + QR. Se usa igual para el docente,
  * el coordinador, la rectora y la página pública. Recibe las tareas ya cargadas.
  */
-export default function AgendaGrupo({ grupo, tareas, mostrarQR = true }: {
+export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPorGrupo }: {
   grupo: string; tareas: Tarea[]; mostrarQR?: boolean;
+  /** Anclas por grupo del director (docs/anclas-por-grupo-contrato.md). Si falta, se usan las de por defecto. */
+  anclasPorGrupo?: Record<string, Ancla[]>;
 }) {
   const hoy = hoyISO();
   const config = CONFIG_NIVEL[nivelDeGrupo(grupo)];
@@ -190,7 +193,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true }: {
   const [mostrarProyeccion, setMostrarProyeccion] = useState(false);
 
   function guardarMomentoTarea(tareaId: string, m: MomentoElegido | null) {
-    guardarMomento(grupo, tareaId, m);
+    guardarMomento(grupo, tareaId, m, anclasPorGrupo);
     setMomentos(leerMomentos());
   }
 
@@ -278,7 +281,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true }: {
           ) : (
             tareasDelDia(diaSel).map(({ b, t }, i) => {
               const tachada = !!tachadas[t.id];
-              const etiquetaMom = etiquetaMomento(grupo, momentos[t.id]);
+              const etiquetaMom = etiquetaMomento(grupo, momentos[t.id], anclasPorGrupo);
               return (
                 <div key={i} className={cn('rounded-xl border border-line px-3 py-2.5 flex gap-2.5 transition-all',
                   tachada ? 'bg-elevated/15 opacity-60' : 'bg-elevated/40')}>
@@ -356,7 +359,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true }: {
                     <div className="space-y-1.5">
                       {items.map(({ b, t }, i) => {
                         const tachada = !!tachadas[t.id];
-                        const etiquetaMom = etiquetaMomento(grupo, momentos[t.id]);
+                        const etiquetaMom = etiquetaMomento(grupo, momentos[t.id], anclasPorGrupo);
                         return (
                           <div key={i} className="flex items-start gap-1.5">
                             <button
@@ -442,6 +445,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true }: {
         <SelectorMomento
           grupo={grupo}
           actual={momentos[tareaEligiendoMomento.id]}
+          anclasPorGrupo={anclasPorGrupo}
           onGuardar={m => guardarMomentoTarea(tareaEligiendoMomento.id, m)}
           onCerrar={() => setTareaEligiendoMomento(null)}
         />

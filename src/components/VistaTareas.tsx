@@ -1,18 +1,19 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { CalendarDays, Camera, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CopyPlus, FolderOpen, Gift, Paperclip, HandCoins, Loader2, QrCode, Settings2, Trash2, X } from 'lucide-react';
+import { CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, FolderOpen, Gift, ListChecks, Paperclip, HandCoins, Loader2, QrCode, Settings2, Trash2, X } from 'lucide-react';
 import AgendaGrupo from './AgendaGrupo';
 import ModalReplicarTarea from './ModalReplicarTarea';
 import { subirAdjuntoTarea } from '../data/tareas/adjuntos';
 import { useAppStore } from '../data/store';
 import {
   getDatosTareas, crearTarea, cancelarTarea, crearCesion,
-  crearSolicitudCesion, responderSolicitudCesion, guardarCupos,
+  crearSolicitudCesion, responderSolicitudCesion, guardarCupos, guardarAnclasGrupo,
 } from '../data/api';
-import { USUARIOS, colorGrado } from '../data/maestros';
+import { USUARIOS, colorGrado, DIRECTORES_MANANA, DIRECTORES_TARDE } from '../data/maestros';
 import { getAsignatura, asignacionDeGrupo } from '../data/asignacionAcademica';
 import type { Tarea, Cesion, SolicitudCesion, FechaISO } from '../data/tareas/tipos';
+import { anclasPorDefecto, ANCLAS_GRUPO_MAX, ANCLA_LABEL_MAX, type Ancla } from '../data/tareas/habitos';
 import {
   addDias, esDiaHabil, esDiaEjecutable, hoyISO, parseFecha, formatFecha, diaSemana, esFestivo,
 } from '../data/tareas/calendario';
@@ -23,6 +24,158 @@ import {
 } from '../data/tareas/motor';
 import { diasDeClase, gruposAsignables, todosLosGrupos, esGrupoDeTarde } from '../data/tareas/horario';
 import { cn } from '@/lib/utils';
+
+// Director de ese grupo: solo él (o coordinación/rectoría, ya cubiertos por
+// `esDirectivo` en cada panel) puede tocar sus anclas — ver
+// docs/anclas-por-grupo-contrato.md.
+function esDirectorDeGrupo(userId: string | null, grupo: string): boolean {
+  return !!userId && (DIRECTORES_MANANA[grupo] === userId || DIRECTORES_TARDE[grupo] === userId);
+}
+
+/**
+ * Editor de las anclas de "¿cuándo la vas a hacer?" de un grupo. Vive aquí
+ * (VistaTareas, dentro de la app, con sesión) y NUNCA en la agenda pública
+ * (AgendaGrupo/AgendaPublica), que no tiene login y solo debe leer.
+ *
+ * Al abrir por primera vez sin anclas guardadas se precarga con las de por
+ * defecto de la jornada: partir de una lista vacía es lo que hace que nadie
+ * use esto (ver contrato). Reordenar es con flechas arriba/abajo — más
+ * simple y más táctil que arrastrar, y no depende de hover.
+ */
+function EditorAnclas({ grupo, anclasActuales, onCerrar }: {
+  grupo: string;
+  anclasActuales?: Ancla[];
+  onCerrar: () => void;
+}) {
+  const qc = useQueryClient();
+  const [anclas, setAnclas] = useState<Ancla[]>(() =>
+    anclasActuales && anclasActuales.length > 0 ? anclasActuales : anclasPorDefecto(grupo)
+  );
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function actualizar(i: number, label: string) {
+    setAnclas(prev => prev.map((a, idx) => (idx === i ? { ...a, label: label.slice(0, ANCLA_LABEL_MAX) } : a)));
+  }
+  function quitar(i: number) {
+    setAnclas(prev => prev.filter((_, idx) => idx !== i));
+  }
+  function mover(i: number, dir: -1 | 1) {
+    setAnclas(prev => {
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const copia = [...prev];
+      [copia[i], copia[j]] = [copia[j], copia[i]];
+      return copia;
+    });
+  }
+  function agregar() {
+    if (anclas.length >= ANCLAS_GRUPO_MAX) return;
+    setAnclas(prev => [...prev, { id: `a${Date.now()}`, label: '' }]);
+  }
+
+  const hayVacias = anclas.some(a => !a.label.trim());
+  const puedeGuardar = anclas.length > 0 && !hayVacias && !guardando;
+
+  async function guardar() {
+    if (!puedeGuardar) return;
+    setGuardando(true);
+    setError(null);
+    const limpio = anclas.map(a => ({ id: a.id, label: a.label.trim().slice(0, ANCLA_LABEL_MAX) }));
+    const r = await guardarAnclasGrupo(grupo, limpio);
+    setGuardando(false);
+    if (r.ok) {
+      qc.invalidateQueries({ queryKey: ['datosTareas'] });
+      onCerrar();
+    } else {
+      setError(r.error ?? 'No se pudo guardar. Intenta de nuevo.');
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center overflow-y-auto p-4"
+      onClick={onCerrar}
+    >
+      <div className="rounded-2xl border border-line bg-card p-4 max-w-sm w-full my-8" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-2 mb-1">
+          <ListChecks size={18} className="text-soft" />
+          <h3 className="font-bold text-strong">Anclas de <span style={{ color: colorGrado(grupo) }}>{grupo}</span></h3>
+          <button onClick={onCerrar} className="ml-auto p-1.5 rounded-lg text-muted hover:text-strong hover:bg-elevated">
+            <X size={16} />
+          </button>
+        </div>
+        <p className="text-[11px] text-muted mb-3">
+          Esto se decide con el grupo: es lo que los estudiantes verán al elegir cuándo van a hacer
+          cada tarea. Que suene a la rutina real del curso, no a redacción de adulto.
+        </p>
+
+        <div className="space-y-2">
+          {anclas.map((a, i) => (
+            <div key={a.id} className="flex items-center gap-1.5">
+              <div className="flex flex-col">
+                <button onClick={() => mover(i, -1)} disabled={i === 0}
+                  aria-label="Subir" className="p-0.5 text-muted hover:text-strong disabled:opacity-20 transition">
+                  <ChevronUp size={14} />
+                </button>
+                <button onClick={() => mover(i, 1)} disabled={i === anclas.length - 1}
+                  aria-label="Bajar" className="p-0.5 text-muted hover:text-strong disabled:opacity-20 transition">
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+              <input
+                value={a.label}
+                onChange={e => actualizar(i, e.target.value)}
+                maxLength={ANCLA_LABEL_MAX}
+                placeholder="Ej: Después de almorzar"
+                className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-elevated border border-line text-sm text-strong placeholder:text-muted focus:outline-none focus:border-line-strong"
+              />
+              <span className="text-[10px] text-muted w-8 text-right flex-shrink-0">{a.label.length}/{ANCLA_LABEL_MAX}</span>
+              <button
+                onClick={() => quitar(i)}
+                aria-label="Quitar ancla"
+                className="p-2 rounded-lg text-muted hover:text-danger hover:bg-danger-soft transition flex-shrink-0"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+          {anclas.length === 0 && (
+            <p className="text-xs text-muted py-2">Sin anclas. Añade al menos una.</p>
+          )}
+        </div>
+
+        <button
+          onClick={agregar}
+          disabled={anclas.length >= ANCLAS_GRUPO_MAX}
+          className="mt-2 px-3 py-2 rounded-xl text-xs font-medium border border-line text-soft hover:bg-elevated disabled:opacity-40 transition"
+        >
+          + Añadir ancla
+        </button>
+        {anclas.length >= ANCLAS_GRUPO_MAX && (
+          <p className="text-[11px] text-warning mt-1.5">Máximo {ANCLAS_GRUPO_MAX} anclas — una lista larga deja de ayudar a elegir.</p>
+        )}
+        {hayVacias && (
+          <p className="text-[11px] text-danger mt-1.5">Ninguna ancla puede quedar vacía.</p>
+        )}
+        {error && (
+          <p className="text-[11px] text-danger mt-1.5">{error}</p>
+        )}
+
+        <div className="flex items-center gap-3 mt-4">
+          <button
+            onClick={guardar}
+            disabled={!puedeGuardar}
+            className="px-4 py-2 rounded-xl text-sm font-semibold border border-line-strong bg-hover text-strong disabled:opacity-40"
+          >
+            {guardando ? <Loader2 size={14} className="animate-spin inline" /> : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
 function diaCortoDe(f: FechaISO): string {
   const [y, m, d] = f.split('-').map(Number);
@@ -188,7 +341,9 @@ function AdjuntoTarea({
   );
 }
 
-function ModalAgenda({ grupo, tareas, onClose }: { grupo: string; tareas: Tarea[]; onClose: () => void }) {
+function ModalAgenda({ grupo, tareas, anclasPorGrupo, onClose }: {
+  grupo: string; tareas: Tarea[]; anclasPorGrupo?: Record<string, Ancla[]>; onClose: () => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -204,7 +359,7 @@ function ModalAgenda({ grupo, tareas, onClose }: { grupo: string; tareas: Tarea[
             <X size={16} />
           </button>
         </div>
-        <AgendaGrupo grupo={grupo} tareas={tareas} mostrarQR />
+        <AgendaGrupo grupo={grupo} tareas={tareas} mostrarQR anclasPorGrupo={anclasPorGrupo} />
       </div>
     </motion.div>
   );
@@ -222,8 +377,9 @@ function colorCarga(ocupados: number, tope: number): string {
 
 // ── Panel del docente ─────────────────────────────────────────────────────────
 
-function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
+function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorGrupo }: {
   tareas: Tarea[]; cesiones: Cesion[]; solicitudes: SolicitudCesion[]; cuposOverride: Record<string, number>;
+  anclasPorGrupo: Record<string, Ancla[]>;
 }) {
   const { userId } = useAppStore();
   const qc = useQueryClient();
@@ -245,6 +401,8 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
   const [mostrarSolicitud, setMostrarSolicitud] = useState(false);
   const [agendaAbierta, setAgendaAbierta] = useState(false);
   const [replicando, setReplicando] = useState<Tarea | null>(null);
+  const [editandoAnclas, setEditandoAnclas] = useState(false);
+  const soyDirector = !!grupo && esDirectorDeGrupo(userId, grupo);
 
   const asignaturaActiva = grupoInfo?.asignaturaIds.includes(asignaturaId)
     ? asignaturaId
@@ -394,12 +552,22 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
           <ClipboardList size={18} className="text-soft" />
           <h2 className="font-bold text-strong">Asignar tarea</h2>
           {grupo && (
-            <button
-              onClick={() => setAgendaAbierta(true)}
-              className="ml-auto px-3 py-1.5 rounded-full text-xs font-medium border border-line text-soft hover:bg-elevated transition-all flex items-center gap-1.5"
-            >
-              <CalendarDays size={13} /> Agenda de {grupo}
-            </button>
+            <div className="ml-auto flex gap-2">
+              {soyDirector && (
+                <button
+                  onClick={() => setEditandoAnclas(true)}
+                  className="px-3 py-1.5 rounded-full text-xs font-medium border border-line text-soft hover:bg-elevated transition-all flex items-center gap-1.5"
+                >
+                  <ListChecks size={13} /> Anclas de {grupo}
+                </button>
+              )}
+              <button
+                onClick={() => setAgendaAbierta(true)}
+                className="px-3 py-1.5 rounded-full text-xs font-medium border border-line text-soft hover:bg-elevated transition-all flex items-center gap-1.5"
+              >
+                <CalendarDays size={13} /> Agenda de {grupo}
+              </button>
+            </div>
           )}
         </div>
 
@@ -714,7 +882,10 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride }: {
           />
         )}
         {agendaAbierta && grupo && (
-          <ModalAgenda grupo={grupo} tareas={tareas} onClose={() => setAgendaAbierta(false)} />
+          <ModalAgenda grupo={grupo} tareas={tareas} anclasPorGrupo={anclasPorGrupo} onClose={() => setAgendaAbierta(false)} />
+        )}
+        {editandoAnclas && grupo && (
+          <EditorAnclas grupo={grupo} anclasActuales={anclasPorGrupo[grupo]} onCerrar={() => setEditandoAnclas(false)} />
         )}
       </AnimatePresence>
     </div>
@@ -1043,8 +1214,9 @@ function SeccionSolicitudes({ solicitudes }: { solicitudes: SolicitudCesion[] })
 
 // ── Panel del coordinador / rectora ───────────────────────────────────────────
 
-function PanelDirectivo({ tareas, cesiones, cuposOverride }: {
+function PanelDirectivo({ tareas, cesiones, cuposOverride, anclasPorGrupo }: {
   tareas: Tarea[]; cesiones: Cesion[]; cuposOverride: Record<string, number>;
+  anclasPorGrupo: Record<string, Ancla[]>;
 }) {
   const { userId, jornada } = useAppStore();
   const qc = useQueryClient();
@@ -1054,6 +1226,7 @@ function PanelDirectivo({ tareas, cesiones, cuposOverride }: {
   );
   const [agendaGrupo, setAgendaGrupo] = useState<string | null>(null);
   const [cuposAbierto, setCuposAbierto] = useState(false);
+  const [anclasGrupo, setAnclasGrupo] = useState<string | null>(null);
 
   const grupos = useMemo(() =>
     todosLosGrupos().filter(g => esGrupoDeTarde(g) === (filtroJornada === 'tarde')),
@@ -1174,7 +1347,14 @@ function PanelDirectivo({ tareas, cesiones, cuposOverride }: {
                       </td>
                     );
                   })}
-                  <td className="text-center">
+                  <td className="text-center whitespace-nowrap">
+                    <button
+                      onClick={() => setAnclasGrupo(g)}
+                      title={`Editar anclas de ${g}`}
+                      className="p-1.5 rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
+                    >
+                      <ListChecks size={14} />
+                    </button>
                     <button
                       onClick={() => setAgendaGrupo(g)}
                       title={`Agenda y QR de ${g}`}
@@ -1238,10 +1418,13 @@ function PanelDirectivo({ tareas, cesiones, cuposOverride }: {
       {/* ── Modal agenda del grupo ─────────────────────────── */}
       <AnimatePresence>
         {agendaGrupo && (
-          <ModalAgenda grupo={agendaGrupo} tareas={tareas} onClose={() => setAgendaGrupo(null)} />
+          <ModalAgenda grupo={agendaGrupo} tareas={tareas} anclasPorGrupo={anclasPorGrupo} onClose={() => setAgendaGrupo(null)} />
         )}
         {cuposAbierto && (
           <ModalCupos cuposOverride={cuposOverride} onClose={() => setCuposAbierto(false)} />
+        )}
+        {anclasGrupo && (
+          <EditorAnclas grupo={anclasGrupo} anclasActuales={anclasPorGrupo[anclasGrupo]} onCerrar={() => setAnclasGrupo(null)} />
         )}
       </AnimatePresence>
     </div>
@@ -1415,6 +1598,6 @@ export default function VistaTareas() {
   for (const c of data.cupos) cuposOverride[`${c.nivel}:${c.asignaturaId}`] = c.momentos;
 
   return esDirectivo
-    ? <PanelDirectivo tareas={data.tareas} cesiones={data.cesiones} cuposOverride={cuposOverride} />
-    : <PanelDocente tareas={data.tareas} cesiones={data.cesiones} solicitudes={data.solicitudes} cuposOverride={cuposOverride} />;
+    ? <PanelDirectivo tareas={data.tareas} cesiones={data.cesiones} cuposOverride={cuposOverride} anclasPorGrupo={data.anclas} />
+    : <PanelDocente tareas={data.tareas} cesiones={data.cesiones} solicitudes={data.solicitudes} cuposOverride={cuposOverride} anclasPorGrupo={data.anclas} />;
 }
