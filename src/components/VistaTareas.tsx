@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CopyPlus, Gift, Paperclip, HandCoins, Loader2, QrCode, Settings2, Trash2, X } from 'lucide-react';
+import { CalendarDays, Camera, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CopyPlus, FolderOpen, Gift, Paperclip, HandCoins, Loader2, QrCode, Settings2, Trash2, X } from 'lucide-react';
 import AgendaGrupo from './AgendaGrupo';
 import ModalReplicarTarea from './ModalReplicarTarea';
 import { subirAdjuntoTarea } from '../data/tareas/adjuntos';
@@ -53,7 +53,9 @@ function gridMes(year: number, month: number): (FechaISO | null)[][] {
 }
 
 // Modal reutilizable con la agenda del grupo (día + semana + QR).
-type AdjuntoTareaDato = { url: string; nombre: string };
+// `esImagen` no se manda al backend (solo adjuntoUrl/adjuntoNombre); es un dato
+// local para decidir si mostrar la vista previa y el aviso específico de fotos.
+type AdjuntoTareaDato = { url: string; nombre: string; esImagen?: boolean };
 
 /**
  * Subida del archivo de una tarea.
@@ -74,6 +76,10 @@ function AdjuntoTarea({
   const [subiendo, setSubiendo] = useState(false);
   const [pct, setPct] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Vista previa local (blob URL) del archivo recién elegido, solo para imágenes.
+  // Se guarda aparte de `adjunto.url` (la URL final de Storage) porque durante la
+  // subida todavía no existe esa URL, y así el docente ve la foto de inmediato.
+  const [previaLocal, setPrevia] = useState<string | null>(null);
 
   async function elegir(ev: React.ChangeEvent<HTMLInputElement>) {
     const file = ev.target.files?.[0];
@@ -81,17 +87,30 @@ function AdjuntoTarea({
     // evento otra vez; si no, corregirlo y reintentar parece no hacer nada.
     ev.target.value = '';
     if (!file) return;
+    const esImagen = file.type.startsWith('image/');
     setError(null);
     setSubiendo(true);
     setPct(0);
+    if (esImagen) setPrevia(URL.createObjectURL(file));
     try {
-      onCambiar(await subirAdjuntoTarea(file, setPct));
+      const subido = await subirAdjuntoTarea(file, setPct);
+      onCambiar({ ...subido, esImagen });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo subir el archivo.');
+      setPrevia(null);
     } finally {
       setSubiendo(false);
     }
   }
+
+  function quitar() {
+    if (previaLocal) URL.revokeObjectURL(previaLocal);
+    setPrevia(null);
+    onCambiar(null);
+  }
+
+  const esImagen = adjunto?.esImagen ?? false;
+  const previa = previaLocal ?? (esImagen ? adjunto?.url : null);
 
   return (
     <div className="w-full">
@@ -99,28 +118,72 @@ function AdjuntoTarea({
         Archivo adjunto <span className="opacity-70">(opcional, máx. 10 MB)</span>
       </label>
       {adjunto ? (
-        <div className="flex items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-2">
-          <Paperclip size={14} className="text-muted shrink-0" />
-          <span className="text-xs text-strong truncate flex-1">{adjunto.nombre}</span>
-          <button
-            onClick={() => onCambiar(null)}
-            className="text-[11px] text-muted hover:text-danger transition"
-          >
-            Quitar
-          </button>
+        <div className="rounded-xl border border-line bg-elevated p-2 space-y-2">
+          {previa && (
+            <img
+              src={previa}
+              alt="Vista previa del adjunto"
+              className="w-full max-h-48 object-contain rounded-lg bg-surface"
+            />
+          )}
+          <div className="flex items-center gap-2">
+            {!previa && <Paperclip size={14} className="text-muted shrink-0" />}
+            <span className="text-xs text-strong truncate flex-1">{adjunto.nombre}</span>
+            <button
+              onClick={quitar}
+              className="text-[11px] text-muted hover:text-danger transition shrink-0"
+            >
+              Quitar
+            </button>
+          </div>
         </div>
       ) : (
-        <label className="inline-flex items-center gap-2 cursor-pointer rounded-xl border border-line bg-elevated px-3 py-2 text-xs text-soft hover:text-strong transition">
-          <Paperclip size={14} />
-          {subiendo ? `Subiendo… ${pct}%` : 'Seleccionar archivo…'}
-          <input type="file" hidden disabled={subiendo} onChange={elegir} />
-        </label>
+        // Tres formas de conseguir el archivo. "Tomar foto" usa `capture="environment"`
+        // (mismo patrón que CapturaEscaner.tsx): en el celular abre la cámara trasera
+        // directo, sin pasar por el explorador. En escritorio, capture se ignora y
+        // los tres botones abren el mismo selector de archivos — no hace falta
+        // detectar el dispositivo. flex-wrap evita que se rompa la fila en pantallas
+        // angostas.
+        <div className="flex flex-wrap gap-2">
+          <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-xl border border-line bg-elevated px-3 py-2.5 text-xs text-soft hover:text-strong transition min-h-[40px]">
+            <Camera size={14} />
+            Tomar foto
+            <input
+              type="file"
+              hidden
+              accept="image/*"
+              capture="environment"
+              disabled={subiendo}
+              onChange={elegir}
+            />
+          </label>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-xl border border-line bg-elevated px-3 py-2.5 text-xs text-soft hover:text-strong transition min-h-[40px]">
+            <FolderOpen size={14} />
+            Galería
+            <input type="file" hidden accept="image/*" disabled={subiendo} onChange={elegir} />
+          </label>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-xl border border-line bg-elevated px-3 py-2.5 text-xs text-soft hover:text-strong transition min-h-[40px]">
+            <Paperclip size={14} />
+            Archivo
+            <input type="file" hidden disabled={subiendo} onChange={elegir} />
+          </label>
+        </div>
       )}
+      {subiendo && <p className="text-[11px] text-muted mt-1">Subiendo… {pct}%</p>}
       {error && <p className="text-[11px] text-danger mt-1">{error}</p>}
       <p className="text-[11px] text-warning mt-1 leading-snug">
         La agenda del grupo se abre con el código QR, sin contraseña. Lo que adjunte aquí lo podrá
         ver <b>cualquiera que tenga ese enlace</b>: no suba nada con datos personales de estudiantes.
       </p>
+      {esImagen && (
+        // Aviso adicional y más concreto que el general de arriba: una foto del
+        // tablero captura lo que haya delante (caras, cuadernos, listas pegadas en
+        // la pared), no solo el contenido que el docente quiso compartir.
+        <p className="text-[11px] text-warning mt-1 leading-snug">
+          Revise la foto antes de guardar: que no aparezca ningún estudiante ni nada con su
+          nombre (cuadernos, listas, carteleras). Cualquiera con el enlace del QR podrá verla.
+        </p>
+      )}
     </div>
   );
 }
