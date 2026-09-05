@@ -70,13 +70,22 @@ export default function LoginScreen() {
     setCargando(true);
     setError('');
 
+    // El acceso por PIN se retiro por seguridad (auditoria del 2026-09-03).
+    //
+    // La comprobacion que habia aqui era: `u.pin === '' || u.pin === pin || pin === ''`.
+    // Ese ultimo termino aceptaba la CASILLA VACIA para cualquiera, y 43 de los 46
+    // docentes tenian el PIN vacio, con lo que el primero tambien los abria. En modo
+    // PIN no habia contrasena en absoluto, para nadie — incluida rectoria.
+    //
+    // No era explotable en produccion, porque el acceso real es con Google y esta
+    // pantalla no se muestra. Pero bastaba cambiar VITE_AUTH_MODE para dejar la
+    // aplicacion abierta de par en par, sin que nada avisara. Los PIN, ademas, viajaban
+    // en el archivo que descarga cualquier navegador.
+    //
+    // Se cierra por completo en vez de arreglarse: es un camino muerto desde que se paso
+    // a Google, y un camino muerto que autentica es peor que no tenerlo.
     if (MODO_LOCAL) {
-      const u = USUARIOS.find(u => u.id === usuarioSeleccionado);
-      if (u && (u.pin === '' || u.pin === pin || pin === '')) {
-        setUsuario(u.id, u.nombre, u.rol, u.jornada === 'ambas' ? 'manana' : u.jornada);
-      } else if (u) {
-        setError('PIN incorrecto');
-      }
+      setError('El acceso es con la cuenta institucional de Google.');
       setCargando(false);
       return;
     }

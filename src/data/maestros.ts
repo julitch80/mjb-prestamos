@@ -33,7 +33,6 @@ export interface Usuario {
   rol: Rol;
   jornada: Jornada;
   correo: string;
-  pin: string;
   color: string;
   /** Sede a la que pertenece el usuario. Si falta, se asume 'central'. */
   sede?: SedeId;
@@ -66,46 +65,46 @@ export interface Acompanamiento {
 
 export const USUARIOS: Usuario[] = [
   // Directivos
-  { id: 'rectora',      nombre: 'Nancy Adriana Herrera López',    nombreCorto: 'Nancy',      rol: 'rectora',     jornada: 'ambas',  correo: 'mjb@iemanueljbetancur.edu.co',            pin: '11111', color: '#e8c84a' },
-  { id: 'coord_manana', nombre: 'Janneth Astrid Ocampo Carvajal', nombreCorto: 'Janneth',    rol: 'coordinador', jornada: 'manana', correo: 'janneth.ocampo@iemanueljbetancur.edu.co', pin: '11111', color: '#f08080' },
-  { id: 'coord_tarde',  nombre: 'Juan Diego Salazar Rendón',      nombreCorto: 'Juan Diego', rol: 'coordinador', jornada: 'tarde',  correo: 'juan.salazar@iemanueljbetancur.edu.co',   pin: '11111', color: '#f08080' },
+  { id: 'rectora',      nombre: 'Nancy Adriana Herrera López',    nombreCorto: 'Nancy',      rol: 'rectora',     jornada: 'ambas',  correo: 'mjb@iemanueljbetancur.edu.co',            color: '#e8c84a' },
+  { id: 'coord_manana', nombre: 'Janneth Astrid Ocampo Carvajal', nombreCorto: 'Janneth',    rol: 'coordinador', jornada: 'manana', correo: 'janneth.ocampo@iemanueljbetancur.edu.co', color: '#f08080' },
+  { id: 'coord_tarde',  nombre: 'Juan Diego Salazar Rendón',      nombreCorto: 'Juan Diego', rol: 'coordinador', jornada: 'tarde',  correo: 'juan.salazar@iemanueljbetancur.edu.co',   color: '#f08080' },
 
   // Docentes mañana — paleta arcoíris de 15 colores equidistantes (~24° entre sí)
-  { id: 'johana',    nombre: 'Leidy Johana Cano Ruiz',          nombreCorto: 'Johana',     rol: 'docente', jornada: 'manana', correo: 'johana.cano@iemanueljbetancur.edu.co',     pin: '', color: '#ef4444' }, // red-500
-  { id: 'beatriz',   nombre: 'Beatriz Elena Montoya Valdés',    nombreCorto: 'Beatriz',    rol: 'docente', jornada: 'manana', correo: 'beatriz.montoya@iemanueljbetancur.edu.co', pin: '', color: '#f97316' }, // orange-500
-  { id: 'adolfo',    nombre: 'Adolfo León Arango Arroyave',     nombreCorto: 'Adolfo',     rol: 'docente', jornada: 'manana', correo: 'adolfo.arango@iemanueljbetancur.edu.co',   pin: '', color: '#eab308' }, // yellow-500
-  { id: 'gloria_a',  nombre: 'Gloria Estella Álvarez López',    nombreCorto: 'Gloria A.',  rol: 'docente', jornada: 'manana', correo: 'gloria.alvarez@iemanueljbetancur.edu.co',  pin: '', color: '#84cc16' }, // lime-500
-  { id: 'doris',     nombre: 'Doris Castrillón Álvarez',        nombreCorto: 'Doris',      rol: 'docente', jornada: 'manana', correo: 'doris.castrillon@iemanueljbetancur.edu.co', pin: '', color: '#22c55e' }, // green-500
-  { id: 'marta',     nombre: 'Marta Úsuga',                     nombreCorto: 'Marta',      rol: 'docente', jornada: 'ambas',  correo: 'martha.usuga@iemanueljbetancur.edu.co',    pin: '', color: '#10b981' }, // emerald-500
-  { id: 'julian',    nombre: 'Julián David Medina Tamayo',      nombreCorto: 'Julián',     rol: 'docente', jornada: 'manana', correo: 'julian.medina@iemanueljbetancur.edu.co',   pin: '', color: '#14b8a6' }, // teal-500
-  { id: 'carlos',    nombre: 'Carlos Cárdenas',                 nombreCorto: 'Carlos',     rol: 'docente', jornada: 'manana', correo: 'carlos.cardenas@iemanueljbetancur.edu.co', pin: '', color: '#0ea5e9' }, // sky-500
-  { id: 'yoguis',    nombre: 'Juan Carlos Blandón Vargas',      nombreCorto: 'Yoguis',     rol: 'docente', jornada: 'ambas',  correo: 'juancarlosbv@iemanueljbetancur.edu.co',    pin: '', color: '#3b82f6' }, // blue-500
-  { id: 'jorge',     nombre: 'Jorge Iván Acevedo Tabares',      nombreCorto: 'Jorge',      rol: 'docente', jornada: 'manana', correo: 'jorge.acevedo@iemanueljbetancur.edu.co',   pin: '', color: '#6366f1' }, // indigo-500
-  { id: 'ledis',     nombre: 'Ledis Laura Quintana Seguanes',   nombreCorto: 'Ledis',      rol: 'docente', jornada: 'manana', correo: 'ledis.quintana@iemanueljbetancur.edu.co',  pin: '', color: '#8b5cf6' }, // violet-500
-  { id: 'uriel',     nombre: 'José Uriel López Arias',          nombreCorto: 'Uriel',      rol: 'docente', jornada: 'manana', correo: 'uriel.lopez@iemanueljbetancur.edu.co',     pin: '', color: '#a855f7' }, // purple-500
-  { id: 'claudia',   nombre: 'Claudia Patricia Henao Bermúdez', nombreCorto: 'Claudia',    rol: 'docente', jornada: 'manana', correo: 'claudia.henao@iemanueljbetancur.edu.co',   pin: '', color: '#d946ef' }, // fuchsia-500
-  { id: 'margara',   nombre: 'Margarita María Montoya Olaya',   nombreCorto: 'Margarita',  rol: 'docente', jornada: 'manana', correo: 'margarita.montoya@iemanueljbetancur.edu.co', pin: '', color: '#ec4899' }, // pink-500
-  { id: 'monica_c',  nombre: 'Mónica Tatiana Córdoba Zapata',   nombreCorto: 'Mónica C.',  rol: 'docente', jornada: 'ambas',  correo: 'monica.cordoba@iemanueljbetancur.edu.co',  pin: '', color: '#f43f5e' }, // rose-500
+  { id: 'johana',    nombre: 'Leidy Johana Cano Ruiz',          nombreCorto: 'Johana',     rol: 'docente', jornada: 'manana', correo: 'johana.cano@iemanueljbetancur.edu.co',     color: '#ef4444' }, // red-500
+  { id: 'beatriz',   nombre: 'Beatriz Elena Montoya Valdés',    nombreCorto: 'Beatriz',    rol: 'docente', jornada: 'manana', correo: 'beatriz.montoya@iemanueljbetancur.edu.co', color: '#f97316' }, // orange-500
+  { id: 'adolfo',    nombre: 'Adolfo León Arango Arroyave',     nombreCorto: 'Adolfo',     rol: 'docente', jornada: 'manana', correo: 'adolfo.arango@iemanueljbetancur.edu.co',   color: '#eab308' }, // yellow-500
+  { id: 'gloria_a',  nombre: 'Gloria Estella Álvarez López',    nombreCorto: 'Gloria A.',  rol: 'docente', jornada: 'manana', correo: 'gloria.alvarez@iemanueljbetancur.edu.co',  color: '#84cc16' }, // lime-500
+  { id: 'doris',     nombre: 'Doris Castrillón Álvarez',        nombreCorto: 'Doris',      rol: 'docente', jornada: 'manana', correo: 'doris.castrillon@iemanueljbetancur.edu.co', color: '#22c55e' }, // green-500
+  { id: 'marta',     nombre: 'Marta Úsuga',                     nombreCorto: 'Marta',      rol: 'docente', jornada: 'ambas',  correo: 'martha.usuga@iemanueljbetancur.edu.co',    color: '#10b981' }, // emerald-500
+  { id: 'julian',    nombre: 'Julián David Medina Tamayo',      nombreCorto: 'Julián',     rol: 'docente', jornada: 'manana', correo: 'julian.medina@iemanueljbetancur.edu.co',   color: '#14b8a6' }, // teal-500
+  { id: 'carlos',    nombre: 'Carlos Cárdenas',                 nombreCorto: 'Carlos',     rol: 'docente', jornada: 'manana', correo: 'carlos.cardenas@iemanueljbetancur.edu.co', color: '#0ea5e9' }, // sky-500
+  { id: 'yoguis',    nombre: 'Juan Carlos Blandón Vargas',      nombreCorto: 'Yoguis',     rol: 'docente', jornada: 'ambas',  correo: 'juancarlosbv@iemanueljbetancur.edu.co',    color: '#3b82f6' }, // blue-500
+  { id: 'jorge',     nombre: 'Jorge Iván Acevedo Tabares',      nombreCorto: 'Jorge',      rol: 'docente', jornada: 'manana', correo: 'jorge.acevedo@iemanueljbetancur.edu.co',   color: '#6366f1' }, // indigo-500
+  { id: 'ledis',     nombre: 'Ledis Laura Quintana Seguanes',   nombreCorto: 'Ledis',      rol: 'docente', jornada: 'manana', correo: 'ledis.quintana@iemanueljbetancur.edu.co',  color: '#8b5cf6' }, // violet-500
+  { id: 'uriel',     nombre: 'José Uriel López Arias',          nombreCorto: 'Uriel',      rol: 'docente', jornada: 'manana', correo: 'uriel.lopez@iemanueljbetancur.edu.co',     color: '#a855f7' }, // purple-500
+  { id: 'claudia',   nombre: 'Claudia Patricia Henao Bermúdez', nombreCorto: 'Claudia',    rol: 'docente', jornada: 'manana', correo: 'claudia.henao@iemanueljbetancur.edu.co',   color: '#d946ef' }, // fuchsia-500
+  { id: 'margara',   nombre: 'Margarita María Montoya Olaya',   nombreCorto: 'Margarita',  rol: 'docente', jornada: 'manana', correo: 'margarita.montoya@iemanueljbetancur.edu.co', color: '#ec4899' }, // pink-500
+  { id: 'monica_c',  nombre: 'Mónica Tatiana Córdoba Zapata',   nombreCorto: 'Mónica C.',  rol: 'docente', jornada: 'ambas',  correo: 'monica.cordoba@iemanueljbetancur.edu.co',  color: '#f43f5e' }, // rose-500
 
   // Docentes tarde — paleta independiente
-  { id: 'edgar',       nombre: 'Edgar Alexis Pérez Jaramillo',     nombreCorto: 'Edgar',       rol: 'docente', jornada: 'ambas', correo: 'edgar.perez@iemanueljbetancur.edu.co',    pin: '', color: '#94a3b8' }, // slate
-  { id: 'carolina',    nombre: 'Carolina Medina',                   nombreCorto: 'Carolina',    rol: 'docente', jornada: 'tarde', correo: 'carolina.medina@iemanueljbetancur.edu.co', pin: '', color: '#f97316' }, // orange-dark
-  { id: 'monica_rave', nombre: 'Mónica Alexandra Rave Velásquez',   nombreCorto: 'Mónica R.',   rol: 'docente', jornada: 'tarde', correo: 'monica.rave@iemanueljbetancur.edu.co',    pin: '', color: '#f472b6' }, // pink
-  { id: 'fredy_g',     nombre: 'Fredy Gutiérrez',                   nombreCorto: 'Fredy G.',    rol: 'docente', jornada: 'tarde', correo: 'fredy.gutierrez@iemanueljbetancur.edu.co', pin: '', color: '#4ade80' }, // green
-  { id: 'fredy_garcia',nombre: 'John Fredy García Arrubla',         nombreCorto: 'Fredy García',rol: 'docente', jornada: 'tarde', correo: 'john.garcia@iemanueljbetancur.edu.co',    pin: '', color: '#bef264' }, // lime-light
-  { id: 'luis_javier', nombre: 'Luis Javier Rojas',                 nombreCorto: 'Luis Javier', rol: 'docente', jornada: 'tarde', correo: 'luis.rojas@iemanueljbetancur.edu.co',               pin: '', color: '#2dd4bf' }, // teal
-  { id: 'marina',      nombre: 'Luz Marina Zapata Vásquez',         nombreCorto: 'Marina',      rol: 'docente', jornada: 'tarde', correo: 'luz.zapata@iemanueljbetancur.edu.co',      pin: '', color: '#fb7185' }, // rose
-  { id: 'luis_angel',  nombre: 'Luis Ángel Quiceno',                nombreCorto: 'Luis Ángel',  rol: 'docente', jornada: 'tarde', correo: 'luis.quiceno@iemanueljbetancur.edu.co',   pin: '', color: '#a78bfa' }, // violet
-  { id: 'juan_pablo',  nombre: 'Juan Pablo Bettin Tapia',           nombreCorto: 'Juan Pablo',  rol: 'docente', jornada: 'tarde', correo: 'juan.bettin@iemanueljbetancur.edu.co',    pin: '', color: '#facc15' }, // yellow
-  { id: 'hugo',        nombre: 'Hugo Armando Yepes Franco',         nombreCorto: 'Hugo',        rol: 'docente', jornada: 'tarde', correo: 'hugo.yepes@iemanueljbetancur.edu.co',      pin: '', color: '#fca5a5' }, // red-light
-  { id: 'felipe',      nombre: 'Felipe Piedrahita Nieto',           nombreCorto: 'Felipe',      rol: 'docente', jornada: 'tarde', correo: 'felipe.piedrahita@iemanueljbetancur.edu.co', pin: '', color: '#fdba74' }, // peach
-  { id: 'valentina',   nombre: 'Valentina Jaramillo López',         nombreCorto: 'Valentina',   rol: 'docente', jornada: 'tarde', correo: 'valentina.jaramillo@iemanueljbetancur.edu.co', pin: '', color: '#67e8f9' }, // cyan-light
-  { id: 'yanet',       nombre: 'Yanet María Moscote Marulanda',     nombreCorto: 'Yanet',       rol: 'docente', jornada: 'tarde', correo: 'yanet.moscote@iemanueljbetancur.edu.co',   pin: '', color: '#86efac' }, // green-light
-  { id: 'harol',       nombre: 'Harol Gómez',                       nombreCorto: 'Harol',       rol: 'docente', jornada: 'tarde', correo: 'harol.gomez@iemanueljbetancur.edu.co',     pin: '', color: '#e879f9' }, // fuchsia
+  { id: 'edgar',       nombre: 'Edgar Alexis Pérez Jaramillo',     nombreCorto: 'Edgar',       rol: 'docente', jornada: 'ambas', correo: 'edgar.perez@iemanueljbetancur.edu.co',    color: '#94a3b8' }, // slate
+  { id: 'carolina',    nombre: 'Carolina Medina',                   nombreCorto: 'Carolina',    rol: 'docente', jornada: 'tarde', correo: 'carolina.medina@iemanueljbetancur.edu.co', color: '#f97316' }, // orange-dark
+  { id: 'monica_rave', nombre: 'Mónica Alexandra Rave Velásquez',   nombreCorto: 'Mónica R.',   rol: 'docente', jornada: 'tarde', correo: 'monica.rave@iemanueljbetancur.edu.co',    color: '#f472b6' }, // pink
+  { id: 'fredy_g',     nombre: 'Fredy Gutiérrez',                   nombreCorto: 'Fredy G.',    rol: 'docente', jornada: 'tarde', correo: 'fredy.gutierrez@iemanueljbetancur.edu.co', color: '#4ade80' }, // green
+  { id: 'fredy_garcia',nombre: 'John Fredy García Arrubla',         nombreCorto: 'Fredy García',rol: 'docente', jornada: 'tarde', correo: 'john.garcia@iemanueljbetancur.edu.co',    color: '#bef264' }, // lime-light
+  { id: 'luis_javier', nombre: 'Luis Javier Rojas',                 nombreCorto: 'Luis Javier', rol: 'docente', jornada: 'tarde', correo: 'luis.rojas@iemanueljbetancur.edu.co',               color: '#2dd4bf' }, // teal
+  { id: 'marina',      nombre: 'Luz Marina Zapata Vásquez',         nombreCorto: 'Marina',      rol: 'docente', jornada: 'tarde', correo: 'luz.zapata@iemanueljbetancur.edu.co',      color: '#fb7185' }, // rose
+  { id: 'luis_angel',  nombre: 'Luis Ángel Quiceno',                nombreCorto: 'Luis Ángel',  rol: 'docente', jornada: 'tarde', correo: 'luis.quiceno@iemanueljbetancur.edu.co',   color: '#a78bfa' }, // violet
+  { id: 'juan_pablo',  nombre: 'Juan Pablo Bettin Tapia',           nombreCorto: 'Juan Pablo',  rol: 'docente', jornada: 'tarde', correo: 'juan.bettin@iemanueljbetancur.edu.co',    color: '#facc15' }, // yellow
+  { id: 'hugo',        nombre: 'Hugo Armando Yepes Franco',         nombreCorto: 'Hugo',        rol: 'docente', jornada: 'tarde', correo: 'hugo.yepes@iemanueljbetancur.edu.co',      color: '#fca5a5' }, // red-light
+  { id: 'felipe',      nombre: 'Felipe Piedrahita Nieto',           nombreCorto: 'Felipe',      rol: 'docente', jornada: 'tarde', correo: 'felipe.piedrahita@iemanueljbetancur.edu.co', color: '#fdba74' }, // peach
+  { id: 'valentina',   nombre: 'Valentina Jaramillo López',         nombreCorto: 'Valentina',   rol: 'docente', jornada: 'tarde', correo: 'valentina.jaramillo@iemanueljbetancur.edu.co', color: '#67e8f9' }, // cyan-light
+  { id: 'yanet',       nombre: 'Yanet María Moscote Marulanda',     nombreCorto: 'Yanet',       rol: 'docente', jornada: 'tarde', correo: 'yanet.moscote@iemanueljbetancur.edu.co',   color: '#86efac' }, // green-light
+  { id: 'harol',       nombre: 'Harol Gómez',                       nombreCorto: 'Harol',       rol: 'docente', jornada: 'tarde', correo: 'harol.gomez@iemanueljbetancur.edu.co',     color: '#e879f9' }, // fuchsia
 
   // Nuevos docentes
-  { id: 'yuri',       nombre: 'Yuri Catalina Gómez Gómez',        nombreCorto: 'Yuri',       rol: 'docente', jornada: 'ambas', correo: 'yuri.gomez@iemanueljbetancur.edu.co',       pin: '', color: '#c4b5fd' },
-  { id: 'alexander',  nombre: 'Jhon Alexander Sánchez Giraldo',   nombreCorto: 'Alexander',  rol: 'docente', jornada: 'ambas', correo: 'alexander.sanchez@iemanueljbetancur.edu.co', pin: '', color: '#fda4af' },
+  { id: 'yuri',       nombre: 'Yuri Catalina Gómez Gómez',        nombreCorto: 'Yuri',       rol: 'docente', jornada: 'ambas', correo: 'yuri.gomez@iemanueljbetancur.edu.co',       color: '#c4b5fd' },
+  { id: 'alexander',  nombre: 'Jhon Alexander Sánchez Giraldo',   nombreCorto: 'Alexander',  rol: 'docente', jornada: 'ambas', correo: 'alexander.sanchez@iemanueljbetancur.edu.co', color: '#fda4af' },
 
   // ── Sede Gustavo Rodas Isaza (primaria) ────────────────────────────────────
   // Fuente: "asignacion Academica 2026 FINAL.xlsx", hoja PRIMARIA GRI, cruzada
@@ -113,19 +112,19 @@ export const USUARIOS: Usuario[] = [
   // Ids con prefijo `gri_` para que no colisionen con los de central: hay
   // nombres repetidos entre sedes (dos Beatriz, dos Margaritas).
   // MANANA — cada docente dicta todas las asignaturas de su grupo.
-  { id: 'gri_leidy_a',   nombre: 'Leidy Yadira Atehortúa Rojas',      nombreCorto: 'Leidy A.',   rol: 'docente', jornada: 'manana', correo: 'leidy.atehortua@iemanueljbetancur.edu.co',   pin: '', color: '#7dd3fc', sede: 'gustavo_rodas' },
-  { id: 'gri_maria_v',   nombre: 'María Victoria Henao Toro',         nombreCorto: 'María V.',   rol: 'docente', jornada: 'manana', correo: 'maria.henao@iemanueljbetancur.edu.co',       pin: '', color: '#86efac', sede: 'gustavo_rodas' },
-  { id: 'gri_lourdes',   nombre: 'Lourdes Uparela Imbeth',            nombreCorto: 'Lourdes',    rol: 'docente', jornada: 'manana', correo: 'lourdes.uparela@iemanueljbetancur.edu.co',   pin: '', color: '#fcd34d', sede: 'gustavo_rodas' },
-  { id: 'gri_edison',    nombre: 'Edison Alejandro Sánchez',          nombreCorto: 'Edison',     rol: 'docente', jornada: 'manana', correo: 'edison.sanches@iemanueljbetancur.edu.co',    pin: '', color: '#c4b5fd', sede: 'gustavo_rodas' },
-  { id: 'gri_jaqueline', nombre: 'Jaqueline Arévalo Alzate',          nombreCorto: 'Jaqueline',  rol: 'docente', jornada: 'manana', correo: 'jaqueline.arevalo@iemanueljbetancur.edu.co', pin: '', color: '#f9a8d4', sede: 'gustavo_rodas' },
+  { id: 'gri_leidy_a',   nombre: 'Leidy Yadira Atehortúa Rojas',      nombreCorto: 'Leidy A.',   rol: 'docente', jornada: 'manana', correo: 'leidy.atehortua@iemanueljbetancur.edu.co',   color: '#7dd3fc', sede: 'gustavo_rodas' },
+  { id: 'gri_maria_v',   nombre: 'María Victoria Henao Toro',         nombreCorto: 'María V.',   rol: 'docente', jornada: 'manana', correo: 'maria.henao@iemanueljbetancur.edu.co',       color: '#86efac', sede: 'gustavo_rodas' },
+  { id: 'gri_lourdes',   nombre: 'Lourdes Uparela Imbeth',            nombreCorto: 'Lourdes',    rol: 'docente', jornada: 'manana', correo: 'lourdes.uparela@iemanueljbetancur.edu.co',   color: '#fcd34d', sede: 'gustavo_rodas' },
+  { id: 'gri_edison',    nombre: 'Edison Alejandro Sánchez',          nombreCorto: 'Edison',     rol: 'docente', jornada: 'manana', correo: 'edison.sanches@iemanueljbetancur.edu.co',    color: '#c4b5fd', sede: 'gustavo_rodas' },
+  { id: 'gri_jaqueline', nombre: 'Jaqueline Arévalo Alzate',          nombreCorto: 'Jaqueline',  rol: 'docente', jornada: 'manana', correo: 'jaqueline.arevalo@iemanueljbetancur.edu.co', color: '#f9a8d4', sede: 'gustavo_rodas' },
   // TARDE — cada docente dicta una o dos asignaturas en todos los grupos.
-  { id: 'gri_sandra',    nombre: 'Sandra Milena García García',       nombreCorto: 'Sandra',     rol: 'docente', jornada: 'tarde',  correo: 'sandra.garcia@iemanueljbetancur.edu.co',     pin: '', color: '#fdba74', sede: 'gustavo_rodas' },
-  { id: 'gri_johana_r',  nombre: 'Johana Rivera',                     nombreCorto: 'Johana R.',  rol: 'docente', jornada: 'tarde',  correo: 'johana.rivera@iemanueljbetancur.edu.co',     pin: '', color: '#5eead4', sede: 'gustavo_rodas' },
-  { id: 'gri_edwin',     nombre: 'Edwin Alexis Toro Dávila',          nombreCorto: 'Edwin',      rol: 'docente', jornada: 'tarde',  correo: 'edwin.toro@iemanueljbetancur.edu.co',        pin: '', color: '#a3e635', sede: 'gustavo_rodas' },
-  { id: 'gri_leonardo',  nombre: 'Leonardo Acevedo Suárez',           nombreCorto: 'Leonardo',   rol: 'docente', jornada: 'tarde',  correo: 'leonardo.acevedo@iemanueljbetancur.edu.co',  pin: '', color: '#93c5fd', sede: 'gustavo_rodas' },
-  { id: 'gri_diego',     nombre: 'Diego Alejandro Mejía Merino',      nombreCorto: 'Diego',      rol: 'docente', jornada: 'tarde',  correo: 'diego.mejia@iemanueljbetancur.edu.co',       pin: '', color: '#f0abfc', sede: 'gustavo_rodas' },
-  { id: 'gri_beatriz_z', nombre: 'Beatriz Elena Zapata Vásquez',      nombreCorto: 'Beatriz Z.', rol: 'docente', jornada: 'tarde',  correo: 'beatriz.zapata@iemanueljbetancur.edu.co',    pin: '', color: '#fca5a5', sede: 'gustavo_rodas' },
-  { id: 'gri_dolly',     nombre: 'Dolly Marley Gutiérrez Guevara',    nombreCorto: 'Dolly',      rol: 'docente', jornada: 'tarde',  correo: 'dolly.gutierrez@iemanueljbetancur.edu.co',   pin: '', color: '#fde047', sede: 'gustavo_rodas' },
+  { id: 'gri_sandra',    nombre: 'Sandra Milena García García',       nombreCorto: 'Sandra',     rol: 'docente', jornada: 'tarde',  correo: 'sandra.garcia@iemanueljbetancur.edu.co',     color: '#fdba74', sede: 'gustavo_rodas' },
+  { id: 'gri_johana_r',  nombre: 'Johana Rivera',                     nombreCorto: 'Johana R.',  rol: 'docente', jornada: 'tarde',  correo: 'johana.rivera@iemanueljbetancur.edu.co',     color: '#5eead4', sede: 'gustavo_rodas' },
+  { id: 'gri_edwin',     nombre: 'Edwin Alexis Toro Dávila',          nombreCorto: 'Edwin',      rol: 'docente', jornada: 'tarde',  correo: 'edwin.toro@iemanueljbetancur.edu.co',        color: '#a3e635', sede: 'gustavo_rodas' },
+  { id: 'gri_leonardo',  nombre: 'Leonardo Acevedo Suárez',           nombreCorto: 'Leonardo',   rol: 'docente', jornada: 'tarde',  correo: 'leonardo.acevedo@iemanueljbetancur.edu.co',  color: '#93c5fd', sede: 'gustavo_rodas' },
+  { id: 'gri_diego',     nombre: 'Diego Alejandro Mejía Merino',      nombreCorto: 'Diego',      rol: 'docente', jornada: 'tarde',  correo: 'diego.mejia@iemanueljbetancur.edu.co',       color: '#f0abfc', sede: 'gustavo_rodas' },
+  { id: 'gri_beatriz_z', nombre: 'Beatriz Elena Zapata Vásquez',      nombreCorto: 'Beatriz Z.', rol: 'docente', jornada: 'tarde',  correo: 'beatriz.zapata@iemanueljbetancur.edu.co',    color: '#fca5a5', sede: 'gustavo_rodas' },
+  { id: 'gri_dolly',     nombre: 'Dolly Marley Gutiérrez Guevara',    nombreCorto: 'Dolly',      rol: 'docente', jornada: 'tarde',  correo: 'dolly.gutierrez@iemanueljbetancur.edu.co',   color: '#fde047', sede: 'gustavo_rodas' },
 ];
 
 // ── Sedes: autoridad y direccionamiento ─────────────────────────────────────

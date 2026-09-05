@@ -148,7 +148,7 @@ export interface Reserva {
 }
 
 export async function getReservas(): Promise<Reserva[]> {
-  const res = await callApi<{ reservas: Reserva[] }>({ action: 'getReservas' });
+  const res = await callApi<{ reservas: Reserva[] }>(await conIdToken({ action: 'getReservas' }));
   return res.reservas ?? [];
 }
 
@@ -178,7 +178,7 @@ export async function actualizarReserva(
   estado: 'aprobada' | 'rechazada' | 'cancelada',
   motivo?: string
 ): Promise<{ ok: boolean; error?: string }> {
-  return callApi({ action: 'actualizarReserva', id, estado, motivo: motivo ?? '' });
+  return callApi(await conIdToken({ action: 'actualizarReserva', id, estado, motivo: motivo ?? '' }));
 }
 
 // ── Notificaciones ─────────────────────────────────────────────────────────────
@@ -194,11 +194,13 @@ export interface Notificacion {
 export async function crearNotificacionesLote(
   items: Array<{ destinatario: string; tipo: string; mensaje: string }>,
 ): Promise<{ ok: boolean; creadas?: number; error?: string }> {
-  return callApi({ action: 'crearNotificacionesLote', items: JSON.stringify(items) });
+  return callApi(await conIdToken({ action: 'crearNotificacionesLote', items: JSON.stringify(items) }));
 }
 
 export async function getNotificaciones(userId: string): Promise<Notificacion[]> {
-  const res = await callApi<{ notificaciones: Notificacion[] }>({ action: 'getNotificaciones', userId });
+  const res = await callApi<{ notificaciones: Notificacion[] }>(
+    await conIdToken({ action: 'getNotificaciones', userId }),
+  );
   return res.notificaciones ?? [];
 }
 
@@ -206,11 +208,11 @@ export async function marcarLeida(
   userId: string,
   notifId: string
 ): Promise<{ ok: boolean }> {
-  return callApi({ action: 'marcarLeida', userId, notifId });
+  return callApi(await conIdToken({ action: 'marcarLeida', userId, notifId }));
 }
 
 export async function marcarTodasLeidas(userId: string): Promise<{ ok: boolean }> {
-  return callApi({ action: 'marcarTodasLeidas', userId });
+  return callApi(await conIdToken({ action: 'marcarTodasLeidas', userId }));
 }
 
 // ── Envío de correo ────────────────────────────────────────────────────────────
@@ -229,13 +231,13 @@ export async function enviarCorreoMasivo(
   html: string,
   cc?: string[],
 ): Promise<ResultadoCorreoMasivo> {
-  return callApi<ResultadoCorreoMasivo>({
+  return callApi<ResultadoCorreoMasivo>(await conIdToken({
     action: 'enviarCorreoMasivo',
     destinatarios: destinatarios.join(','),
     asunto,
     html,
     cc: cc ? cc.join(',') : '',
-  });
+  }));
 }
 
 // ── Tareas (módulo de momentos) ────────────────────────────────────────────────
@@ -297,13 +299,13 @@ export async function guardarAnclasGrupo(
 export async function guardarCupos(
   cupos: CupoNivel[],
 ): Promise<{ ok: boolean; error?: string }> {
-  return callApi({ action: 'guardarCupos', cupos: JSON.stringify(cupos) });
+  return callApi(await conIdToken({ action: 'guardarCupos', cupos: JSON.stringify(cupos) }));
 }
 
 export async function crearTarea(
   t: Omit<Tarea, 'id' | 'estado'>
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  return callApi({
+  return callApi(await conIdToken({
     action: 'crearTarea',
     grupo: t.grupo,
     asignaturaId: t.asignaturaId,
@@ -315,7 +317,7 @@ export async function crearTarea(
     descripcion: t.descripcion ?? '',
     adjuntoUrl: t.adjuntoUrl ?? '',
     adjuntoNombre: t.adjuntoNombre ?? '',
-  });
+  }));
 }
 
 export async function cancelarTarea(
@@ -323,13 +325,13 @@ export async function cancelarTarea(
   docenteId: string,
   esDirectivo = false,
 ): Promise<{ ok: boolean; error?: string }> {
-  return callApi({ action: 'cancelarTarea', id, docenteId, esDirectivo: esDirectivo ? '1' : '0' });
+  return callApi(await conIdToken({ action: 'cancelarTarea', id, docenteId, esDirectivo: esDirectivo ? '1' : '0' }));
 }
 
 export async function crearCesion(
   c: Omit<Cesion, 'id'>
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  return callApi({
+  return callApi(await conIdToken({
     action: 'crearCesion',
     grupo: c.grupo,
     periodo: c.periodo,
@@ -337,14 +339,14 @@ export async function crearCesion(
     asignaturaDestinoId: c.asignaturaDestinoId,
     docenteOrigenId: c.docenteOrigenId,
     momentos: String(c.momentos),
-  });
+  }));
 }
 
 export async function crearSolicitudCesion(
   s: Omit<SolicitudCesion, 'id' | 'estado'>,
   mensaje: string,
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  return callApi({
+  return callApi(await conIdToken({
     action: 'crearSolicitudCesion',
     grupo: s.grupo,
     periodo: s.periodo,
@@ -354,7 +356,7 @@ export async function crearSolicitudCesion(
     docenteSolicitanteId: s.docenteSolicitanteId,
     momentos: String(s.momentos),
     mensaje,
-  });
+  }));
 }
 
 export async function responderSolicitudCesion(
@@ -362,7 +364,7 @@ export async function responderSolicitudCesion(
   respuesta: 'aceptar' | 'rechazar',
   mensaje: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  return callApi({ action: 'responderSolicitudCesion', id, respuesta, mensaje });
+  return callApi(await conIdToken({ action: 'responderSolicitudCesion', id, respuesta, mensaje }));
 }
 
 // ── Sugerencias ───────────────────────────────────────────────────────────────
@@ -371,7 +373,7 @@ export async function crearSugerencia(
   autor: string,
   texto: string,
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  return callApi({ action: 'crearSugerencia', autor, texto });
+  return callApi(await conIdToken({ action: 'crearSugerencia', autor, texto }));
 }
 
 // Fase 1 del módulo de sugerencias (docs/modulo-sugerencias.md): leer y
@@ -397,7 +399,9 @@ export interface Sugerencia {
 }
 
 export async function getSugerencias(): Promise<{ ok: boolean; items: Sugerencia[]; error?: string }> {
-  const res = await callApi<{ ok: boolean; items?: Sugerencia[]; error?: string }>({ action: 'getSugerencias' });
+  const res = await callApi<{ ok: boolean; items?: Sugerencia[]; error?: string }>(
+    await conIdToken({ action: 'getSugerencias' }),
+  );
   return { ok: res.ok, items: res.items ?? [], error: res.error };
 }
 
@@ -405,7 +409,7 @@ export async function actualizarSugerencia(
   id: string,
   cambios: Partial<Pick<Sugerencia, 'estado' | 'clasificacion' | 'nota' | 'vinculo' | 'relacionadas' | 'resueltoPor' | 'avisadoEn'>>,
 ): Promise<{ ok: boolean; error?: string }> {
-  return callApi({ action: 'actualizarSugerencia', id, ...cambios });
+  return callApi(await conIdToken({ action: 'actualizarSugerencia', id, ...cambios }));
 }
 
 // ── Publicación en Google Site del colegio ─────────────────────────────────────
@@ -458,7 +462,7 @@ export async function guardarSyncEditor(item: {
   // se dispara y luego se verifica con un GET (getSyncEditor), que es el
   // mismo mecanismo con el que después se leerá el dato de verdad.
   try {
-    await callApiPost({
+    await callApiPost(await conIdToken({
       action: 'guardarSyncEditor',
       id: item.id,
       tipo: item.tipo,
@@ -466,7 +470,7 @@ export async function guardarSyncEditor(item: {
       jornada: item.jornada,
       estado: item.estado,
       json: item.json,
-    });
+    }));
   } catch {
     // Puede fallar solo al leer la respuesta del redirect; no descarta que
     // el guardado haya llegado. La verificación de abajo decide de verdad.
@@ -477,12 +481,14 @@ export async function guardarSyncEditor(item: {
 }
 
 export async function borrarSyncEditor(id: string): Promise<{ ok: boolean; error?: string }> {
-  return callApi({ action: 'borrarSyncEditor', id });
+  return callApi(await conIdToken({ action: 'borrarSyncEditor', id }));
 }
 
 export async function getSyncEditor(): Promise<ItemSyncEditor[]> {
   try {
-    const res = await callApi<{ ok: boolean; items?: ItemSyncEditor[] }>({ action: 'getSyncEditor' });
+    const res = await callApi<{ ok: boolean; items?: ItemSyncEditor[] }>(
+      await conIdToken({ action: 'getSyncEditor' }),
+    );
     return res.items ?? [];
   } catch {
     return [];
@@ -497,7 +503,7 @@ export async function publicarAviso(
   html: string,
   autor: string,
 ): Promise<PublicacionResultado> {
-  return callApi<PublicacionResultado>({
+  return callApi<PublicacionResultado>(await conIdToken({
     action: 'publicarAviso',
     fecha,
     jornada,
@@ -505,11 +511,11 @@ export async function publicarAviso(
     titulo,
     html,
     autor,
-  });
+  }));
 }
 
 export async function retirarAviso(id: string): Promise<{ ok: boolean; error?: string }> {
-  return callApi({ action: 'retirarAviso', id });
+  return callApi(await conIdToken({ action: 'retirarAviso', id }));
 }
 
 // ── Informe de contención emocional ───────────────────────────

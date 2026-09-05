@@ -134,6 +134,11 @@ const CESIONES_HEADERS    = ['id','grupo','periodo','asignaturaOrigenId','asigna
 const SOLICITUDES_HEADERS = ['id','grupo','periodo','asignaturaCedenteId','asignaturaDestinoId','docenteCedenteId','docenteSolicitanteId','momentos','estado','timestamp'];
 const CUPOS_HEADERS       = ['nivel','asignaturaId','momentos','timestamp'];
 const EDITOR_SYNC_HEADERS = ['id','tipo','fecha','jornada','estado','json','timestamp'];
+// Anclas por grupo (docs/anclas-por-grupo-contrato.md): una fila por grupo con
+// el acuerdo de "cuándo la vas a hacer" que definió su director. 'anclas' es
+// JSON: [{id,label}, ...], máximo 6 entradas, label de máximo 30 caracteres
+// (el límite se valida al guardar, no aquí).
+const ANCLAS_GRUPO_HEADERS = ['grupo','anclas','actualizadoPor','timestamp'];
 
 // ── PUNTO DE ENTRADA (JSONP por GET) ─────────────────────────
 function doGet(e) {
@@ -183,6 +188,31 @@ const ACCIONES_PROTEGIDAS = [
   'guardarInformeContencion', 'listarInformesContencion',
   'guardarRemisionSeguro', 'listarRemisionesSeguro',
   'guardarSeguimiento', 'listarSeguimientos',
+  // guardarAnclasGrupo (docs/anclas-por-grupo-contrato.md) exige idToken
+  // porque solo el director del grupo (o coordinación/rectoría) puede
+  // cambiar el acuerdo del curso. getAnclasGrupos, en cambio, NO va aquí:
+  // la agenda pública del estudiante la consulta sin sesión.
+  'guardarAnclasGrupo',
+  // ── Corrección de seguridad 2026-09-05 ──────────────────────────────────
+  // Auditoría: estas acciones escriben o leen datos de reservas, horarios,
+  // tareas y avisos institucionales, y podían llamarse sin ninguna sesión
+  // porque el `/exec` del backend queda escrito en CLAUDE.md, en un repo
+  // PÚBLICO. En particular enviarCorreo/enviarCorreoMasivo son un relay de
+  // correo abierto: cualquiera podía enviar HTML libre a nombre del colegio
+  // sin identificarse. Todas exigen ahora idToken (ver el switch de abajo,
+  // que ya les pasa `correoAutenticado` aunque varias no lo usen todavía).
+  'actualizarReserva', 'actualizarSugerencia', 'borrarSyncEditor',
+  'cancelarTarea', 'crearCesion', 'crearNotificacionesLote', 'crearReserva',
+  'crearSolicitudCesion', 'crearSugerencia', 'crearTarea', 'enviarCorreo',
+  'enviarCorreoMasivo', 'getNotificaciones', 'getReservas', 'getSugerencias',
+  'getSyncEditor', 'guardarCupos', 'guardarSyncEditor', 'marcarLeida',
+  'marcarTodasLeidas', 'publicarAviso', 'responderSolicitudCesion',
+  'retirarAviso',
+  // NO se protegen aquí (a propósito, no es un olvido):
+  // - getDatosTareas, getAnclasGrupos: la agenda pública del estudiante los
+  //   consulta desde un QR SIN sesión. Protegerlos rompe la agenda de todo
+  //   el colegio (ver comentario en getAnclasGrupos más abajo).
+  // - login: ya devuelve error a propósito, el acceso real es por Google.
 ];
 
 function manejar(e) {
@@ -215,8 +245,8 @@ function manejar(e) {
       case 'getNotificaciones':  resultado = getNotificaciones(p);  break;
       case 'marcarLeida':        resultado = marcarLeida(p);        break;
       case 'marcarTodasLeidas':  resultado = marcarTodasLeidas(p);  break;
-      case 'enviarCorreo':       resultado = enviarCorreoAccion(p); break;
-      case 'enviarCorreoMasivo': resultado = enviarCorreoMasivo(p); break;
+      case 'enviarCorreo':       resultado = enviarCorreoAccion(p, correoAutenticado); break;
+      case 'enviarCorreoMasivo': resultado = enviarCorreoMasivo(p, correoAutenticado); break;
       case 'publicarAviso':      resultado = publicarAviso(p);      break;
       case 'retirarAviso':       resultado = retirarAviso(p);       break;
       case 'crearSugerencia':    resultado = crearSugerencia(p);    break;
@@ -244,6 +274,9 @@ function manejar(e) {
       case 'listarRemisionesSeguro':   resultado = listarRemisionesSeguro(p, correoAutenticado);   break;
       case 'guardarSeguimiento':       resultado = guardarSeguimiento(p, correoAutenticado);       break;
       case 'listarSeguimientos':       resultado = listarSeguimientos(p, correoAutenticado);       break;
+      // ⚠ CAMBIO: requiere redespliegue (docs/anclas-por-grupo-contrato.md)
+      case 'getAnclasGrupos':    resultado = getAnclasGrupos();                       break;
+      case 'guardarAnclasGrupo': resultado = guardarAnclasGrupo(p, correoAutenticado); break;
       default:
         resultado = { ok: false, error: 'Acción desconocida: ' + p.action };
     }
@@ -454,7 +487,18 @@ function login(p) {
   return { ok: false, error: 'Login local activo en la app' };
 }
 
+// ⚠ Corrección de seguridad 2026-09-05: el login por PIN está DESACTIVADO en
+// producción (ver login() arriba — devuelve error a propósito porque la app
+// usa Google). Sin sesión de por medio, esta acción dejaba disparar un correo
+// con PIN temporal a CUALQUIER usuario de la hoja Usuarios con solo conocer
+// (o adivinar) su correo institucional, porque la acción no estaba en
+// ACCIONES_PROTEGIDAS ni exigía nada más. Se cortocircuita igual que login(),
+// SIN borrar el código de abajo: si algún día se vuelve a activar el acceso
+// por PIN, hay que rehabilitarla con cuidado (probablemente exigiendo idToken
+// o algún otro secreto, no solo el correo en texto plano).
 function recuperarPin(p) {
+  return { ok: false, error: 'Acceso por Google activo — recuperación de PIN desactivada' };
+  /* eslint-disable no-unreachable */
   // Busca por correo en la hoja Usuarios (si existe y está poblada).
   const ss = getSS();
   const sheet = ss.getSheetByName('Usuarios');
@@ -473,10 +517,15 @@ function recuperarPin(p) {
   return { ok: true };
 }
 
-// Cambia el PIN de un usuario en la hoja Usuarios. Valida el PIN actual
-// contra el PIN guardado o el pinTemporal (recuperación). Limpia el
-// pinTemporal al confirmar.
+// Mismo motivo que recuperarPin de arriba: sin login por PIN activo, esta
+// acción permitía a cualquiera (sin sesión) cambiar el PIN guardado de un
+// userId cualquiera si la hoja Usuarios no tenía pin guardado todavía
+// (pinGuardado vacío → coincide=false pero el `if (pinGuardado && !coincide)`
+// no bloquea nada). Se cortocircuita igual que login() y recuperarPin(), SIN
+// borrar el código: rehabilitar con cuidado si se reactiva el PIN.
 function cambiarPin(p) {
+  return { ok: false, error: 'Acceso por Google activo — cambio de PIN desactivado' };
+  /* eslint-disable no-unreachable */
   const userId    = String(p.userId || '');
   const pinActual = String(p.pinActual || '');
   const pinNuevo  = String(p.pinNuevo || '');
@@ -521,8 +570,20 @@ function enviarHtml(para, asunto, html, cc) {
   GmailApp.sendEmail(para, asunto, '', opciones);
 }
 
-function enviarCorreoAccion(p) {
+// Correo (uno o varios destinatarios) a nombre del colegio: además del
+// idToken (ya exigido por ACCIONES_PROTEGIDAS), solo coordinación o rectoría
+// pueden dispararlo — un docente cualquiera autenticado NO debería poder
+// enviar correo institucional libre. Mismo estilo que guardarAnclasGrupo.
+function esCoordOrectoria_(correoAutenticado) {
+  const correo = String(correoAutenticado || '').toLowerCase();
+  return correo === String(CONFIG.COORD_MANANA).toLowerCase()
+      || correo === String(CONFIG.COORD_TARDE).toLowerCase()
+      || correo === String(CONFIG.RECTORA).toLowerCase();
+}
+
+function enviarCorreoAccion(p, correoAutenticado) {
   try {
+    if (!esCoordOrectoria_(correoAutenticado)) return { ok: false, error: 'no-autorizado' };
     const destinatarios = String(p.destinatarios || '').split(',').map(function(s){return s.trim();}).filter(Boolean);
     if (destinatarios.length === 0) return { ok: false, error: 'Sin destinatarios' };
     enviarHtml(destinatarios.join(','), p.asunto || '', p.htmlBody || p.html || '');
@@ -530,8 +591,9 @@ function enviarCorreoAccion(p) {
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
-function enviarCorreoMasivo(p) {
+function enviarCorreoMasivo(p, correoAutenticado) {
   try {
+    if (!esCoordOrectoria_(correoAutenticado)) return { ok: false, error: 'no-autorizado' };
     const destinatarios = String(p.destinatarios || '').split(',').map(function(s){return s.trim();}).filter(Boolean);
     const cc = String(p.cc || '').split(',').map(function(s){return s.trim();}).filter(Boolean).join(',');
     if (destinatarios.length === 0) return { ok: false, error: 'Sin destinatarios' };
@@ -645,7 +707,104 @@ function getDatosTareas(p) {
     .map(function(c) {
       return { nivel: String(c.nivel), asignaturaId: String(c.asignaturaId), momentos: Number(c.momentos) || 0 };
     });
-  return { ok: true, tareas: tareas, cesiones: cesiones, solicitudes: solicitudes, cupos: cupos };
+  // Anclas por grupo (docs/anclas-por-grupo-contrato.md): se incorporan aquí,
+  // en la misma respuesta, para que la agenda pública (que ya llama a
+  // getDatosTareas) no necesite una segunda petición desde un teléfono con
+  // datos limitados. Misma forma que devuelve getAnclasGrupos.
+  var anclas = anclasGruposComoMapa_();
+  return { ok: true, tareas: tareas, cesiones: cesiones, solicitudes: solicitudes, cupos: cupos, anclas: anclas };
+}
+
+// Lee la hoja AnclasGrupo y arma { "<grupo>": [{id,label}, ...] }, solo con
+// los grupos que tengan algo definido. Compartida por getAnclasGrupos (acción
+// pública) y getDatosTareas (para no duplicar una segunda petición).
+function anclasGruposComoMapa_() {
+  const sheet = getSheet('AnclasGrupo', ANCLAS_GRUPO_HEADERS);
+  asegurarEncabezados_(sheet, ANCLAS_GRUPO_HEADERS);
+  const filas = hojaAObjetos(sheet);
+  const mapa = {};
+  filas.forEach(function(r) {
+    const grupo = String(r.grupo || '');
+    if (!grupo) return;
+    var lista;
+    try { lista = JSON.parse(r.anclas || '[]'); } catch (e) { lista = []; }
+    if (!Array.isArray(lista) || lista.length === 0) return;
+    mapa[grupo] = lista;
+  });
+  return mapa;
+}
+
+// Acción pública (sin idToken): la agenda del estudiante no tiene sesión.
+// Solo son datos de acuerdo del grupo ("después de almorzar"), no dato
+// personal — ver docs/anclas-por-grupo-contrato.md, sección "Por qué esto
+// vive en Apps Script".
+function getAnclasGrupos() {
+  return { ok: true, anclas: anclasGruposComoMapa_() };
+}
+
+// Escritura protegida (idToken obligatorio, ver ACCIONES_PROTEGIDAS). Solo
+// puede guardar el director de ESE grupo (DIRECTORES_CORREO), o coordinación
+// y rectoría. El servidor no confía en nada que mande el cliente aparte del
+// correo verificado: valida de nuevo el tope de 6 anclas y el largo de label.
+//
+// OJO "superusuario": el contrato también autoriza al superusuario del panel
+// de Firebase, pero ese rol vive en un custom claim de Firestore/Auth y este
+// backend (Apps Script) no tiene forma de consultarlo — solo conoce el correo
+// verificado por Identity Toolkit. En la práctica, la cuenta de rectoría
+// (CONFIG.RECTORA) ya cubre el caso de uso real de "alguien con acceso total
+// arregla las anclas de cualquier grupo". Si se necesita que el superusuario
+// (julian.medina@iemanueljbetancur.edu.co u otra cuenta) también pueda
+// hacerlo sin ser director ni rectoría, hay que decidir y añadir su correo
+// explícitamente aquí — no se puede derivar solo.
+function guardarAnclasGrupo(p, correoAutenticado) {
+  try {
+    const grupo = String(p.grupo || '').trim();
+    if (!grupo) return { ok: false, error: 'Falta el grupo' };
+
+    const correo = String(correoAutenticado || '').toLowerCase();
+    const esDirectorDeEsteGrupo = String(DIRECTORES_CORREO[grupo] || '').toLowerCase() === correo;
+    const esCoordinacion = correo === String(CONFIG.COORD_MANANA).toLowerCase()
+                         || correo === String(CONFIG.COORD_TARDE).toLowerCase();
+    const esRectoria = correo === String(CONFIG.RECTORA).toLowerCase();
+    if (!esDirectorDeEsteGrupo && !esCoordinacion && !esRectoria) {
+      return { ok: false, error: 'no-autorizado' };
+    }
+
+    var lista;
+    try { lista = JSON.parse(p.anclas || '[]'); } catch (e) { return { ok: false, error: 'Anclas inválidas' }; }
+    if (!Array.isArray(lista)) return { ok: false, error: 'Anclas inválidas' };
+    if (lista.length > 6) return { ok: false, error: 'Máximo 6 anclas por grupo' };
+    for (var i = 0; i < lista.length; i++) {
+      const a = lista[i];
+      if (!a || typeof a.id !== 'string' || !a.id) return { ok: false, error: 'Ancla sin id válido' };
+      if (typeof a.label !== 'string' || !a.label.trim()) return { ok: false, error: 'Ancla sin label válido' };
+      if (a.label.length > 30) return { ok: false, error: 'El label de un ancla supera 30 caracteres' };
+    }
+    // Se guardan solo los campos {id,label} — cualquier otro campo que el
+    // cliente hubiera colado en el objeto no se persiste.
+    const listaLimpia = lista.map(function(a) { return { id: a.id, label: a.label }; });
+
+    const sheet = getSheet('AnclasGrupo', ANCLAS_GRUPO_HEADERS);
+    asegurarEncabezados_(sheet, ANCLAS_GRUPO_HEADERS);
+    const ts = new Date().toISOString();
+    const updates = {
+      anclas: JSON.stringify(listaLimpia),
+      actualizadoPor: correoAutenticado || '',
+      timestamp: ts,
+    };
+    const actualizado = actualizarFila(sheet, 'grupo', grupo, updates);
+    if (!actualizado) {
+      sheet.appendRow([grupo, updates.anclas, updates.actualizadoPor, updates.timestamp]);
+      // "9.1" (notación de grado de mañana) se lee como fecha y Sheets la
+      // convierte sola al escribirla — mismo problema que en grado/Informes.
+      // setNumberFormat('@') queda fijo en la celda, así que las próximas
+      // actualizaciones de esta misma fila (rama actualizarFila de arriba)
+      // no vuelven a romperse: el formato es de la celda, no del valor.
+      const headersReales = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      forzarColumnaTexto_(sheet, headersReales, 'grupo', grupo);
+    }
+    return { ok: true, grupo: grupo, anclas: listaLimpia };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
 // Guarda la asignación de momentos por (nivel, asignatura). Reemplaza todo.
@@ -917,9 +1076,12 @@ function guardarInformeContencion(p, correoAutenticado) {
     forzarColumnaTexto_(sheet, headersReales, 'grado', p.grado || '');
 
     const coordCorreo = p.jornada === 'tarde' ? CONFIG.COORD_TARDE : CONFIG.COORD_MANANA;
-    // Siempre a coordinador + psicoorientador + director de grupo. El director puede
-    // faltar (grado sin director conocido en el sistema); no se bloquea el envío por eso.
-    const destinatarios = [coordCorreo, CONFIG.PSICOORIENTADOR, p.directorCorreo].filter(Boolean).join(',');
+    // Siempre a coordinador + psicoorientador + director de grupo + rectoría.
+    // Julián pidió que a la rectora también le lleguen todos los casos de
+    // contención emocional (y de primeros auxilios, ver guardarRemisionSeguro
+    // más abajo). El director puede faltar (grado sin director conocido en el
+    // sistema); no se bloquea el envío por eso.
+    const destinatarios = [coordCorreo, CONFIG.PSICOORIENTADOR, p.directorCorreo, CONFIG.RECTORA].filter(Boolean).join(',');
     const RUTA_LABEL_ = {
       psicoorientador: 'Psicoorientador del colegio',
       uai: 'Remisión a la UAI',
@@ -963,6 +1125,13 @@ function listarInformesContencion(p, correoAutenticado) {
 // La foto llega en base64 por POST (por eso esta acción solo funciona vía
 // callApiPost, nunca por JSONP/GET: una imagen no cabe en una URL). Se
 // guarda en una carpeta de Drive dedicada y solo el enlace va a la hoja.
+// Nota (2026-09-03): esta función NO envía correo al registrar la remisión —
+// hoy no lo hace para nadie (ni coordinación, ni rectoría, ni el psicoorien-
+// tador, que además tiene su acceso excluido a propósito, ver resolverAcceso_
+// más abajo) y no se ha pedido que lo haga. Julián solo pidió que la rectora
+// vea estos casos en la alerta diaria de seguimiento (revisarCasosVencidos) y
+// en el listado de la app (ya cubierto por resolverAcceso_: tipo 'todos').
+// No es un olvido: si se quiere correo inmediato aquí, es una decisión nueva.
 function guardarRemisionSeguro(p, correoAutenticado) {
   try {
     if (!p.fotoBase64) return { ok: false, error: 'Falta la fotografía' };
@@ -1198,7 +1367,10 @@ function revisarCasosVencidos() {
       destinatarios: function(c) {
         const coordCorreo = String(c.jornada) === 'tarde' ? CONFIG.COORD_TARDE : CONFIG.COORD_MANANA;
         const directorCorreo = DIRECTORES_CORREO[String(c.grado)] || '';
-        return [coordCorreo, CONFIG.PSICOORIENTADOR, directorCorreo];
+        // Rectoría también entra aquí: quiere ver todos los casos, tanto de
+        // contención emocional como de primeros auxilios (ver el otro bloque
+        // de este arreglo, más abajo).
+        return [coordCorreo, CONFIG.PSICOORIENTADOR, directorCorreo, CONFIG.RECTORA];
       },
     },
     // Primeros auxilios NO lleva al psicoorientador: no es contención
@@ -1216,7 +1388,9 @@ function revisarCasosVencidos() {
         const coordCorreo = String(c.jornada) === 'tarde' ? CONFIG.COORD_TARDE : CONFIG.COORD_MANANA;
         const directorCorreo = DIRECTORES_CORREO[String(c.grado)] || '';
         const docenteCorreo = DOCENTE_ID_A_CORREO[String(c.docenteId)] || '';
-        return [coordCorreo, directorCorreo, docenteCorreo];
+        // Rectoría también quiere ver los casos de primeros auxilios sin
+        // seguimiento, igual que los de contención emocional (ver arriba).
+        return [coordCorreo, directorCorreo, docenteCorreo, CONFIG.RECTORA];
       },
     },
   ].forEach(function(cfg) {
