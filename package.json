@@ -2,6 +2,9 @@
   "name": "mjb-prestamos",
   "private": true,
   "version": "0.1.0",
+  "description": "Sistema de gestion escolar de la I.E. Manuel J. Betancur",
+  "author": "Julian David Medina Tamayo <julian.medina@iemanueljbetancur.edu.co>",
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "dev": "vite",

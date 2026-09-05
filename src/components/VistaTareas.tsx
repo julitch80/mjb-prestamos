@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, FolderOpen, Gift, ListChecks, Paperclip, HandCoins, Loader2, QrCode, Settings2, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, FolderOpen, Gift, ListChecks, Paperclip, HandCoins, Loader2, QrCode, Settings2, Trash2, X } from 'lucide-react';
 import AgendaGrupo from './AgendaGrupo';
 import ModalReplicarTarea from './ModalReplicarTarea';
 import { subirAdjuntoTarea } from '../data/tareas/adjuntos';
@@ -233,6 +233,13 @@ function AdjuntoTarea({
   // Se guarda aparte de `adjunto.url` (la URL final de Storage) porque durante la
   // subida todavía no existe esa URL, y así el docente ve la foto de inmediato.
   const [previaLocal, setPrevia] = useState<string | null>(null);
+  // Confirmacion previa a abrir la camara. El aviso que hay junto a la vista previa
+  // llega tarde: para entonces la foto ya se tomo, y si salio un estudiante el
+  // docente tiene que darse cuenta y descartarla. Este aparece ANTES, que es cuando
+  // todavia se puede evitar. Sale SIEMPRE, sin opcion de "no volver a mostrar": es
+  // un toque de mas frente a la cara de un menor en una direccion publica.
+  const [confirmandoFoto, setConfirmandoFoto] = useState(false);
+  const inputCamara = useRef<HTMLInputElement | null>(null);
 
   async function elegir(ev: React.ChangeEvent<HTMLInputElement>) {
     const file = ev.target.files?.[0];
@@ -298,18 +305,24 @@ function AdjuntoTarea({
         // detectar el dispositivo. flex-wrap evita que se rompa la fila en pantallas
         // angostas.
         <div className="flex flex-wrap gap-2">
-          <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-xl border border-line bg-elevated px-3 py-2.5 text-xs text-soft hover:text-strong transition min-h-[40px]">
+          <button
+            type="button"
+            onClick={() => setConfirmandoFoto(true)}
+            disabled={subiendo}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-elevated px-3 py-2.5 text-xs text-soft hover:text-strong transition min-h-[40px] disabled:opacity-40"
+          >
             <Camera size={14} />
             Tomar foto
-            <input
-              type="file"
-              hidden
-              accept="image/*"
-              capture="environment"
-              disabled={subiendo}
-              onChange={elegir}
-            />
-          </label>
+          </button>
+          <input
+            ref={inputCamara}
+            type="file"
+            hidden
+            accept="image/*"
+            capture="environment"
+            disabled={subiendo}
+            onChange={elegir}
+          />
           <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-xl border border-line bg-elevated px-3 py-2.5 text-xs text-soft hover:text-strong transition min-h-[40px]">
             <FolderOpen size={14} />
             Galería
@@ -323,6 +336,54 @@ function AdjuntoTarea({
         </div>
       )}
       {subiendo && <p className="text-[11px] text-muted mt-1">Subiendo… {pct}%</p>}
+      {confirmandoFoto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setConfirmandoFoto(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-line bg-surface p-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle size={20} className="text-warning shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-sm font-semibold text-strong">Antes de tomar la foto</h4>
+                <p className="text-xs text-soft mt-1.5 leading-snug">
+                  <b>No fotografíe estudiantes.</b> Tampoco cuadernos con nombres, listas de
+                  asistencia ni carteleras del salón.
+                </p>
+                <p className="text-xs text-soft mt-1.5 leading-snug">
+                  La agenda del grupo se abre con el código QR, sin contraseña:{' '}
+                  <b>cualquiera con ese enlace podrá ver la foto</b>.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setConfirmandoFoto(false)}
+                className="flex-1 min-h-[40px] rounded-xl border border-line px-3 text-xs text-soft"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmandoFoto(false);
+                  // Se abre la camara al cerrar el aviso, no antes: es la unica forma de
+                  // garantizar que el docente lo haya tenido delante.
+                  inputCamara.current?.click();
+                }}
+                className="flex-1 min-h-[40px] rounded-xl bg-accent px-3 text-xs font-semibold text-accent-fg"
+              >
+                Entendido, abrir cámara
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && <p className="text-[11px] text-danger mt-1">{error}</p>}
       <p className="text-[11px] text-warning mt-1 leading-snug">
         La agenda del grupo se abre con el código QR, sin contraseña. Lo que adjunte aquí lo podrá
