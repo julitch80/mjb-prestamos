@@ -553,20 +553,48 @@ function cambiarPin(p) {
 }
 
 // ── CORREO ───────────────────────────────────────────────────
-function enviarHtml(para, asunto, html, cc) {
+/**
+ * Envia el correo institucional.
+ *
+ * `extra` es opcional: { generadoPor, correoAutor, reservado }.
+ *
+ *   - `generadoPor` / `correoAutor`: quien produjo el documento. El pie deja de
+ *     ser un "mensaje automatico" anonimo y dice de quien salio. En un informe
+ *     que puede acabar en una comision, la procedencia es parte del documento.
+ *   - `correoAutor` ademas se pone como Responder-a. El pie decia "no
+ *     responder", y eso vale para un aviso de reserva de aula, pero NO para un
+ *     informe de contencion emocional: si psicoorientacion necesita preguntarle
+ *     algo al docente que atendio el caso, tiene que poder contestar.
+ *   - `reservado`: anade la advertencia de confidencialidad. Estos correos
+ *     llevan nombre, documento y situacion de un menor, y hasta hoy no decian
+ *     en ninguna parte que no debian reenviarse.
+ *
+ * La firma dice "Sistema de gestion escolar" y no "de prestamo de recursos":
+ * asi empezo la aplicacion, pero hace tiempo que hace bastante mas.
+ */
+function enviarHtml(para, asunto, html, cc, extra) {
+  const e = extra || {};
+  const pie = e.generadoPor
+    ? 'Informe generado por <b>' + e.generadoPor + '</b> desde el sistema de gestión escolar de la ' + CONFIG.NOMBRE_IE + '.'
+    : 'Mensaje generado automáticamente por el sistema de gestión escolar de la ' + CONFIG.NOMBRE_IE + '.';
+  const aviso = e.reservado
+    ? '<p style="text-align:center;color:#b45309;font-size:11px;margin-top:6px">' +
+      'Contiene información reservada sobre un estudiante. <b>No lo reenvíe</b> fuera de las personas destinatarias.</p>'
+    : '';
   const opciones = {
     htmlBody:
       '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8f9fa;padding:20px">' +
       '<div style="background:white;border-radius:8px;padding:24px;border:1px solid #e0e0e0">' +
       '<div style="border-bottom:2px solid #1a4a9a;padding-bottom:12px;margin-bottom:20px">' +
       '<strong style="color:#1a4a9a;font-size:16px">' + CONFIG.NOMBRE_IE + '</strong>' +
-      '<span style="color:#666;font-size:13px;margin-left:8px">Sistema de préstamo de recursos</span>' +
+      '<span style="color:#666;font-size:13px;margin-left:8px">Sistema de gestión escolar</span>' +
       '</div>' + html + '</div>' +
-      '<p style="text-align:center;color:#aaa;font-size:11px;margin-top:12px">' +
-      'Mensaje automático — no responder.</p></div>',
+      '<p style="text-align:center;color:#aaa;font-size:11px;margin-top:12px">' + pie + '</p>' +
+      aviso + '</div>',
     name: CONFIG.NOMBRE_IE,
   };
   if (cc) opciones.cc = cc;
+  if (e.correoAutor) opciones.replyTo = e.correoAutor;
   GmailApp.sendEmail(para, asunto, '', opciones);
 }
 
@@ -1100,7 +1128,15 @@ function guardarInformeContencion(p, correoAutenticado) {
       '<p><b>Descripción del informe:</b><br>' + String(p.descripcion || '').replace(/\n/g, '<br>') + '</p>' +
       '<p><b>Ruta de atención:</b> ' + rutaTexto + '</p>';
     try {
-      if (destinatarios) enviarHtml(destinatarios, 'Informe de contención emocional — ' + (p.estudianteNombre || ''), html);
+      if (destinatarios) {
+        // El docente que lo genera firma el informe y queda como Responder-a,
+        // resuelto aqui a partir de docenteId: el cliente no manda su correo.
+        enviarHtml(destinatarios, 'Informe de contención emocional — ' + (p.estudianteNombre || ''), html, undefined, {
+          generadoPor: p.docenteNombre || '',
+          correoAutor: DOCENTE_ID_A_CORREO[String(p.docenteId || '')] || '',
+          reservado: true,
+        });
+      }
     } catch (mailErr) {
       return { ok: true, id: id, correoEnviado: false, errorCorreo: String(mailErr.message || mailErr) };
     }
@@ -1418,7 +1454,7 @@ function revisarCasosVencidos() {
         '<p><b>Grado:</b> ' + (c.grado || '') + '</p>' +
         '<p style="font-size:12px;color:#666">Revisa el caso en la pestaña "Casos" de la app.</p>';
       try {
-        enviarHtml(destinatarios, '[MJB] Caso sin seguimiento (' + dias + ' días) — ' + (c.estudianteNombre || ''), html);
+        enviarHtml(destinatarios, '[MJB] Caso sin seguimiento (' + dias + ' días) — ' + (c.estudianteNombre || ''), html, undefined, { reservado: true });
         actualizarFila(sheet, 'id', c.id, { avisadoEn: new Date().toISOString() });
       } catch (mailErr) {
         // best-effort: si el correo falla no se marca avisado, para reintentar

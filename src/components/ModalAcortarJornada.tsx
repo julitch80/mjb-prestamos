@@ -157,7 +157,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
           <thead><tr style="background:#fef3c7"><th style="padding:6px 8px;border:1px solid #fcd34d;text-align:left">Hora</th><th style="padding:6px 8px;border:1px solid #fcd34d;text-align:left">Horario</th></tr></thead>
           <tbody>${filas}</tbody>
         </table>
-        <p style="margin-top:20px;font-size:11px;color:#94a3b8">Generado por MJB Préstamos</p>
+        <p style="margin-top:20px;font-size:11px;color:#94a3b8">I.E. Manuel J. Betancur · Sistema de gestión escolar</p>
       </div>
     `;
   }
@@ -195,7 +195,7 @@ export default function ModalAcortarJornada({ open, jornada, onClose }: Props) {
         ...(b.descansoDespues ? [`   ⏸ Descanso de ${b.descansoDespues} min`] : []),
       ]),
       '',
-      '— MJB Préstamos',
+      '— I.E. Manuel J. Betancur · Sistema de gestión escolar',
     ].join('\n');
     navigator.clipboard.writeText(texto).catch(() => {
       const ta = document.createElement('textarea');
