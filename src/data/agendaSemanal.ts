@@ -1044,7 +1044,211 @@ export const AGENDAS: AgendaSemanal[] = [
       },
     ],
   },
+  {
+    semana: 3,
+    periodo: 3,
+    desde: '2026-09-07',
+    hasta: '2026-09-11',
+    publicadaPor: 'Equipo Técnico Institucional',
+    notaFinal: 'El lunes 14 de septiembre los sindicatos convocan a COMUNA INFORMATIVA a los docentes; habrá novedades en el horario para los estudiantes, ver la web.',
+    dias: [
+      {
+        fecha: '2026-09-07',
+        dia: 'lunes',
+        notas: ['Continúan los planes de apoyo del segundo periodo'],
+        actividades: [
+          {
+            hora: '1ª hora de cada jornada y sede',
+            actividad: 'Dirección de grupo: Círculo de palabra. Se sugiere revisar resultados académicos y convivencia grupal, y hacer acuerdos de grupo',
+            asisten: 'Estudiantes y directores de grupo',
+            lugar: 'Aulas de clase',
+            responsables: 'Directores de grupo o encargados',
+          },
+          {
+            hora: '6:30 am a 4:00 pm',
+            actividad: 'Capacitación a prejubilados que ingresan al programa',
+            asisten: 'Lourdes Uparela, José Uriel López, Ma. Victoria Henao, Luz Marina Zapata',
+            lugar: 'Recinto Quirama (Carmen de Viboral)',
+            responsables: 'Bienestar docente - SED',
+          },
+          {
+            hora: '12:30 pm a 1:00 pm',
+            actividad: 'Reunión de seguimiento a media técnica IUPB',
+            asisten: 'Coordinadora y docente Felipe',
+            lugar: 'Rectoría',
+            responsables: 'Líder de MT IUPB',
+          },
+          {
+            hora: '1:10 pm a 3:20 pm',
+            actividad: 'Formación a líderes escolares',
+            asisten: 'Representantes de grupo y mediadores, estudiantes del grado 8°',
+            lugar: 'Sede Principal',
+            responsables: 'Paola Portela',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-08',
+        dia: 'martes',
+        actividades: [
+          {
+            hora: '10:00 am a 11:40 am',
+            actividad: 'Fortalecimiento de competencia lúdica',
+            asisten: 'Grupo T°3 y su directora Gloria Yanet Gallego',
+            lugar: 'Ludoteca Prado',
+            responsables: 'INDER',
+          },
+          {
+            hora: 'Por definir',
+            actividad: 'Salida pedagógica: visita guiada a la UdeA con estudiantes de 11°',
+            asisten: 'Grupos 11°1 y 11°3',
+            lugar: 'Universidad de Antioquia',
+            responsables: 'Directores de grupo',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-09',
+        dia: 'miércoles',
+        actividades: [
+          {
+            hora: '3 últimas horas',
+            actividad: 'Acciones educativas: prevención de ITS',
+            asisten: 'Estudiantes del grado 9º',
+            lugar: 'Aulas de clase',
+            responsables: 'Enfermera del programa Medellín Te Quiere Saludable',
+          },
+          {
+            hora: '10:00 am a 11:40 am',
+            actividad: 'Taller literario',
+            asisten: 'Grupo 2º1 y su director Edison Alejandro Sánchez',
+            lugar: 'Aula de clases',
+            responsables: 'Asesor parque Biblioteca y Edison Alejandro Sánchez',
+          },
+          {
+            hora: '10:30 am a 12:00 m',
+            actividad: 'Fortalecimiento de competencia lúdica',
+            asisten: 'Grupo 1°3 y su directora Margarita Bedoya',
+            lugar: 'Ludoteca Prado',
+            responsables: 'INDER',
+          },
+          {
+            hora: '11:00 am',
+            actividad: 'Reunión de equipo directivo y profesionales de apoyo: seguimiento a reportes de comisiones de evaluación. Llevar actas de comisiones',
+            asisten: 'Coordinadores y profesionales de apoyo',
+            lugar: 'Biblioteca',
+            responsables: 'Coordinadores y rectora',
+          },
+          {
+            hora: '11:00 am a 12:00 pm',
+            actividad: 'Formación a líderes escolares',
+            asisten: 'Representantes de grupo y mediadores, estudiantes de 9°, 10° y 11°',
+            lugar: 'Sede Principal',
+            responsables: 'Paola Portela y Erika',
+          },
+          {
+            hora: 'Todo el día',
+            actividad: 'Acción educativa de higiene bucal en sede Finca: aplicación de flúor y entrega de kit',
+            asisten: 'Estudiantes de la sede Finca',
+            lugar: 'Patio',
+            responsables: 'Secretaría de Salud',
+          },
+          {
+            hora: '1:10 pm a 3:20 pm',
+            actividad: 'Formación a líderes escolares',
+            asisten: 'Representantes de grupo y mediadores, estudiantes del grado 8°',
+            lugar: 'Sede Principal',
+            responsables: 'Paola Portela y Erika',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-10',
+        dia: 'jueves',
+        notas: [
+          'ENTREGA DE INFORMES ACADÉMICOS DE SEGUNDO PERIODO Y DILIGENCIAMIENTO DE INTENCIÓN DE RENOVAR MATRÍCULA AÑO 2027',
+          'Horario de los docentes en todas las sedes: jornada AM de 6:00 am a 12:00 m; jornada PM de 6:00 am a 12:00 m',
+          'Los padres con varios hijos en diferentes grupos y jornadas encontrarán disponibles a todos los docentes en una misma jornada, entre las 6:00 am y las 12:00 m',
+        ],
+        actividades: [
+          {
+            hora: '6:00 am',
+            actividad: 'Reunión general con acudientes de grado 11°',
+            asisten: 'Padres y madres de familia de grado 11° y estudiantes citados',
+            lugar: 'Auditorio',
+            responsables: 'Rectora, coordinadora y directores de grupo',
+          },
+          {
+            hora: '6:00 am',
+            actividad: 'Entrega de informes: jornada de la mañana de cada sede',
+            asisten: 'Todos los acudientes y estudiantes citados',
+            lugar: 'Aulas de clase de cada sede',
+            responsables: 'Directores de grupo',
+          },
+          {
+            hora: '8:00 am',
+            actividad: 'Reunión de docentes de bachillerato de la jornada PM, sede principal y sede Finca: herramienta tecnológica y otros asuntos',
+            asisten: 'Docentes jornada PM sede principal y sede Finca',
+            lugar: 'Biblioteca',
+            responsables: 'Julián Medina y rectora',
+          },
+          {
+            hora: '9:30 am',
+            actividad: 'Entrega de informes: jornada de la tarde de cada sede',
+            asisten: 'Todos los acudientes y estudiantes citados',
+            lugar: 'Aulas de clase de cada sede',
+            responsables: 'Directores de grupo',
+          },
+          {
+            hora: '11:00 am',
+            actividad: 'Reunión de docentes de bachillerato de la jornada AM, sede principal y sede Finca: herramienta tecnológica y otros asuntos',
+            asisten: 'Docentes jornada AM sede principal y sede Finca',
+            lugar: 'Biblioteca',
+            responsables: 'Julián Medina y rectora',
+          },
+          {
+            hora: '1:00 pm a 4:00 pm',
+            actividad: 'III Encuentro de DAGRED',
+            asisten: 'Gloria Gallego y Hugo Yepes',
+            lugar: 'MOVA',
+            responsables: 'DAGRED',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-11',
+        dia: 'viernes',
+        notas: [
+          'Jornada psicoeducativa de salud (Secretaría de Salud). Temas: comunicación asertiva, prevención de embarazo adolescente, riesgos y control de plagas, tenencia responsable de mascotas, alimentación funcional y resolución de conflictos.',
+        ],
+        actividades: [
+          {
+            hora: 'Jornada de la tarde',
+            actividad: 'Carrusel de capacitación socioeducativa con la Secretaría de Salud, en sede bachillerato',
+            asisten: 'Estudiantes de la jornada PM, sede bachillerato',
+            lugar: 'Aulas',
+            responsables: 'Secretaría de Salud',
+          },
+          {
+            hora: '10:30 am a 12:00 m',
+            actividad: 'Fortalecimiento de competencia lúdica',
+            asisten: 'Grupo 2°3 y su directora Mary Luz Hoyos',
+            lugar: 'Ludoteca Prado',
+            responsables: 'INDER',
+          },
+          {
+            hora: '11:00 am a 12:00 m',
+            actividad: 'Reunión de gestión del riesgo: recorrido en cada sede',
+            asisten: 'Gloria Gallego, Leonardo Acevedo, Julián Medina y Janneth Ocampo',
+            lugar: 'Aula de innovación',
+            responsables: 'Julián Medina y coordinación',
+          },
+        ],
+      },
+    ],
+  },
 ];
+
 
 
 /** La agenda vigente: siempre la última publicada. */
