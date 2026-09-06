@@ -1412,6 +1412,26 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
                   />
                 </div>
 
+                {/* Aviso de correos sin resolver — el correo institucional ya no viaja
+                    en el bundle (ver src/data/maestros.ts); se resuelve en tiempo de
+                    ejecución desde Firestore tras el login (src/data/plantilla.ts).
+                    Si a un docente no se le resolvió, antes se le excluía del envío
+                    EN SILENCIO y el coordinador nunca se enteraba. Este aviso es
+                    obligatorio: mismo peso visual que un error (⛔ danger). */}
+                {(() => {
+                  const sinCorreo = resumenDifusion.docentesAfectados.filter(d => !d.correo || !d.correo.includes('@'));
+                  if (sinCorreo.length === 0) return null;
+                  return (
+                    <div className="rounded-xl border border-danger bg-danger-soft p-3 text-xs text-danger-soft-fg">
+                      <strong>⛔ No se pudo resolver el correo de: {sinCorreo.map(d => d.nombre).join(', ')}.</strong>
+                      <div className="opacity-90 mt-0.5">
+                        {sinCorreo.length === 1 ? 'No recibirá' : 'No recibirán'} el aviso por correo —
+                        informa por otro medio (WhatsApp, en persona) a {sinCorreo.length === 1 ? 'esta persona' : 'estas personas'}.
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Envío automático de correos */}
                 {resumenDifusion.docentesAfectados.length > 0 && (
                   <div className="rounded-xl border border-info bg-info-soft p-3 space-y-2">

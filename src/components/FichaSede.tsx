@@ -81,8 +81,10 @@ function FichaGustavoRodas() {
     <div className="space-y-3">
       <Bloque titulo={`Docentes (${docentes.length})`}>
         <p className="text-xs text-muted">
-          Ya cargados con su correo institucional, su jornada y su sede. En cuanto se les cree
-          la cuenta quedarán dentro de los canales de chat de la sede automáticamente.
+          Ya cargados con su jornada y su sede. El correo institucional de cada uno no viaja en
+          la app — se resuelve desde Firestore solo cuando esa persona inicia sesión (ver
+          src/data/maestros.ts). En cuanto se les cree la cuenta quedarán dentro de los canales
+          de chat de la sede automáticamente.
         </p>
         <div className="flex flex-wrap gap-1.5">
           {docentes.map((d) => (
@@ -90,7 +92,7 @@ function FichaGustavoRodas() {
               key={d.id}
               className="text-[11px] px-2 py-1 rounded-full bg-elevated border border-line"
               style={{ color: d.color }}
-              title={`${d.correo} · jornada ${d.jornada === 'manana' ? 'mañana' : 'tarde'}`}
+              title={`${d.correo ? d.correo : 'correo aún no resuelto (pendiente de login)'} · jornada ${d.jornada === 'manana' ? 'mañana' : 'tarde'}`}
             >
               {d.nombreCorto}
             </span>

@@ -190,7 +190,7 @@ export function InformeContencion({ onTerminado, onCancelar }: {
   const [descripcion, setDescripcion] = useState('');
   const [rutaDetalle, setRutaDetalle] = useState<RutaDetalle | ''>('');
   const [enviando, setEnviando] = useState(false);
-  const [resultado, setResultado] = useState<{ ok: boolean; correoEnviado?: boolean; error?: string } | null>(null);
+  const [resultado, setResultado] = useState<{ ok: boolean; correoEnviado?: boolean; error?: string; directorCorreoResuelto?: boolean } | null>(null);
   const [datosParaExportar, setDatosParaExportar] = useState<Parameters<typeof exportarInformeContencion>[0] | null>(null);
   const [vistaImprimir, setVistaImprimir] = useState(false);
   const [compartiendo, setCompartiendo] = useState(false);
@@ -239,7 +239,12 @@ export function InformeContencion({ onTerminado, onCancelar }: {
       rutaDetalle,
     });
     setEnviando(false);
-    setResultado(r);
+    // El correo del director puede no haberse resuelto aún (solo se llena tras
+    // login vía Firestore — ver src/data/maestros.ts y src/data/plantilla.ts).
+    // El informe se guarda de todos modos: esto NO bloquea, pero queda
+    // constancia visible de que ese correo en particular no salió.
+    const directorCorreoResuelto = correoDirectorDeGrupo(estudiante.gradoActual).includes('@');
+    setResultado({ ...r, directorCorreoResuelto });
     setDatosParaExportar({
       estudianteNombre: `${estudiante.nombres} ${estudiante.apellidos}`,
       estudianteDocumento: estudiante.docNumber ?? '',
@@ -271,6 +276,11 @@ export function InformeContencion({ onTerminado, onCancelar }: {
           </p>
         )}
         {!resultado.ok && <p className="text-xs text-danger">{resultado.error}</p>}
+        {resultado.ok && resultado.directorCorreoResuelto === false && (
+          <p className="text-xs font-semibold text-danger-soft-fg bg-danger-soft border border-danger rounded-lg px-3 py-2 max-w-xs">
+            ⛔ No se pudo resolver el correo del director de grupo — no le llegó copia de este informe. Avísale por otro medio.
+          </p>
+        )}
         {resultado.ok && datosParaExportar && (
           <div className="flex flex-col gap-2 w-full max-w-xs">
             <div className="flex gap-2">
