@@ -693,6 +693,28 @@ service cloud.firestore {
       return isActiveUser() && callerEmail() in asisEventoDe(eventId).docentes;
     }
 
+  // EXCEPCION DELIBERADA (Julian, 2026-09-07). Los cargos de apoyo (`asistenciaConsulta`)
+  // quedan fuera de `asisCanRecord()` y por eso no pueden marcar en NINGUN sitio: ni en una
+  // clase, ni en un centro de interes. Pero la PTA organiza actividades propias, y un evento
+  // que se puede crear pero no llenar no sirve de nada: obligaba a pedirle a otro docente
+  // que pasara la lista de una actividad suya.
+  //
+  // El alcance es el minimo que hace util la excepcion, y por eso NO se toco
+  // `asisCanRecord()`: la excepcion solo abre dos puertas —crear un evento, y marcar dentro
+  // de un evento QUE ELLA MISMA CREO—. La asistencia de clase y la de los centros de interes
+  // siguen cerradas para estos cargos, igual que antes.
+  //
+  // Rectora y superusuario quedan fuera explicitamente: la primera consulta y no registra
+  // (decision de 2026-07-30), y la clave del segundo es transferible, asi que sus actos no
+  // serian atribuibles a una persona fisica. Se comprueban aunque hoy ninguno de los dos
+  // tenga la bandera: si manana alguien se la pusiera por error, la excepcion no debe
+  // convertirse en la puerta trasera que ambos tienen cerrada por delante.
+  function asisConsultaCreaEventos() {
+    return asisConsultaAmpliada()
+      && callerDoc().role != 'rectora'
+      && callerDoc().role != 'superusuario';
+  }
+
     match /asistenciaEvents/{eventId} {
 
       // OJO EN EL CLIENTE: la consulta DEBE ir con
@@ -708,7 +730,7 @@ service cloud.firestore {
       // Se exige que el creador quede dentro de `docentes` para que no pueda fabricar un
       // evento al que el mismo no tenga acceso — un documento invisible para todos, que
       // nadie podria corregir ni dar de baja despues.
-      allow create: if !esSuplantacion() && (asisCanRecord()
+      allow create: if !esSuplantacion() && ((asisCanRecord() || asisConsultaCreaEventos())
         && request.resource.data.creadoPor == callerEmail()
         && callerEmail() in request.resource.data.docentes
         && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
@@ -746,8 +768,15 @@ service cloud.firestore {
         // Se escribe con rutas de campo puntuales (`estudiantes.est_0412.estado`), igual que
         // las sesiones de clase: varios docentes comparten el evento y pueden estar marcando
         // a la vez. Reemplazar el mapa completo borraria el trabajo del otro.
+        //
+        // `asisEventoDe(eventId).creadoPor == callerEmail()` y no `asisConsultaCreaEventos()`
+        // a secas: el cargo de apoyo marca en SU evento, no en cualquiera que le compartan.
+        // Compartir un evento da acceso a leerlo y —a quien puede registrar— a llenarlo; no
+        // debe ser la via por la que alguien excluido de `asisCanRecord()` acabe marcando en
+        // la actividad de otro.
         allow create, update: if !esSuplantacion() && (asisEnEvento(eventId)
-          && asisCanRecord()
+          && (asisCanRecord()
+              || (asisConsultaCreaEventos() && asisEventoDe(eventId).creadoPor == callerEmail()))
           && asisAuthorStamp());
 
         allow delete: if !esSuplantacion() && (false);

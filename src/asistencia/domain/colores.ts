@@ -66,6 +66,17 @@ export function resolverColor(
   return COLORES_GRUPO.find((c) => c.id === id) ?? null;
 }
 
+/**
+ * Un color de la paleta por su id, o null si ese id ya no existe.
+ *
+ * Lo usa la guia de color del director (ver `domain/direccion-grupo.ts`), que guarda el
+ * `colorId` y no el tono: si algun dia la paleta cambia, el cuaderno no queda con un
+ * `#f43f5e` a mano que ya nadie reconoce.
+ */
+export function colorPorId(id: string | null | undefined): ColorGrupo | null {
+  return COLORES_GRUPO.find((c) => c.id === id) ?? null;
+}
+
 export function leerMapa(): MapaColores {
   try {
     const crudo = localStorage.getItem(CLAVE_ALMACEN);

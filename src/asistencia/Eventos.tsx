@@ -27,10 +27,18 @@ const UMBRAL_AVISO_INTEGRANTES = 300;
 export default function Eventos({
   sede,
   puedeRegistrar,
+  consultaCreaEventos,
 }: {
   sede: string;
   /** Falso para la rectora: consulta lo que le compartan, pero no crea ni marca. */
   puedeRegistrar: boolean;
+  /**
+   * Cargo de apoyo (PTA) con la bandera de consulta: NO pasa lista en ninguna clase ni en
+   * un centro de interes, pero SI crea eventos propios y marca dentro de los suyos.
+   * Julian, 2026-09-07. Espeja `asisConsultaCreaEventos()` de las reglas; la rectora queda
+   * fuera. Ver el comentario de esa funcion en rules/asistencia.rules para el porque.
+   */
+  consultaCreaEventos: boolean;
 }) {
   const [eventos, setEventos] = useState<Event[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -66,7 +74,13 @@ export default function Eventos({
       <PlanillaEvento
         evento={eventoAbierto}
         miCorreo={miCorreo ?? ''}
-        puedeRegistrar={puedeRegistrar}
+        /* `creadoPor === miCorreo` y no `consultaCreaEventos` a secas: el cargo de apoyo
+           marca en SU evento, no en cualquiera que le compartan. Es la misma condicion
+           que aplica la regla del servidor, para no ofrecerle un boton que va a rebotar. */
+        puedeRegistrar={
+          puedeRegistrar ||
+          (consultaCreaEventos && eventoAbierto.creadoPor === miCorreo)
+        }
         onVolver={atras}
         onEliminado={(mensaje) => {
           setAviso(mensaje);
@@ -83,7 +97,7 @@ export default function Eventos({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-strong">Eventos</h2>
-        {puedeRegistrar && (
+        {(puedeRegistrar || consultaCreaEventos) && (
           <button
             onClick={() => setCreando(true)}
             className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"

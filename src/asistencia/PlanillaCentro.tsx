@@ -3,7 +3,7 @@ import Avatar from './Avatar';
 import Ayuda from './Ayuda';
 import EscanerQr from './EscanerQr';
 import VerificacionFoto from './VerificacionFoto';
-import { CLASE_MARCA, SIGLA } from './Planilla';
+import { CLASE_MARCA, SiglaMarca } from './Planilla';
 import {
   abrirSesionPrograma,
   buscarEstudiantes,
@@ -539,8 +539,10 @@ export default function PlanillaCentro({
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
           {MARKS.map((m) => (
             <span key={m.code} className="flex shrink-0 items-center gap-1 text-xs text-muted">
-              <span className={`rounded px-1 font-bold ${CLASE_MARCA[m.code]}`}>
-                {SIGLA[m.code]}
+              <span
+                className={`grid h-7 min-w-[1.75rem] place-items-center rounded px-1 font-bold ${CLASE_MARCA[m.code]}`}
+              >
+                <SiglaMarca code={m.code} />
               </span>
               {m.label}
             </span>
@@ -890,7 +892,7 @@ export default function PlanillaCentro({
                                 : 'bg-elevated font-normal text-muted opacity-70',
                             ].join(' ')}
                           >
-                            {def ? SIGLA[def.code] : '·'}
+                            {def ? <SiglaMarca code={def.code} /> : '·'}
                           </button>
                         </td>
                       );
@@ -1208,7 +1210,7 @@ function BotonesMarca({ onElegir }: { onElegir: (m: MarkCode) => void }) {
           title={m.label}
           className={`grid h-9 min-w-9 place-items-center rounded-lg px-1.5 text-xs font-bold ${CLASE_MARCA[m.code]}`}
         >
-          {SIGLA[m.code]}
+          <SiglaMarca code={m.code} />
         </button>
       ))}
     </div>
@@ -1276,7 +1278,7 @@ function HojaMarcar({
               <span
                 className={`grid h-7 w-9 place-items-center rounded text-xs font-bold ${CLASE_MARCA[m.code]}`}
               >
-                {SIGLA[m.code]}
+                <SiglaMarca code={m.code} />
               </span>
               <span className="text-xs leading-tight text-strong">{m.label}</span>
             </button>
@@ -1346,7 +1348,7 @@ function MenuLlenarLista({
                 <span
                   className={`grid h-7 w-9 place-items-center rounded text-xs font-bold ${CLASE_MARCA[m.code]}`}
                 >
-                  {SIGLA[m.code]}
+                  <SiglaMarca code={m.code} />
                 </span>
                 <span className="grow text-sm text-strong">Todos a «{m.label}»</span>
               </button>

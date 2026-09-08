@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import Planilla, { CLASE_MARCA, SIGLA } from './Planilla';
+import Planilla, { CLASE_MARCA, SiglaMarca } from './Planilla';
 import EscanerQr from './EscanerQr';
 import VerificacionFoto from './VerificacionFoto';
 
@@ -58,6 +58,7 @@ import {
   crearEstudianteManual,
   leerAlcanceUsuario,
   leerConfigAlertas,
+  leerDireccionGrupo,
   leerDirectores,
   leerGrupo,
   leerLlegadasTardePorGrado,
@@ -75,7 +76,15 @@ import { nombreCompleto } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
-import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './domain/types';
+import type {
+  AlertConfig,
+  Enrollment,
+  LateArrival,
+  OpcionColumna,
+  Session,
+  Student,
+} from './domain/types';
+import { coloresDelGrupo, guiaDeColor } from './domain/direccion-grupo';
 import { firebaseConfigurado } from '../lib/firebase';
 import { useAppStore } from '../data/store';
 import { guardarColor, leerMapa, resolverColor, type MapaColores } from './domain/colores';
@@ -138,6 +147,25 @@ export default function Asistencia() {
   // coordinadores" — no editan, no marcan y no abren sesiones.
   const puedeRegistrar =
     rol !== 'rectora' && rol !== 'superusuario' && !alcanceUsuario.soloConsulta;
+
+  /**
+   * Cuenta de CONSULTA: la rectora y los cargos de apoyo (PTA). Ven, no trabajan.
+   *
+   * Se separa de `!puedeRegistrar` porque no son lo mismo: un docente sin `puedeRegistrar`
+   * no existe, pero coordinacion puede tener limitada la escritura en algun punto y aun
+   * asi debe ver la planilla entera. Esto es "no le corresponde ver la asistencia", no
+   * "no puede escribirla". El superusuario no entra: sale por su propio panel mucho antes.
+   */
+  const soloConsulta = rol === 'rectora' || alcanceUsuario.soloConsulta;
+
+  /**
+   * Excepcion de eventos (Julian, 2026-09-07). Un cargo de apoyo SI crea eventos y SI
+   * marca dentro de los suyos: la PTA organiza actividades propias, y un evento que se
+   * crea pero no se puede llenar obliga a pedirle a otro docente que pase la lista de
+   * algo de uno. Espeja `asisConsultaCreaEventos()` de las reglas, rectora incluida en la
+   * exclusion — ella consulta y no registra en ningun sitio, tampoco aqui.
+   */
+  const consultaCreaEventos = alcanceUsuario.soloConsulta && rol !== 'rectora';
 
   const alcance: AlcanceLectura = useMemo(() => {
     // Rectora y cargos de apoyo no dictan clase: filtrarlos como docente (por slotId, que
@@ -302,12 +330,50 @@ export default function Asistencia() {
     [cruces],
   );
   const mostrarFotos = esDirector || rol === 'coordinador';
+
   const gradosPermitidosFotos = rol === 'coordinador' ? gradosCoordinador : gradosDirector;
 
   // Sub-pestaña dentro de un grupo: asistencia, el cuaderno de dirección o la carga de
   // fotos. Vuelve a "asistencia" al cambiar de grado, para no dejar abierto por accidente
   // el cuaderno o la carga de fotos de un grupo que ya no es este.
   const [vistaGrupo, setVistaGrupo] = useState<'asistencia' | 'direccion' | 'fotos'>('asistencia');
+
+  /**
+   * Guia de color del director para el grupo abierto: studentId -> {color, palabra}.
+   *
+   * Vive en el cuaderno de direccion de grupo, y por eso solo se pide cuando el usuario
+   * DIRIGE ese grado: la regla es `asisIsDirectorOf`, asi que pedirlo siendo otro docente
+   * seria un permission-denied garantizado en cada grupo que abriera.
+   *
+   * `hayGuia` va aparte del mapa: decide de quien es el anillo de las fotos, y un grupo
+   * con guia estrenada pero nadie clasificado todavia debe soltar ya el color del grupo
+   * —si no, los anillos cambiarian de significado al clasificar al primer estudiante—.
+   */
+  const [guiaColor, setGuiaColor] = useState<{
+    hay: boolean;
+    porEstudiante: Record<string, OpcionColumna>;
+  }>({ hay: false, porEstudiante: {} });
+  useEffect(() => {
+    if (!cruce || !esDirector) {
+      setGuiaColor({ hay: false, porEstudiante: {} });
+      return;
+    }
+    let vivo = true;
+    void leerDireccionGrupo(cruce.grado, new Date().getFullYear())
+      .then((d) => {
+        if (!vivo) return;
+        setGuiaColor({ hay: guiaDeColor(d) !== null, porEstudiante: coloresDelGrupo(d) });
+      })
+      // El cuaderno puede no existir todavia: es un grupo sin guia, no un error que
+      // deba interrumpir la planilla.
+      .catch(() => vivo && setGuiaColor({ hay: false, porEstudiante: {} }));
+    return () => {
+      vivo = false;
+    };
+    // `vistaGrupo` esta a proposito: al volver de "Direccion de grupo" —donde se pudo
+    // clasificar a alguien— la planilla tiene que releer la guia, o seguiria pintando
+    // los anillos de antes.
+  }, [cruce, esDirector, vistaGrupo]);
   useNivelAtras(vistaGrupo !== 'asistencia', () => setVistaGrupo('asistencia'));
   useEffect(() => {
     setVistaGrupo('asistencia');
@@ -773,7 +839,11 @@ export default function Asistencia() {
         {/* La rectora consulta pero no registra: puede entrar a un evento que le hayan
             compartido, pero no crearlo ni marcar. El servidor ya lo impide
             (`asisCanRecord`); esto solo evita ofrecerle botones que fallarian. */}
-        <Eventos sede={sede} puedeRegistrar={puedeRegistrar} />
+        <Eventos
+          sede={sede}
+          puedeRegistrar={puedeRegistrar}
+          consultaCreaEventos={consultaCreaEventos}
+        />
       </div>
     );
   }
@@ -907,6 +977,7 @@ export default function Asistencia() {
                 grado={cruce.grado}
                 anio={new Date().getFullYear()}
                 estudiantes={estudiantes}
+                onAbrirFicha={setFichaAbierta}
               />
             </Suspense>
           ) : cruce && mostrarFotos && vistaGrupo === 'fotos' ? (
@@ -921,6 +992,7 @@ export default function Asistencia() {
                 matriculas={matriculas}
                 llegadasTarde={llegadasTarde}
                 puedeRegistrar={puedeRegistrar}
+                soloLista={soloConsulta}
                 onMarcar={marcar}
                 onCerrarSesion={cerrar}
                 onAbrirFicha={setFichaAbierta}
@@ -932,6 +1004,8 @@ export default function Asistencia() {
                 onElegirColor={(colorId) =>
                   setMapaColores((m) => guardarColor(m, cruce.grado, cruce.subjectId, colorId))
                 }
+                coloresEstudiante={guiaColor.porEstudiante}
+                hayGuiaDeColor={guiaColor.hay}
                 alertConfig={alertConfig}
                 puedeAgregarEstudiante={esDirector || rol === 'coordinador'}
                 onAgregarEstudiante={agregarEstudiante}
@@ -1057,7 +1131,7 @@ function BotonesMarcaQr({ onElegir }: { onElegir: (m: MarkCode) => void }) {
             title={m.label}
             className={`grid h-9 min-w-9 place-items-center rounded-lg px-1.5 text-xs font-bold ${CLASE_MARCA[m.code]}`}
           >
-            {SIGLA[m.code]}
+            <SiglaMarca code={m.code} />
           </button>
         ))}
       </div>

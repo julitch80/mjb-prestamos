@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Avatar from './Avatar';
 import EscanerQr from './EscanerQr';
 import VerificacionFoto from './VerificacionFoto';
-import { CLASE_MARCA, SIGLA } from './Planilla';
+import { CLASE_MARCA, SiglaMarca } from './Planilla';
 import {
   abrirSesionEvento,
   buscarPorQrToken,
@@ -287,7 +287,7 @@ export default function PlanillaEvento({
                       className={`rounded-full px-2 py-0.5 text-xs font-semibold ${CLASE_MARCA[def.code]}`}
                       title={`Registró ${m.registradoPor}`}
                     >
-                      {SIGLA[def.code]} · {m.registradoPor}
+                      <SiglaMarca code={def.code} /> · {m.registradoPor}
                     </span>
                   )}
                   {puedeRegistrar && (
@@ -350,7 +350,7 @@ function BotonesMarca({ onElegir }: { onElegir: (m: MarkCode) => void }) {
           title={m.label}
           className={`grid h-9 min-w-9 place-items-center rounded-lg px-1.5 text-xs font-bold ${CLASE_MARCA[m.code]}`}
         >
-          {SIGLA[m.code]}
+          <SiglaMarca code={m.code} />
         </button>
       ))}
     </div>
@@ -403,7 +403,7 @@ function HojaMarcar({
               <span
                 className={`grid h-7 w-9 place-items-center rounded text-xs font-bold ${CLASE_MARCA[m.code]}`}
               >
-                {SIGLA[m.code]}
+                <SiglaMarca code={m.code} />
               </span>
               <span className="text-xs leading-tight text-strong">{m.label}</span>
             </button>

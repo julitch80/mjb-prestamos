@@ -1,17 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import {
+  abrirDireccionGrupo,
   actualizarFicha,
+  guardarColumnas,
+  guardarGuiaDeColor,
   leerAutoridadSede,
+  leerDireccionGrupo,
   leerEstudiante,
   leerMiCuenta,
+  marcarCelda,
   registrarContacto,
   type MiCuenta,
 } from './datos';
+import {
+  asignarColorEnGuia,
+  colorDeEstudiante,
+  cuantosConColor,
+  ETIQUETA_COLOR_MAX,
+  guiaDeColor,
+  quitarColorDeGuia,
+  renombrarColorEnGuia,
+  validarEtiquetaColor,
+} from './domain/direccion-grupo';
+import { colorPorId, COLORES_GRUPO, estiloEtiqueta } from './domain/colores';
 import { subirFoto, urlDeFoto } from './fotos';
 import { iniciales, nombreCompleto } from './domain/nombres';
 import { toDateKey } from './domain/ids';
-import type { ContactReason, Student } from './domain/types';
+import type { ContactReason, DireccionGrupo, OpcionColumna, Student } from './domain/types';
 import TelefonoAcudiente from './TelefonoAcudiente';
 import { Check, Copy, UserCheck, UserX } from 'lucide-react';
 
@@ -61,6 +77,19 @@ export default function Ficha({
   // gestion. `null` = no hay aviso pendiente.
   const [numeroLlamado, setNumeroLlamado] = useState<string | null>(null);
   const [registrandoLlamada, setRegistrandoLlamada] = useState(false);
+  /**
+   * El cuaderno del director, SOLO para la guia de color del anillo de la foto.
+   *
+   * Se lee aqui y no se recibe por props porque la ficha se abre desde cuatro sitios
+   * distintos (planilla, direccion de grupo, panel del estudiante, centros) y hacer que
+   * los cuatro carguen y pasen el cuaderno seria repetir la misma lectura cuatro veces.
+   *
+   * Queda en `null` para quien no dirige el grupo, y ni siquiera se pide: la regla del
+   * cuaderno es `asisIsDirectorOf(grado)`, asi que pedirlo de todas formas seria un
+   * permission-denied garantizado en la consola de coordinacion cada vez que abre una ficha.
+   */
+  const [direccion, setDireccion] = useState<DireccionGrupo | null>(null);
+  const [guiaAbierta, setGuiaAbierta] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -72,6 +101,44 @@ export default function Ficha({
       setAutoridadSede(await leerAutoridadSede());
     })();
   }, [studentId]);
+
+  const grado = est?.gradoActual ?? null;
+  const dirigeEsteGrupo = Boolean(grado && slotId && directores[grado] === slotId);
+  const anio = new Date().getFullYear();
+
+  // El cuaderno solo se pide cuando quien mira dirige ESE grado. Ver la nota del estado.
+  useEffect(() => {
+    if (!grado || !dirigeEsteGrupo) {
+      setDireccion(null);
+      return;
+    }
+    let vivo = true;
+    void leerDireccionGrupo(grado, anio).then((d) => {
+      if (vivo) setDireccion(d);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [grado, dirigeEsteGrupo, anio]);
+
+  const colorClasificacion = colorDeEstudiante(direccion, studentId);
+  const tonoClasificacion = colorPorId(colorClasificacion?.colorId);
+
+  /**
+   * Aplica un cambio de la guia. Recarga el cuaderno del servidor al terminar en vez de
+   * remendar el estado local: las escrituras van sin esperar acuse (`registrarEnvio`),
+   * asi que lo que se relee es la cache local ya actualizada, y asi la pantalla no puede
+   * quedar mostrando una guia que no coincide con la del cuaderno.
+   */
+  async function aplicarEnGuia(fn: () => Promise<void>) {
+    if (!grado) return;
+    try {
+      await fn();
+      setDireccion(await leerDireccionGrupo(grado, anio));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
 
   if (!est) return <p className="p-3 text-sm text-muted">Cargando ficha…</p>;
 
@@ -132,7 +199,15 @@ export default function Ficha({
                 src={foto}
                 alt={`${est.nombres} ${est.apellidos}`}
                 className="h-28 w-21 rounded-lg object-cover"
-                style={{ width: '5.25rem' }}
+                /* El anillo va por `boxShadow` y no por `border`, igual que en
+                   `estiloAnillo`: un borde cambiaria el tamaño de la foto y desalinearia
+                   la fila entera. */
+                style={{
+                  width: '5.25rem',
+                  ...(tonoClasificacion
+                    ? { boxShadow: `0 0 0 3px ${tonoClasificacion.hex}` }
+                    : {}),
+                }}
               />
             ) : (
               <div className="grid h-28 w-[5.25rem] place-items-center rounded-lg border border-dashed border-line-strong bg-elevated text-lg font-bold text-muted">
@@ -153,6 +228,38 @@ export default function Ficha({
               </button>
             ) : (
               <p className="mt-1 text-[0.65rem] leading-tight text-muted">Sin permiso de edición</p>
+            )}
+
+            {/* GUIA DE COLOR — solo para el director de ESTE grupo. Va pegada a la foto
+                porque lo que colorea es la foto: puesta entre los datos del acudiente se
+                leeria como un dato del estudiante, y no lo es — es una clasificacion que
+                el director hace y deshace. */}
+            {dirigeEsteGrupo && (
+              <button
+                onClick={() => setGuiaAbierta(true)}
+                title="Color de clasificación de este estudiante"
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[0.7rem]"
+                style={
+                  colorClasificacion
+                    ? estiloEtiqueta(tonoClasificacion)
+                    : undefined
+                }
+              >
+                <span
+                  style={
+                    tonoClasificacion
+                      ? { backgroundColor: tonoClasificacion.hex }
+                      : undefined
+                  }
+                  className={[
+                    'h-3 w-3 shrink-0 rounded-full',
+                    tonoClasificacion ? '' : 'border border-dashed border-line-strong',
+                  ].join(' ')}
+                />
+                <span className="truncate">
+                  {colorClasificacion ? colorClasificacion.etiqueta : 'Sin clasificar'}
+                </span>
+              </button>
             )}
           </div>
 
@@ -435,6 +542,58 @@ export default function Ficha({
       {verQr && <ModalQr estudiante={est} onCerrar={() => setVerQr(false)} />}
 
       {camara && <Camara onListo={guardarFoto} onCancelar={() => setCamara(false)} />}
+
+      {guiaAbierta && grado && (
+        <SheetGuiaColor
+          direccion={direccion}
+          actual={colorClasificacion}
+          /* Un color que ya esta en la guia: solo hay que escribir la casilla. Ni se
+             tocan las columnas ni se reescribe su palabra. */
+          onElegirExistente={(opcion) => {
+            setGuiaAbierta(false);
+            const guia = guiaDeColor(direccion);
+            if (!guia) return;
+            void aplicarEnGuia(() =>
+              marcarCelda(grado, anio, studentId, guia.columnaId, opcion.opcionId),
+            );
+          }}
+          /* Color nuevo: puede haber que ESTRENAR el cuaderno entero (si el director
+             nunca lo abrio), crear la columna de la guia y ademas escribir la casilla.
+             Van en ese orden a proposito: si el cuaderno no existe, `marcarCelda` haria
+             un `updateDoc` sobre un documento inexistente y fallaria. */
+          onCrear={(colorId, etiqueta) => {
+            setGuiaAbierta(false);
+            void aplicarEnGuia(async () => {
+              const base = direccion ?? (await abrirDireccionGrupo(grado, anio));
+              const cambio = asignarColorEnGuia(base, colorId, etiqueta);
+              await guardarGuiaDeColor(grado, anio, cambio.columnas, cambio.columnaColorId);
+              await marcarCelda(grado, anio, studentId, cambio.columnaColorId, cambio.opcionId);
+            });
+          }}
+          onRenombrar={(opcionId, etiqueta) => {
+            setGuiaAbierta(false);
+            if (!direccion) return;
+            void aplicarEnGuia(() =>
+              guardarColumnas(grado, anio, renombrarColorEnGuia(direccion, opcionId, etiqueta)),
+            );
+          }}
+          onQuitarDelEstudiante={() => {
+            setGuiaAbierta(false);
+            const guia = guiaDeColor(direccion);
+            if (!guia) return;
+            void aplicarEnGuia(() => marcarCelda(grado, anio, studentId, guia.columnaId, null));
+          }}
+          /* Quitar el color se lleva las casillas de todos los que lo tenian, en la MISMA
+             escritura: ver `quitarColorDeGuia`. */
+          onQuitarDeLaGuia={(opcionId) => {
+            setGuiaAbierta(false);
+            if (!direccion) return;
+            const { columnas, valores } = quitarColorDeGuia(direccion, opcionId);
+            void aplicarEnGuia(() => guardarColumnas(grado, anio, columnas, valores));
+          }}
+          onCerrar={() => setGuiaAbierta(false)}
+        />
+      )}
 
       {editando && (
         <ModalContacto
@@ -878,6 +1037,258 @@ function Modal({ children, onCerrar }: { children: React.ReactNode; onCerrar: ()
         onClick={(e) => e.stopPropagation()}
       >
         {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Guia de color del director: elegir el color del anillo de la foto, y la palabra que
+ * dice para que es (Julian, 2026-09-07).
+ *
+ * Mismo patron de hoja modal que `SelectorColor` de `Planilla.tsx`: no se inventa otro
+ * mecanismo de seleccion solo porque aqui el color ademas signifique algo.
+ *
+ * LA DIFERENCIA CON EL COLOR DEL GRUPO, que es lo que hay que tener claro al leer esto:
+ * aquel es una preferencia del dispositivo y no significa nada; este es una CLASIFICACION
+ * sobre un menor, vive en el cuaderno del director y la comparten varios estudiantes. Por
+ * eso aqui hay palabras, avisos de "esto afecta a 7" y confirmacion para quitar, y alli
+ * no hacia falta nada de eso.
+ */
+function SheetGuiaColor({
+  direccion,
+  actual,
+  onElegirExistente,
+  onCrear,
+  onRenombrar,
+  onQuitarDelEstudiante,
+  onQuitarDeLaGuia,
+  onCerrar,
+}: {
+  direccion: DireccionGrupo | null;
+  actual: OpcionColumna | null;
+  onElegirExistente: (opcion: OpcionColumna) => void;
+  onCrear: (colorId: string, etiqueta: string) => void;
+  onRenombrar: (opcionId: string, etiqueta: string) => void;
+  onQuitarDelEstudiante: () => void;
+  onQuitarDeLaGuia: (opcionId: string) => void;
+  onCerrar: () => void;
+}) {
+  const guia = guiaDeColor(direccion);
+  const usados = new Map((guia?.opciones ?? []).map((o) => [o.colorId, o]));
+
+  /** Color recien tocado que todavia no tiene palabra, o el que se esta renombrando. */
+  const [pidiendo, setPidiendo] = useState<
+    { modo: 'crear'; colorId: string } | { modo: 'renombrar'; opcion: OpcionColumna } | null
+  >(null);
+  const [palabra, setPalabra] = useState('');
+  const [errorPalabra, setErrorPalabra] = useState<string | null>(null);
+  const [confirmandoQuitar, setConfirmandoQuitar] = useState<OpcionColumna | null>(null);
+
+  function tocarColor(colorId: string) {
+    const existente = usados.get(colorId);
+    // Un color que ya esta en la guia se aplica y punto: su palabra ya la decidio el
+    // director cuando lo estreno, y volver a preguntarla desde el segundo estudiante le
+    // cambiaria la clasificacion al primero.
+    if (existente) {
+      onElegirExistente(existente);
+      return;
+    }
+    setPidiendo({ modo: 'crear', colorId });
+    setPalabra('');
+    setErrorPalabra(null);
+  }
+
+  function confirmarPalabra() {
+    if (!pidiendo) return;
+    const opcionIgnorada = pidiendo.modo === 'renombrar' ? pidiendo.opcion.opcionId : undefined;
+    const problema = validarEtiquetaColor(palabra, guia, opcionIgnorada);
+    if (problema) {
+      setErrorPalabra(problema);
+      return;
+    }
+    if (pidiendo.modo === 'crear') onCrear(pidiendo.colorId, palabra.trim());
+    else onRenombrar(pidiendo.opcion.opcionId, palabra.trim());
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+      onClick={onCerrar}
+    >
+      <div
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <p className="text-sm font-semibold text-strong">Color de clasificación</p>
+        <p className="mt-0.5 text-xs text-muted">
+          Su guía de colores para este grupo. Varios estudiantes pueden llevar el mismo
+          color: es lo que hace que sirva para clasificar. Solo la ve usted, como director.
+        </p>
+
+        {/* PEDIR LA PALABRA. Ocupa la hoja entera mientras esta abierto: elegir un color
+            y bautizarlo son dos pasos de la misma decision, y mezclarlos con la paleta
+            invita a dejar colores sin palabra, que es justo lo que no debe pasar. */}
+        {pidiendo ? (
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <span
+                style={{
+                  backgroundColor:
+                    colorPorId(
+                      pidiendo.modo === 'crear' ? pidiendo.colorId : pidiendo.opcion.colorId,
+                    )?.hex,
+                }}
+                className="h-7 w-7 shrink-0 rounded-full"
+              />
+              <label className="text-sm text-strong">
+                {pidiendo.modo === 'crear' ? '¿Para qué es este color?' : 'Nueva palabra'}
+              </label>
+            </div>
+            <input
+              autoFocus
+              value={palabra}
+              maxLength={ETIQUETA_COLOR_MAX}
+              onChange={(ev) => {
+                setPalabra(ev.target.value);
+                setErrorPalabra(null);
+              }}
+              onKeyDown={(ev) => ev.key === 'Enter' && confirmarPalabra()}
+              placeholder="Refuerzo, Al día, Beca…"
+              className="w-full rounded-lg border border-line bg-elevated p-2 text-sm text-strong"
+            />
+            {pidiendo.modo === 'renombrar' && (
+              <p className="text-xs text-muted">
+                Esta palabra la comparten{' '}
+                <strong className="text-soft">
+                  {cuantosConColor(direccion, pidiendo.opcion.opcionId)} estudiante(s)
+                </strong>
+                : les cambia a todos a la vez.
+              </p>
+            )}
+            {errorPalabra && (
+              <p className="text-xs text-danger-soft-fg">{errorPalabra}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={confirmarPalabra}
+                className="flex-1 rounded-lg bg-accent p-2 text-sm font-medium text-accent-fg"
+              >
+                Guardar
+              </button>
+              <button
+                onClick={() => setPidiendo(null)}
+                className="flex-1 rounded-lg border border-line p-2 text-sm text-soft"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : confirmandoQuitar ? (
+          <div className="mt-3 space-y-2">
+            <p className="text-sm text-strong">
+              Quitar «{confirmandoQuitar.etiqueta}» de la guía
+            </p>
+            <p className="text-xs text-muted">
+              Se le quita a los{' '}
+              <strong className="text-soft">
+                {cuantosConColor(direccion, confirmandoQuitar.opcionId)} estudiante(s)
+              </strong>{' '}
+              que lo tienen, y el color vuelve a quedar libre. No borra nada más del
+              cuaderno.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onQuitarDeLaGuia(confirmandoQuitar.opcionId)}
+                className="flex-1 rounded-lg border border-danger-soft bg-danger-soft p-2 text-sm font-medium text-danger-soft-fg"
+              >
+                Quitar de la guía
+              </button>
+              <button
+                onClick={() => setConfirmandoQuitar(null)}
+                className="flex-1 rounded-lg border border-line p-2 text-sm text-soft"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="mt-3 grid grid-cols-4 gap-2">
+              {COLORES_GRUPO.map((c) => {
+                const opcion = usados.get(c.id);
+                const elegido = actual?.colorId === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => tocarColor(c.id)}
+                    title={opcion ? opcion.etiqueta : `${c.nombre} — sin usar todavía`}
+                    className="flex flex-col items-center gap-1 rounded-lg border border-line p-2 hover:bg-hover"
+                  >
+                    <span
+                      style={{ backgroundColor: c.hex }}
+                      className={[
+                        'h-7 w-7 rounded-full',
+                        elegido ? 'ring-2 ring-line-strong ring-offset-2' : '',
+                      ].join(' ')}
+                    />
+                    {/* La palabra manda sobre el nombre del tono: el director busca
+                        "Refuerzo", no "Rosa". Un color sin estrenar se marca como tal
+                        para que se vea de un golpe cuales ya significan algo. */}
+                    <span
+                      className={[
+                        'w-full truncate text-center text-[0.65rem]',
+                        opcion ? 'font-semibold text-strong' : 'text-muted',
+                      ].join(' ')}
+                    >
+                      {opcion ? opcion.etiqueta : 'sin usar'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {actual && (
+              <div className="mt-3 space-y-2 rounded-lg border border-line bg-elevated p-2">
+                <p className="text-xs text-muted">
+                  Este estudiante está en{' '}
+                  <strong className="text-strong">{actual.etiqueta}</strong>, junto con{' '}
+                  {cuantosConColor(direccion, actual.opcionId) - 1} más.
+                </p>
+                <button
+                  onClick={() => {
+                    setPidiendo({ modo: 'renombrar', opcion: actual });
+                    setPalabra(actual.etiqueta);
+                    setErrorPalabra(null);
+                  }}
+                  className="w-full rounded-lg border border-line p-2 text-sm text-soft"
+                >
+                  Cambiar la palabra de este color
+                </button>
+                <button
+                  onClick={() => setConfirmandoQuitar(actual)}
+                  className="w-full rounded-lg border border-line p-2 text-sm text-soft"
+                >
+                  Quitar este color de la guía
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={onQuitarDelEstudiante}
+              disabled={!actual}
+              className="mt-3 w-full rounded-lg border border-line p-2 text-sm text-soft disabled:opacity-50"
+            >
+              Sin clasificar
+            </button>
+            <button
+              onClick={onCerrar}
+              className="mt-2 w-full rounded-lg border border-line p-2 text-sm text-soft"
+            >
+              Cerrar
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

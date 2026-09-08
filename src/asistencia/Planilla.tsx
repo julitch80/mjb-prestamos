@@ -5,9 +5,23 @@ import { nombreCompleto, nombresDePila } from './domain/nombres';
 import { computeStats, conDenominador } from './domain/stats';
 import { resumenPastilla } from './domain/panel';
 import { alertaPorcentajePeriodo, alertaRacha } from './domain/alertas';
-import { COLORES_GRUPO, estiloAnillo, estiloBorde, type ColorGrupo } from './domain/colores';
+import { Check, X } from 'lucide-react';
+import {
+  colorPorId,
+  COLORES_GRUPO,
+  estiloAnillo,
+  estiloBorde,
+  type ColorGrupo,
+} from './domain/colores';
 import { toDateKey } from './domain/ids';
-import type { AlertConfig, Enrollment, LateArrival, Session, Student } from './domain/types';
+import type {
+  AlertConfig,
+  Enrollment,
+  LateArrival,
+  OpcionColumna,
+  Session,
+  Student,
+} from './domain/types';
 import { getAsignatura } from '../data/asignacionAcademica';
 import { atras, useNivelAtras } from './useNivelAtras';
 
@@ -52,7 +66,46 @@ export const CLASE_MARCA: Record<MarkCode, string> = {
 };
 
 /** Sigla corta para que la celda quepa en movil. Exportado, ver nota de CLASE_MARCA. */
-export const SIGLA: Record<MarkCode, string> = {
+/**
+ * Lo que se PINTA en una casilla de asistencia.
+ *
+ * Julian, 2026-09-07: la «A» de asistencia pasa a ser un chulo grande y la «F» de
+ * ausencia una equis, "en cualquier casilla, en cualquier pestaña, en cualquier columna".
+ * Por eso esto es un componente y no otro mapa de texto: es el UNICO sitio donde se
+ * decide como se ve una marca, y las cuatro pantallas que pintan casillas
+ * —clase, centro de interes, evento y el resumen de index— lo usan igual.
+ *
+ * Las otras cinco marcas siguen en letras a proposito. Son excepciones que se leen
+ * despacio (FJ, RJ, EV, FP); convertirlas tambien en simbolos obligaria a inventar cinco
+ * iconos que nadie reconoce de un vistazo y se perderia lo que se gana aqui: que las dos
+ * marcas del 95% de las casillas se distingan SIN LEER.
+ *
+ * El icono mide 1.75em, no un tamaño fijo en pixeles: asi crece con el contexto —la
+ * casilla de la cuadricula, la pastilla de las convenciones, el menu de llenar columna—
+ * sin que haya que pasarle un tamaño en cada sitio ni que se descuadre en ninguno.
+ *
+ * ⚠️ NO se toca `SIGLA`, que se sigue usando en texto corrido, ni el mapa propio de
+ * `domain/exports.ts`: el Excel que se entrega a coordinacion lleva LETRAS, y un chulo
+ * dentro de una celda de Excel no se puede filtrar ni contar.
+ */
+export function SiglaMarca({ code }: { code: MarkCode }) {
+  if (code === 'asistencia') {
+    return <Check aria-hidden className="inline h-[1.75em] w-[1.75em]" strokeWidth={3.5} />;
+  }
+  if (code === 'ausencia') {
+    return <X aria-hidden className="inline h-[1.75em] w-[1.75em]" strokeWidth={3.5} />;
+  }
+  return <>{SIGLA[code]}</>;
+}
+
+/**
+ * Las siglas en texto, de las que `SiglaMarca` tira para las cinco marcas que siguen
+ * siendo letras. Deliberadamente NO se exporta: si alguien la usa desde otra pantalla,
+ * esa pantalla acabaria pintando una «A» donde el resto de la aplicacion pinta un chulo,
+ * que es exactamente la incoherencia que este cambio vino a quitar. Lo que se exporta es
+ * el componente.
+ */
+const SIGLA: Record<MarkCode, string> = {
   asistencia: 'A',
   ausencia: 'F',
   retraso: 'R',
@@ -76,6 +129,26 @@ export interface PlanillaProps {
   llegadasTarde: LateArrival[];
   /** Solo lectura cuando el usuario no puede registrar (p. ej. la rectora). */
   puedeRegistrar: boolean;
+  /**
+   * Consulta SIN la cuadricula: la rectora y los cargos de apoyo (PTA). Ven la lista del
+   * grupo y pueden abrir la ficha de cada estudiante, pero NO las marcas de asistencia
+   * de cada clase.
+   *
+   * Es mas fuerte que `!puedeRegistrar`, y por eso es una prop aparte: coordinacion
+   * tampoco registra en algunos casos y aun asi debe ver la cuadricula entera. Julian,
+   * 2026-09-07, viendo la planilla de 11.2 en la cuenta de la PTA: "ella no tiene que ver
+   * la asistencia; su rol solo tiene que ser de consulta, mirar la ficha y los datos del
+   * estudiante". Deroga la decision del 2026-08-25 —que le habia dado las planillas de
+   * sexto a once completas— sin tocar lo demas que aquella trajo: el panorama de "quien
+   * esta registrando y quien no" en `MisGrupos` sigue igual, porque no enseña ni una marca.
+   *
+   * NO es una medida de seguridad y no pretende serlo: el servidor SI le deja leer la
+   * sesion (`asisConsultaAmpliada()` en las reglas), asi que esto es una decision de que
+   * se le muestra, no de que se le permite. Para cerrarlo tambien en el servidor habria
+   * que quitarle la lectura de `asistenciaSessions`, y con ella la estadistica del
+   * estudiante que si debe poder consultar.
+   */
+  soloLista: boolean;
   onMarcar: (sessionId: string, studentId: string, estado: MarkCode) => void;
   onCerrarSesion: (sessionId: string, sinRegistrar: number) => void;
   onAbrirFicha: (studentId: string) => void;
@@ -91,6 +164,24 @@ export interface PlanillaProps {
   color: ColorGrupo | null;
   /** Guarda (o borra, con `null`) el color del cruce activo. El mapa vive en index.tsx. */
   onElegirColor: (colorId: string | null) => void;
+  /**
+   * Guia de color del director: studentId -> {color, palabra}. Vacio para todos los
+   * demas, que ni siquiera pueden leerla (vive en el cuaderno de direccion de grupo).
+   */
+  coloresEstudiante: Record<string, OpcionColumna>;
+  /**
+   * Este grado TIENE guia de color, aunque nadie este clasificado todavia.
+   *
+   * Hace falta aparte del mapa porque decide de quien es el ANILLO de las fotos, y eso
+   * no se puede deducir de "este estudiante tiene color": con guia, el anillo es de la
+   * clasificacion y punto —quien no esta clasificado sale sin anillo—; sin guia, el
+   * anillo sigue siendo el color del grupo, como siempre.
+   *
+   * Julian, 2026-09-07: "no deberia reñir con la que se coloca en el contorno general del
+   * grupo; tendria que separarse". Un anillo no puede significar dos cosas a la vez, asi
+   * que el color del grupo se retira al CONTORNO de la tabla en los grupos con guia.
+   */
+  hayGuiaDeColor: boolean;
   /** Umbrales de alerta (racha y % de faltas del periodo). `asistenciaConfig/alertas`. */
   alertConfig: AlertConfig;
   /** Solo el director del grupo o coordinación pueden dar de alta un estudiante nuevo
@@ -119,6 +210,7 @@ export default function Planilla({
   matriculas,
   llegadasTarde,
   puedeRegistrar,
+  soloLista,
   onMarcar,
   onCerrarSesion,
   onAbrirFicha,
@@ -128,6 +220,8 @@ export default function Planilla({
   onLlenarColumna,
   color,
   onElegirColor,
+  coloresEstudiante,
+  hayGuiaDeColor,
   alertConfig,
   puedeAgregarEstudiante,
   onAgregarEstudiante,
@@ -155,6 +249,15 @@ export default function Planilla({
       ),
     [sesiones],
   );
+
+  /**
+   * De quien es el anillo de la foto. Con guia, de la clasificacion; sin guia, del grupo.
+   * Se calcula una vez aqui para que la lista y la cuadricula no puedan discrepar.
+   */
+  const anilloDe = (studentId: string) =>
+    estiloAnillo(
+      hayGuiaDeColor ? colorPorId(coloresEstudiante[studentId]?.colorId) : color,
+    );
 
   const sesionDe = (id: string) => ordenadas.find((s) => s.sessionId === id);
   const alumnoDe = (id: string) => estudiantes.find((e) => e.studentId === id);
@@ -229,17 +332,23 @@ export default function Planilla({
             : `${ordenadas.length} sesiones registradas`}
         </span>
         {/* Convenciones siempre visibles: el docente no debe tener que recordar las siglas
-            ni abrir nada para saber que significa una marca en la planilla. */}
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
-          {MARKS.map((m) => (
-            <span key={m.code} className="flex shrink-0 items-center gap-1 text-xs text-muted">
-              <span className={`font-bold ${CLASE_MARCA[m.code]} rounded px-1`}>
-                {SIGLA[m.code]}
+            ni abrir nada para saber que significa una marca en la planilla. Sin cuadricula
+            no hay siglas que descifrar, y dejarlas seria anunciar unas marcas que la
+            pantalla no va a enseñar. */}
+        {!soloLista && (
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+            {MARKS.map((m) => (
+              <span key={m.code} className="flex shrink-0 items-center gap-1 text-xs text-muted">
+                <span
+                  className={`grid h-7 min-w-[1.75rem] place-items-center rounded px-1 font-bold ${CLASE_MARCA[m.code]}`}
+                >
+                  <SiglaMarca code={m.code} />
+                </span>
+                {m.label}
               </span>
-              {m.label}
-            </span>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
         <span className="grow" />
         {/* La caratula del observador la imprime coordinacion o el director de grupo, y
             ninguno de los dos necesita `puedeRegistrar`: es un papel, no un registro. */}
@@ -294,7 +403,45 @@ export default function Planilla({
         </div>
       )}
 
-      {ordenadas.length === 0 ? (
+      {soloLista ? (
+        /*
+          CONSULTA: la lista del grupo, sin una sola columna de sesiones. Cada fila abre
+          la ficha, que es a lo que se entra aquí. Deliberadamente NO se pinta una
+          cuadrícula vacía ni las casillas en gris: una tabla con todo en «·» se lee como
+          "nadie ha pasado lista", que es justo lo contrario de lo que pasa.
+        */
+        <div className="rounded-xl border border-line bg-card" style={estiloBorde(color)}>
+          <div className="border-b border-line p-3">
+            <p className="text-sm font-semibold text-strong">
+              Estudiantes ({estudiantes.length})
+            </p>
+            <p className="mt-0.5 text-xs text-muted">
+              Toque un estudiante para abrir su ficha. La asistencia de cada clase es del
+              docente que la dicta y no se muestra aquí.
+            </p>
+          </div>
+          <ul>
+            {estudiantes.map((e) => (
+              <li key={e.studentId} className="border-b border-line last:border-b-0">
+                <button
+                  onClick={() => onAbrirFicha(e.studentId)}
+                  title={`Abrir la ficha de ${nombreCompleto(e)}`}
+                  className="flex w-full items-center gap-2 p-2 text-left"
+                >
+                  <Avatar estudiante={e} tamano={44} style={anilloDe(e.studentId)} />
+                  <span className="min-w-0 flex-1 truncate text-xs leading-tight text-strong">
+                    <span className="block truncate font-semibold">{e.apellidos}</span>
+                    <span className="block truncate text-muted">
+                      {nombresDePila(e.apellidos, e.nombres)}
+                    </span>
+                  </span>
+                  <span className="shrink-0 pr-1 text-xs text-accent">Ficha →</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : ordenadas.length === 0 ? (
         <p className="rounded-xl border border-line bg-card p-3 text-sm text-muted">
           Mientras no exista una columna, ese día no existe para la estadística. Cree la
           sesión de hoy para empezar a registrar.
@@ -355,7 +502,7 @@ export default function Planilla({
                       className="flex w-full items-center gap-2 text-left"
                       title={nombreCompleto(e)}
                     >
-                      <Avatar estudiante={e} tamano={44} style={estiloAnillo(color)} />
+                      <Avatar estudiante={e} tamano={44} style={anilloDe(e.studentId)} />
                       <span className="min-w-0 truncate text-xs leading-tight text-strong">
                         <span className="block truncate font-semibold">{e.apellidos}</span>
                         <span className="block truncate text-muted">
@@ -384,7 +531,7 @@ export default function Planilla({
                               : 'bg-elevated text-muted font-normal opacity-70',
                           ].join(' ')}
                         >
-                          {def ? SIGLA[def.code] : '·'}
+                          {def ? <SiglaMarca code={def.code} /> : '·'}
                         </button>
                       </td>
                     );
@@ -407,10 +554,12 @@ export default function Planilla({
         </div>
       )}
 
-      <p className="text-xs text-muted">
-        La casilla con «·» está <strong className="text-soft">sin registrar</strong>: no
-        cuenta como ausencia. Toque una casilla para marcar.
-      </p>
+      {!soloLista && (
+        <p className="text-xs text-muted">
+          La casilla con «·» está <strong className="text-soft">sin registrar</strong>: no
+          cuenta como ausencia. Toque una casilla para marcar.
+        </p>
+      )}
 
       {/* Al final de la lista, no mezclado con las filas: dar de alta a alguien no es
           una acción de pasar lista y no debe competir visualmente con las que sí lo son. */}
@@ -708,7 +857,7 @@ function MenuColumna({
                 <span
                   className={`grid h-7 w-9 place-items-center rounded text-xs font-bold ${CLASE_MARCA[m.code]}`}
                 >
-                  {SIGLA[m.code]}
+                  <SiglaMarca code={m.code} />
                 </span>
                 <span className="grow text-sm text-strong">Todos a «{m.label}»</span>
               </button>
@@ -821,7 +970,7 @@ function MenuMarcas({
               <span
                 className={`grid h-7 w-9 place-items-center rounded text-xs font-bold ${CLASE_MARCA[m.code]}`}
               >
-                {SIGLA[m.code]}
+                <SiglaMarca code={m.code} />
               </span>
               <span className="text-xs leading-tight text-strong">{m.label}</span>
             </button>

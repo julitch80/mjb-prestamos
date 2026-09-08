@@ -1304,6 +1304,36 @@ export async function guardarColumnas(
 }
 
 /**
+ * Guarda la GUIA DE COLOR: las columnas y el puntero `columnaColorId`, en una sola
+ * escritura (Julian, 2026-09-07).
+ *
+ * Es `guardarColumnas` mas el puntero, y va aparte en vez de como parametro opcional de
+ * aquella por una razon concreta: si se pudiera pasar `columnaColorId` desde cualquier
+ * sitio que reordena columnas, bastaria un `undefined` despistado para APAGAR la guia
+ * del director sin que nada avise. Aqui el puntero solo se toca desde donde se elige un
+ * color, que es el unico lugar donde tiene sentido cambiarlo.
+ */
+export async function guardarGuiaDeColor(
+  grado: string,
+  anio: number,
+  columnas: ColumnaDireccion[],
+  columnaColorId: string,
+): Promise<void> {
+  const autor = await exigirAutor();
+  const ref = doc(baseDatos(), 'asistenciaDireccionGrupo', grado, 'anios', String(anio));
+  // Mismo motivo que en `marcarCelda`: esta promesa es el acuse del servidor, y esperarla
+  // dejaria la ficha colgada sin señal.
+  registrarEnvio(
+    updateDoc(ref, {
+      columnas,
+      columnaColorId,
+      ultimaEscrituraPor: autor,
+      ultimaEscrituraEn: serverTimestamp(),
+    }),
+  );
+}
+
+/**
  * Escribe UNA casilla. `null` la borra (vuelve a "sin asignar").
  *
  * Ruta de campo puntual (`valores.est_0412.col_3`), nunca el mapa `valores` completo:

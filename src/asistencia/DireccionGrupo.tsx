@@ -6,6 +6,7 @@ import Ayuda from './Ayuda';
 import { ICONO_COMPONENTE } from './IconosDireccion';
 import {
   ajustarPuntos,
+  coloresDelGrupo,
   guardarAutomaticasOcultas,
   leerAutomaticasOcultas,
   moverColumna,
@@ -16,7 +17,7 @@ import {
   type ColumnaAutomatica,
 } from './domain/direccion-grupo';
 import { buildDireccionGrupoExport } from './domain/exports';
-import { COLORES_GRUPO, estiloEtiqueta } from './domain/colores';
+import { colorPorId, COLORES_GRUPO, estiloAnillo, estiloEtiqueta } from './domain/colores';
 import { iconosPorGrupo, type IconoDisponible } from './domain/iconos-direccion';
 import { nombreCompleto, nombresDePila } from './domain/nombres';
 import { llegadasQueAlertan } from './domain/alertas';
@@ -43,10 +44,23 @@ export default function DireccionGrupo({
   grado,
   anio,
   estudiantes,
+  onAbrirFicha,
 }: {
   grado: string;
   anio: number;
   estudiantes: Student[];
+  /**
+   * Abre la ficha del estudiante. La pinta `index.tsx`, no esta pantalla: la ficha
+   * REEMPLAZA la vista entera (no es un panel encima), y el boton atras de Android ya
+   * esta cableado alli con `useNivelAtras`.
+   *
+   * Julian, 2026-09-07: "en la pestana Direccion de grupo, cuando le doy clic al nombre
+   * de un estudiante no me genera la ficha". Era una omision, no una decision: en
+   * `Planilla.tsx` la celda del nombre siempre fue un boton y aqui se habia quedado como
+   * un `div`. El director es justo quien mas necesita esa puerta —el telefono del
+   * acudiente se busca desde aqui, no desde la planilla de una asignatura.
+   */
+  onAbrirFicha: (studentId: string) => void;
 }) {
   const [direccion, setDireccion] = useState<DireccionGrupoModelo | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -56,6 +70,12 @@ export default function DireccionGrupo({
   const [sheetIcono, setSheetIcono] = useState<{ studentId: string; columna: ColumnaDireccion } | null>(
     null,
   );
+  /**
+   * La guia de color del director: studentId -> {color, palabra}. Sale del MISMO
+   * documento que ya esta cargado aqui, asi que no cuesta ninguna lectura extra.
+   * Ver la seccion "Guia de color" de `domain/direccion-grupo.ts`.
+   */
+  const coloresPorEstudiante = useMemo(() => coloresDelGrupo(direccion), [direccion]);
   const [descargando, setDescargando] = useState(false);
   const [ocultarAutomaticas, setOcultarAutomaticas] = useState(() => leerAutomaticasOcultas());
   const [faltasPorEstudiante, setFaltasPorEstudiante] = useState<Record<string, number>>({});
@@ -395,15 +415,19 @@ export default function DireccionGrupo({
               {estudiantes.map((e) => (
                 <tr key={e.studentId}>
                   <td className="sticky left-0 z-10 min-w-[10.5rem] max-w-[10.5rem] border-b border-r border-line bg-card p-1.5">
-                    <div className="flex items-center gap-2">
-                      <Avatar estudiante={e} tamano={40} />
+                    <button
+                      onClick={() => onAbrirFicha(e.studentId)}
+                      title={`Abrir la ficha de ${nombreCompleto(e)}`}
+                      className="flex w-full items-center gap-2 text-left"
+                    >
+                      <Avatar estudiante={e} tamano={40} style={estiloAnillo(colorPorId(coloresPorEstudiante[e.studentId]?.colorId))} />
                       <span className="min-w-0 truncate text-xs leading-tight text-strong">
                         <span className="block truncate font-semibold">{e.apellidos}</span>
                         <span className="block truncate text-muted">
                           {nombresDePila(e.apellidos, e.nombres)}
                         </span>
                       </span>
-                    </div>
+                    </button>
                   </td>
                   {columnas.map((c, i) => (
                     <td

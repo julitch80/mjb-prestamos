@@ -351,6 +351,16 @@ export interface DireccionGrupo {
   columnas: ColumnaDireccion[];
   /** studentId -> columnaId -> valor. Mapa anidado, escrito con rutas de campo puntuales. */
   valores: Record<string, Record<string, ValorCelda>>;
+  /**
+   * `columnaId` de la columna que ademas pinta el ANILLO de la foto: la "guia de color"
+   * del director (Julian, 2026-09-07). Ver la seccion "Guia de color" al final de
+   * `domain/direccion-grupo.ts` para el porque de que sea una columna y no otra cosa.
+   *
+   * Ausente = este cuaderno todavia no tiene guia. Es un puntero y no una bandera dentro
+   * de la columna para que el dia que el director tenga dos clasificaciones pueda decidir
+   * cual pinta la foto sin tocar las columnas.
+   */
+  columnaColorId?: string;
   ultimaEscrituraPor: string;
   ultimaEscrituraEn: number;
 }
