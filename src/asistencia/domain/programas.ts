@@ -18,6 +18,7 @@
 
 import { estadisticaEvento, type EventStats } from './eventos';
 import { jornadaDeGrado } from './ids';
+import { ordenarEstudiantes } from './nombres';
 import type { MarkCode } from './marks';
 import type {
   EventSession,
@@ -303,9 +304,7 @@ export function coberturaPrograma(
     porJornada,
     // Mismo orden que `resolverIntegrantes` y que `leerGrupo`: apellidos y luego
     // nombres, para que la lista no baile entre pantallas.
-    faltantes: faltantes.sort((a, b) =>
-      `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`),
-    ),
+    faltantes: ordenarEstudiantes(faltantes),
   };
 }
 

@@ -387,3 +387,43 @@ export function porGrado<T extends { grado: string }>(filas: T[]): GrupoPorGrado
     gradoSortKey(a.grado).localeCompare(gradoSortKey(b.grado)),
   );
 }
+
+/**
+ * El contraste, con sus cuatro listas en ORDEN DE LISTA (2026-09-09).
+ *
+ * `contrasteConListaOficial` ordena por grado y `studentId`, y no puede hacer otra cosa:
+ * un registro del restaurante guarda a quien se le sirvio, no como se llama. Pero el
+ * reporte SI muestra el nombre —y el Excel que se le entrega al proveedor tambien—, asi
+ * que salia una lista de nombres en un orden que para quien la lee es ninguno.
+ *
+ * Se ordena aqui y no en la pantalla para que la tabla y el Excel salgan iguales: los dos
+ * recorren estas mismas cuatro listas, y ordenar solo en una de las dos es como acaban
+ * discrepando dos vistas del mismo dato.
+ *
+ * Sigue agrupando por GRADO primero: el proveedor factura y reparte por grupo, asi que
+ * "todo 11.2 junto, y dentro por apellido" es lo util. Quien no aparece en la matricula
+ * cae al final de su grado, con su id, en vez de colarse entre las letras.
+ */
+export function ordenarContrastePorNombre(
+  contraste: ContrasteRestaurante,
+  nombreDe: Map<string, string>,
+): ContrasteRestaurante {
+  const porNombre = (a: FilaContraste, b: FilaContraste) => {
+    const porGrado = gradoSortKey(a.grado).localeCompare(gradoSortKey(b.grado));
+    if (porGrado !== 0) return porGrado;
+    const na = nombreDe.get(a.studentId);
+    const nb = nombreDe.get(b.studentId);
+    if (na && nb) return na.localeCompare(nb, 'es', { sensitivity: 'base' });
+    // Sin nombre no hay letra por la que buscarlo: va al final, no en medio.
+    if (na) return -1;
+    if (nb) return 1;
+    return a.studentId.localeCompare(b.studentId);
+  };
+  return {
+    ...contraste,
+    inscritosQueUsaron: [...contraste.inscritosQueUsaron].sort(porNombre),
+    inscritosQueNuncaUsaron: [...contraste.inscritosQueNuncaUsaron].sort(porNombre),
+    usaronSinEstarInscritos: [...contraste.usaronSinEstarInscritos].sort(porNombre),
+    inscritosQueUsaronOtroServicio: [...contraste.inscritosQueUsaronOtroServicio].sort(porNombre),
+  };
+}

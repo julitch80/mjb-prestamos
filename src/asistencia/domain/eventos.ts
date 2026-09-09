@@ -9,6 +9,7 @@
 
 import { findMark, type MarkCode } from './marks';
 import { jornadaDeGrado } from './ids';
+import { ordenarEstudiantes } from './nombres';
 import type { Event, EventMemberSource, EventSession, Student } from './types';
 
 /**
@@ -39,11 +40,9 @@ export function resolverIntegrantes(
     return false;
   });
 
-  return elegidos
-    .sort((a, b) =>
-      `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`),
-    )
-    .map((e) => e.studentId);
+  // Nace ordenado, aunque la planilla del evento vuelva a ordenar al pintar: asi el
+  // arreglo guardado es legible tal cual si algun dia se exporta o se lee a mano.
+  return ordenarEstudiantes(elegidos).map((e) => e.studentId);
 }
 
 /** El evento cubre esa fecha. `desde` y `hasta` son ambos INCLUSIVOS. */

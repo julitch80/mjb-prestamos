@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Printer, X } from 'lucide-react';
 import { mosaicoDe, faltantesDeFoto, ALTO_NOMBRE_MM } from './domain/mosaico';
-import { iniciales, nombreCompleto, nombresDePila } from './domain/nombres';
+import { compararEstudiantes, iniciales, nombreCompleto, nombresDePila } from './domain/nombres';
 import { urlDeFoto } from './fotos';
 import { leerDirectores, leerMiCuenta, leerNombresDeDirectores } from './datos';
 import { useAppStore } from '../data/store';
@@ -101,9 +101,7 @@ export default function MosaicoGrupo({
     () =>
       [...estudiantes]
         .filter((e) => e.activo !== false)
-        .sort((a, b) =>
-          nombreCompleto(a).localeCompare(nombreCompleto(b), 'es', { sensitivity: 'base' }),
-        ),
+        .sort(compararEstudiantes),
     [estudiantes],
   );
 

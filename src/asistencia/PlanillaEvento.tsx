@@ -16,7 +16,7 @@ import { estadisticaEvento, eventoVigente, resumenSesionEvento } from './domain/
 import { conDenominador } from './domain/stats';
 import { toDateKey } from './domain/ids';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
-import { nombreCompleto } from './domain/nombres';
+import { nombreCompleto, ordenarEstudiantes } from './domain/nombres';
 import type { Event, EventSession, Student } from './domain/types';
 import Ayuda from './Ayuda';
 
@@ -95,7 +95,15 @@ export default function PlanillaEvento({
         ]);
         if (!vivo) return;
         const porId = new Map(todos.map((e) => [e.studentId, e]));
-        setMiembros(evento.miembros.map((id) => porId.get(id)).filter((e): e is Student => !!e));
+        // Se ordena al pintar por la misma razon que en `PlanillaCentro`: `miembros` es
+        // un conjunto de studentIds, y hoy nace ordenado (`resolverIntegrantes`) pero
+        // nada garantiza que siga asi el dia que se puedan añadir integrantes despues.
+        // Ordenar aqui cuesta nada y quita la suposicion.
+        setMiembros(
+          ordenarEstudiantes(
+            evento.miembros.map((id) => porId.get(id)).filter((e): e is Student => !!e),
+          ),
+        );
         setSesiones(sesionesEvento);
       } catch (e) {
         if (vivo) setError(`No fue posible cargar el evento: ${(e as Error).message}`);

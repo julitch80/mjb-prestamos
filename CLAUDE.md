@@ -21,6 +21,19 @@ Sistema web para la **I.E. Manuel J. Betancur** (San Antonio de Prado, Medellín
 
 ---
 
+## Módulo de horarios — lo construye otra sesión
+
+El módulo que genera el horario del colegio (`src/data/horarios/`,
+`src/components/horarios/`) lo desarrolla **otra sesión de Claude** que trabaja en
+`D:\Proyectos\Horarios`, donde vive el motor en Python. Antes de tocar esos archivos, o
+los datos maestros de los que dependen, lee **`docs/modulo-horarios-contrato.md`**.
+
+Dos cosas que importan ya:
+- Puede haber cambios de ese módulo **sin confirmar y sin verificar visualmente**. No
+  hagas `git commit -a` a ciegas: este repo despliega al empujar a `master`.
+- Lo que haya que **ejecutar** en la app (`npm run dev`, `test`, `build`, commits,
+  despliegue) se hace **desde esta sesión**, aunque la instrucción venga de la otra.
+
 ## Stack técnico
 
 | Capa | Tecnología |

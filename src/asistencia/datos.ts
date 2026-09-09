@@ -41,6 +41,7 @@ import { httpsCallable } from 'firebase/functions';
 
 import { db, esperarAuth, functions } from '../lib/firebase';
 import { sessionId as construirSessionId } from './domain/ids';
+import { compararEstudiantes } from './domain/nombres';
 import type { MarkCode } from './domain/marks';
 import type {
   AlertConfig,
@@ -168,9 +169,7 @@ export async function leerGrupo(
     .filter((f) => f.exists())
     .map((f) => f.data() as Student)
     .filter((e) => e.activo)
-    .sort((a, b) =>
-      `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`),
-    );
+    .sort(compararEstudiantes);
 
   return { estudiantes, matriculas };
 }

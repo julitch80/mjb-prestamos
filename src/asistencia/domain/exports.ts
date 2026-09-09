@@ -9,7 +9,7 @@
 import { totalDeColumna } from './direccion-grupo';
 import { findMark, MARKS, type MarkCode } from './marks';
 // Un solo sitio compone el nombre: ver la nota en `./nombres`.
-import { nombreCompleto } from './nombres';
+import { compararEstudiantes, nombreCompleto, ordenarEstudiantes } from './nombres';
 import { computeStats, sesionesRelevantes } from './stats';
 import type { DireccionGrupo, Enrollment, LateArrival, Session, Student, ValorCelda } from './types';
 
@@ -199,7 +199,7 @@ export function estudiantesDelPeriodo(
           (m.hasta === null || hasta < m.hasta),
       ),
     )
-    .sort((a, b) => nombreCompleto(a).localeCompare(nombreCompleto(b)));
+    .sort(compararEstudiantes);
 }
 
 /** Celda de Direccion de grupo a texto de Excel. Vacia = sin asignar, igual que en las
@@ -223,9 +223,7 @@ export function buildDireccionGrupoExport(input: {
   direccion: DireccionGrupo;
 }): Hoja {
   const columnas = [...input.direccion.columnas].sort((a, b) => a.orden - b.orden);
-  const estudiantes = [...input.estudiantes].sort((a, b) =>
-    `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`),
-  );
+  const estudiantes = ordenarEstudiantes(input.estudiantes);
   const studentIds = estudiantes.map((e) => e.studentId);
 
   const filas: (string | number)[][] = estudiantes.map((e) => [

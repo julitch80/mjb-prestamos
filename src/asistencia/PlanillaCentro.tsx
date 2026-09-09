@@ -29,7 +29,7 @@ import { detectarDuplicados } from './domain/programas';
 import { conDenominador } from './domain/stats';
 import { toDateKey } from './domain/ids';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
-import { nombreCompleto } from './domain/nombres';
+import { nombreCompleto, ordenarEstudiantes } from './domain/nombres';
 import type {
   CandidatoPendiente,
   EventSession,
@@ -209,8 +209,17 @@ export default function PlanillaCentro({
   const [verPendientes, setVerPendientes] = useState(false);
 
   // La lista de inscritos es una FOTO FIJA de studentIds (`grupo.miembros`), igual que
-  // `Event.miembros`: se resuelve contra los estudiantes activos de la sede y se
-  // preserva el orden en que llegó, que ya viene por apellidos.
+  // `Event.miembros`: se resuelve contra los estudiantes activos de la sede.
+  //
+  // ⚠️ Y SE ORDENA AQUI, SIEMPRE. Antes se preservaba el orden del arreglo "porque ya
+  // venia por apellidos", y eso solo era cierto el dia de la importacion: `miembros` se
+  // escribe con `arrayUnion`, que AÑADE AL FINAL. Cada estudiante inscrito despues
+  // —una matricula nueva, un traslado entre centros, el boton "Asignar centro"— se
+  // quedaba en el ultimo renglon de la planilla para siempre. Lo reporto Julian el
+  // 2026-09-09 y era exactamente eso.
+  //
+  // No se ordena el arreglo guardado: `miembros` es un CONJUNTO, y reordenarlo en
+  // Firestore seria pelearse con `arrayUnion` en cada inscripcion. Se ordena al pintar.
   useEffect(() => {
     let vivo = true;
     setCargando(true);
@@ -222,7 +231,11 @@ export default function PlanillaCentro({
         ]);
         if (!vivo) return;
         const porId = new Map(todos.map((e) => [e.studentId, e]));
-        setMiembros(grupo.miembros.map((id) => porId.get(id)).filter((e): e is Student => !!e));
+        setMiembros(
+          ordenarEstudiantes(
+            grupo.miembros.map((id) => porId.get(id)).filter((e): e is Student => !!e),
+          ),
+        );
         setSesiones(sesionesCentro);
         // La columna activa arranca en la sesion MAS RECIENTE que exista, no en la de
         // hoy: hoy casi nunca hay clase del centro. Para empezar la de hoy esta el boton

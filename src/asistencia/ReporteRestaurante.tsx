@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
 import {
   contrasteConListaOficial,
+  ordenarContrastePorNombre,
   porGrado,
   type ContrasteRestaurante,
   type FilaContraste,
@@ -141,17 +142,20 @@ export default function ReporteRestaurante({ sedeInicial = 'central' }: { sedeIn
     };
   }, [sede, desde, hasta, anio]);
 
-  const contraste = useMemo(
-    () => contrasteConListaOficial(registros, inscritos),
-    [registros, inscritos],
-  );
-
   /** studentId -> nombre para mostrar. Los conteos NO dependen de esto. */
   const nombreDe = useMemo(() => {
     const mapa = new Map<string, string>();
     for (const e of matricula) mapa.set(e.studentId, nombreCompleto(e));
     return mapa;
   }, [matricula]);
+
+  // Se ordena por nombre AQUI, una sola vez: la tabla de abajo y el Excel del proveedor
+  // recorren estas mismas cuatro listas, y ordenar solo en uno de los dos es como acaban
+  // discrepando dos vistas del mismo dato. Ver `ordenarContrastePorNombre`.
+  const contraste = useMemo(
+    () => ordenarContrastePorNombre(contrasteConListaOficial(registros, inscritos), nombreDe),
+    [registros, inscritos, nombreDe],
+  );
 
   const hayListaOficial = contraste.conteos.inscritosTotal > 0;
   const rangoInvalido = Boolean(desde && hasta && desde > hasta);

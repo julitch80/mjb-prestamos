@@ -54,3 +54,47 @@ export function iniciales(e: { apellidos: string; nombres: string }): string {
   const pila = nombresDePila(e.apellidos, e.nombres);
   return (pila[0] ?? '').toUpperCase() + (e.apellidos[0] ?? '').toUpperCase();
 }
+
+// ---------------------------------------------------------------------------
+//  Orden de lista: uno solo para todo el modulo (2026-09-09)
+// ---------------------------------------------------------------------------
+//
+// EL ORDEN DE LISTA ES POR APELLIDOS, SIEMPRE Y EN TODAS PARTES. Un docente busca a un
+// estudiante recorriendo la columna con el dedo; si una pantalla ordena distinto que
+// otra, deja de poder hacerlo y tiene que leer los treinta y tres nombres.
+//
+// POR QUE UNA FUNCION Y NO UN `sort` EN CADA SITIO. Habia tres criterios distintos
+// repartidos por el modulo, escritos a mano cada vez. Se comprobo el 2026-09-09 con
+// nombres ficticios de los rasgos reales del colegio (mayusculas mezcladas, tildes, eñes,
+// particulas como "de la") y los tres coincidian, asi que NO habia ningun desorden a la
+// vista: esto no arregla un fallo, cierra la puerta a que aparezca uno el dia que alguien
+// toque uno de los tres y no los otros dos.
+//
+// `'es'` explicito y `sensitivity: 'base'`: sin locale, el orden lo decide la
+// configuracion del telefono de cada docente —el mismo grupo saldria distinto en dos
+// aparatos—, y sin `base` la tilde y la mayuscula separan a "PATIÑO" de "PATINO", que
+// para una lista de clase son la misma persona escrita de dos maneras.
+//
+// ⚠️ EL ORDEN SE APLICA AL PINTAR, NUNCA REESCRIBIENDO EL DATO GUARDADO. Los inscritos de
+// un centro (`grupo.miembros`) y los integrantes de un evento (`evento.miembros`) son
+// CONJUNTOS: se escriben con `arrayUnion`, que añade al final. Ordenar ese arreglo en
+// Firestore seria pelearse con `arrayUnion` en cada inscripcion y, peor, convertiria una
+// lista compartida en algo que dos personas reescriben a la vez.
+
+/** El criterio unico: apellidos y, a igualdad, nombres. */
+export function compararEstudiantes(
+  a: { apellidos: string; nombres: string },
+  b: { apellidos: string; nombres: string },
+): number {
+  return nombreCompleto(a).localeCompare(nombreCompleto(b), 'es', { sensitivity: 'base' });
+}
+
+/**
+ * La lista en orden de lista. Devuelve una copia: quien la llama suele recibir un arreglo
+ * que viene de `useState` o de props, y ordenarlo en el sitio mutaria algo de React.
+ */
+export function ordenarEstudiantes<T extends { apellidos: string; nombres: string }>(
+  lista: T[],
+): T[] {
+  return [...lista].sort(compararEstudiantes);
+}
