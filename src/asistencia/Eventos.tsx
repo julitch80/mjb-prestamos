@@ -28,6 +28,7 @@ export default function Eventos({
   sede,
   puedeRegistrar,
   consultaCreaEventos,
+  onAbrirFicha,
 }: {
   sede: string;
   /** Falso para la rectora: consulta lo que le compartan, pero no crea ni marca. */
@@ -39,6 +40,8 @@ export default function Eventos({
    * fuera. Ver el comentario de esa funcion en rules/asistencia.rules para el porque.
    */
   consultaCreaEventos: boolean;
+  /** Abre la ficha desde la planilla del evento. La pinta `index.tsx`. */
+  onAbrirFicha: (studentId: string) => void;
 }) {
   const [eventos, setEventos] = useState<Event[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -81,6 +84,7 @@ export default function Eventos({
           puedeRegistrar ||
           (consultaCreaEventos && eventoAbierto.creadoPor === miCorreo)
         }
+        onAbrirFicha={onAbrirFicha}
         onVolver={atras}
         onEliminado={(mensaje) => {
           setAviso(mensaje);

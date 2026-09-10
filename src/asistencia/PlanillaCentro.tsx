@@ -453,7 +453,27 @@ export default function PlanillaCentro({
     () => (fechaActiva ? (sesiones.find((s) => s.fecha === fechaActiva) ?? null) : null),
     [sesiones, fechaActiva],
   );
-  const avance = resumenSesionEvento(comoSesionDeEvento(sesionActiva), grupo.miembros);
+
+  /**
+   * LOS INSCRITOS QUE SIGUEN VIVOS. `grupo.miembros` es una foto fija de studentIds que
+   * NADIE limpia: retirar a un estudiante del colegio pone `activo: false` en su ficha y
+   * no toca la inscripcion —correcto, para que vuelva a su centro si lo reintegran—, pero
+   * su id se queda ahi.
+   *
+   * `miembros` (los resueltos) ya viene filtrado por activo, asi que la lista se ve bien.
+   * El problema estaba en los CONTEOS, que usaban el arreglo en crudo: la cabecera decia
+   * "25 inscritos" con 24 filas en la tabla, el avance de la sesion nunca llegaba al 100%
+   * porque faltaba marcar a alguien que no se ve, y «Llenar la lista» le escribia una
+   * marca a un retirado. Julian lo pregunto el 2026-09-09 a proposito de un caso real.
+   *
+   * Tambien deja fuera a quien se traslado a OTRA SEDE: `leerEstudiantesDeSede` solo trae
+   * los de esta, y con razon — ese estudiante ya no va a este centro.
+   */
+  const idsVivos = useMemo(() => miembros.map((e) => e.studentId), [miembros]);
+  /** Inscritos cuyo id sigue en el grupo pero ya no estan activos en la sede. */
+  const inscritosDeBaja = grupo.miembros.length - idsVivos.length;
+
+  const avance = resumenSesionEvento(comoSesionDeEvento(sesionActiva), idsVivos);
 
   /**
    * Abre la sesion del dia SOLO cuando de verdad hay que escribir en ella, nunca al
@@ -518,7 +538,7 @@ export default function PlanillaCentro({
         programa.programaId,
         grupo.grupoId,
         fechaSesion,
-        grupo.miembros,
+        idsVivos,
         estado,
         sesion?.estudiantes ?? {},
       );
@@ -609,8 +629,12 @@ export default function PlanillaCentro({
           )}
           <h2 className="text-base font-semibold text-strong">{grupo.nombre}</h2>
           <p className="text-xs text-muted">
-            {programa.nombre} · {grupo.miembros.length}{' '}
-            {grupo.miembros.length === 1 ? 'inscrito' : 'inscritos'} · lidera {grupo.lider}
+            {programa.nombre} · {idsVivos.length}{' '}
+            {idsVivos.length === 1 ? 'inscrito' : 'inscritos'}
+            {inscritosDeBaja > 0 && (
+              <> · {inscritosDeBaja} retirado{inscritosDeBaja === 1 ? '' : 's'}</>
+            )}{' '}
+            · lidera {grupo.lider}
           </p>
         </div>
 
@@ -640,8 +664,14 @@ export default function PlanillaCentro({
         )}
         <h2 className="text-base font-semibold text-strong">{grupo.nombre}</h2>
         <p className="text-xs text-muted">
-          {programa.nombre} · {grupo.miembros.length}{' '}
-          {grupo.miembros.length === 1 ? 'inscrito' : 'inscritos'} · lidera {grupo.lider}
+          {programa.nombre} · {idsVivos.length}{' '}
+          {idsVivos.length === 1 ? 'inscrito' : 'inscritos'}
+          {/* Se dice, no se esconde: si el numero bajo es porque alguien salio del colegio,
+              la coordinacion tiene que poder enterarse sin comparar dos pantallas. */}
+          {inscritosDeBaja > 0 && (
+            <> · {inscritosDeBaja} retirado{inscritosDeBaja === 1 ? '' : 's'}</>
+          )}{' '}
+          · lidera {grupo.lider}
         </p>
       </div>
 
@@ -1017,7 +1047,18 @@ export default function PlanillaCentro({
                                 : `Inscrito en «${grupo.nombre}».`
                         }
                       >
-                        <span className="flex items-center gap-2 text-left">
+                        {/* PULSABLE, igual que en la planilla de clase. Julian, 2026-09-09:
+                            "en los centros de interes no me deja ver la ficha". El lider de
+                            un centro no dirige el grupo de nadie, pero necesita el telefono
+                            del acudiente tanto como el director — y la ficha ya se lo deja
+                            ver: `asistenciaStudents` es legible por cualquier docente activo,
+                            y lo que si es de coordinacion y direccion (editar, registrar una
+                            llamada) la propia ficha no se lo ofrece. */}
+                        <button
+                          onClick={() => onAbrirFicha(e.studentId)}
+                          title={`Abrir la ficha de ${nombreCompleto(e)}`}
+                          className="flex w-full items-center gap-2 text-left"
+                        >
                           <Avatar estudiante={e} tamano={32} />
                           <span className="min-w-0 truncate text-xs leading-tight text-strong">
                             <span className="block truncate font-semibold">{e.apellidos}</span>
@@ -1031,7 +1072,7 @@ export default function PlanillaCentro({
                               </span>
                             )}
                           </span>
-                        </span>
+                        </button>
                       </Ayuda>
                     </td>
                     {columnas.map((c) => {
@@ -1136,9 +1177,9 @@ export default function PlanillaCentro({
       {menuColumna && (
         <MenuLlenarLista
           fecha={menuColumna}
-          total={grupo.miembros.length}
+          total={idsVivos.length}
           vacias={
-            grupo.miembros.filter(
+            idsVivos.filter(
               (id) => !sesiones.find((s) => s.fecha === menuColumna)?.estudiantes?.[id],
             ).length
           }

@@ -54,6 +54,7 @@ export default function PlanillaEvento({
   evento,
   miCorreo,
   puedeRegistrar,
+  onAbrirFicha,
   onVolver,
   onEliminado,
 }: {
@@ -65,6 +66,8 @@ export default function PlanillaEvento({
    * distincion la pantalla le ofreceria botones que el servidor rechaza.
    */
   puedeRegistrar: boolean;
+  /** Abre la ficha del estudiante. La pinta `index.tsx`. */
+  onAbrirFicha: (studentId: string) => void;
   onVolver: () => void;
   /** Se eliminó el evento: esta pantalla ya no existe, el aviso lo da la lista. */
   onEliminado: (mensaje: string) => void;
@@ -283,11 +286,21 @@ export default function PlanillaEvento({
                   key={e.studentId}
                   className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card p-2"
                 >
-                  <Avatar estudiante={e} tamano={40} />
-                  <span className="grow text-sm">
-                    <b className="block text-strong">{nombreCompleto(e)}</b>
-                    <span className="text-xs text-muted">{e.gradoActual}</span>
-                  </span>
+                  {/* Pulsable, por lo mismo que en la planilla de clase y en la de un
+                      centro: quien lleva el evento necesita el telefono del acudiente y la
+                      ficha ya se lo deja ver. Se arreglo junto con la del centro
+                      (Julian, 2026-09-09), que era la que el habia reportado. */}
+                  <button
+                    onClick={() => onAbrirFicha(e.studentId)}
+                    title={`Abrir la ficha de ${nombreCompleto(e)}`}
+                    className="flex min-w-0 grow items-center gap-2 text-left"
+                  >
+                    <Avatar estudiante={e} tamano={40} />
+                    <span className="min-w-0 grow text-sm">
+                      <b className="block truncate text-strong">{nombreCompleto(e)}</b>
+                      <span className="text-xs text-muted">{e.gradoActual}</span>
+                    </span>
+                  </button>
                   {/* La trazabilidad es el punto de un evento compartido: aqui va SIEMPRE
                       visible, no escondida en un title como en la planilla de clase. */}
                   {def && m && (

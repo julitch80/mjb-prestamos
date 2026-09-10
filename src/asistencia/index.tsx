@@ -926,6 +926,7 @@ export default function Asistencia() {
           sede={sede}
           puedeRegistrar={puedeRegistrar}
           consultaCreaEventos={consultaCreaEventos}
+          onAbrirFicha={setFichaAbierta}
         />
       </div>
     );

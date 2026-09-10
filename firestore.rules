@@ -29,7 +29,7 @@
 // escritura sin guarda en /config. Cuenta con: grep -E '^\s*allow [a-z, ]*(write|create|update|delete)'
 //
 // Comprobacion despues de cada sincronizacion: el numero de `allow` de escritura debe
-// coincidir con el de `esSuplantacion()`. Hoy son 73 escrituras y 35 lecturas libres.
+// coincidir con el de `esSuplantacion()`. Hoy son 73 escrituras y 34 lecturas libres.
 //
 // El 2026-08-30 esta cifra decia 57 cuando ya eran 58: se habia quedado atras sin que
 // nada avisara. Si vuelves a tocar el archivo, actualizala en el mismo commit — es el
