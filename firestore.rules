@@ -29,7 +29,7 @@
 // escritura sin guarda en /config. Cuenta con: grep -E '^\s*allow [a-z, ]*(write|create|update|delete)'
 //
 // Comprobacion despues de cada sincronizacion: el numero de `allow` de escritura debe
-// coincidir con el de `esSuplantacion()`. Hoy son 67 escrituras y 31 lecturas libres.
+// coincidir con el de `esSuplantacion()`. Hoy son 73 escrituras y 35 lecturas libres.
 //
 // El 2026-08-30 esta cifra decia 57 cuando ya eran 58: se habia quedado atras sin que
 // nada avisara. Si vuelves a tocar el archivo, actualizala en el mismo commit — es el
@@ -783,6 +783,93 @@ service cloud.firestore {
       }
     }
 
+  // ---------- Censo del dia: el insumo de la alerta de evasion (2026-09-09) ----------
+  //
+  // LA IDEA ES DE JULIAN: la evasion solo tiene sentido desde la tercera hora, porque solo
+  // entonces se sabe quien falto ese dia — y si se sabe quien falto, POR DESCARTE los demas
+  // llegaron al colegio. Este documento es ese "quienes faltaron", por grupo y por dia.
+  match /asistenciaCensoDia/{censoId} {
+
+    // Cualquier docente activo, y ESO ES EL PUNTO DE TODO EL MECANISMO. El docente de
+    // quinta hora NO puede leer la planilla de tercera de ese grupo, y no debe poder: cada
+    // marca lleva `motivo` (salud, calamidad) y `observacion`, que son datos de salud de
+    // menores. Este resumen no lleva NADA de eso —ids y contadores, ni una marca— y por eso
+    // si se puede abrir a todos sin filtrar nada.
+    allow read: if isActiveUser();
+
+    // NADIE lo escribe desde la aplicacion: lo produce `onSesionBloque3` con el Admin SDK,
+    // que no pasa por reglas. Si un docente pudiera escribirlo, publicaria un censo falso de
+    // un grado ajeno y mandaria al coordinador a buscar a alguien que esta en su casa.
+    //
+    // `write` a secas y NO `read, write`: un `allow read` extra aqui reabriria la lectura
+    // por otra puerta. Y lleva la guarda de suplantacion aunque la condicion ya sea `false`,
+    // por la misma razon que los `allow delete` de todo el modulo: el conteo de la cabecera
+    // de MJB —tantas escrituras, tantas guardas— tiene que seguir cuadrando sin excepciones
+    // que haya que recordar.
+    allow write: if !esSuplantacion() && (false);
+  }
+
+  // ---------- Avisos de evasion: la bandeja del coordinador (2026-09-09) ----------
+  //
+  // Existe porque el docente NO puede resolver lo que detecta y el coordinador si: el
+  // coordinador sabe si el estudiante salio con permiso —y entonces lo DESCARTA— o si no
+  // salio por ningun motivo, y entonces sabe que esta en alguna parte del colegio donde no
+  // le corresponde y puede ir a buscarlo o pedir apoyo.
+  match /asistenciaEvasiones/{avisoId} {
+
+    // OJO EN EL CLIENTE: la consulta del coordinador va con where('sede','==',<la suya>),
+    // igual que en `asistenciaLateArrivals`. Sin ese filtro Firestore rechaza la consulta
+    // entera aunque tuviera derecho a cada documento por separado.
+    allow read: if isSuper()
+      || asisCoordinaSede(resource.data.sede)
+      || asisIsRectora()
+      || asisConsultaAmpliada()
+      // El docente que lo reporto puede volver a mirarlo. No abre nada nuevo: es su propio
+      // aviso, sobre un estudiante al que el mismo acaba de marcar.
+      || resource.data.reportadoPor == callerEmail();
+
+    // Lo crea quien marca la evasion: el mismo `asisCanRecord()` que deja marcar. No se
+    // exige coordinar nada — el docente REPORTA, no resuelve.
+    allow create: if !esSuplantacion() && (asisCanRecord()
+      && request.resource.data.reportadoPor == callerEmail()
+      && request.resource.data.reportadoEn == request.time
+      && request.resource.data.estado == 'abierto'
+      && request.resource.data.resueltoPor == null
+      && request.resource.data.resueltoEn == null
+      && request.resource.data.studentId is string
+      && request.resource.data.grado is string
+      && request.resource.data.fecha is string
+      && request.resource.data.bloque is int
+      && request.resource.data.origen in ['clase', 'centro']
+      // EN CLASE, nunca antes del bloque 4: antes de la tercera hora el censo no existe y
+      // un aviso asi no se pudo cruzar con nada. Espeja `EVASION_DESDE_BLOQUE`.
+      //
+      // EN UN CENTRO DE INTERES, el bloque va en CERO y significa "no va por bloques": una
+      // sesion de centro tiene fecha pero no bloque (`SesionPrograma`). Se admite el 0 solo
+      // aqui — en una clase seguiria siendo un aviso imposible de cruzar. Espeja
+      // `BLOQUE_CENTRO` de domain/evasion.ts.
+      && (request.resource.data.origen == 'centro'
+          ? request.resource.data.bloque == 0
+          : request.resource.data.bloque >= 4)
+      && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']);
+
+    // RESOLVER ES AUTORIDAD EXCLUSIVA DEL COORDINADOR DE LA SEDE. El docente reporto lo que
+    // vio; decidir si fue evasion o una salida con permiso exige saber algo que solo esta en
+    // coordinacion. Por eso tampoco puede el director de grupo.
+    //
+    // Lo que se puede tocar esta cerrado con `hasOnly`: quien reporto, a quien, que dia y en
+    // que hora son un hecho ocurrido y no se reescriben nunca.
+    allow update: if !esSuplantacion() && (asisCoordinaSede(resource.data.sede)
+      && request.resource.data.estado in ['confirmada', 'descartada']
+      && request.resource.data.resueltoPor == callerEmail()
+      && request.resource.data.resueltoEn == request.time
+      && request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['estado', 'resueltoPor', 'resueltoEn', 'nota']));
+
+    // Un aviso descartado documenta que SE REVISO, que no es lo mismo que no haber ocurrido.
+    allow delete: if !esSuplantacion() && (false);
+  }
+
     // ---------- Direccion de grupo: el cuaderno del director ----------
     //
     // Columnas que define el director (cuotas, equipos de aseo, requisitos). NO es asistencia
@@ -1066,6 +1153,45 @@ service cloud.firestore {
             && (asisEnGrupoPrograma(programaId, grupoId) || asisCoordinaPrograma(programaId))
             && asisAuthorStamp());
 
+          allow delete: if !esSuplantacion() && (false);
+        }
+
+        // ---------- Gestion CI: el cuaderno del centro (2026-09-09) ----------
+        //
+        // La misma pantalla y el mismo modelo que la direccion de grupo —columnas que define
+        // el docente: cuotas, equipos, requisitos—, con el CENTRO como dueño en vez del grado.
+        // Julian: "las mismas funciones y opciones que tiene la direccion de grupo. Igualitas."
+        //
+        // AUTORIDAD: solo los docentes del centro. Es el mismo criterio que Julian fijo el
+        // 2026-08-12 para el cuaderno del director —"esto es interno del grupo"—, trasladado
+        // aqui: NI SIQUIERA LA COORDINACION DEL PROGRAMA entra, aunque sea quien crea el centro
+        // e inscribe a los estudiantes. Sus cuotas y sus equipos son del lider.
+        //
+        // ⚠️ CONSECUENCIA ACEPTADA, la misma de alla: si el lider se ausenta, nadie puede
+        // consultar su cuaderno. Para abrirlo a coordinacion bastaria añadir
+        // `|| asisCoordinaPrograma(programaId)` en las dos lineas.
+        //
+        // El año va como ID del documento y no como campo, igual que en la direccion de grupo:
+        // asi el cuaderno arranca limpio solo al cambiar de año, sin migrar ni archivar nada.
+        match /gestion/{anio} {
+          allow read: if asisEnGrupoPrograma(programaId, grupoId);
+
+          // `asisCanRecord()` ademas de ser del centro, por lo mismo que en el cuaderno del
+          // director: la rectora no escribe en ningun sitio y el superusuario tampoco.
+          //
+          // ⚠️ ESTA REGLA NO PUEDE IMPEDIR QUE EL CLIENTE VACIE EL CUADERNO —un `setDoc` que
+          // arrasa y un `updateDoc` legitimo producen el MISMO `request.resource.data`—, y por
+          // eso `abrirCuaderno` LEE ANTES DE ESCRIBIR. Es exactamente el accidente que borro
+          // las columnas del director el 2026-08-12; aqui nace con la leccion aprendida.
+          allow create, update: if !esSuplantacion() && (asisEnGrupoPrograma(programaId, grupoId)
+            && asisCanRecord()
+            && asisAuthorStamp()
+            // Lo unico que si se puede blindar: el cuaderno no cambia de dueño ni de año.
+            && request.resource.data.programaId == programaId
+            && request.resource.data.grupoId == grupoId
+            && request.resource.data.anio == int(anio));
+
+          // Se quitan COLUMNAS desde la aplicacion, nunca el cuaderno entero de un manotazo.
           allow delete: if !esSuplantacion() && (false);
         }
       }

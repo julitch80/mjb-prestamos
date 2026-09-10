@@ -581,3 +581,91 @@ export interface InscritoRestaurante {
   cargadoPor: string;
   cargadoEn: number;
 }
+
+// ---------------------------------------------------------------------------
+//  Evasion de clase — el censo de la tercera hora (2026-09-09)
+// ---------------------------------------------------------------------------
+//
+// LA IDEA ES DE JULIAN Y ES LA QUE HACE QUE ESTO SEA POSIBLE. La evasion solo tiene
+// sentido a partir de la tercera hora, porque solo entonces se sabe quien falto ese dia
+// — y si se sabe quien falto, POR DESCARTE los demas llegaron al colegio. No hace falta
+// registrar la entrada de nadie en la puerta: el dato ya se levanta todos los dias.
+//
+// POR QUE EXISTE UN DOCUMENTO APARTE Y NO SE LEE LA SESION DE BLOQUE 3. Un docente de
+// quinta hora NO puede leer la planilla de tercera de ese grupo, y no debe poder: cada
+// marca lleva `motivo` (salud, calamidad) y `observacion`, y eso es informacion de salud
+// de menores. El censo es el resumen SIN NADA DE ESO — solo "estos no vinieron"—, y por
+// eso si puede leerlo cualquier docente activo.
+//
+// LO ESCRIBE EL SERVIDOR, NUNCA EL CLIENTE (`onSesionBloque3` en functions/src/index.ts).
+// Si lo escribiera el cliente, un docente podria publicar un censo falso de un grado que
+// no es suyo y sembrar alertas de evasion sobre estudiantes que no vinieron.
+
+export interface CensoDia {
+  /** `${fecha}_${grado}`. Ver `censoDiaId`. */
+  censoId: string;
+  fecha: string;
+  grado: string;
+  sede: Sede;
+  jornada: Jornada;
+  /**
+   * NO VINIERON al colegio: `ausencia` y `ausencia_justificada` en el bloque 3.
+   * Marcarles falta mas tarde NO es evasion — no estaban.
+   */
+  noVinieron: string[];
+  /**
+   * `ausencia_autorizada` en el bloque 3. Decision de Julian (2026-09-09): la ausencia
+   * con autorizacion NO se reporta en ninguna situacion, ni como evasion ni como nada.
+   * Va en una lista aparte de `noVinieron` porque no significa lo mismo —puede haber
+   * venido y salido con permiso— pero para este cruce las dos callan la alerta.
+   */
+  autorizados: string[];
+  /**
+   * Cuantas marcas tenia la sesion de bloque 3. Un censo con CERO marcas no dice que
+   * vinieron todos: dice que nadie paso lista. Ver `censoEsFiable`.
+   */
+  cubiertos: number;
+  /** La sesion de bloque 3 quedo cerrada por su docente: el censo es firme. */
+  cerrada: boolean;
+  /** De que sesion salio. Para poder rastrear un censo raro hasta su planilla. */
+  sessionId: string;
+  actualizadoEn: number;
+}
+
+/** Estado de un aviso de evasion en la bandeja del coordinador. */
+export type EstadoAvisoEvasion = 'abierto' | 'confirmada' | 'descartada';
+
+/**
+ * Aviso al coordinador cuando un docente marca `evasion` (Julian, 2026-09-09).
+ *
+ * Existe porque el docente no puede resolverlo y el coordinador si: el coordinador sabe
+ * si el estudiante salio con permiso —y entonces lo DESCARTA— o si no salio por ningun
+ * motivo, y entonces sabe que esta en alguna parte del colegio donde no le corresponde y
+ * puede ir a buscarlo o pedir apoyo.
+ *
+ * Nunca se borra: se resuelve. Un aviso descartado documenta que se reviso, que es
+ * distinto de que no haya ocurrido.
+ */
+export interface AvisoEvasion {
+  /** `${fecha}_${studentId}_b${bloque}`. Ver `avisoEvasionId`. */
+  avisoId: string;
+  studentId: string;
+  grado: string;
+  sede: Sede;
+  jornada: Jornada;
+  fecha: string;
+  /** El bloque donde se le marco la evasion. Siempre >= 4 (ver `EVASION_DESDE_BLOQUE`). */
+  bloque: number;
+  origen: 'clase' | 'centro';
+  /** Asignatura o nombre del centro de interes: de donde falto. Para que el coordinador
+   *  sepa a quien preguntarle sin abrir nada mas. */
+  nombreOrigen: string;
+  reportadoPor: string;
+  reportadoEn: number;
+  estado: EstadoAvisoEvasion;
+  /** Quien lo resolvio en coordinacion. Null mientras siga abierto. */
+  resueltoPor: string | null;
+  resueltoEn: number | null;
+  /** "Salio a las 10:30 con la mama", "no aparecio, se aviso a la familia". */
+  nota: string | null;
+}

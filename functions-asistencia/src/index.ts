@@ -18,12 +18,13 @@ import { randomBytes, createHmac } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
-import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { defineSecret } from 'firebase-functions/params';
 
 import { planImport, summarizePlan, type IncomingRow } from '../../src/asistencia/domain/import-matching';
 import { enrollmentId } from '../../src/asistencia/domain/ids';
-import type { DocType, Student } from '../../src/asistencia/domain/types';
+import { construirCensoDeSesion } from '../../src/asistencia/domain/evasion';
+import type { DocType, Session, Student } from '../../src/asistencia/domain/types';
 
 initializeApp();
 const db = getFirestore();
@@ -629,3 +630,48 @@ export const onLateArrivalUpdated = archivador('asistenciaLateArrivals');
 export const onStudentUpdated = archivador('asistenciaStudents');
 
 
+
+// ---------------------------------------------------------------------------
+//  Censo de la tercera hora — el insumo de la alerta de evasion (2026-09-09)
+// ---------------------------------------------------------------------------
+
+/**
+ * Publica el censo del dia de un grupo cada vez que se escribe su sesion de BLOQUE 3.
+ *
+ * POR QUE EN EL SERVIDOR, y no en el cliente que pasa esa lista:
+ *
+ *  1. QUIEN LO LEE NO PUEDE LEER LA FUENTE. Un docente de quinta hora no puede abrir la
+ *     planilla de tercera de ese grupo —cada marca lleva `motivo` (salud, calamidad) y
+ *     `observacion`, informacion de salud de menores—. El censo es el resumen sin nada de
+ *     eso, y por eso si puede leerlo cualquier docente activo.
+ *  2. SI LO ESCRIBIERA EL CLIENTE SE PODRIA FALSIFICAR. Un censo inventado para un grado
+ *     ajeno sembraria alertas de evasion sobre estudiantes que ni vinieron ese dia, y el
+ *     coordinador saldria a buscar a alguien que esta en su casa.
+ *
+ * La regla la calcula `construirCensoDeSesion` (domain/evasion.ts), la MISMA funcion que
+ * usan las pruebas: quien la cambie cambia las dos a la vez.
+ *
+ * ⚠️ SI HAY DOS SESIONES DE BLOQUE 3 PARA EL MISMO GRADO (un docente que abrio la columna
+ * con la asignatura equivocada), gana la ultima escrita. Por eso el censo guarda
+ * `sessionId`: un censo raro se puede rastrear hasta la planilla que lo produjo en vez de
+ * quedar como un misterio.
+ */
+export const onSesionBloque3 = onDocumentWritten(
+  { region: REGION, document: 'asistenciaSessions/{sessionId}' },
+  async (event) => {
+    const after = event.data?.after;
+    // Sesion borrada: no se toca el censo. Las sesiones no se borran desde la aplicacion
+    // (`allow delete: if false`), asi que esto solo pasaria por consola, y en ese caso es
+    // preferible dejar el censo del dia que vaciarlo sin que nadie se entere.
+    if (!after?.exists) return;
+
+    const sesion = { sessionId: after.id, ...after.data() } as Session;
+    if (sesion.bloque !== 3) return;
+
+    const censo = construirCensoDeSesion(sesion);
+    await db
+      .collection('asistenciaCensoDia')
+      .doc(censo.censoId)
+      .set({ ...censo, actualizadoEn: FieldValue.serverTimestamp() });
+  },
+);

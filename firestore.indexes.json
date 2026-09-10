@@ -289,6 +289,20 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "asistenciaEvasiones",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sede",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fecha",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

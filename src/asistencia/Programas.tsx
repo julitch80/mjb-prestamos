@@ -72,11 +72,18 @@ const OPCIONES_JORNADA: { valor: Jornada | ''; label: string }[] = [
 export default function Programas({
   puedeRegistrar,
   puedeCrearPrograma,
+  onAbrirFicha,
   rolConsulta = null,
   jornadaLimitada = null,
 }: {
   /** Si se ofrece marcar asistencia. NO decide quien crea un programa: ver abajo. */
   puedeRegistrar: boolean;
+  /**
+   * Abre la ficha de un estudiante. La pinta `index.tsx`, que la comprueba ANTES de
+   * llegar a esta pantalla, asi que basta con levantar el estado alla. Se usa desde el
+   * cuaderno de «Gestión CI», igual que en la dirección de grupo.
+   */
+  onAbrirFicha: (studentId: string) => void;
   /**
    * Quien puede crear un programa: el superusuario, un coordinador de sede, o quien este
    * en `asistenciaConfig/programas` (la lider del proyecto). Esta prop cubre los dos
@@ -254,6 +261,7 @@ export default function Programas({
           puedeRegistrar={puedeRegistrar}
           esCoordinador={false}
           gruposDelPrograma={[grupo]}
+          onAbrirFicha={onAbrirFicha}
         />
       );
     }
@@ -294,6 +302,7 @@ export default function Programas({
         miCorreo={miCorreo ?? ''}
         puedeRegistrar={puedeRegistrar}
         soloConsulta={puedeConsultar(actualizado)}
+        onAbrirFicha={onAbrirFicha}
         onEditarPrograma={() => setEditando(actualizado)}
         onVolver={atras}
       />
@@ -421,12 +430,14 @@ function DetallePrograma({
   miCorreo,
   puedeRegistrar,
   soloConsulta,
+  onAbrirFicha,
   onEditarPrograma,
   onVolver,
 }: {
   programa: Programa;
   miCorreo: string;
   puedeRegistrar: boolean;
+  onAbrirFicha: (studentId: string) => void;
   /**
    * Ve todos los centros del programa pero NO los administra: rectora y coordinacion de
    * la sede/jornada. Cambia la CONSULTA (rama sin filtro, o no ve ninguno) y NO cambia
@@ -590,6 +601,7 @@ function DetallePrograma({
         esCoordinador={esCoordinador}
         gruposDelPrograma={grupos}
         onVolver={atras}
+        onAbrirFicha={onAbrirFicha}
       />
     );
   }

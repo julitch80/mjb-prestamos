@@ -26,11 +26,21 @@ import type {
   ColumnaDireccion,
   DireccionGrupo as DireccionGrupoModelo,
   OpcionColumna,
+  SesionPrograma,
   Student,
   TipoColumna,
   ValorCelda,
 } from './domain/types';
-import { abrirDireccionGrupo, guardarColumnas, leerGrupo, leerLlegadasTardePorGrado, leerSesiones, marcarCelda } from './datos';
+import { findMark } from './domain/marks';
+import {
+  abrirCuaderno,
+  guardarColumnasEn,
+  leerGrupo,
+  leerLlegadasTardePorGrado,
+  leerSesiones,
+  marcarCeldaEn,
+  type FuenteCuaderno,
+} from './datos';
 
 /**
  * Cuaderno paralelo del director de grupo — el modelo, la logica y el acceso a datos ya
@@ -41,12 +51,31 @@ import { abrirDireccionGrupo, guardarColumnas, leerGrupo, leerLlegadasTardePorGr
  * alla). No se cruza con la asistencia por asignatura.
  */
 export default function DireccionGrupo({
-  grado,
+  fuente,
+  etiqueta,
   anio,
   estudiantes,
+  sesionesCentro,
   onAbrirFicha,
 }: {
-  grado: string;
+  /**
+   * De QUE cuaderno se trata. La pantalla es la misma para los dos —Julian, 2026-09-09:
+   * "las mismas funciones y opciones que tiene la direccion de grupo, igualitas"— y lo
+   * unico que cambia es donde vive el documento y cuales son sus columnas automaticas.
+   *
+   *  - `grado`:  el cuaderno del director de grupo.
+   *  - `centro`: el de gestion de un centro de interes, del lider y sus docentes.
+   */
+  fuente: FuenteCuaderno;
+  /** Como se llama esto para el docente: "11.2" o "Vive Coding". Va en el Excel. */
+  etiqueta: string;
+  /**
+   * Las sesiones del centro, SOLO cuando `fuente.tipo === 'centro'`. Llegan ya cargadas
+   * por `PlanillaCentro` para calcular la columna automatica de inasistencias sin pedir
+   * nada otra vez — y sin toparse con permisos: el lider puede leer las sesiones de SU
+   * centro y ninguna otra.
+   */
+  sesionesCentro?: SesionPrograma[];
   anio: number;
   estudiantes: Student[];
   /**
@@ -88,7 +117,7 @@ export default function DireccionGrupo({
     let vivo = true;
     setCargando(true);
     setError(null);
-    void abrirDireccionGrupo(grado, anio)
+    void abrirCuaderno(fuente, anio)
       .then((d) => {
         if (vivo) setDireccion(d);
       })
@@ -101,7 +130,7 @@ export default function DireccionGrupo({
     return () => {
       vivo = false;
     };
-  }, [grado, anio]);
+  }, [fuente, anio]);
 
   const columnas = useMemo(
     () => [...(direccion?.columnas ?? [])].sort((a, b) => a.orden - b.orden),
@@ -125,6 +154,23 @@ export default function DireccionGrupo({
    * `sesionesPorAsignatura` en index.tsx.
    */
   useEffect(() => {
+    // CENTRO DE INTERES: las faltas son las de SU propia planilla, no las del grado. Se
+    // cuentan con `goesToMaster2000` —ausencia y evasion—, la misma definicion que la
+    // columna del director, para que la cifra signifique lo mismo en los dos cuadernos.
+    // Las sesiones ya vienen cargadas: aqui no se pide nada.
+    if (fuente.tipo === 'centro') {
+      const porEstudiante: Record<string, number> = {};
+      for (const s of sesionesCentro ?? []) {
+        for (const [id, m] of Object.entries(s.estudiantes ?? {})) {
+          if (!studentIds.includes(id)) continue;
+          porEstudiante[id] =
+            (porEstudiante[id] ?? 0) + (findMark(m.estado)?.goesToMaster2000 ? 1 : 0);
+        }
+      }
+      setFaltasPorEstudiante(porEstudiante);
+      return;
+    }
+    const grado = fuente.grado;
     let vivo = true;
     void (async () => {
       try {
@@ -155,7 +201,7 @@ export default function DireccionGrupo({
     return () => {
       vivo = false;
     };
-  }, [grado, studentIds]);
+  }, [fuente, sesionesCentro, studentIds]);
 
   /**
    * Llegadas tarde a la institucion que ALERTAN (excluye justificadas y pendientes de
@@ -166,6 +212,14 @@ export default function DireccionGrupo({
    * datos. Try/catch propio: si esto falla, el resto del cuaderno sigue igual.
    */
   useEffect(() => {
+    // Las llegadas tarde son de la INSTITUCION y van por grado. Un centro de interes
+    // reune estudiantes de todo el colegio y su lider no puede leer esos registros
+    // —autoridad de coordinacion y del director—, asi que ahi esta columna no existe.
+    if (fuente.tipo === 'centro') {
+      setLlegadasTardePorEstudiante({});
+      return;
+    }
+    const grado = fuente.grado;
     let vivo = true;
     void (async () => {
       try {
@@ -186,16 +240,20 @@ export default function DireccionGrupo({
     return () => {
       vivo = false;
     };
-  }, [grado, anio, studentIds]);
+  }, [fuente, anio, studentIds]);
 
   /** Las dos columnas que el sistema ya sabe, listas para pintarse al final del cuaderno
    * si el director no las ha ocultado. */
   const columnasAutomaticas: ColumnaAutomatica[] = ocultarAutomaticas
     ? []
-    : [
-        { id: 'faltas', nombre: 'Faltas', valores: faltasPorEstudiante },
-        { id: 'llegadas_tarde', nombre: 'Llegadas tarde', valores: llegadasTardePorEstudiante },
-      ];
+    : fuente.tipo === 'centro'
+      ? // En un centro solo cabe una: sus propias inasistencias. Se llama distinto a
+        // proposito —"Faltas" a secas se leeria como las del colegio— aunque se cuente igual.
+        [{ id: 'faltas', nombre: 'Inasistencias al centro', valores: faltasPorEstudiante }]
+      : [
+          { id: 'faltas', nombre: 'Faltas', valores: faltasPorEstudiante },
+          { id: 'llegadas_tarde', nombre: 'Llegadas tarde', valores: llegadasTardePorEstudiante },
+        ];
   const totalesAutomaticas = useMemo(
     () => new Map(columnasAutomaticas.map((c) => [c.id, totalDeAutomatica(c, studentIds)])),
     [ocultarAutomaticas, faltasPorEstudiante, llegadasTardePorEstudiante, studentIds],
@@ -221,7 +279,7 @@ export default function DireccionGrupo({
       else porEstudiante[columnaId] = valor;
       return { ...d, valores: { ...d.valores, [studentId]: porEstudiante } };
     });
-    void marcarCelda(grado, anio, studentId, columnaId, valor);
+    void marcarCeldaEn(fuente, anio, studentId, columnaId, valor);
   }
 
   /** Tres estados, no dos: sin asignar -> si -> no -> sin asignar. */
@@ -240,7 +298,7 @@ export default function DireccionGrupo({
     if (!direccion) return;
     const nuevas = moverColumna(direccion.columnas, columnaId, delta);
     setDireccion((d) => (d ? { ...d, columnas: nuevas } : d));
-    void guardarColumnas(grado, anio, nuevas);
+    void guardarColumnasEn(fuente, anio, nuevas);
     setMenuColumna(null);
   }
 
@@ -253,7 +311,7 @@ export default function DireccionGrupo({
     if (!ok) return;
     const { columnas: nuevasColumnas, valores } = quitarColumna(direccion, columnaId);
     setDireccion((d) => (d ? { ...d, columnas: nuevasColumnas, valores } : d));
-    void guardarColumnas(grado, anio, nuevasColumnas, valores);
+    void guardarColumnasEn(fuente, anio, nuevasColumnas, valores);
     setMenuColumna(null);
   }
 
@@ -261,7 +319,7 @@ export default function DireccionGrupo({
     if (!direccion) return;
     const nuevas = [...direccion.columnas, columna];
     setDireccion((d) => (d ? { ...d, columnas: nuevas } : d));
-    void guardarColumnas(grado, anio, nuevas);
+    void guardarColumnasEn(fuente, anio, nuevas);
     setSheetNuevaColumna(false);
   }
 
@@ -270,7 +328,7 @@ export default function DireccionGrupo({
     setDescargando(true);
     try {
       const hoja = buildDireccionGrupoExport({
-        grado,
+        grado: etiqueta,
         anio,
         estudiantes: estudiantes.map((e) => ({
           studentId: e.studentId,

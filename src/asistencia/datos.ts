@@ -42,9 +42,12 @@ import { httpsCallable } from 'firebase/functions';
 import { db, esperarAuth, functions } from '../lib/firebase';
 import { sessionId as construirSessionId } from './domain/ids';
 import { compararEstudiantes } from './domain/nombres';
+import { avisoEvasionId, censoDiaId } from './domain/evasion';
 import type { MarkCode } from './domain/marks';
 import type {
   AlertConfig,
+  AvisoEvasion,
+  CensoDia,
   ColumnaDireccion,
   DireccionGrupo,
   Enrollment,
@@ -1208,6 +1211,45 @@ export async function leerEstudiantesDeSede(sede: string): Promise<Student[]> {
 // rules/asistencia.rules). El año va como SUBCOLECCION para que el `{grado}` venga en
 // la RUTA y la regla lo resuelva sin mirar campos del documento.
 
+/**
+ * DE QUE CUADERNO SE HABLA. Hay dos, con la misma forma y autoridades distintas:
+ *
+ *  - `grado`:  el cuaderno del DIRECTOR DE GRUPO (`asistenciaDireccionGrupo/...`).
+ *  - `centro`: el de GESTION de un centro de interes, del lider y sus docentes
+ *              (`asistenciaProgramas/{id}/grupos/{id}/gestion/{anio}`). Julian,
+ *              2026-09-09: "las mismas funciones y opciones que tiene la direccion de
+ *              grupo. Igualitas."
+ *
+ * Se resuelve la RUTA y nada mas: todo lo que viene despues —leer antes de escribir,
+ * rutas de campo puntuales, no esperar el acuse— es identico para los dos, y tiene que
+ * seguir siendolo. Duplicar esas funciones seria duplicar tambien el accidente del
+ * 2026-08-12, cuando abrir la pantalla borraba las columnas del director.
+ */
+export type FuenteCuaderno =
+  | { tipo: 'grado'; grado: string }
+  | { tipo: 'centro'; programaId: string; grupoId: string };
+
+function refCuaderno(fuente: FuenteCuaderno, anio: number) {
+  return fuente.tipo === 'grado'
+    ? doc(baseDatos(), 'asistenciaDireccionGrupo', fuente.grado, 'anios', String(anio))
+    : doc(
+        baseDatos(),
+        'asistenciaProgramas',
+        fuente.programaId,
+        'grupos',
+        fuente.grupoId,
+        'gestion',
+        String(anio),
+      );
+}
+
+/** Los campos de identidad del cuaderno. Las reglas los exigen inmutables. */
+function identidadCuaderno(fuente: FuenteCuaderno, anio: number) {
+  return fuente.tipo === 'grado'
+    ? { grado: fuente.grado, anio }
+    : { programaId: fuente.programaId, grupoId: fuente.grupoId, anio };
+}
+
 export async function leerDireccionGrupo(grado: string, anio: number): Promise<DireccionGrupo | null> {
   if (!(await listo())) return null;
   const snap = await getDoc(doc(baseDatos(), 'asistenciaDireccionGrupo', grado, 'anios', String(anio)));
@@ -1234,8 +1276,16 @@ export async function leerDireccionGrupo(grado: string, anio: number): Promise<D
  * un documento inexistente no revienta la evaluacion como si pasaba en `abrirSesion`.
  */
 export async function abrirDireccionGrupo(grado: string, anio: number): Promise<DireccionGrupo> {
+  return abrirCuaderno({ tipo: 'grado', grado }, anio);
+}
+
+/** Igual, para el cuaderno de gestion de un centro de interes. Ver `FuenteCuaderno`. */
+export async function abrirCuaderno(
+  fuente: FuenteCuaderno,
+  anio: number,
+): Promise<DireccionGrupo> {
   const autor = await exigirAutor();
-  const ref = doc(baseDatos(), 'asistenciaDireccionGrupo', grado, 'anios', String(anio));
+  const ref = refCuaderno(fuente, anio);
 
   const existente = await getDoc(ref).catch(() => null);
   if (existente?.exists()) return existente.data() as DireccionGrupo;
@@ -1259,15 +1309,14 @@ export async function abrirDireccionGrupo(grado: string, anio: number): Promise<
   }
 
   const nuevo = {
-    grado,
-    anio,
+    ...identidadCuaderno(fuente, anio),
     columnas: [],
     valores: {},
     ultimaEscrituraPor: autor,
     ultimaEscrituraEn: serverTimestamp(),
   };
   await setDoc(ref, nuevo);
-  return { ...nuevo, ultimaEscrituraEn: Date.now() } as DireccionGrupo;
+  return { ...nuevo, ultimaEscrituraEn: Date.now() } as unknown as DireccionGrupo;
 }
 
 /**
@@ -1287,8 +1336,18 @@ export async function guardarColumnas(
   columnas: ColumnaDireccion[],
   valores?: DireccionGrupo['valores'],
 ): Promise<void> {
+  return guardarColumnasEn({ tipo: 'grado', grado }, anio, columnas, valores);
+}
+
+/** Igual, para cualquiera de los dos cuadernos. Ver `FuenteCuaderno`. */
+export async function guardarColumnasEn(
+  fuente: FuenteCuaderno,
+  anio: number,
+  columnas: ColumnaDireccion[],
+  valores?: DireccionGrupo['valores'],
+): Promise<void> {
   const autor = await exigirAutor();
-  const ref = doc(baseDatos(), 'asistenciaDireccionGrupo', grado, 'anios', String(anio));
+  const ref = refCuaderno(fuente, anio);
 
   const cambios: Record<string, unknown> = {
     columnas,
@@ -1351,8 +1410,19 @@ export async function marcarCelda(
   columnaId: string,
   valor: ValorCelda | null,
 ): Promise<void> {
+  return marcarCeldaEn({ tipo: 'grado', grado }, anio, studentId, columnaId, valor);
+}
+
+/** Igual, para cualquiera de los dos cuadernos. Ver `FuenteCuaderno`. */
+export async function marcarCeldaEn(
+  fuente: FuenteCuaderno,
+  anio: number,
+  studentId: string,
+  columnaId: string,
+  valor: ValorCelda | null,
+): Promise<void> {
   const autor = await exigirAutor();
-  const ref = doc(baseDatos(), 'asistenciaDireccionGrupo', grado, 'anios', String(anio));
+  const ref = refCuaderno(fuente, anio);
   const campo = `valores.${studentId}.${columnaId}`;
 
   const cambios: Record<string, unknown> = {
@@ -2331,4 +2401,122 @@ export async function guardarInscritosRestaurante(
     }
     await lote.commit();
   }
+}
+
+// ---------- Evasion de clase: el censo y la bandeja del coordinador ----------
+//
+// Ver `domain/evasion.ts` para la regla, que es de Julian: la evasion solo tiene sentido
+// desde la tercera hora, porque solo entonces se sabe quien falto ese dia — y por descarte
+// los demas llegaron al colegio.
+
+/**
+ * Los censos del dia de varios grados, en un mapa `grado -> censo | null`.
+ *
+ * Se piden por ID DIRECTO, uno por grado, y no con una consulta: el id es
+ * `${fecha}_${grado}`, asi que no hace falta ningun indice y no hay consulta que Firestore
+ * pueda rechazar por no ser demostrable. Una planilla de clase pide UN censo; la de un
+ * centro de interes pide uno por cada grado que tenga dentro (ver `gradosParaCenso`).
+ *
+ * `null` cuando ese grupo no tiene censo — nadie paso lista a tercera hora—. Es un estado
+ * REAL y no un error: la pantalla tiene que decirlo, no callarlo (ver `textoSinCenso`).
+ */
+export async function leerCensosDelDia(
+  fecha: string,
+  grados: string[],
+): Promise<Record<string, CensoDia | null>> {
+  const salida: Record<string, CensoDia | null> = {};
+  if (!(await listo()) || grados.length === 0) return salida;
+
+  const snaps = await Promise.all(
+    grados.map((g) =>
+      getDoc(doc(baseDatos(), 'asistenciaCensoDia', censoDiaId(fecha, g))).catch(() => null),
+    ),
+  );
+  grados.forEach((g, i) => {
+    const s = snaps[i];
+    salida[g] = s?.exists() ? (s.data() as CensoDia) : null;
+  });
+  return salida;
+}
+
+/**
+ * Reporta una evasion a la bandeja del coordinador.
+ *
+ * El id lleva fecha + estudiante + bloque, asi que si dos docentes reportaran la misma
+ * hora escriben el MISMO documento en vez de duplicarle el trabajo al coordinador. Por eso
+ * es `setDoc` y no `addDoc`.
+ *
+ * NO SE ESPERA EL ACUSE, igual que al marcar asistencia: la promesa de `setDoc` es la
+ * confirmacion del servidor, y esperarla dejaria al docente mirando una pantalla congelada
+ * cuando no hay señal. El aviso sale de la cola cuando vuelva la conexion.
+ */
+export async function reportarEvasion(input: {
+  studentId: string;
+  grado: string;
+  sede: Sede;
+  jornada: Jornada;
+  fecha: string;
+  bloque: number;
+  origen: 'clase' | 'centro';
+  nombreOrigen: string;
+}): Promise<void> {
+  const autor = await exigirAutor();
+  const avisoId = avisoEvasionId(input.fecha, input.studentId, input.bloque);
+  registrarEnvio(
+    setDoc(doc(baseDatos(), 'asistenciaEvasiones', avisoId), {
+      ...input,
+      avisoId,
+      reportadoPor: autor,
+      reportadoEn: serverTimestamp(),
+      estado: 'abierto',
+      resueltoPor: null,
+      resueltoEn: null,
+      nota: null,
+    }),
+  );
+}
+
+/**
+ * La bandeja del dia para el coordinador.
+ *
+ * ⚠️ EL `where('sede')` NO ES OPCIONAL. La regla de lectura se apoya en
+ * `asisCoordinaSede(resource.data.sede)`, y Firestore rechaza la consulta ENTERA si no
+ * puede probar de antemano que todo el resultado sera legible — aunque el coordinador
+ * tuviera derecho a cada documento por separado. Mismo caso que `leerLlegadasTarde`.
+ */
+export async function leerEvasionesDelDia(sede: string, fecha: string): Promise<AvisoEvasion[]> {
+  if (!(await listo())) return [];
+  return aLista<AvisoEvasion>(
+    await getDocs(
+      query(
+        collection(baseDatos(), 'asistenciaEvasiones'),
+        where('sede', '==', sede),
+        where('fecha', '==', fecha),
+      ),
+    ),
+  );
+}
+
+/**
+ * Cierra un aviso. Solo el coordinador de la sede: la regla lo exige y la pantalla no
+ * ofrece el boton a nadie mas.
+ *
+ * `descartada` es el chuleo de Julian —"no fue evasion, salio con permiso"—; `confirmada`
+ * es que si lo fue. Ninguna de las dos borra nada: un aviso descartado documenta que SE
+ * REVISO, que no es lo mismo que no haber ocurrido.
+ */
+export async function resolverEvasion(
+  avisoId: string,
+  estado: 'confirmada' | 'descartada',
+  nota: string | null,
+): Promise<void> {
+  const autor = await exigirAutor();
+  registrarEnvio(
+    updateDoc(doc(baseDatos(), 'asistenciaEvasiones', avisoId), {
+      estado,
+      resueltoPor: autor,
+      resueltoEn: serverTimestamp(),
+      nota: nota?.trim() ? nota.trim() : null,
+    }),
+  );
 }

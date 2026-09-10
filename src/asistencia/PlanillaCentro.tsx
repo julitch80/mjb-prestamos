@@ -12,9 +12,11 @@ import {
   leerEstudiantesDeSede,
   leerMisGruposDePrograma,
   leerPendientesDeGrupo,
+  leerCensosDelDia,
   leerSesionesPrograma,
   llenarColumnaPrograma,
   marcarEnPrograma,
+  reportarEvasion,
   proponerPendiente,
   retirarDeGrupoPrograma,
 } from './datos';
@@ -24,14 +26,28 @@ import {
  * usa una vez al semestre y no tiene por que viajar en el paquete de la planilla.
  */
 const MosaicoGrupo = lazy(() => import('./MosaicoGrupo'));
+
+/**
+ * El cuaderno de gestion. `lazy` por el mismo motivo que el mosaico: arrastra ExcelJS y
+ * mil lineas de tabla que no tienen por que viajar en el paquete de quien solo va a pasar
+ * lista.
+ */
+const DireccionGrupo = lazy(() => import('./DireccionGrupo'));
 import { estadisticaEvento, resumenSesionEvento } from './domain/eventos';
 import { detectarDuplicados } from './domain/programas';
 import { conDenominador } from './domain/stats';
-import { toDateKey } from './domain/ids';
+import { jornadaDeGrado, toDateKey } from './domain/ids';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
 import { nombreCompleto, ordenarEstudiantes } from './domain/nombres';
+import AvisoEvasion from './AvisoEvasion';
+import {
+  BLOQUE_CENTRO,
+  evaluarPosibleEvasionEnCentro,
+  gradosParaCenso,
+} from './domain/evasion';
 import type {
   CandidatoPendiente,
+  CensoDia,
   EventSession,
   GrupoPrograma,
   PendientePrograma,
@@ -137,6 +153,7 @@ export default function PlanillaCentro({
   esCoordinador,
   gruposDelPrograma,
   onVolver,
+  onAbrirFicha,
 }: {
   programa: Programa;
   grupo: GrupoPrograma;
@@ -167,6 +184,8 @@ export default function PlanillaCentro({
    * eso para que quede listo", aunque no era parte del encargo de turno.
    */
   onVolver?: () => void;
+  /** Abre la ficha desde el cuaderno de «Gestión CI». La pinta `index.tsx`. */
+  onAbrirFicha: (studentId: string) => void;
 }) {
   /**
    * La columna sobre la que actuan los atajos de sesion (escáner de QR y «Llenar la
@@ -207,6 +226,41 @@ export default function PlanillaCentro({
    */
   const [pendientes, setPendientes] = useState<PendientePrograma[]>([]);
   const [verPendientes, setVerPendientes] = useState(false);
+
+  /**
+   * Censo de la tercera hora de HOY, uno por cada grado que tenga este centro adentro.
+   *
+   * Un centro reune estudiantes de todo el colegio, asi que aqui no basta un censo como en
+   * una planilla de clase: hace falta el del grado de cada quien. Se piden por id directo
+   * (`${fecha}_${grado}`), sin consulta y sin indice.
+   */
+  /**
+   * Las dos mitades de un centro de interes (Julian, 2026-09-09): pasar lista y GESTIONAR.
+   * La segunda es el mismo cuaderno del director de grupo, con el centro como dueño.
+   */
+  const [seccion, setSeccion] = useState<'asistencia' | 'gestion'>('asistencia');
+  useNivelAtras(seccion !== 'asistencia', () => setSeccion('asistencia'));
+
+  const [censos, setCensos] = useState<Record<string, CensoDia | null>>({});
+  const [avisoEvasion, setAvisoEvasion] = useState<{
+    studentId: string;
+    nombre: string;
+    grado: string;
+    fecha: string;
+  } | null>(null);
+  const [reportandoEvasion, setReportandoEvasion] = useState(false);
+
+  useEffect(() => {
+    if (miembros.length === 0) return;
+    let vivo = true;
+    void leerCensosDelDia(toDateKey(new Date()), gradosParaCenso(miembros))
+      .then((m) => vivo && setCensos(m))
+      // Sin censos la planilla sigue igual: el aviso simplemente no sale.
+      .catch(() => vivo && setCensos({}));
+    return () => {
+      vivo = false;
+    };
+  }, [miembros]);
 
   // La lista de inscritos es una FOTO FIJA de studentIds (`grupo.miembros`), igual que
   // `Event.miembros`: se resuelve contra los estudiantes activos de la sede.
@@ -430,7 +484,29 @@ export default function PlanillaCentro({
       setFechaActiva(fechaSesion);
     } catch (e) {
       setError(`No fue posible guardar la marca: ${(e as Error).message}`);
+      return;
     }
+
+    // Igual que en la planilla de clase: el cruce va DESPUES de escribir. La falta queda
+    // registrada pase lo que pase; el aviso es una advertencia sobre algo ya guardado.
+    //
+    // Solo se cruza si la sesion es de HOY: el censo es del dia, y una columna vieja que
+    // se esta corrigiendo no se puede cruzar con el censo de esta manana.
+    if (fechaSesion !== toDateKey(new Date())) return;
+    const alumno = miembros.find((e) => e.studentId === studentId);
+    if (!alumno) return;
+    const veredicto = evaluarPosibleEvasionEnCentro({
+      estado,
+      studentId,
+      censo: censos[alumno.gradoActual],
+    });
+    if (veredicto.aviso !== 'posible_evasion') return;
+    setAvisoEvasion({
+      studentId,
+      nombre: nombreCompleto(alumno),
+      grado: alumno.gradoActual,
+      fecha: fechaSesion,
+    });
   }
 
   async function llenarColumna(fechaSesion: string, estado: MarkCode) {
@@ -513,6 +589,47 @@ export default function PlanillaCentro({
   const fueraDeSemestre =
     fechaActiva !== null && (fechaActiva < programa.desde || fechaActiva > programa.hasta);
 
+  /**
+   * GESTION CI — el cuaderno del centro. Es literalmente la pantalla de «Dirección de
+   * grupo», no una copia: mismo componente, mismas columnas (números, casillas, puntos,
+   * íconos), mismos totales, mismo Excel. Julian, 2026-09-09: "las mismas funciones y
+   * opciones que tiene la dirección de grupo. Igualitas."
+   *
+   * Lo unico que cambia es de quien es el cuaderno —`fuente`— y su columna automatica:
+   * en un centro son SUS inasistencias, no las del grado (ver `DireccionGrupo`).
+   */
+  if (seccion === 'gestion') {
+    return (
+      <div className="space-y-3">
+        <div>
+          {onVolver && (
+            <button onClick={onVolver} className="text-xs text-muted underline">
+              ← Volver a los centros de interés
+            </button>
+          )}
+          <h2 className="text-base font-semibold text-strong">{grupo.nombre}</h2>
+          <p className="text-xs text-muted">
+            {programa.nombre} · {grupo.miembros.length}{' '}
+            {grupo.miembros.length === 1 ? 'inscrito' : 'inscritos'} · lidera {grupo.lider}
+          </p>
+        </div>
+
+        <Pestanas seccion={seccion} onCambiar={setSeccion} />
+
+        <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando el cuaderno…</p>}>
+          <DireccionGrupo
+            fuente={{ tipo: 'centro', programaId: programa.programaId, grupoId: grupo.grupoId }}
+            etiqueta={grupo.nombre}
+            anio={new Date().getFullYear()}
+            estudiantes={miembros}
+            sesionesCentro={sesiones}
+            onAbrirFicha={onAbrirFicha}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <div>
@@ -527,6 +644,41 @@ export default function PlanillaCentro({
           {grupo.miembros.length === 1 ? 'inscrito' : 'inscritos'} · lidera {grupo.lider}
         </p>
       </div>
+
+      <Pestanas seccion={seccion} onCambiar={setSeccion} />
+
+      {avisoEvasion && (
+        <AvisoEvasion
+          nombre={avisoEvasion.nombre}
+          grado={avisoEvasion.grado}
+          tipo="posible_evasion"
+          guardando={reportandoEvasion}
+          onDejarFalta={() => setAvisoEvasion(null)}
+          onMarcarEvasion={async () => {
+            const a = avisoEvasion;
+            setReportandoEvasion(true);
+            try {
+              await marcar(a.fecha, a.studentId, 'evasion');
+              await reportarEvasion({
+                studentId: a.studentId,
+                grado: a.grado,
+                sede: programa.sede,
+                jornada: jornadaDeGrado(a.grado),
+                fecha: a.fecha,
+                // Cero = "no va por bloques": una sesion de centro tiene fecha y no bloque.
+                bloque: BLOQUE_CENTRO,
+                origen: 'centro',
+                nombreOrigen: grupo.nombre,
+              });
+            } catch (e) {
+              setError(`No fue posible avisar a coordinación: ${(e as Error).message}`);
+            } finally {
+              setReportandoEvasion(false);
+              setAvisoEvasion(null);
+            }
+          }}
+        />
+      )}
 
       {mosaico && (
         <Suspense fallback={null}>
@@ -1615,6 +1767,45 @@ function Inscripcion({
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Las dos mitades de un centro de interes (Julian, 2026-09-09).
+ *
+ * Va como pastillas y NO como pestañas separadas por el ancho de la pantalla: es el mismo
+ * patron que ya usa «Restaurante» y el que Julian pidio para los centros el 2026-08-20
+ * —"deberia estar en la misma columna, no separado por pestañas"—.
+ */
+function Pestanas({
+  seccion,
+  onCambiar,
+}: {
+  seccion: 'asistencia' | 'gestion';
+  onCambiar: (s: 'asistencia' | 'gestion') => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {(
+        [
+          ['asistencia', 'Asistencia'],
+          ['gestion', 'Gestión CI'],
+        ] as const
+      ).map(([clave, nombre]) => (
+        <button
+          key={clave}
+          onClick={() => onCambiar(clave)}
+          className={[
+            'min-h-[34px] rounded-full border px-3 py-1 text-sm',
+            seccion === clave
+              ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+              : 'border-line text-soft',
+          ].join(' ')}
+        >
+          {nombre}
+        </button>
+      ))}
     </div>
   );
 }

@@ -49,6 +49,8 @@ import TerceraHora from './TerceraHora';
 import LlegadasTarde from './LlegadasTarde';
 import Eventos from './Eventos';
 import MisGrupos from './MisGrupos';
+import AvisoEvasion from './AvisoEvasion';
+import Evasiones from './Evasiones';
 import {
   abrirSesion,
   borrarSesionesDeCruce,
@@ -58,7 +60,9 @@ import {
   crearEstudianteManual,
   leerAlcanceUsuario,
   leerConfigAlertas,
+  leerCensosDelDia,
   leerDireccionGrupo,
+  reportarEvasion,
   leerDirectores,
   leerGrupo,
   leerLlegadasTardePorGrado,
@@ -78,6 +82,7 @@ import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
 import type {
   AlertConfig,
+  CensoDia,
   Enrollment,
   LateArrival,
   OpcionColumna,
@@ -85,6 +90,7 @@ import type {
   Student,
 } from './domain/types';
 import { coloresDelGrupo, guiaDeColor } from './domain/direccion-grupo';
+import { evaluarPosibleEvasion } from './domain/evasion';
 import { firebaseConfigurado } from '../lib/firebase';
 import { useAppStore } from '../data/store';
 import { guardarColor, leerMapa, resolverColor, type MapaColores } from './domain/colores';
@@ -106,7 +112,8 @@ type VistaAsistencia =
   | 'llegadas'
   | 'eventos'
   | 'programas'
-  | 'restaurante';
+  | 'restaurante'
+  | 'evasiones';
 
 /**
  * Componente raiz del modulo de asistencia. ESTE es el punto de pegado.
@@ -339,6 +346,46 @@ export default function Asistencia() {
   const [vistaGrupo, setVistaGrupo] = useState<'asistencia' | 'direccion' | 'fotos'>('asistencia');
 
   /**
+   * Censo de la tercera hora del grupo abierto: quienes se reportaron ausentes HOY.
+   *
+   * Lo lee cualquier docente activo —no lleva marcas ni motivos, solo la lista—, asi que
+   * aqui no hay ninguna rama por rol. Ver `domain/evasion.ts` para la regla, que es de
+   * Julian: desde el bloque 4, marcarle falta a quien NO esta en esa lista significa que
+   * llego al colegio y no esta donde debia.
+   *
+   * `undefined` = todavia no se ha pedido. `null` = se pidio y ese grupo no tiene censo,
+   * que es un estado REAL (nadie paso lista a tercera hora) y hay que decirlo, no callarlo.
+   */
+  const [censoDelGrupo, setCensoDelGrupo] = useState<CensoDia | null | undefined>(undefined);
+  /** Mientras se escribe la evasion y su aviso: evita un doble toque que duplique el reporte. */
+  const [reportandoEvasion, setReportandoEvasion] = useState(false);
+  /** Aviso de posible evasion pendiente de que el docente decida. Ver `AvisoEvasion.tsx`. */
+  const [avisoEvasion, setAvisoEvasion] = useState<{
+    studentId: string;
+    nombre: string;
+    grado: string;
+    sessionId: string;
+    bloque: number;
+    tipo: 'posible_evasion' | 'sin_censo';
+  } | null>(null);
+
+  useEffect(() => {
+    if (!cruce) {
+      setCensoDelGrupo(undefined);
+      return;
+    }
+    let vivo = true;
+    const hoy = toDateKey(new Date());
+    void leerCensosDelDia(hoy, [cruce.grado])
+      .then((m) => vivo && setCensoDelGrupo(m[cruce.grado] ?? null))
+      // Sin censo la planilla sigue funcionando: el aviso dira que no hay con que cruzar.
+      .catch(() => vivo && setCensoDelGrupo(null));
+    return () => {
+      vivo = false;
+    };
+  }, [cruce]);
+
+  /**
    * Guia de color del director para el grupo abierto: studentId -> {color, palabra}.
    *
    * Vive en el cuaderno de direccion de grupo, y por eso solo se pide cuando el usuario
@@ -472,6 +519,29 @@ export default function Asistencia() {
     } catch (e) {
       setError(mensajeDeError(e));
     }
+
+    // EL CRUCE VA DESPUES DE ESCRIBIR, NO ANTES, Y ES DELIBERADO. La falta que el docente
+    // acaba de poner queda registrada pase lo que pase: el aviso es una advertencia sobre
+    // algo que ya quedo guardado, no una pregunta que haya que responder para poder
+    // guardar. Si el aviso fallara, la asistencia no se pierde.
+    const sesion = sesiones.find((s) => s.sessionId === sessionIdDoc);
+    const alumno = estudiantes.find((e) => e.studentId === studentId);
+    if (!sesion || !alumno) return;
+    const veredicto = evaluarPosibleEvasion({
+      estado,
+      bloque: sesion.bloque,
+      studentId,
+      censo: censoDelGrupo,
+    });
+    if (veredicto.aviso === 'ninguno') return;
+    setAvisoEvasion({
+      studentId,
+      nombre: nombreCompleto(alumno),
+      grado: sesion.grado,
+      sessionId: sessionIdDoc,
+      bloque: sesion.bloque,
+      tipo: veredicto.aviso,
+    });
   }
 
   /** Abre el escáner para la sesión que `Planilla.tsx` ya resolvió. */
@@ -692,7 +762,7 @@ export default function Asistencia() {
         <Suspense
           fallback={<p className="p-3 text-sm text-muted">Cargando centros de interés…</p>}
         >
-          <Programas puedeRegistrar={false} puedeCrearPrograma />
+          <Programas puedeRegistrar={false} puedeCrearPrograma onAbrirFicha={setFichaAbierta} />
         </Suspense>
         <BuscadorFichas sede={sede} onAbrir={setFichaAbierta} />
         <DiagnosticoPermisos />
@@ -726,6 +796,18 @@ export default function Asistencia() {
       <div className="space-y-3">
         <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
         <TerceraHora sede={sede} />
+      </div>
+    );
+  }
+
+  // La bandeja de evasiones es del coordinador por la misma razon que resolverlas: el
+  // docente REPORTA lo que vio, pero decidir si fue evasion o una salida con permiso exige
+  // saber algo que solo esta en coordinacion.
+  if (rol === 'coordinador' && vista === 'evasiones') {
+    return (
+      <div className="space-y-3">
+        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
+        <Evasiones sede={sede as Sede} />
       </div>
     );
   }
@@ -807,6 +889,7 @@ export default function Asistencia() {
             aun asi coordina el programa. */}
         <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando centros de interés…</p>}>
           <Programas
+            onAbrirFicha={setFichaAbierta}
             puedeRegistrar={puedeRegistrar}
             // Espeja la regla `allow create` del programa: isSuper() o coordinador de
             // sede. NO es `puedeRegistrar` — el superusuario no marca asistencia y aun
@@ -974,7 +1057,8 @@ export default function Asistencia() {
           {cruce && esDirector && vistaGrupo === 'direccion' ? (
             <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando…</p>}>
               <DireccionGrupo
-                grado={cruce.grado}
+                fuente={{ tipo: 'grado', grado: cruce.grado }}
+                etiqueta={cruce.grado}
                 anio={new Date().getFullYear()}
                 estudiantes={estudiantes}
                 onAbrirFicha={setFichaAbierta}
@@ -1035,6 +1119,40 @@ export default function Asistencia() {
             await abrirCruce(grado, subjectId, bloque);
           }}
           onCerrar={() => setFormularioManual(false)}
+        />
+      )}
+
+      {avisoEvasion && (
+        <AvisoEvasion
+          nombre={avisoEvasion.nombre}
+          grado={avisoEvasion.grado}
+          tipo={avisoEvasion.tipo}
+          guardando={reportandoEvasion}
+          onDejarFalta={() => setAvisoEvasion(null)}
+          onMarcarEvasion={async () => {
+            const a = avisoEvasion;
+            setReportandoEvasion(true);
+            try {
+              // Primero la marca: es la asistencia del colegio. El aviso a coordinacion es
+              // una consecuencia, y si fallara no debe llevarse por delante el registro.
+              await marcar(a.sessionId, a.studentId, 'evasion');
+              await reportarEvasion({
+                studentId: a.studentId,
+                grado: a.grado,
+                sede: sede as Sede,
+                jornada: jornadaDeGrado(a.grado),
+                fecha: toDateKey(new Date()),
+                bloque: a.bloque,
+                origen: 'clase',
+                nombreOrigen: getAsignatura(cruce?.subjectId ?? '')?.nombre ?? cruce?.subjectId ?? '',
+              });
+            } catch (e) {
+              setError(mensajeDeError(e));
+            } finally {
+              setReportandoEvasion(false);
+              setAvisoEvasion(null);
+            }
+          }}
         />
       )}
 
@@ -1629,6 +1747,13 @@ const SECCIONES: {
     nombre: 'Reporte de tercera hora',
     descripcion:
       'Quiénes no vinieron hoy al colegio. Se mide después de la tercera hora, cuando ya entraron los que esperaban afuera.',
+    soloCoordinador: true,
+  },
+  {
+    vista: 'evasiones',
+    nombre: 'Evasiones',
+    descripcion:
+      'Estudiantes que un docente marcó como evasión: no estaban en su clase y tampoco figuran entre los ausentes del día. Aquí se descarta el que salió con permiso y se busca al que no.',
     soloCoordinador: true,
   },
   {
