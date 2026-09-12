@@ -29,7 +29,7 @@
 // escritura sin guarda en /config. Cuenta con: grep -E '^\s*allow [a-z, ]*(write|create|update|delete)'
 //
 // Comprobacion despues de cada sincronizacion: el numero de `allow` de escritura debe
-// coincidir con el de `esSuplantacion()`. Hoy son 73 escrituras y 34 lecturas libres.
+// coincidir con el de `esSuplantacion()`. Hoy son 80 escrituras y 36 lecturas libres.
 //
 // El 2026-08-30 esta cifra decia 57 cuando ya eran 58: se habia quedado atras sin que
 // nada avisara. Si vuelves a tocar el archivo, actualizala en el mismo commit — es el
@@ -303,6 +303,38 @@ service cloud.firestore {
     //
     //  Para probarlo, `tests/rules/rules.test.ts` lo compone con un stub de los helpers
     //  de MJB; ese stub NO se despliega.
+    //
+    //  -----------------------------------------------------------------------------
+    //  ⚠️ CONVENCION OBLIGATORIA: `!esSuplantacion() && ( ... )` EN TODA ESCRITURA
+    //  -----------------------------------------------------------------------------
+    //  NO ES RUIDO NI SOBRA: no lo quites "limpiando". Es la convencion del archivo
+    //  anfitrion (`mjb-prestamos/firestore.rules`, nota de cabecera; el plan completo en
+    //  `docs/plan-suplantacion.md` de MJB).
+    //
+    //  QUE HACE. Una sesion de suplantacion —un administrador viendo la aplicacion como
+    //  otra persona— es de SOLO LECTURA. Durante la suplantacion el servidor sigue viendo
+    //  al usuario REAL: si se dejara escribir, el acto quedaria firmado a nombre de quien
+    //  no lo hizo (`createdBy`, `registradoPor`, `resueltoPor`... todos mienten). Con datos
+    //  de menores y con registros que se usan ante una familia, eso no es aceptable.
+    //
+    //  QUE NO TOCA. Las LECTURAS. Ver es justamente el proposito de suplantar; si se
+    //  cerraran, la funcion no serviria para nada. NINGUN `allow read` lleva la guarda.
+    //
+    //  ALCANCE. TODA regla de escritura: `create`, `update`, `delete`, `write` y las
+    //  combinadas (`create, update`). Tambien las que dicen `if false` — MJB las envolvio
+    //  igual y la comprobacion de sincronizacion es POR CONTEO, asi que saltarse una
+    //  descuadra el conteo y parece que falta una guarda de verdad.
+    //
+    //  COMPROBACION DESPUES DE CADA SINCRONIZACION (en este archivo):
+    //      numero de `allow` de escritura == numero de apariciones de `esSuplantacion()`
+    //  Si no cuadra, falta una guarda. En el archivo fusionado de MJB la misma cuenta se
+    //  hace sobre el total.
+    //
+    //  `esSuplantacion()` VIVE EN LA ZONA COMPARTIDA DE MJB y el contrato prohibe
+    //  redefinirla aqui. Para las pruebas se replica en `tests/rules/helpers-mjb-stub.rules`:
+    //      function esSuplantacion() {
+    //        return request.auth != null && 'suplantadoPor' in request.auth.token;
+    //      }
     // =============================================================================
 
     // ---------- Helpers propios del modulo (nombres nuevos, no pisan los de MJB) ----------
@@ -693,27 +725,27 @@ service cloud.firestore {
       return isActiveUser() && callerEmail() in asisEventoDe(eventId).docentes;
     }
 
-  // EXCEPCION DELIBERADA (Julian, 2026-09-07). Los cargos de apoyo (`asistenciaConsulta`)
-  // quedan fuera de `asisCanRecord()` y por eso no pueden marcar en NINGUN sitio: ni en una
-  // clase, ni en un centro de interes. Pero la PTA organiza actividades propias, y un evento
-  // que se puede crear pero no llenar no sirve de nada: obligaba a pedirle a otro docente
-  // que pasara la lista de una actividad suya.
-  //
-  // El alcance es el minimo que hace util la excepcion, y por eso NO se toco
-  // `asisCanRecord()`: la excepcion solo abre dos puertas —crear un evento, y marcar dentro
-  // de un evento QUE ELLA MISMA CREO—. La asistencia de clase y la de los centros de interes
-  // siguen cerradas para estos cargos, igual que antes.
-  //
-  // Rectora y superusuario quedan fuera explicitamente: la primera consulta y no registra
-  // (decision de 2026-07-30), y la clave del segundo es transferible, asi que sus actos no
-  // serian atribuibles a una persona fisica. Se comprueban aunque hoy ninguno de los dos
-  // tenga la bandera: si manana alguien se la pusiera por error, la excepcion no debe
-  // convertirse en la puerta trasera que ambos tienen cerrada por delante.
-  function asisConsultaCreaEventos() {
-    return asisConsultaAmpliada()
-      && callerDoc().role != 'rectora'
-      && callerDoc().role != 'superusuario';
-  }
+    // EXCEPCION DELIBERADA (Julian, 2026-09-07). Los cargos de apoyo (`asistenciaConsulta`)
+    // quedan fuera de `asisCanRecord()` y por eso no pueden marcar en NINGUN sitio: ni en una
+    // clase, ni en un centro de interes. Pero la PTA organiza actividades propias, y un evento
+    // que se puede crear pero no llenar no sirve de nada: obligaba a pedirle a otro docente
+    // que pasara la lista de una actividad suya.
+    //
+    // El alcance es el minimo que hace util la excepcion, y por eso NO se toco
+    // `asisCanRecord()`: la excepcion solo abre dos puertas —crear un evento, y marcar dentro
+    // de un evento QUE ELLA MISMA CREO—. La asistencia de clase y la de los centros de interes
+    // siguen cerradas para estos cargos, igual que antes.
+    //
+    // Rectora y superusuario quedan fuera explicitamente: la primera consulta y no registra
+    // (decision de 2026-07-30), y la clave del segundo es transferible, asi que sus actos no
+    // serian atribuibles a una persona fisica. Se comprueban aunque hoy ninguno de los dos
+    // tenga la bandera: si manana alguien se la pusiera por error, la excepcion no debe
+    // convertirse en la puerta trasera que ambos tienen cerrada por delante.
+    function asisConsultaCreaEventos() {
+      return asisConsultaAmpliada()
+        && callerDoc().role != 'rectora'
+        && callerDoc().role != 'superusuario';
+    }
 
     match /asistenciaEvents/{eventId} {
 
@@ -783,92 +815,187 @@ service cloud.firestore {
       }
     }
 
-  // ---------- Censo del dia: el insumo de la alerta de evasion (2026-09-09) ----------
-  //
-  // LA IDEA ES DE JULIAN: la evasion solo tiene sentido desde la tercera hora, porque solo
-  // entonces se sabe quien falto ese dia — y si se sabe quien falto, POR DESCARTE los demas
-  // llegaron al colegio. Este documento es ese "quienes faltaron", por grupo y por dia.
-  match /asistenciaCensoDia/{censoId} {
-
-    // Cualquier docente activo, y ESO ES EL PUNTO DE TODO EL MECANISMO. El docente de
-    // quinta hora NO puede leer la planilla de tercera de ese grupo, y no debe poder: cada
-    // marca lleva `motivo` (salud, calamidad) y `observacion`, que son datos de salud de
-    // menores. Este resumen no lleva NADA de eso —ids y contadores, ni una marca— y por eso
-    // si se puede abrir a todos sin filtrar nada.
-    allow read: if isActiveUser();
-
-    // NADIE lo escribe desde la aplicacion: lo produce `onSesionBloque3` con el Admin SDK,
-    // que no pasa por reglas. Si un docente pudiera escribirlo, publicaria un censo falso de
-    // un grado ajeno y mandaria al coordinador a buscar a alguien que esta en su casa.
+    // Quien puede REABRIR una valoracion ya entregada (Julian, 2026-09-10).
     //
-    // `write` a secas y NO `read, write`: un `allow read` extra aqui reabriria la lectura
-    // por otra puerta. Y lleva la guarda de suplantacion aunque la condicion ya sea `false`,
-    // por la misma razon que los `allow delete` de todo el modulo: el conteo de la cabecera
-    // de MJB —tantas escrituras, tantas guardas— tiene que seguir cuadrando sin excepciones
-    // que haya que recordar.
-    allow write: if !esSuplantacion() && (false);
-  }
+    // Va en `asistenciaConfig/valoracion`, que SOLO el superusuario escribe, y NO en el
+    // documento del programa. La razon es concreta: del programa es coordinadora Yuri, y
+    // Julian dijo expresamente que la autorizacion NO es de ella sino de la coordinacion
+    // academica. Si la lista viviera en el programa, Yuri podria anadirse sola.
+    /**
+     * ¿El centro admite que se escriban valoraciones AHORA MISMO?
+     *
+     * Sin entregar: si. Entregado: solo si la coordinacion academica lo reabrio y el plazo NO
+     * se ha vencido — `request.time` lo pone el SERVIDOR, asi que adelantar el reloj del
+     * telefono no sirve de nada. Ese es justo el motivo de que esto viva en la regla y no en
+     * la pantalla.
+     *
+     * `get(campo, defecto)` en los tres campos: el documento de estado puede no existir
+     * todavia (nadie ha entregado), y leer un campo ausente REVIENTA la evaluacion — que en
+     * reglas es una denegacion. Es la trampa que ya dejo al colegio sin pasar lista una vez.
+     */
+    function asisEstadoValoracion(programaId, grupoId) {
+      return get(/databases/$(database)/documents/asistenciaProgramas/$(programaId)/grupos/$(grupoId)/valoracion/estado);
+    }
+    function asisValoracionAbierta(programaId, grupoId) {
+      return !exists(/databases/$(database)/documents/asistenciaProgramas/$(programaId)/grupos/$(grupoId)/valoracion/estado)
+        || asisEstadoValoracion(programaId, grupoId).data.get('entregado', false) != true
+        || asisEstadoValoracion(programaId, grupoId).data.get('reabiertoHasta', 0) > request.time;
+    }
 
-  // ---------- Avisos de evasion: la bandeja del coordinador (2026-09-09) ----------
-  //
-  // Existe porque el docente NO puede resolver lo que detecta y el coordinador si: el
-  // coordinador sabe si el estudiante salio con permiso —y entonces lo DESCARTA— o si no
-  // salio por ningun motivo, y entonces sabe que esta en alguna parte del colegio donde no
-  // le corresponde y puede ir a buscarlo o pedir apoyo.
-  match /asistenciaEvasiones/{avisoId} {
+    function asisAutorizaCorreccion() {
+      return isActiveUser()
+        && callerEmail() in get(/databases/$(database)/documents/asistenciaConfig/valoracion)
+             .data.get('autorizan', []);
+    }
 
-    // OJO EN EL CLIENTE: la consulta del coordinador va con where('sede','==',<la suya>),
-    // igual que en `asistenciaLateArrivals`. Sin ese filtro Firestore rechaza la consulta
-    // entera aunque tuviera derecho a cada documento por separado.
-    allow read: if isSuper()
-      || asisCoordinaSede(resource.data.sede)
-      || asisIsRectora()
-      || asisConsultaAmpliada()
-      // El docente que lo reporto puede volver a mirarlo. No abre nada nuevo: es su propio
-      // aviso, sobre un estudiante al que el mismo acaba de marcar.
-      || resource.data.reportadoPor == callerEmail();
+    // ---------- Censo del dia: el insumo de la alerta de evasion (2026-09-09) ----------
+    //
+    // LA IDEA ES DE JULIAN: la evasion solo tiene sentido desde la tercera hora, porque solo
+    // entonces se sabe quien falto ese dia — y si se sabe quien falto, POR DESCARTE los demas
+    // llegaron al colegio. Este documento es ese "quienes faltaron", por grupo y por dia.
+    match /asistenciaCensoDia/{censoId} {
 
-    // Lo crea quien marca la evasion: el mismo `asisCanRecord()` que deja marcar. No se
-    // exige coordinar nada — el docente REPORTA, no resuelve.
-    allow create: if !esSuplantacion() && (asisCanRecord()
-      && request.resource.data.reportadoPor == callerEmail()
-      && request.resource.data.reportadoEn == request.time
-      && request.resource.data.estado == 'abierto'
-      && request.resource.data.resueltoPor == null
-      && request.resource.data.resueltoEn == null
-      && request.resource.data.studentId is string
-      && request.resource.data.grado is string
-      && request.resource.data.fecha is string
-      && request.resource.data.bloque is int
-      && request.resource.data.origen in ['clase', 'centro']
-      // EN CLASE, nunca antes del bloque 4: antes de la tercera hora el censo no existe y
-      // un aviso asi no se pudo cruzar con nada. Espeja `EVASION_DESDE_BLOQUE`.
+      // Cualquier docente activo, y ESO ES EL PUNTO DE TODO EL MECANISMO. El docente de
+      // quinta hora NO puede leer la planilla de tercera de ese grupo, y no debe poder: cada
+      // marca lleva `motivo` (salud, calamidad) y `observacion`, que son datos de salud de
+      // menores. Este resumen no lleva NADA de eso —ids y contadores, ni una marca— y por eso
+      // si se puede abrir a todos sin filtrar nada.
+      allow read: if isActiveUser();
+
+      // NADIE lo escribe desde la aplicacion: lo produce `onSesionBloque3` con el Admin SDK,
+      // que no pasa por reglas. Si un docente pudiera escribirlo, publicaria un censo falso de
+      // un grado ajeno y mandaria al coordinador a buscar a alguien que esta en su casa.
       //
-      // EN UN CENTRO DE INTERES, el bloque va en CERO y significa "no va por bloques": una
-      // sesion de centro tiene fecha pero no bloque (`SesionPrograma`). Se admite el 0 solo
-      // aqui — en una clase seguiria siendo un aviso imposible de cruzar. Espeja
-      // `BLOQUE_CENTRO` de domain/evasion.ts.
-      && (request.resource.data.origen == 'centro'
-          ? request.resource.data.bloque == 0
-          : request.resource.data.bloque >= 4)
-      && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']);
+      // `write` a secas y NO `read, write`: un `allow read` extra aqui reabriria la lectura
+      // por otra puerta. Y lleva la guarda de suplantacion aunque la condicion ya sea `false`,
+      // por la misma razon que los `allow delete` de todo el modulo: el conteo de la cabecera
+      // de MJB —tantas escrituras, tantas guardas— tiene que seguir cuadrando sin excepciones
+      // que haya que recordar.
+      allow write: if !esSuplantacion() && (false);
+    }
 
-    // RESOLVER ES AUTORIDAD EXCLUSIVA DEL COORDINADOR DE LA SEDE. El docente reporto lo que
-    // vio; decidir si fue evasion o una salida con permiso exige saber algo que solo esta en
-    // coordinacion. Por eso tampoco puede el director de grupo.
+    // ---------- Valoracion del centro de interes (2026-09-10) ----------
     //
-    // Lo que se puede tocar esta cerrado con `hasOnly`: quien reporto, a quien, que dia y en
-    // que hora son un hecho ocurrido y no se reescriben nunca.
-    allow update: if !esSuplantacion() && (asisCoordinaSede(resource.data.sede)
-      && request.resource.data.estado in ['confirmada', 'descartada']
-      && request.resource.data.resueltoPor == callerEmail()
-      && request.resource.data.resueltoEn == request.time
-      && request.resource.data.diff(resource.data).affectedKeys()
-           .hasOnly(['estado', 'resueltoPor', 'resueltoEn', 'nota']));
+    // /!\ POR QUE ESTO NO VIVE DENTRO DEL CENTRO, que es donde uno lo pondria.
+    //
+    // Quien digita en el Master es el DIRECTOR DE GRUPO, y sus estudiantes estan repartidos en
+    // seis centros de los que no es docente. Las reglas no le dejan abrir esos centros — ni
+    // deben. Con un documento por estudiante marcado con su GRADO, la regla puede decir "el
+    // director de ese grado lo lee" y la consulta `where('grado','==','11.2')` es DEMOSTRABLE.
+    // Es el mismo patron de `asistenciaSessions`.
+    //
+    // OJO EN EL CLIENTE: cada quien tiene que filtrar por la rama que le corresponde.
+    //   director     -> where('grado','==', su grado)
+    //   lider        -> where('programaId','==',X).where('grupoId','==',Y)
+    //   coordinacion -> where('programaId','==',X)
+    // Sin el filtro, Firestore rechaza la consulta entera aunque tuviera derecho a cada
+    // documento por separado.
+    match /asistenciaValoraciones/{valoracionId} {
 
-    // Un aviso descartado documenta que SE REVISO, que no es lo mismo que no haber ocurrido.
-    allow delete: if !esSuplantacion() && (false);
-  }
+      allow read: if isSuper()
+        // El director del grado del estudiante: ESTA es la rama que resuelve el problema.
+        || asisIsDirectorOf(resource.data.grado)
+        // El lider y los docentes del centro que la escribieron.
+        || asisEnGrupoPrograma(resource.data.programaId, resource.data.grupoId)
+        || asisCoordinaPrograma(resource.data.programaId)
+        || asisConsultaDelPrograma(resource.data.programaId)
+        || asisAutorizaCorreccion();
+
+      // La escribe el docente del centro, y SOLO mientras el centro admita cambios: sin
+      // entregar, o reabierto y dentro del plazo. Ver `asisValoracionAbierta`.
+      //
+      // `asisCanRecord()` como en el resto: la rectora no escribe en ningun sitio y el
+      // superusuario tampoco (su clave es transferible).
+      allow create: if !esSuplantacion() && (asisCanRecord()
+        && asisEnGrupoPrograma(request.resource.data.programaId, request.resource.data.grupoId)
+        && asisValoracionAbierta(request.resource.data.programaId, request.resource.data.grupoId)
+        && request.resource.data.nivel in [1, 2, 3, 4]
+        && request.resource.data.codigos is list
+        && request.resource.data.codigos.size() <= 4
+        && request.resource.data.valoradoPor == callerEmail()
+        && request.resource.data.valoradoEn == request.time
+        && request.resource.data.grado is string
+        && request.resource.data.studentId is string);
+
+      // Corregir: lo mismo, y ademas nada de reescribir a quien ni a que estudiante.
+      allow update: if !esSuplantacion() && (asisCanRecord()
+        && asisEnGrupoPrograma(resource.data.programaId, resource.data.grupoId)
+        && asisValoracionAbierta(resource.data.programaId, resource.data.grupoId)
+        && request.resource.data.nivel in [1, 2, 3, 4]
+        && request.resource.data.codigos.size() <= 4
+        && request.resource.data.studentId == resource.data.studentId
+        && request.resource.data.programaId == resource.data.programaId
+        && request.resource.data.grupoId == resource.data.grupoId
+        // La autoria original es inmutable: documenta quien valoro. Solo se anade quien corrige.
+        && request.resource.data.valoradoPor == resource.data.valoradoPor
+        && request.resource.data.valoradoEn == resource.data.valoradoEn
+        && request.resource.data.modificadoPor == callerEmail()
+        && request.resource.data.modificadoEn == request.time);
+
+      // Una valoracion no se borra: se corrige, y la correccion deja rastro.
+      allow delete: if !esSuplantacion() && (false);
+    }
+
+    // ---------- Avisos de evasion: la bandeja del coordinador (2026-09-09) ----------
+    //
+    // Existe porque el docente NO puede resolver lo que detecta y el coordinador si: el
+    // coordinador sabe si el estudiante salio con permiso —y entonces lo DESCARTA— o si no
+    // salio por ningun motivo, y entonces sabe que esta en alguna parte del colegio donde no
+    // le corresponde y puede ir a buscarlo o pedir apoyo.
+    match /asistenciaEvasiones/{avisoId} {
+
+      // OJO EN EL CLIENTE: la consulta del coordinador va con where('sede','==',<la suya>),
+      // igual que en `asistenciaLateArrivals`. Sin ese filtro Firestore rechaza la consulta
+      // entera aunque tuviera derecho a cada documento por separado.
+      allow read: if isSuper()
+        || asisCoordinaSede(resource.data.sede)
+        || asisIsRectora()
+        || asisConsultaAmpliada()
+        // El docente que lo reporto puede volver a mirarlo. No abre nada nuevo: es su propio
+        // aviso, sobre un estudiante al que el mismo acaba de marcar.
+        || resource.data.reportadoPor == callerEmail();
+
+      // Lo crea quien marca la evasion: el mismo `asisCanRecord()` que deja marcar. No se
+      // exige coordinar nada — el docente REPORTA, no resuelve.
+      allow create: if !esSuplantacion() && (asisCanRecord()
+        && request.resource.data.reportadoPor == callerEmail()
+        && request.resource.data.reportadoEn == request.time
+        && request.resource.data.estado == 'abierto'
+        && request.resource.data.resueltoPor == null
+        && request.resource.data.resueltoEn == null
+        && request.resource.data.studentId is string
+        && request.resource.data.grado is string
+        && request.resource.data.fecha is string
+        && request.resource.data.bloque is int
+        && request.resource.data.origen in ['clase', 'centro']
+        // EN CLASE, nunca antes del bloque 4: antes de la tercera hora el censo no existe y
+        // un aviso asi no se pudo cruzar con nada. Espeja `EVASION_DESDE_BLOQUE`.
+        //
+        // EN UN CENTRO DE INTERES, el bloque va en CERO y significa "no va por bloques": una
+        // sesion de centro tiene fecha pero no bloque (`SesionPrograma`). Se admite el 0 solo
+        // aqui — en una clase seguiria siendo un aviso imposible de cruzar. Espeja
+        // `BLOQUE_CENTRO` de domain/evasion.ts.
+        && (request.resource.data.origen == 'centro'
+            ? request.resource.data.bloque == 0
+            : request.resource.data.bloque >= 4)
+        && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']);
+
+      // RESOLVER ES AUTORIDAD EXCLUSIVA DEL COORDINADOR DE LA SEDE. El docente reporto lo que
+      // vio; decidir si fue evasion o una salida con permiso exige saber algo que solo esta en
+      // coordinacion. Por eso tampoco puede el director de grupo.
+      //
+      // Lo que se puede tocar esta cerrado con `hasOnly`: quien reporto, a quien, que dia y en
+      // que hora son un hecho ocurrido y no se reescriben nunca.
+      allow update: if !esSuplantacion() && (asisCoordinaSede(resource.data.sede)
+        && request.resource.data.estado in ['confirmada', 'descartada']
+        && request.resource.data.resueltoPor == callerEmail()
+        && request.resource.data.resueltoEn == request.time
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['estado', 'resueltoPor', 'resueltoEn', 'nota']));
+
+      // Un aviso descartado documenta que SE REVISO, que no es lo mismo que no haber ocurrido.
+      allow delete: if !esSuplantacion() && (false);
+    }
 
     // ---------- Direccion de grupo: el cuaderno del director ----------
     //
@@ -947,36 +1074,49 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/asistenciaProgramas/$(programaId)).data;
     }
 
-    // QUIEN PUEDE CREAR UN PROGRAMA NUEVO, ademas del superusuario y la coordinacion de
-    // sede. Requisito explicito de Julian (2026-08-25): la lider del proyecto de centros
-    // de interes tiene rol de docente y `asistenciaConsulta`, y aun asi debe poder crear
-    // el programa del semestre siguiente sin depender de la cuenta de administracion.
+    // QUIEN PUEDE CREAR UN PROGRAMA NUEVO, ademas del superusuario y la coordinacion de sede.
     //
-    // NO se resuelve con "quien ya coordina algun programa": eso obligaria a recorrer
-    // todos los programas y no es demostrable en una regla. Se resuelve con una lista
-    // explicita en `asistenciaConfig/programas`, que solo escribe el superusuario.
+    // Existe por un requisito explicito de Julian (2026-08-25): "la lider del proyecto es
+    // Yuri; asi yo cargue las listas desde superusuario, ella deberia tener toda la potestad
+    // de hacer cambios (...) o, a futuro, cargar las listas ella misma".
     //
-    // `exists()` antes del `get()`, y `get('creadores', [])` y no `.creadores`: hoy ese
-    // documento NO existe todavia, y si existiera sin el campo, acceder directo LANZARIA
-    // error — y un error en una regla es una denegacion. Es la misma trampa que tumbo la
-    // asistencia de todo el colegio con `asistenciaConsulta`.
+    // Sin esto, Yuri administra el programa que le entreguen pero NO puede crear el del
+    // semestre siguiente, y cada seis meses habria que ir a buscar al superusuario. Que la
+    // lider del proyecto dependa de una cuenta de administracion para arrancar su propio
+    // semestre es un cuello de botella, no una medida de seguridad.
+    //
+    // NO se resuelve con "quien ya coordina algun programa": eso obligaria a recorrer todos
+    // los programas, que no es demostrable en una regla. Se resuelve con una lista explicita
+    // en `asistenciaConfig/programas`, que solo escribe el superusuario (regla de
+    // asistenciaConfig, mas arriba) y que cualquiera puede leer.
+    //
+    // `get('creadores', [])` y no `.creadores`: si el documento existe pero le falta el
+    // campo, acceder directo LANZA error, y un error en una regla es una denegacion. Es la
+    // misma trampa que tumbo la asistencia de todo el colegio con `asistenciaConsulta`.
     // CONSULTA DE UN PROGRAMA: ver los centros y sus planillas, SIN administrarlos.
     //
-    // Decision de Julian (2026-08-25), sobre la alternativa de meterlos en
-    // `coordinadores`: eso les daria poder de crear centros, inscribir y rebarajar, al
-    // mismo nivel que la lider del proyecto — y con dos personas inscribiendo sin verse se
-    // rompe `exclusivo`. Ver es su trabajo; administrar no.
+    // Decision de Julian (2026-08-25), opcion B sobre la alternativa de meter a los
+    // coordinadores en `coordinadores`: "que puedan ver pero no administrar (...) tanto para
+    // los coordinadores como para la rectora. Haciendo la salvedad de que la rectora no tiene
+    // discriminacion por jornada".
     //
-    //  - Rectora: TODOS los programas, las dos jornadas, sin restriccion.
-    //  - Cargos de apoyo con `asistenciaConsulta` (PTA y apoyo): igual que la rectora.
-    //    "Sobre todo las planillas de sexto hasta once, pero solo consultar". Su trabajo
-    //    cubre el colegio entero, no una jornada.
-    //  - Coordinador de sede: solo los programas de SU sede, y si el programa declara
+    // Por que NO se resolvio metiendolos en `coordinadores`: eso les daria poder de crear
+    // centros, inscribir y rebarajar, al mismo nivel que la lider del proyecto. Y con dos
+    // personas inscribiendo sin verse se rompe `exclusivo` — un estudiante en dos centros que
+    // nadie detecta. Ver es su trabajo; administrar no.
+    //
+    //  - Rectora: TODOS los programas, las dos jornadas, sin restriccion. Solo lectura, como
+    //    en el resto del modulo.
+    //  - Cargos de apoyo con `asistenciaConsulta` (PTA y apoyo): igual que la rectora, sin
+    //    restriccion de jornada. Julian, 2026-08-25: "Alexander tambien puede consultar,
+    //    sobre todo las planillas de sexto hasta once, pero solo consultar". Su trabajo cubre
+    //    el colegio entero, no una jornada, asi que acotarlos seria mutilarles el cargo.
+    //  - Coordinador de sede: solo los programas de SU sede, y si el programa declara una
     //    jornada, solo si no esta limitado a la otra (en central hay uno por jornada).
     //
-    // NO abre ninguna escritura, y los `pendientes` NO se abren ni a lectura: resolverlos
-    // es administrar. `'jornada' in ...` como guarda: acceder a un campo inexistente
-    // LANZA error, y un error en una regla es una denegacion.
+    // Esto NO abre ninguna escritura: `allow create/update` de grupos, sesiones y pendientes
+    // siguen exigiendo `asisCoordinaPrograma`. Y los `pendientes` NO se abren ni a lectura:
+    // resolverlos es administrar.
     function asisConsultaDelPrograma(programaId) {
       return asisIsRectora()
         || asisConsultaAmpliada()
@@ -1042,9 +1182,9 @@ service cloud.firestore {
       // inicial). Se exige que quien lo crea quede DENTRO de `coordinadores`, por la misma
       // razon que en los eventos: para que no pueda fabricar un programa que nadie -- ni el
       // mismo -- pueda coordinar despues.
-      // Tres puertas, no dos: superusuario, coordinacion de la sede, y quien este en la
-      // lista de `asistenciaConfig/programas` (ver `asisCreadoresDePrograma`). La tercera
-      // es la que le permite a la lider del proyecto arrancar el semestre siguiente.
+      // Tres puertas, no dos: el superusuario, la coordinacion de la sede, y quien este en la
+      // lista de `asistenciaConfig/programas` (ver `asisCreadoresDePrograma`). La tercera es
+      // la que le permite a Yuri arrancar el semestre siguiente sin depender de nadie.
       allow create: if !esSuplantacion() && ((
           isSuper()
           || asisCoordinaSede(request.resource.data.sede)
@@ -1138,7 +1278,10 @@ service cloud.firestore {
           // Tope de Firestore: 10 por evaluacion de documento unico o de consulta. Sobra
           // margen -- pero se cuenta a mano y se deja escrito porque EL EMULADOR NO APLICA
           // ESTE LIMITE: pasar en local no prueba nada sobre produccion.
-          // La consulta (rectora, apoyo y coordinacion de sede) tambien LEE las planillas.
+          // La consulta (rectora y coordinacion de sede) tambien LEE las planillas: ver como
+          // va la asistencia de los centros de su jornada es justamente para lo que sirve.
+          // Escribirlas sigue exigiendo asisCanRecord() mas ser docente del grupo o
+          // coordinar el programa, mas abajo.
           allow read: if asisEnGrupoPrograma(programaId, grupoId)
                    || asisCoordinaPrograma(programaId)
                    || asisConsultaDelPrograma(programaId);
@@ -1151,6 +1294,68 @@ service cloud.firestore {
           // rol mas, este match tiene que enterarse solo.
           allow create, update: if !esSuplantacion() && (asisCanRecord()
             && (asisEnGrupoPrograma(programaId, grupoId) || asisCoordinaPrograma(programaId))
+            && asisAuthorStamp());
+
+          allow delete: if !esSuplantacion() && (false);
+        }
+
+        // ---------- Valoracion: los codigos del centro y su entrega (2026-09-10) ----------
+        //
+        // Dos documentos con la MISMA ruta y DOS AUTORIDADES distintas, que es la parte
+        // delicada:
+        //   `config` — los indicadores de cada nivel. Del lider: son los de SU centro.
+        //   `estado` — entregado si/no y hasta cuando se admite corregir. El lider ENTREGA;
+        //              solo la coordinacion academica REABRE.
+        match /valoracion/{docId} {
+
+          // Lo leen los del centro y quienes hacen seguimiento. El director de grupo NO
+          // necesita esto: los codigos ya van copiados dentro de cada valoracion, justamente
+          // para que no dependa de poder leer la configuracion de seis centros ajenos.
+          allow read: if asisEnGrupoPrograma(programaId, grupoId)
+                   || asisCoordinaPrograma(programaId)
+                   || asisConsultaDelPrograma(programaId)
+                   || asisAutorizaCorreccion();
+
+          // LOS CODIGOS: del lider, y solo mientras el centro admita cambios. Si se pudieran
+          // cambiar despues de entregar, cambiarian los indicadores de un semestre ya digitado
+          // en el Master.
+          allow create, update: if !esSuplantacion() && (docId == 'config'
+            && asisCanRecord()
+            && asisEnGrupoPrograma(programaId, grupoId)
+            && asisValoracionAbierta(programaId, grupoId)
+            && request.resource.data.programaId == programaId
+            && request.resource.data.grupoId == grupoId
+            && asisAuthorStamp());
+
+          // ENTREGAR: del lider. Solo puede pasar de "sin entregar" a "entregado" — nunca al
+          // reves, porque des-entregar seria saltarse la autorizacion de coordinacion.
+          allow create, update: if !esSuplantacion() && (docId == 'estado'
+            && asisCanRecord()
+            && asisEnGrupoPrograma(programaId, grupoId)
+            && request.resource.data.entregado == true
+            && request.resource.data.entregadoPor == callerEmail()
+            && request.resource.data.entregadoEn == request.time
+            && request.resource.data.programaId == programaId
+            && request.resource.data.grupoId == grupoId
+            && asisAuthorStamp()
+            // No toca el plazo: reabrir no es suyo.
+            && (!exists(/databases/$(database)/documents/asistenciaProgramas/$(programaId)/grupos/$(grupoId)/valoracion/estado)
+                ? request.resource.data.reabiertoHasta == null
+                : request.resource.data.reabiertoHasta == resource.data.get('reabiertoHasta', null)));
+
+          // REABRIR: solo la coordinacion academica (`asistenciaConfig/valoracion`), y siempre
+          // con un plazo. Se exige que el plazo sea FUTURO: reabrir "hasta ayer" seria un boton
+          // que no hace nada y que el lider no entenderia.
+          allow update: if !esSuplantacion() && (docId == 'estado'
+            && asisAutorizaCorreccion()
+            && request.resource.data.reabiertoPor == callerEmail()
+            && request.resource.data.reabiertoEn == request.time
+            && request.resource.data.reabiertoHasta is timestamp
+            && request.resource.data.reabiertoHasta > request.time
+            // Lo ocurrido no se reescribe: quien entrego y cuando es un hecho.
+            && request.resource.data.entregado == resource.data.entregado
+            && request.resource.data.entregadoPor == resource.data.entregadoPor
+            && request.resource.data.entregadoEn == resource.data.entregadoEn
             && asisAuthorStamp());
 
           allow delete: if !esSuplantacion() && (false);
@@ -1198,9 +1403,21 @@ service cloud.firestore {
 
       // ---------- La bandeja de revision ----------
       //
-      // Lo que la coordinadora resuelve a un clic en vez de recibir en una lista de papel.
-      // Es EXCLUSIVA de la coordinacion del programa: un lider no ve los pendientes, porque
-      // cada uno lleva nombres de estudiantes de TODO el colegio como candidatos.
+      // Lo que la coordinacion resuelve a un clic en vez de recibir en una lista de papel.
+      //
+      // DOS AUTORIDADES SOBRE EL MISMO DOCUMENTO (decision de Julian, 2026-08-25).
+      // El conocimiento y la autoridad viven en personas distintas:
+      //   - Quien SABE cual de las dos "Jimenez Mariana" de 11-3 es la suya es el LIDER del
+      //     centro, que tiene la lista en papel. Pero no ve los otros veinte centros.
+      //   - Quien puede INSCRIBIR sin romper `exclusivo` (un estudiante, un solo centro) es
+      //     la COORDINACION, que los ve los veintiuno a la vez.
+      // Si el lider inscribiera, dos personas estarian inscribiendo sin verse y apareceria
+      // gente en dos centros sin que nadie lo note. Por eso el lider SENALA y NO inscribe:
+      // escribe una propuesta (tres campos) y la coordinacion confirma de un clic.
+      //
+      // La CONSULTA (rectora, cargos de apoyo, coordinacion de sede) sigue SIN ver esta
+      // bandeja: cada pendiente lleva nombres de estudiantes de todo el colegio como
+      // candidatos, y ver la lista no es parte de consultar como va la asistencia.
       //
       // Tampoco pasa por asisCanRecord(): resolver un homonimo no es marcar asistencia.
       match /pendientes/{pendienteId} {
@@ -1292,7 +1509,6 @@ service cloud.firestore {
         allow delete: if !esSuplantacion() && (false);   // un pendiente se descarta (estado), no se borra: es rastro
       }
     }
-
 
     // ---------- Restaurante: vaso de leche y restaurante (2026-08-27) ----------
     //

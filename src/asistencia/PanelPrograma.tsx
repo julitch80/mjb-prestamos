@@ -3,8 +3,10 @@ import {
   buscarEstudiantes,
   inscribirEnGrupoPrograma,
   leerEstudiantesDeSede,
+  leerEstadosValoracion,
   leerMisGruposDePrograma,
   leerSesionesPrograma,
+  leerValoracionesDePrograma,
 } from './datos';
 import Avatar from './Avatar';
 import {
@@ -13,6 +15,7 @@ import {
   type ConteoCobertura,
   type EstadisticaProgramaTotal,
 } from './domain/programas';
+import { seguimientoDePrograma, type SeguimientoPrograma } from './domain/valoracion';
 import { nombreCompleto } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import type { Hoja } from './domain/exports';
@@ -145,6 +148,7 @@ export default function PanelPrograma({
         onInscrito={onInscrito}
       />
       <AsistenciaPorCentro estadistica={estadistica} grupos={grupos} />
+      <EntregaDeValoraciones programaId={programaId} grupos={grupos} />
       <BuscadorDelPanel
         sede={sede}
         grupos={grupos}
@@ -532,6 +536,126 @@ function AsistenciaPorCentro({
 // ---------------------------------------------------------------------------
 //  3. Buscador — ¿dónde está este muchacho y cómo va?
 // ---------------------------------------------------------------------------
+
+/**
+ * Entrega de valoraciones — el seguimiento de la COORDINACION del programa.
+ *
+ * Por que existe: la valoracion la escribe el lider, pero quien la DIGITA en el Master es
+ * el director de grupo, y el director no puede hacer nada mas que esperar. Sin esta
+ * pantalla, el unico que sabe que el centro de voleibol no ha entregado es el director que
+ * se queda sin digitar, y no tiene a quien reclamarle porque no ve los centros ajenos.
+ *
+ * Se carga aparte y en silencio: si el programa es de un semestre en que todavia no se
+ * valora, la seccion no aparece y no estorba. Un fallo aqui tampoco tumba el panel — la
+ * cobertura y la asistencia son lo que la coordinacion viene a mirar todos los dias.
+ */
+function EntregaDeValoraciones({
+  programaId,
+  grupos,
+}: {
+  programaId: string;
+  grupos: GrupoPrograma[];
+}) {
+  const [seg, setSeg] = useState<SeguimientoPrograma | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const [valoraciones, estados] = await Promise.all([
+          leerValoracionesDePrograma(programaId),
+          leerEstadosValoracion(programaId, grupos.map((g) => g.grupoId)),
+        ]);
+        if (!vivo) return;
+        setSeg(
+          seguimientoDePrograma(
+            grupos.map((g) => ({
+              grupoId: g.grupoId,
+              nombre: g.nombre,
+              lider: g.lider ?? '',
+              miembros: g.miembros ?? [],
+            })),
+            valoraciones,
+            estados,
+            Date.now(),
+          ),
+        );
+      } catch {
+        // En silencio a proposito: ver el comentario de arriba.
+        if (vivo) setSeg(null);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [programaId, grupos]);
+
+  // Nada escrito y nada entregado = todavia no se esta valorando. No se muestra la seccion.
+  if (!seg || seg.total === 0 || (seg.entregados === 0 && seg.faltan === totalInscritos(seg))) {
+    return null;
+  }
+
+  return (
+    <section className="rounded-xl border border-line bg-card p-3">
+      <h3 className="text-sm font-semibold text-strong">Entrega de valoraciones</h3>
+      <p className="text-xs text-muted">
+        Los directores de grupo no pueden digitar en el Máster hasta que su líder entregue.
+        Arriba salen primero los centros que faltan.
+      </p>
+
+      <p className="mt-2 rounded-lg border border-line bg-elevated p-2 text-sm text-strong">
+        <b>
+          {seg.entregados} de {seg.total}
+        </b>{' '}
+        centros entregados
+        {seg.faltan > 0 && (
+          <span className="text-soft"> · {seg.faltan} inscripciones sin valorar</span>
+        )}
+      </p>
+
+      <ul className="mt-2 space-y-1.5">
+        {seg.centros.map((c) => (
+          <li key={c.grupoId} className="rounded-lg border border-line p-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+              <span className="text-sm font-semibold text-strong">{c.nombre}</span>
+              <span className="text-xs text-muted">{c.lider}</span>
+            </div>
+            <p className="mt-0.5 text-sm text-soft">
+              {c.entregado ? (
+                <span className="font-semibold text-success-soft-fg">Entregado</span>
+              ) : (
+                <span className="font-semibold text-warning-soft-fg">Sin entregar</span>
+              )}{' '}
+              · <b className="text-strong">{c.valorados}</b> de {c.inscritos} valorados
+              {/* Un centro entregado con gente sin valorar es peor que uno sin entregar:
+                  ya nadie va a escribir esas casillas si no se reabre. */}
+              {c.entregado && c.valorados < c.inscritos && (
+                <span className="text-danger-soft-fg">
+                  {' '}
+                  — entregó con {c.inscritos - c.valorados} sin valorar
+                </span>
+              )}
+              {c.reabiertoVigente && c.reabiertoHasta && (
+                <span className="text-soft">
+                  {' '}
+                  · reabierto hasta{' '}
+                  {new Date(c.reabiertoHasta).toLocaleString('es-CO', {
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                  })}
+                </span>
+              )}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function totalInscritos(seg: SeguimientoPrograma): number {
+  return seg.centros.reduce((s, c) => s + c.inscritos, 0);
+}
 
 function BuscadorDelPanel({
   sede,

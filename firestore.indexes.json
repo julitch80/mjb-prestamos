@@ -303,6 +303,34 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "asistenciaValoraciones",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "grado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "programaId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "asistenciaValoraciones",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "programaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "grupoId",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -49,6 +49,9 @@ import type {
   AvisoEvasion,
   CensoDia,
   ColumnaDireccion,
+  ConfigValoracion,
+  EstadoValoracion,
+  ValoracionEstudiante,
   DireccionGrupo,
   Enrollment,
   Event,
@@ -2519,4 +2522,235 @@ export async function resolverEvasion(
       nota: nota?.trim() ? nota.trim() : null,
     }),
   );
+}
+
+// ---------- Valoracion del centro de interes (2026-09-10) ----------
+//
+// Ver `domain/valoracion.ts` para la regla. En resumen: el lider valora, el DIRECTOR DE
+// GRUPO digita en el Master, y por eso la valoracion vive en una coleccion aparte marcada
+// con el grado del estudiante — es lo unico que deja al director leer seis centros ajenos
+// sin abrirle ninguno.
+
+function refValoracionCentro(programaId: string, grupoId: string, docId: 'config' | 'estado') {
+  return doc(
+    baseDatos(), 'asistenciaProgramas', programaId, 'grupos', grupoId, 'valoracion', docId,
+  );
+}
+
+/** Los codigos de cada nivel EN ESTE CENTRO. `null` si el lider no los ha configurado. */
+export async function leerConfigValoracion(
+  programaId: string,
+  grupoId: string,
+): Promise<ConfigValoracion | null> {
+  if (!(await listo())) return null;
+  const snap = await getDoc(refValoracionCentro(programaId, grupoId, 'config')).catch(() => null);
+  return snap?.exists() ? (snap.data() as ConfigValoracion) : null;
+}
+
+export async function guardarConfigValoracion(
+  programaId: string,
+  grupoId: string,
+  porNivel: ConfigValoracion['porNivel'],
+): Promise<void> {
+  const autor = await exigirAutor();
+  // Aqui SI se espera el acuse, al reves que al marcar asistencia: configurar los codigos
+  // se hace una vez y con calma, y si el servidor lo rechaza —por ejemplo porque el centro
+  // ya se entrego— el lider tiene que enterarse en el momento, no despues.
+  await setDoc(refValoracionCentro(programaId, grupoId, 'config'), {
+    programaId,
+    grupoId,
+    porNivel,
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  });
+}
+
+/** Entregado si/no y hasta cuando se admite corregir. `null` si nadie ha entregado aun. */
+export async function leerEstadoValoracion(
+  programaId: string,
+  grupoId: string,
+): Promise<EstadoValoracion | null> {
+  if (!(await listo())) return null;
+  const snap = await getDoc(refValoracionCentro(programaId, grupoId, 'estado')).catch(() => null);
+  return snap?.exists() ? (snap.data() as EstadoValoracion) : null;
+}
+
+/**
+ * El lider entrega su centro. A partir de aqui no escribe mas, salvo que la coordinacion
+ * academica lo reabra por un plazo.
+ *
+ * `reabiertoHasta` se conserva tal cual si ya existia: entregar no es asunto del plazo, y
+ * la regla del servidor rechaza la escritura si se intenta tocar.
+ */
+export async function entregarValoracion(
+  programaId: string,
+  grupoId: string,
+  estadoPrevio: EstadoValoracion | null,
+): Promise<void> {
+  const autor = await exigirAutor();
+  await setDoc(refValoracionCentro(programaId, grupoId, 'estado'), {
+    programaId,
+    grupoId,
+    entregado: true,
+    entregadoPor: autor,
+    entregadoEn: serverTimestamp(),
+    reabiertoPor: estadoPrevio?.reabiertoPor ?? null,
+    reabiertoEn: estadoPrevio?.reabiertoEn ?? null,
+    reabiertoHasta: estadoPrevio?.reabiertoHasta ?? null,
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  });
+}
+
+/**
+ * La coordinacion academica reabre un centro entregado, hasta una fecha y hora.
+ *
+ * El plazo lo comprueba TAMBIEN la regla, contra `request.time` —la hora del servidor—, asi
+ * que adelantar el reloj del telefono no abre nada. Esto de aqui solo lo escribe.
+ */
+export async function reabrirValoracion(
+  programaId: string,
+  grupoId: string,
+  hasta: Date,
+): Promise<void> {
+  const autor = await exigirAutor();
+  await updateDoc(refValoracionCentro(programaId, grupoId, 'estado'), {
+    reabiertoPor: autor,
+    reabiertoEn: serverTimestamp(),
+    reabiertoHasta: hasta,
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  });
+}
+
+/**
+ * El estado de entrega de VARIOS centros, para el seguimiento de la coordinacion.
+ *
+ * Van en paralelo y no en serie: son veintiun documentos diminutos y en serie serian
+ * veintiun viajes seguidos, que en el telefono del coordinador se notan.
+ *
+ * Un centro que nunca entrego no tiene documento; eso no es un error, es "sin entregar".
+ */
+export async function leerEstadosValoracion(
+  programaId: string,
+  grupoIds: string[],
+): Promise<Map<string, EstadoValoracion | null>> {
+  if (!(await listo())) return new Map();
+  const pares = await Promise.all(
+    grupoIds.map(
+      async (g) => [g, await leerEstadoValoracion(programaId, g)] as const,
+    ),
+  );
+  return new Map(pares);
+}
+
+/** Quienes pueden reabrir. Lista corta en `asistenciaConfig/valoracion`, del superusuario. */
+export async function leerAutorizanCorreccion(): Promise<string[]> {
+  if (!(await listo())) return [];
+  const snap = await getDoc(doc(baseDatos(), 'asistenciaConfig', 'valoracion')).catch(() => null);
+  const lista = snap?.exists() ? (snap.data().autorizan as unknown) : null;
+  return Array.isArray(lista) ? (lista as string[]).map((c) => String(c).toLowerCase()) : [];
+}
+
+/**
+ * Las valoraciones de UN centro. Para el lider.
+ *
+ * ⚠️ El filtro por `programaId` + `grupoId` NO es opcional: la regla se apoya en
+ * `asisEnGrupoPrograma(resource.data.programaId, resource.data.grupoId)` y Firestore
+ * rechaza la consulta entera si no puede probar de antemano que todo el resultado sera
+ * legible.
+ */
+export async function leerValoracionesDeCentro(
+  programaId: string,
+  grupoId: string,
+): Promise<ValoracionEstudiante[]> {
+  if (!(await listo())) return [];
+  return aLista<ValoracionEstudiante>(
+    await getDocs(
+      query(
+        collection(baseDatos(), 'asistenciaValoraciones'),
+        where('programaId', '==', programaId),
+        where('grupoId', '==', grupoId),
+      ),
+    ),
+  );
+}
+
+/**
+ * Las valoraciones de UN GRADO, vengan del centro que vengan. ESTO es lo que resuelve el
+ * problema del director: sus treinta y tres, escritos por seis lideres distintos, en una
+ * sola consulta.
+ *
+ * ⚠️ El filtro por `grado` es lo que la hace demostrable: la regla es
+ * `asisIsDirectorOf(resource.data.grado)`. Sin el, permission-denied.
+ */
+export async function leerValoracionesDeGrado(
+  grado: string,
+  programaId: string,
+): Promise<ValoracionEstudiante[]> {
+  if (!(await listo())) return [];
+  return aLista<ValoracionEstudiante>(
+    await getDocs(
+      query(
+        collection(baseDatos(), 'asistenciaValoraciones'),
+        where('grado', '==', grado),
+        where('programaId', '==', programaId),
+      ),
+    ),
+  );
+}
+
+/** Todas las del programa. Para el seguimiento de la coordinacion. */
+export async function leerValoracionesDePrograma(
+  programaId: string,
+): Promise<ValoracionEstudiante[]> {
+  if (!(await listo())) return [];
+  return aLista<ValoracionEstudiante>(
+    await getDocs(
+      query(
+        collection(baseDatos(), 'asistenciaValoraciones'),
+        where('programaId', '==', programaId),
+      ),
+    ),
+  );
+}
+
+/**
+ * Pone o corrige la valoracion de un estudiante.
+ *
+ * Los codigos y sus textos vienen ya resueltos por `nuevaValoracion` (logica pura) y se
+ * guardan COPIADOS, no referenciados: el director no puede leer la configuracion del
+ * centro, y un registro academico debe decir que se certifico ese dia aunque el catalogo
+ * cambie el año entrante.
+ *
+ * SE ESPERA EL ACUSE, al contrario que al marcar asistencia. Aqui el rechazo es informacion
+ * que el lider necesita en el momento —el centro pudo entregarse, o vencerse el plazo—, y
+ * una valoracion que se creia guardada y no lo esta acaba en un boletin equivocado.
+ */
+export async function guardarValoracion(
+  base: Omit<ValoracionEstudiante, 'valoradoPor' | 'valoradoEn' | 'modificadoPor' | 'modificadoEn'>,
+  yaExistia: ValoracionEstudiante | null,
+): Promise<void> {
+  const autor = await exigirAutor();
+  const ref = doc(baseDatos(), 'asistenciaValoraciones', base.valoracionId);
+
+  if (yaExistia) {
+    await updateDoc(ref, {
+      nivel: base.nivel,
+      codigos: base.codigos,
+      indicadores: base.indicadores,
+      grado: base.grado,
+      // La autoria original no se toca: documenta quien valoro y cuando.
+      modificadoPor: autor,
+      modificadoEn: serverTimestamp(),
+    });
+    return;
+  }
+  await setDoc(ref, {
+    ...base,
+    valoradoPor: autor,
+    valoradoEn: serverTimestamp(),
+    modificadoPor: null,
+    modificadoEn: null,
+  });
 }

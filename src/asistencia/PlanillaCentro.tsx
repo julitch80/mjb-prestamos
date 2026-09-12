@@ -33,6 +33,9 @@ const MosaicoGrupo = lazy(() => import('./MosaicoGrupo'));
  * lista.
  */
 const DireccionGrupo = lazy(() => import('./DireccionGrupo'));
+
+/** La valoracion del cierre: se usa una vez al semestre, no viaja en el paquete diario. */
+const ValoracionCentro = lazy(() => import('./ValoracionCentro'));
 import { estadisticaEvento, resumenSesionEvento } from './domain/eventos';
 import { detectarDuplicados } from './domain/programas';
 import { conDenominador } from './domain/stats';
@@ -238,7 +241,7 @@ export default function PlanillaCentro({
    * Las dos mitades de un centro de interes (Julian, 2026-09-09): pasar lista y GESTIONAR.
    * La segunda es el mismo cuaderno del director de grupo, con el centro como dueño.
    */
-  const [seccion, setSeccion] = useState<'asistencia' | 'gestion'>('asistencia');
+  const [seccion, setSeccion] = useState<'asistencia' | 'gestion' | 'valoracion'>('asistencia');
   useNivelAtras(seccion !== 'asistencia', () => setSeccion('asistencia'));
 
   const [censos, setCensos] = useState<Record<string, CensoDia | null>>({});
@@ -618,25 +621,40 @@ export default function PlanillaCentro({
    * Lo unico que cambia es de quien es el cuaderno —`fuente`— y su columna automatica:
    * en un centro son SUS inasistencias, no las del grado (ver `DireccionGrupo`).
    */
+  if (seccion === 'valoracion') {
+    return (
+      <div className="space-y-3">
+        <Cabecera
+          programa={programa}
+          grupo={grupo}
+          inscritos={idsVivos.length}
+          deBaja={inscritosDeBaja}
+          onVolver={onVolver}
+        />
+        <Pestanas seccion={seccion} onCambiar={setSeccion} />
+        <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando la valoración…</p>}>
+          <ValoracionCentro
+            programa={programa}
+            grupo={grupo}
+            miembros={miembros}
+            puedeRegistrar={puedeRegistrar}
+            onAbrirFicha={onAbrirFicha}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
   if (seccion === 'gestion') {
     return (
       <div className="space-y-3">
-        <div>
-          {onVolver && (
-            <button onClick={onVolver} className="text-xs text-muted underline">
-              ← Volver a los centros de interés
-            </button>
-          )}
-          <h2 className="text-base font-semibold text-strong">{grupo.nombre}</h2>
-          <p className="text-xs text-muted">
-            {programa.nombre} · {idsVivos.length}{' '}
-            {idsVivos.length === 1 ? 'inscrito' : 'inscritos'}
-            {inscritosDeBaja > 0 && (
-              <> · {inscritosDeBaja} retirado{inscritosDeBaja === 1 ? '' : 's'}</>
-            )}{' '}
-            · lidera {grupo.lider}
-          </p>
-        </div>
+        <Cabecera
+          programa={programa}
+          grupo={grupo}
+          inscritos={idsVivos.length}
+          deBaja={inscritosDeBaja}
+          onVolver={onVolver}
+        />
 
         <Pestanas seccion={seccion} onCambiar={setSeccion} />
 
@@ -656,24 +674,13 @@ export default function PlanillaCentro({
 
   return (
     <div className="space-y-3">
-      <div>
-        {onVolver && (
-          <button onClick={onVolver} className="text-xs text-muted underline">
-            ← Volver a los centros de interés
-          </button>
-        )}
-        <h2 className="text-base font-semibold text-strong">{grupo.nombre}</h2>
-        <p className="text-xs text-muted">
-          {programa.nombre} · {idsVivos.length}{' '}
-          {idsVivos.length === 1 ? 'inscrito' : 'inscritos'}
-          {/* Se dice, no se esconde: si el numero bajo es porque alguien salio del colegio,
-              la coordinacion tiene que poder enterarse sin comparar dos pantallas. */}
-          {inscritosDeBaja > 0 && (
-            <> · {inscritosDeBaja} retirado{inscritosDeBaja === 1 ? '' : 's'}</>
-          )}{' '}
-          · lidera {grupo.lider}
-        </p>
-      </div>
+      <Cabecera
+        programa={programa}
+        grupo={grupo}
+        inscritos={idsVivos.length}
+        deBaja={inscritosDeBaja}
+        onVolver={onVolver}
+      />
 
       <Pestanas seccion={seccion} onCambiar={setSeccion} />
 
@@ -1812,8 +1819,47 @@ function Inscripcion({
   );
 }
 
+type Seccion = 'asistencia' | 'gestion' | 'valoracion';
+
+/** La misma cabecera en las tres secciones: quien es el centro y a cuantos cubre. */
+function Cabecera({
+  programa,
+  grupo,
+  inscritos,
+  deBaja,
+  onVolver,
+}: {
+  programa: Programa;
+  grupo: GrupoPrograma;
+  inscritos: number;
+  /** Inscritos cuyo id sigue en el grupo pero ya no estan activos en la sede. */
+  deBaja: number;
+  onVolver?: () => void;
+}) {
+  return (
+    <div>
+      {onVolver && (
+        <button onClick={onVolver} className="text-xs text-muted underline">
+          ← Volver a los centros de interés
+        </button>
+      )}
+      <h2 className="text-base font-semibold text-strong">{grupo.nombre}</h2>
+      <p className="text-xs text-muted">
+        {programa.nombre} · {inscritos} {inscritos === 1 ? 'inscrito' : 'inscritos'}
+        {/* Se dice, no se esconde: si el numero bajo es porque alguien salio del colegio,
+            la coordinacion tiene que poder enterarse sin comparar dos pantallas. */}
+        {deBaja > 0 && (
+          <> · {deBaja} retirado{deBaja === 1 ? '' : 's'}</>
+        )}{' '}
+        · lidera {grupo.lider}
+      </p>
+    </div>
+  );
+}
+
 /**
- * Las dos mitades de un centro de interes (Julian, 2026-09-09).
+ * Las tres mitades de un centro de interes: pasar lista, gestionar y valorar al cierre
+ * (Julian, 2026-09-09 y 2026-09-10).
  *
  * Va como pastillas y NO como pestañas separadas por el ancho de la pantalla: es el mismo
  * patron que ya usa «Restaurante» y el que Julian pidio para los centros el 2026-08-20
@@ -1823,8 +1869,8 @@ function Pestanas({
   seccion,
   onCambiar,
 }: {
-  seccion: 'asistencia' | 'gestion';
-  onCambiar: (s: 'asistencia' | 'gestion') => void;
+  seccion: Seccion;
+  onCambiar: (s: Seccion) => void;
 }) {
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -1832,6 +1878,7 @@ function Pestanas({
         [
           ['asistencia', 'Asistencia'],
           ['gestion', 'Gestión CI'],
+          ['valoracion', 'Valoración'],
         ] as const
       ).map(([clave, nombre]) => (
         <button

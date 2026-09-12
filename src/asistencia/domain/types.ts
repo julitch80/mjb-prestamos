@@ -669,3 +669,85 @@ export interface AvisoEvasion {
   /** "Salio a las 10:30 con la mama", "no aparecio, se aviso a la familia". */
   nota: string | null;
 }
+
+// ---------------------------------------------------------------------------
+//  Valoracion del centro de interes (2026-09-10)
+// ---------------------------------------------------------------------------
+//
+// Al terminar el semestre cada lider valora a sus inscritos, pero quien DIGITA en el
+// Master es el director de grupo — y los estudiantes de un grupo estan repartidos en
+// varios centros. Ver `domain/valoracion.ts` para la regla y `docs/` para el proceso.
+//
+// RUTAS:
+//   asistenciaProgramas/{programaId}/grupos/{grupoId}/valoracion/config   (los codigos)
+//   asistenciaProgramas/{programaId}/grupos/{grupoId}/valoracion/estado   (entrega y plazo)
+//   asistenciaValoraciones/{programaId}_{grupoId}_{studentId}             (la valoracion)
+//
+// ⚠️ POR QUE LA VALORACION VA EN UNA COLECCION APARTE Y NO DENTRO DEL GRUPO: el director
+// tiene que leer lo que escribieron SEIS lideres de seis centros de los que no es docente,
+// y las reglas no le dejan abrir esos centros —ni deben—. Con un documento por estudiante
+// marcado con su GRADO, la regla dice "el director de ese grado puede leerlo" y la consulta
+// `where('grado','==','11.2')` es demostrable. Es el mismo patron de las sesiones de clase.
+
+/** El numero que se digita en el Master. NO es una etiqueta: es el dato. */
+export type NivelValoracion = 1 | 2 | 3 | 4;
+
+export interface CodigoIndicador {
+  /** Tres digitos. En el Master viven en un rango (610–690, sin confirmar). */
+  codigo: number;
+  /** El texto del indicador, tal como esta en el Master. */
+  texto: string;
+}
+
+/** Los codigos que le tocan a cada nivel EN ESTE CENTRO. Cada centro tiene los suyos. */
+export interface ConfigValoracion {
+  programaId: string;
+  grupoId: string;
+  /** Solo los niveles que llevan codigos: 2, 3 y 4. Plan de apoyo (1) no lleva. */
+  porNivel: Record<'2' | '3' | '4', CodigoIndicador[]>;
+  ultimaEscrituraPor: string;
+  ultimaEscrituraEn: number;
+}
+
+/**
+ * Entrega del centro y su plazo de correccion.
+ *
+ * Julian, 2026-09-10: el lider entrega; despues solo puede corregir si la coordinacion
+ * academica lo reabre, y esa apertura va con un plazo. `reabiertoHasta` lo comprueba
+ * TAMBIEN la regla del servidor: no es un candado de pantalla.
+ */
+export interface EstadoValoracion {
+  programaId: string;
+  grupoId: string;
+  entregado: boolean;
+  entregadoPor: string | null;
+  entregadoEn: number | null;
+  reabiertoPor: string | null;
+  reabiertoEn: number | null;
+  /** Hasta cuando se admite corregir. Vencido, el servidor rechaza la escritura. */
+  reabiertoHasta: number | null;
+  ultimaEscrituraPor: string;
+  ultimaEscrituraEn: number;
+}
+
+export interface ValoracionEstudiante {
+  valoracionId: string;
+  programaId: string;
+  grupoId: string;
+  studentId: string;
+  /**
+   * El grado del estudiante al valorarlo. ES LO QUE DEJA LEER AL DIRECTOR: la regla es
+   * `asisIsDirectorOf(resource.data.grado)` y la consulta filtra por el.
+   */
+  grado: string;
+  sede: Sede;
+  nivel: NivelValoracion;
+  /** Copia de los codigos del nivel al momento de valorar. Ver `nuevaValoracion`. */
+  codigos: number[];
+  /** Los textos de esos mismos codigos, en el mismo orden. */
+  indicadores: string[];
+  valoradoPor: string;
+  valoradoEn: number;
+  modificadoPor: string | null;
+  modificadoEn: number | null;
+}

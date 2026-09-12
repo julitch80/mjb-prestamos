@@ -248,3 +248,69 @@ export function buildDireccionGrupoExport(input: {
 
 /** Reexport util para quien construya vistas sobre el denominador. */
 export { sesionesRelevantes, findMark };
+
+/**
+ * El Excel del director: sus estudiantes con la valoracion y los indicadores del centro.
+ *
+ * ⚠️ ESTE ARCHIVO TODAVIA NO ES EL QUE IMPORTA EL MASTER, y es deliberado. El Master si
+ * admite importar (Julian, 2026-09-10), pero no tenemos la plantilla que el genera, y un
+ * archivo con las columnas en otro orden no falla: IMPORTA MAL, y eso son valoraciones
+ * equivocadas en el boletin de un estudiante. Asi que por ahora sirve para leer y digitar
+ * —que ya reemplaza los seis Drive y la consolidacion a mano— y cuando llegue la plantilla
+ * real se ajusta aqui, en un solo sitio.
+ *
+ * Los nombres de las columnas SI son los del Master (Valoracion, C1..C4) para que digitar
+ * sea copiar de izquierda a derecha sin traducir nada.
+ *
+ * EL PLAN DE APOYO VA APARTE, al final. Hoy no se digita, y si saliera mezclado con la
+ * casilla de valoracion vacia el director lo pasaria en blanco sin darse cuenta.
+ */
+export function hojaResultadoCentros(
+  grado: string,
+  filas: {
+    apellidos: string;
+    nombres: string;
+    sinCentro: boolean;
+    duplicadas: { grupoId: string; nivel: number; codigos: number[] }[];
+    valoracion: { nivel: number; codigos: number[] } | null;
+  }[],
+): Hoja {
+  const digitables = filas.filter((f) => f.valoracion && f.valoracion.nivel !== 1);
+  const enPlanDeApoyo = filas.filter((f) => f.valoracion?.nivel === 1);
+  const pendientes = filas.filter((f) => !f.valoracion && !f.sinCentro);
+  const sinCentro = filas.filter((f) => f.sinCentro);
+
+  const fila = (f: (typeof filas)[number]): (string | number)[] => [
+    `${f.apellidos} ${f.nombres}`.trim(),
+    f.valoracion?.nivel ?? '',
+    f.valoracion?.codigos[0] ?? '',
+    f.valoracion?.codigos[1] ?? '',
+    f.valoracion?.codigos[2] ?? '',
+    f.valoracion?.codigos[3] ?? '',
+    f.duplicadas.length > 1 ? 'REVISAR: valorado en dos centros' : '',
+  ];
+
+  const cuerpo: (string | number)[][] = digitables.map(fila);
+  // Los que no se digitan van con su etiqueta, no en silencio.
+  for (const f of pendientes) {
+    cuerpo.push([`${f.apellidos} ${f.nombres}`.trim(), '', '', '', '', '', 'PENDIENTE: su líder no ha valorado']);
+  }
+  for (const f of enPlanDeApoyo) {
+    cuerpo.push([`${f.apellidos} ${f.nombres}`.trim(), '', '', '', '', '', 'PLAN DE APOYO: no se digita']);
+  }
+  for (const f of sinCentro) {
+    cuerpo.push([`${f.apellidos} ${f.nombres}`.trim(), '', '', '', '', '', 'SIN CENTRO DE INTERÉS']);
+  }
+
+  return {
+    nombre: `Centros de interés ${grado}`,
+    encabezados: ['Estudiante', 'Valoración', 'C1', 'C2', 'C3', 'C4', 'Observación'],
+    filas: cuerpo,
+    notas: [
+      'Valoración: 2 Básico · 3 Alto · 4 Superior. El centro de interés no se reprueba.',
+      'Plan de apoyo (1) todavía no se digita en el Máster: va al final, sin valoración.',
+      'Los indicadores (C1 a C4) son los del centro de cada estudiante, no los del grupo.',
+      'Este archivo es para leer y digitar. NO es todavía el formato de importación del Máster.',
+    ],
+  };
+}

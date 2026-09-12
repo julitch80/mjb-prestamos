@@ -51,6 +51,12 @@ import Eventos from './Eventos';
 import MisGrupos from './MisGrupos';
 import AvisoEvasion from './AvisoEvasion';
 import Evasiones from './Evasiones';
+
+/**
+ * Resultado del centro de interes para el director. `lazy` como el resto de lo pesado:
+ * arrastra ExcelJS y se usa una vez al semestre.
+ */
+const ResultadoCentros = lazy(() => import('./ResultadoCentros'));
 import {
   abrirSesion,
   borrarSesionesDeCruce,
@@ -343,7 +349,9 @@ export default function Asistencia() {
   // Sub-pestaña dentro de un grupo: asistencia, el cuaderno de dirección o la carga de
   // fotos. Vuelve a "asistencia" al cambiar de grado, para no dejar abierto por accidente
   // el cuaderno o la carga de fotos de un grupo que ya no es este.
-  const [vistaGrupo, setVistaGrupo] = useState<'asistencia' | 'direccion' | 'fotos'>('asistencia');
+  const [vistaGrupo, setVistaGrupo] = useState<
+    'asistencia' | 'direccion' | 'fotos' | 'centros'
+  >('asistencia');
 
   /**
    * Censo de la tercera hora del grupo abierto: quienes se reportaron ausentes HOY.
@@ -1024,6 +1032,21 @@ export default function Asistencia() {
                   </button>
                 </Ayuda>
                 {esDirector && (
+                  <Ayuda texto="Lo que sus estudiantes sacaron en su centro de interés, venga del centro que venga: la valoración y los indicadores listos para digitar en el Máster.">
+                    <button
+                      onClick={() => setVistaGrupo('centros')}
+                      className={[
+                        'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                        vistaGrupo === 'centros'
+                          ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                          : 'border-line text-soft',
+                      ].join(' ')}
+                    >
+                      Resultado CI
+                    </button>
+                  </Ayuda>
+                )}
+                {esDirector && (
                   <Ayuda texto="El cuaderno paralelo del director: cuotas, equipos de aseo, requisitos — columnas que usted define. No es asistencia y no se cruza con ella.">
                     <button
                       onClick={() => setVistaGrupo('direccion')}
@@ -1055,7 +1078,11 @@ export default function Asistencia() {
             )}
           </div>
 
-          {cruce && esDirector && vistaGrupo === 'direccion' ? (
+          {cruce && esDirector && vistaGrupo === 'centros' ? (
+            <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando el resultado…</p>}>
+              <ResultadoCentros grado={cruce.grado} estudiantes={estudiantes} />
+            </Suspense>
+          ) : cruce && esDirector && vistaGrupo === 'direccion' ? (
             <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando…</p>}>
               <DireccionGrupo
                 fuente={{ tipo: 'grado', grado: cruce.grado }}
