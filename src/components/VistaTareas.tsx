@@ -9,6 +9,7 @@ import { useAppStore } from '../data/store';
 import {
   getDatosTareas, crearTarea, cancelarTarea, crearCesion,
   crearSolicitudCesion, responderSolicitudCesion, guardarCupos, guardarAnclasGrupo,
+  crearNotificacionesLote,
 } from '../data/api';
 import { USUARIOS, colorGrado, DIRECTORES_MANANA, DIRECTORES_TARDE } from '../data/maestros';
 import { getAsignatura, asignacionDeGrupo } from '../data/asignacionAcademica';
@@ -1332,8 +1333,22 @@ function PanelDirectivo({ tareas, cesiones, cuposOverride, anclasPorGrupo }: {
 
   async function cancelarComoDirectivo(id: string) {
     if (!userId) return;
+    // La tarea se busca ANTES de cancelar: despues de cancelarTarea la lista
+    // queda invalidada y ya no se puede reconstruir el mensaje para el docente.
+    const tarea = tareas.find(t => t.id === id);
     const r = await cancelarTarea(id, userId, true);
-    if (r.ok) qc.invalidateQueries({ queryKey: ['datosTareas'] });
+    if (r.ok) {
+      qc.invalidateQueries({ queryKey: ['datosTareas'] });
+      // El docente preparo esa tarea y sus estudiantes ya la tenian en la agenda;
+      // enterarse por casualidad de que desaparecio es peor que el cambio mismo.
+      if (tarea) {
+        crearNotificacionesLote([{
+          destinatario: tarea.docenteId,
+          tipo: 'cancelada',
+          mensaje: `Coordinación canceló tu tarea "${tarea.titulo}" de ${getAsignatura(tarea.asignaturaId)?.nombre ?? tarea.asignaturaId} en ${tarea.grupo}, con entrega ${fechaLegible(tarea.fechaEntrega)}.`,
+        }]).catch(() => {});
+      }
+    }
   }
 
   return (
