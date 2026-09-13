@@ -15,6 +15,7 @@ import PanelAdmin from './components/PanelAdmin';
 import PanelRectora from './components/PanelRectora';
 import Reservas from './components/Reservas';
 import VistaHorario from './components/VistaHorario';
+import PanelHorarios from './components/horarios/PanelHorarios';
 import AsignacionAcademica from './components/AsignacionAcademica';
 import VistaTareas from './components/VistaTareas';
 import AgendaPublica from './components/AgendaPublica';
@@ -57,7 +58,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'admin',          label: 'Panel',           descripcion: 'Pendientes, hoy y configuración',   roles: ['coordinador'] },
   { id: 'rectora',        label: 'Asignación',      descripcion: 'Asigna espacios directamente',      roles: ['rectora'] },
   { id: 'agenda',         label: 'Agenda',          descripcion: 'Agenda semanal institucional',      roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
-  { id: 'horario',        label: 'Horario',         descripcion: 'Por aulas, docente o grupo',        roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'horario',        label: 'Horario',         descripcion: 'Por aulas, docente o grupo',        roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'generar_horario', label: 'Generar horario',  descripcion: 'Construir el horario del proximo ano',  roles: ['coordinador', 'superusuario'] },
   { id: 'asistencia',     label: 'Asistencia',      descripcion: 'Registro de clase',                 roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'tareas',         label: 'Tareas',          descripcion: 'Momentos de tarea por grupo',       roles: ['docente', 'coordinador', 'rectora'] },
   { id: 'asistentes',     label: 'Chatbot',         descripcion: 'Chatbots de convivencia y evaluación', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
@@ -347,6 +349,7 @@ export default function App() {
                   {vistaActual === 'admin'          && rol === 'coordinador' && <PanelAdmin />}
                   {vistaActual === 'rectora'        && rol === 'rectora'     && <PanelRectora />}
                   {vistaActual === 'horario'        && <VistaHorario />}
+                  {vistaActual === 'generar_horario' && (rol === 'coordinador' || rol === 'superusuario') && <PanelHorarios />}
                   {vistaActual === 'asignacion'     && <AsignacionAcademica />}
                   {vistaActual === 'tareas'         && <VistaTareas />}
                   {vistaActual === 'chat'           && AUTH_MODE === 'google' && <Chat />}

@@ -9,19 +9,30 @@ se describe, lee primero.
 
 ---
 
-## 1. Aviso inmediato: hay trabajo sin confirmar
+## 1. Estado: desplegado, y qué ve cada quien
 
-En el momento de escribir esto, el árbol de trabajo tiene cambios **sin commit** de este
-módulo. Son funcionales y con pruebas, pero **la pantalla nunca se ha visto funcionando**:
-la app entra con cuenta de Google y la sesión que la escribió no puede autenticarse.
+**Desplegado el 2026-09-13, por decisión de Julián**, después de que él mismo comprobara
+en la app todas las pantallas del módulo (ver `TAREAS.md` del proyecto Horarios).
 
-> **No hagas `git add .` ni `git commit -a` a ciegas.** Este repositorio despliega solo
-> al empujar a `master`, así que un commit indiscriminado publica a los ~30 docentes un
-> módulo que nadie ha visto todavía.
+Qué cambia para cada rol:
 
-Antes de confirmar nada de esto, Julián tiene que abrir la app (`npm run dev`), entrar como
-coordinador, y comprobar la pantalla **Generar horario** y el conmutador de la pantalla
-**Horario**. Cuando dé el visto bueno, este módulo se puede confirmar como cualquier otro.
+| Rol | Qué ve |
+|---|---|
+| Docente, rectora | **Nada nuevo.** El Horario es exactamente el de siempre. |
+| Coordinador, superusuario | La entrada **Generar horario** en el menú, y en **Horario** un conmutador *Horario vigente / Ver el borrador* **solo si tienen un borrador cargado en ese navegador**. |
+
+Julián decidió desplegarlo ya aunque no se usará hasta 2027 (con la asignación nueva):
+cuando se active lo tendrán todo el año, así que no hay razón para esconderlo ahora.
+
+**Por qué no puede tocar el horario del colegio**, comprobado en el código antes de
+desplegar: el módulo no habla con ningún servidor (ni Firestore ni Apps Script), nada
+escribe `horarioBase.ts`, los borradores viven solo en el `localStorage` de quien los hace,
+y la función de publicar (tarea 10.4) no existe. Un coordinador puede mover clases todo el
+día sin que ningún docente vea un cambio.
+
+**Un detalle del computador compartido**: el borrador es del navegador, no de la persona.
+Por eso el conmutador de la pantalla Horario comprueba el rol: un docente que entre en un
+equipo donde antes trabajó un coordinador no lo verá.
 
 ---
 
@@ -79,9 +90,16 @@ src/data/horarios/contrato.ts         arma entrada.json y lee salida.json
 src/data/horarios/almacen.ts          guarda los horarios generados en el navegador
 src/data/horarios/fuente.tsx          contexto que decide qué horario ven las vistas
 src/data/horarios/validador.ts        juzga un horario, y un movimiento suelto
+src/data/horarios/comparar.ts         qué cambió entre dos horarios
+src/data/horarios/configuracion.ts    la semana del año y quién no puede cuándo
+src/data/horarios/revision.ts         si los datos caben, antes de generar
 src/data/horarios/fixtures/           un salida.json real, para las pruebas
 src/data/horarios/*.test.ts           las pruebas del módulo
-src/components/horarios/PanelHorarios.tsx   la pantalla del módulo
+src/components/horarios/PanelHorarios.tsx          la pantalla del módulo
+src/components/horarios/AjustarBorrador.tsx        mover clases arrastrando
+src/components/horarios/ConfiguracionAnio.tsx      cómo es la semana este año
+src/components/horarios/DisponibilidadDocente.tsx  cuándo no puede cada docente
+src/components/horarios/RevisionDatos.tsx          aviso de datos que no caben
 ```
 
 **Existentes, tocados lo mínimo:**
@@ -102,7 +120,9 @@ leen de un **contexto de React** (`useHorario()`), cuyo valor por defecto es exa
 - El componente grande se renombró a `VistaHorarioContenido` y el nuevo `VistaHorario`
   es un envoltorio delgado que elige la fuente. No se reindentó el JSX.
 - El conmutador "Horario vigente / Ver el borrador" **solo aparece si hay un borrador
-  cargado**, y arranca siempre en "Horario vigente".
+  cargado y quien mira es coordinador o superusuario**, y arranca siempre en "Horario
+  vigente". La comprobación de rol existe por los computadores compartidos: el borrador
+  es del navegador, no de la persona.
 
 Los borradores viven en `localStorage` del navegador del coordinador. **No tocan el
 horario del colegio ni llegan a ningún servidor.** Publicar es otra tarea, aún sin hacer.
@@ -195,7 +215,6 @@ sigue igual. Es la forma limpia de desplegar sin llevártelo.
 
 ## 7. Pendientes conocidos
 
-- **Sin verificación visual.** Nadie ha visto la pantalla funcionando (punto 1).
 - **Faltan dos datos del colegio**, que Julián tiene que conseguir:
   - Los días y horas exactos de la **media técnica** de Felipe y Valentina (14 h cada uno,
     en su misma jornada). Sin eso el motor puede solaparles clases *y no se notaría*.

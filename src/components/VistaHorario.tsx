@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../data/store';
 import {
@@ -25,7 +25,8 @@ import {
   esCIBloque,
   esCIDocente,
 } from '../data/maestros';
-import { horarioBase } from '../data/horarioBase';
+import { horarioBase as horarioVigente } from '../data/horarioBase';
+import { borradorEnRevision, nombrarJornadas, ProveedorHorario, useHorario } from '../data/horarios/fuente';
 import { abrevDeCelda, asignaturasDeCelda, ASIGNACION_2026, getAsignatura } from '../data/asignacionAcademica';
 import { cn } from '@/lib/utils';
 import EditorHorarioWizard from './EditorHorarioWizard';
@@ -142,8 +143,9 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
   diaSeleccionado: string;
   onSetDia: (dia: string) => void;
 }) {
+  const horario = useHorario();
   const bloques  = jornadaTab === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
-  const entradas = horarioBase.filter(e => e.jornada === jornadaTab);
+  const entradas = horario.filter(e => e.jornada === jornadaTab);
 
   const aulasSet = new Set<string>();
   entradas.forEach(e => { if (e.aula) aulasSet.add(e.aula); });
@@ -302,12 +304,13 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
 // ── Vista por docente ────────────────────────────────────────────────────────
 
 function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab: 'manana' | 'tarde' }) {
+  const horario = useHorario();
   const [vistaDetalle, setVistaDetalle] = useState<VistaDetalle>('semana');
   const [diaSeleccionado, setDiaSeleccionado] = useState('lunes');
 
   const bloques   = jornadaTab === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
   const descansos = jornadaTab === 'tarde' ? DESCANSOS_TARDE : DESCANSOS_MANANA;
-  const entradas  = horarioBase.filter(e => e.docente === docenteId && e.jornada === jornadaTab);
+  const entradas  = horario.filter(e => e.docente === docenteId && e.jornada === jornadaTab);
 
   const CELL_H = 52;
 
@@ -580,6 +583,7 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
 // ── Vista por grupo ──────────────────────────────────────────────────────────
 
 function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana' | 'tarde' }) {
+  const horario = useHorario();
   const [vistaDetalle, setVistaDetalle] = useState<VistaDetalle>('semana');
   const [diaSeleccionado, setDiaSeleccionado] = useState('lunes');
 
@@ -588,7 +592,7 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
   const directores = jornadaTab === 'manana' ? DIRECTORES_MANANA : DIRECTORES_TARDE;
   const director  = USUARIOS.find(u => u.id === directores[grado]);
 
-  const entradas = horarioBase.filter(e => {
+  const entradas = horario.filter(e => {
     const g = e.grado.includes('/') ? e.grado.split('/')[0] : e.grado;
     return g === grado && e.jornada === jornadaTab;
   });
@@ -767,6 +771,7 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
   diaSeleccionado: string;
   onSetDia: (dia: string) => void;
 }) {
+  const horario = useHorario();
   const docentes = getDocentes(jornadaTab);
   const bloques  = jornadaTab === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
   const CELL_H   = 46;
@@ -819,7 +824,7 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
                   {bloques.map(b => {
                     const esCI    = esCIDocente(docente.id, diaSeleccionado, b.id, jornadaTab);
                     const entrada = (!esTardeHoy && !esCI)
-                      ? horarioBase.find(e =>
+                      ? horario.find(e =>
                           e.docente === docente.id && e.dia === diaSeleccionado &&
                           e.bloque === b.id && e.jornada === jornadaTab
                         )
@@ -919,7 +924,7 @@ function TablaDocentesOverview({ jornadaTab, onSelect, vistaDetalle, diaSeleccio
                   const esTardeHoy = docenteEnTarde(docente.id, dia) && jornadaTab === 'manana';
                   const esCI       = esCIDocente(docente.id, dia, b.id, jornadaTab);
                   const entrada    = (!esTardeHoy && !esCI)
-                    ? horarioBase.find(e =>
+                    ? horario.find(e =>
                         e.docente === docente.id && e.dia === dia &&
                         e.bloque === b.id && e.jornada === jornadaTab
                       )
@@ -990,10 +995,11 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
   diaSeleccionado: string;
   onSetDia: (dia: string) => void;
 }) {
+  const horario = useHorario();
   const bloques    = jornadaTab === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
   const directores = jornadaTab === 'manana' ? DIRECTORES_MANANA : DIRECTORES_TARDE;
   const gruposUnicos = Array.from(new Set(
-    horarioBase
+    horario
       .filter(e => e.jornada === jornadaTab)
       .map(e => e.grado.includes('/') ? e.grado.split('/')[0] : e.grado)
   )).sort(compararGrupos);
@@ -1049,7 +1055,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
                   {bloques.map(b => {
                     const esCIcelda = esCIBloque(diaSeleccionado, b.id, jornadaTab);
                     const entrada = !esCIcelda
-                      ? horarioBase.find(e => {
+                      ? horario.find(e => {
                           const g = e.grado.includes('/') ? e.grado.split('/')[0] : e.grado;
                           return g === grado && e.dia === diaSeleccionado && e.bloque === b.id && e.jornada === jornadaTab;
                         })
@@ -1153,7 +1159,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
                   bloques.map((b, bi) => {
                     const esCI   = esCIBloque(dia, b.id, jornadaTab);
                     const entrada = !esCI
-                      ? horarioBase.find(e => {
+                      ? horario.find(e => {
                           const g = e.grado.includes('/') ? e.grado.split('/')[0] : e.grado;
                           return g === grado && e.dia === dia && e.bloque === b.id && e.jornada === jornadaTab;
                         })
@@ -1209,7 +1215,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
 
 // ── Componente principal ─────────────────────────────────────────────────────
 
-export default function VistaHorario() {
+function VistaHorarioContenido() {
   const { jornada, rol, userId, horariosModificados, jornadasReducidas, publicacionesPendientes, eliminarHorarioModificado } = useAppStore();
   const defaultJornada: 'manana' | 'tarde' = jornada === 'tarde' ? 'tarde' : 'manana';
 
@@ -1250,7 +1256,10 @@ export default function VistaHorario() {
     setGrupoSel('');
   }, [jornadaTab, rol]);
 
-  const puedeVerAmbas = rol === 'rectora' || rol === 'coordinador';
+  // El superusuario ve las dos jornadas en SOLO LECTURA: no tiene horario
+  // propio, asi que sin esto veria una jornada arbitraria. Editar sigue
+  // reservado al coordinador ('puedeEditar', abajo), que es lo pedido.
+  const puedeVerAmbas = rol === 'rectora' || rol === 'coordinador' || rol === 'superusuario';
 
   // Botón "Editar": solo el coordinador, en su propia jornada, en vistas docente/grupo
   const jornadaPropia: 'manana' | 'tarde' | null =
@@ -1822,5 +1831,67 @@ export default function VistaHorario() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+
+/**
+ * Elige qué horario muestran las tres vistas.
+ *
+ * Por defecto, el vigente: quien no sepa que existen los borradores ve
+ * exactamente lo de siempre. El conmutador solo aparece si el coordinador cargó
+ * un horario generado, y vuelve al vigente en cuanto se sale de la pantalla.
+ */
+export default function VistaHorario() {
+  const { rol } = useAppStore();
+  // El borrador se guarda en el navegador, no en la persona. En un computador
+  // compartido --sala de profesores, coordinación-- un docente que entre después
+  // de un coordinador heredaría su borrador y vería el conmutador. Solo quien
+  // puede generar horarios debe verlo.
+  const puedeRevisarBorradores = rol === 'coordinador' || rol === 'superusuario';
+  const borrador = useMemo(
+    () => (puedeRevisarBorradores ? borradorEnRevision() : null),
+    [puedeRevisarBorradores],
+  );
+  const [verBorrador, setVerBorrador] = useState(false);
+  const mostrandoBorrador = verBorrador && borrador !== null;
+
+  return (
+    <ProveedorHorario horario={mostrandoBorrador ? borrador.horario : horarioVigente}>
+      {borrador && (
+        <div className={`mb-4 rounded-2xl border p-3 flex flex-wrap items-center gap-3 ${
+          mostrandoBorrador ? 'border-warning bg-warning-soft' : 'border-line bg-card'
+        }`}>
+          <span className={`text-xs font-semibold ${
+            mostrandoBorrador ? 'text-warning-soft-fg' : 'text-muted'
+          }`}>
+            {mostrandoBorrador
+              ? `Estas viendo un BORRADOR de ${nombrarJornadas(borrador.jornadas)} `
+                + `(${borrador.clases} clases). El resto se muestra como esta hoy.`
+              : `Hay un borrador sin publicar de ${nombrarJornadas(borrador.jornadas)} `
+                + `(${borrador.clases} clases).`}
+          </span>
+          <div className="flex gap-1 ml-auto">
+            <button
+              onClick={() => setVerBorrador(false)}
+              className={`text-xs px-3 py-1 rounded-full transition ${
+                !mostrandoBorrador ? 'bg-accent text-accent-fg' : 'text-muted hover:text-strong'
+              }`}
+            >
+              Horario vigente
+            </button>
+            <button
+              onClick={() => setVerBorrador(true)}
+              className={`text-xs px-3 py-1 rounded-full transition ${
+                mostrandoBorrador ? 'bg-accent text-accent-fg' : 'text-muted hover:text-strong'
+              }`}
+            >
+              Ver el borrador
+            </button>
+          </div>
+        </div>
+      )}
+      <VistaHorarioContenido />
+    </ProveedorHorario>
   );
 }

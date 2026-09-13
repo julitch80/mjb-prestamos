@@ -8,6 +8,7 @@ import { pushModificacion, pushJornada, pushBorrado } from './syncEditor';
 
 export type VistaActual =
   | 'inicio'
+  | 'generar_horario'
   | 'disponibilidad'
   | 'historial'
   | 'admin'
@@ -100,8 +101,8 @@ interface AppState {
 
 /**
  * Vista de inicio válida para un rol. El superusuario no tiene acceso a las
- * vistas operativas (reservar, horario…), así que arranca en su panel; el
- * resto de roles sí puede ver 'disponibilidad'. Se usa al iniciar sesión y al
+ * vistas operativas de reserva (ve el Horario, pero solo en lectura), así que
+ * todos arrancan en 'inicio', que existe para cualquier rol. Se usa al iniciar sesión y al
  * entrar/salir del modo "Ver como", para no dejar una vista sin permiso.
  */
 function vistaInicialDeRol(_rol: string | null): VistaActual {

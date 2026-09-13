@@ -1,0 +1,163 @@
+{
+  "version": "1.0",
+  "estado": "completo",
+  "generado_en": "2026-09-05T17:33:42",
+  "horario": [
+    {
+      "dia": "lunes",
+      "bloque": 1,
+      "docente": "jorge",
+      "grado": "10.1",
+      "aula": "Patio",
+      "jornada": "manana",
+      "asignatura": "religion"
+    },
+    {
+      "dia": "lunes",
+      "bloque": 1,
+      "docente": "julian",
+      "grado": "10.2",
+      "aula": "Lab. Ciencias",
+      "jornada": "manana",
+      "asignatura": "fisica"
+    },
+    {
+      "dia": "lunes",
+      "bloque": 1,
+      "docente": "margara",
+      "grado": "10.3",
+      "aula": "Aula 9",
+      "jornada": "manana",
+      "asignatura": "lengua"
+    },
+    {
+      "dia": "lunes",
+      "bloque": 1,
+      "docente": "claudia",
+      "grado": "10.4",
+      "aula": "Aula 6",
+      "jornada": "manana",
+      "asignatura": "matematicas"
+    },
+    {
+      "dia": "lunes",
+      "bloque": 1,
+      "docente": "ledis",
+      "grado": "11.1",
+      "aula": "Aula 1",
+      "jornada": "manana",
+      "asignatura": "filosofia"
+    },
+    {
+      "dia": "lunes",
+      "bloque": 1,
+      "docente": "adolfo",
+      "grado": "11.2",
+      "aula": "Aula 7",
+      "jornada": "manana",
+      "asignatura": "ed_fisica"
+    },
+    {
+      "dia": "lunes",
+      "bloque": 1,
+      "docente": "johana",
+      "grado": "11.3",
+      "aula": "Aula 3",
+      "jornada": "manana",
+      "asignatura": "ingles"
+    },
+    {
+      "dia": "lunes",
+      "bloque": 1,
+      "docente": "marta",
+      "grado": "9.1",
+      "aula": "Aula 2",
+      "jornada": "manana",
+      "asignatura": "ingles"
+    },
+    {
+      "dia": "lunes",
+      "bloque": 1,
+      "docente": "carolina",
+      "grado": "6º1",
+      "aula": "A8",
+      "jornada": "tarde",
+      "asignatura": "lengua"
+    },
+    {
+      "dia": "lunes",
+      "bloque": 1,
+      "docente": "harol",
+      "grado": "6º2",
+      "aula": "A9",
+      "jornada": "tarde",
+      "asignatura": "etica"
+    },
+    {
+      "dia": "lunes",
+      "bloque": 1,
+      "docente": "edgar",
+      "grado": "6º3",
+      "aula": "A10",
+      "jornada": "tarde",
+      "asignatura": "artistica"
+    },
+    {
+      "dia": "lunes",
+      "bloque": 1,
+      "docente": "luis_angel",
+      "grado": "7º1",
+      "aula": "A1",
+      "jornada": "tarde",
+      "asignatura": "sociales"
+    }
+  ],
+  "sin_ubicar": [],
+  "recomendaciones": [],
+  "calidad": {
+    "pct_horas_en_bloques_dobles": 80.7,
+    "pct_exigentes_en_primeras_horas": 66.5,
+    "dias_por_docente_mixto": [
+      {
+        "docente": "edgar",
+        "dias": 5
+      },
+      {
+        "docente": "marta",
+        "dias": 5
+      },
+      {
+        "docente": "monica_c",
+        "dias": 5
+      },
+      {
+        "docente": "yoguis",
+        "dias": 5
+      }
+    ],
+    "huecos_por_docente_mixto": [
+      {
+        "docente": "edgar",
+        "huecos": 0
+      },
+      {
+        "docente": "marta",
+        "huecos": 0
+      },
+      {
+        "docente": "monica_c",
+        "huecos": 1
+      },
+      {
+        "docente": "yoguis",
+        "huecos": 0
+      }
+    ],
+    "docentes_con_varios_dias_llenos": []
+  },
+  "metricas": {
+    "segundos": 180.67,
+    "estado_solver": "FEASIBLE",
+    "cobertura_pct": 100.0
+  }
+}
