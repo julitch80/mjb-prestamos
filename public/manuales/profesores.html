@@ -1,0 +1,1429 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="../mjb_icon.png">
+</head>
+<body>
+<title>Manual del profesor MJB</title>
+<meta name="description" content="Guía básica de MJB Préstamos para profesores de la I.E. Manuel J. Betancur">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* ── Tokens del MANUAL (lo que rodea a las pantallas) ─────────────────────── */
+:root{
+  --paper:#F2F5F3; --sheet:#FFFFFF; --ink:#15201C; --ink-2:#3B4843; --muted:#5E6C66;
+  --rule:#D5DDD8; --pen:#C4222F; --pen-fg:#FFFFFF; --pen-soft:#FBE8EA; --pen-ink:#8E1621;
+  --green:#127E48; --green-soft:#E1F0E7; --green-ink:#0B5230;
+  --shadow:0 1px 2px rgb(21 32 28 / .06), 0 8px 24px -12px rgb(21 32 28 / .18);
+
+  /* Tokens de la APLICACIÓN, copiados de src/index.css: las pantallas dibujadas
+     se ven como la app real, en claro y en oscuro. */
+  --a-app:#f7f8fa; --a-card:#ffffff; --a-elev:#eef1f6; --a-strong:#0e1525; --a-soft:#374151;
+  --a-muted:#5b6678; --a-line:#d8dde6; --a-line-2:#b3bac8;
+  --a-accent:#2563eb; --a-accent-fg:#ffffff; --a-accent-soft:#dbeafe; --a-accent-ink:#1e3a8a;
+  --a-ok:#15803d; --a-ok-soft:#dcfce7; --a-ok-ink:#14532d;
+  --a-warn:#b45309; --a-warn-soft:#fef3c7; --a-warn-ink:#78350f;
+  --a-bad:#b91c1c; --a-bad-soft:#fee2e2; --a-bad-ink:#7f1d1d;
+  --a-info-soft:#dbeafe; --a-info-ink:#1e3a8a;
+  --a-pur-soft:#ede9fe; --a-pur-ink:#4c1d95;
+  --a-teal-soft:#ccfbf1; --a-teal-ink:#134e4a;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0D1311; --sheet:#151D1A; --ink:#E7EEEA; --ink-2:#C2CCC7; --muted:#93A29B;
+    --rule:#27322E; --pen:#EE5B66; --pen-fg:#1A0A0C; --pen-soft:#3A1519; --pen-ink:#FFB3B9;
+    --green:#4FC28A; --green-soft:#14291E; --green-ink:#9FE3C0;
+    --shadow:0 1px 2px rgb(0 0 0 / .3), 0 8px 24px -12px rgb(0 0 0 / .6);
+    --a-app:#0a0e1a; --a-card:#141a2a; --a-elev:#1e2538; --a-strong:#f5f7fb; --a-soft:#cfd5e3;
+    --a-muted:#94a0b6; --a-line:#252b3d; --a-line-2:#3a425a;
+    --a-accent:#3b82f6; --a-accent-fg:#ffffff; --a-accent-soft:#1e3a8a66; --a-accent-ink:#93c5fd;
+    --a-ok:#22c55e; --a-ok-soft:#14532d66; --a-ok-ink:#86efac;
+    --a-warn:#f59e0b; --a-warn-soft:#78350f66; --a-warn-ink:#fcd34d;
+    --a-bad:#ef4444; --a-bad-soft:#7f1d1d66; --a-bad-ink:#fca5a5;
+    --a-info-soft:#1e3a8a66; --a-info-ink:#93c5fd;
+    --a-pur-soft:#4c1d9566; --a-pur-ink:#c4b5fd;
+    --a-teal-soft:#134e4a66; --a-teal-ink:#5eead4;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0D1311; --sheet:#151D1A; --ink:#E7EEEA; --ink-2:#C2CCC7; --muted:#93A29B;
+  --rule:#27322E; --pen:#EE5B66; --pen-fg:#1A0A0C; --pen-soft:#3A1519; --pen-ink:#FFB3B9;
+  --green:#4FC28A; --green-soft:#14291E; --green-ink:#9FE3C0;
+  --shadow:0 1px 2px rgb(0 0 0 / .3), 0 8px 24px -12px rgb(0 0 0 / .6);
+  --a-app:#0a0e1a; --a-card:#141a2a; --a-elev:#1e2538; --a-strong:#f5f7fb; --a-soft:#cfd5e3;
+  --a-muted:#94a0b6; --a-line:#252b3d; --a-line-2:#3a425a;
+  --a-accent:#3b82f6; --a-accent-fg:#ffffff; --a-accent-soft:#1e3a8a66; --a-accent-ink:#93c5fd;
+  --a-ok:#22c55e; --a-ok-soft:#14532d66; --a-ok-ink:#86efac;
+  --a-warn:#f59e0b; --a-warn-soft:#78350f66; --a-warn-ink:#fcd34d;
+  --a-bad:#ef4444; --a-bad-soft:#7f1d1d66; --a-bad-ink:#fca5a5;
+  --a-info-soft:#1e3a8a66; --a-info-ink:#93c5fd;
+  --a-pur-soft:#4c1d9566; --a-pur-ink:#c4b5fd;
+  --a-teal-soft:#134e4a66; --a-teal-ink:#5eead4;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:"Bricolage Grotesque","Atkinson Hyperlegible",system-ui,sans-serif;
+  font-weight:700;letter-spacing:-.01em;text-wrap:balance;margin:0;color:var(--ink)}
+p{margin:0}
+b,strong{font-weight:700}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--pen);outline-offset:3px;border-radius:4px}
+
+/* ── Cabecera y navegación ────────────────────────────────────────────────── */
+.cab{max-width:1080px;margin:0 auto;padding:40px 20px 24px;display:grid;gap:18px}
+.sello{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted)}
+.sello i{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-style:normal;
+  background:linear-gradient(135deg,#127E48,#2A9E8C 68%,#3684B5);box-shadow:inset 0 0 0 3px var(--pen);
+  color:#fff;font-size:17px}
+.cab h1{font-size:clamp(34px,6vw,54px);line-height:1.02}
+.cab h1 span{color:var(--pen)}
+.cab .lead{font-size:19px;color:var(--ink-2);max-width:60ch}
+.etiquetas{display:flex;gap:8px;flex-wrap:wrap}
+.et{font-size:13px;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:999px;
+  border:1px solid var(--rule);color:var(--muted);background:var(--sheet)}
+.et.nivel{background:var(--green-soft);color:var(--green-ink);border-color:transparent;font-weight:700}
+
+.nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--sheet) 94%,transparent);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);
+  box-shadow:0 6px 18px -14px rgb(21 32 28 / .5)}
+.nav-in{max-width:1080px;margin:0 auto;padding:8px 20px;display:flex;align-items:center;gap:10px;min-height:56px}
+.nav-ini{text-decoration:none;font-weight:700;color:var(--green);white-space:nowrap;font-size:15px}
+.nav-sep{color:var(--rule)}
+.nav-aqui{flex:1;min-width:0;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:17px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-menu{position:relative}
+.nav-menu summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  background:var(--pen);color:var(--pen-fg);font-weight:700;font-size:15px;padding:8px 14px;border-radius:999px;min-height:40px}
+.nav-menu summary::-webkit-details-marker{display:none}
+.nav-menu[open] summary span{display:inline-block;transform:rotate(180deg)}
+.nav-menu ol{position:absolute;right:0;top:calc(100% + 8px);list-style:none;margin:0;padding:6px;width:min(290px,86vw);
+  max-height:70vh;overflow-y:auto;background:var(--sheet);border:1px solid var(--rule);border-radius:14px;box-shadow:var(--shadow)}
+.nav-menu li a{display:block;text-decoration:none;padding:10px 12px;border-radius:9px;color:var(--ink-2);font-size:16px}
+.nav-menu li a:hover{background:var(--paper);color:var(--ink)}
+.nav-menu li a[aria-current="true"]{background:var(--green-soft);color:var(--green-ink);font-weight:700}
+
+/* Índice visible */
+.contenido{background:var(--sheet);border-radius:18px;box-shadow:var(--shadow);padding:clamp(20px,4vw,36px);display:grid;gap:18px}
+.cont-cab h2{font-size:clamp(24px,3.6vw,32px)}
+.cont-cab p{color:var(--ink-2);margin-top:4px}
+.ix{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.ix a{position:relative;display:grid;gap:3px;align-content:start;height:100%;text-decoration:none;padding:14px 16px;border-radius:12px;
+  border:1px solid var(--rule);background:var(--paper);transition:border-color .15s,transform .15s}
+.ix a:hover{border-color:var(--green);transform:translateY(-1px)}
+@media (prefers-reduced-motion: reduce){.ix a{transition:none}.ix a:hover{transform:none}}
+.ix-t{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:18px;color:var(--ink);padding-right:22px}
+.ix-t::after{content:"→";position:absolute;right:14px;top:14px;color:var(--green);font-family:"Atkinson Hyperlegible",sans-serif}
+.ix-d{font-size:14.5px;color:var(--muted);line-height:1.4}
+.ix-b{justify-self:start;margin-top:6px;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;
+  padding:2px 8px;border-radius:999px;background:var(--pen-soft);color:var(--pen-ink)}
+
+/* Anterior / siguiente */
+.pasa{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid var(--rule);padding-top:18px}
+.pasa a{display:grid;gap:1px;align-content:start;text-decoration:none;padding:12px 14px;border-radius:12px;border:1px solid var(--rule);
+  color:var(--ink);font-weight:700;font-size:16px}
+.pasa a:hover{border-color:var(--green);background:var(--paper)}
+.pasa small{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.ps-next{text-align:right}
+
+/* ── Módulos ──────────────────────────────────────────────────────────────── */
+main{max-width:1080px;margin:0 auto;padding:12px 20px 80px;display:grid;gap:28px}
+.mod{background:var(--sheet);border-radius:18px;box-shadow:var(--shadow);padding:clamp(20px,4vw,40px);
+  display:grid;gap:26px}
+.mod-cab{display:grid;gap:8px;max-width:64ch}
+.mod-cab .menu{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--green);font-weight:700}
+.mod-cab h2{font-size:clamp(28px,4.2vw,38px);line-height:1.08}
+.mod-cab .para{font-size:19px;color:var(--ink-2)}
+
+.bloque{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:clamp(20px,4vw,44px);align-items:start}
+.bloque.solo{grid-template-columns:1fr}
+@media (max-width:760px){.bloque{grid-template-columns:1fr}}
+.bloque + .bloque{padding-top:26px;border-top:1px dashed var(--rule)}
+.sub{font-size:22px;margin-bottom:12px}
+
+.pasos{list-style:none;margin:0;padding:0;display:grid;gap:16px;counter-reset:p}
+.pasos li{display:grid;grid-template-columns:30px 1fr;gap:12px;align-items:start}
+.pasos li::before{counter-increment:p;content:counter(p);width:30px;height:30px;border-radius:50%;
+  background:var(--pen);color:var(--pen-fg);font-weight:700;font-size:15px;display:grid;place-items:center;
+  margin-top:1px;font-variant-numeric:tabular-nums}
+.pasos b{color:var(--ink)}
+.pasos p{color:var(--ink-2)}
+.pasos .t{display:block;font-weight:700;color:var(--ink);font-size:18px;line-height:1.35;margin-bottom:2px}
+
+/* Texto de un botón tal como aparece en la pantalla */
+.bt{font-family:Inter,system-ui,sans-serif;font-size:.86em;font-weight:600;white-space:nowrap;
+  padding:1px 7px;border-radius:6px;background:var(--a-elev);color:var(--a-strong);border:1px solid var(--a-line)}
+
+.sabias{display:grid;grid-template-columns:auto 1fr;gap:12px;background:var(--green-soft);color:var(--green-ink);
+  border-radius:12px;padding:14px 16px;font-size:16px;line-height:1.55}
+.sabias::before{content:"Sabías que";font-size:12px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;
+  writing-mode:vertical-rl;transform:rotate(180deg);border-left:2px solid currentColor;padding-left:8px;opacity:.9}
+.sabias b{color:inherit}
+.ojo{background:var(--pen-soft);color:var(--pen-ink)}
+.ojo::before{content:"Importante"}
+
+.si{border:1px solid var(--rule);border-radius:14px;padding:18px 20px;display:grid;gap:12px}
+.si .quien{justify-self:start;font-size:13px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;
+  color:var(--pen-ink);background:var(--pen-soft);padding:3px 10px;border-radius:999px}
+.si h3{font-size:20px}
+.si p{color:var(--ink-2)}
+.grid-si{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+
+.tabla-w{overflow-x:auto;border:1px solid var(--rule);border-radius:12px}
+table.t{border-collapse:collapse;width:100%;font-size:15.5px;min-width:560px}
+table.t th{text-align:left;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);
+  font-weight:700;padding:10px 14px;border-bottom:1px solid var(--rule);background:var(--paper)}
+table.t td{padding:11px 14px;border-bottom:1px solid var(--rule);vertical-align:top;color:var(--ink-2)}
+table.t tr:last-child td{border-bottom:0}
+table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
+.si-no{font-weight:700}
+
+/* ── PANTALLAS DIBUJADAS (usan los tokens de la app) ──────────────────────── */
+.pantalla{position:relative;background:var(--a-app);border:1px solid var(--rule);border-radius:26px;
+  padding:10px;box-shadow:var(--shadow);font-family:Inter,system-ui,sans-serif;color:var(--a-strong);
+  font-size:13px;line-height:1.4;max-width:340px;width:100%}
+.pantalla .scr{background:var(--a-app);border-radius:18px;overflow:hidden;position:relative}
+.pie-pantalla{font-size:13px;color:var(--muted);margin-top:10px;text-align:center}
+.hd{background:var(--a-card);border-bottom:1px solid var(--a-line);padding:10px 12px;display:flex;align-items:center;gap:8px}
+.hd .tit{font-weight:600;font-size:14px;flex:1;min-width:0}
+.hd .sub2{font-size:11px;color:var(--a-muted);font-weight:400}
+.pad{padding:12px;display:grid;gap:10px}
+.fila{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.b{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;border:1px solid var(--a-line);
+  border-radius:8px;padding:5px 9px;background:var(--a-card);color:var(--a-soft);position:relative;white-space:nowrap}
+.b.pri{background:var(--a-accent);border-color:transparent;color:var(--a-accent-fg);font-weight:600}
+.tabs{display:flex;flex-wrap:wrap;gap:2px;background:var(--a-elev);border-radius:9px;padding:3px}
+.tabs span{flex:1 1 auto;text-align:center;font-size:11px;padding:5px 4px;border-radius:7px;color:var(--a-muted);white-space:nowrap}
+.tabs span.on{background:var(--a-card);color:var(--a-strong);font-weight:600;box-shadow:0 1px 2px rgb(0 0 0 / .08)}
+.cd{background:var(--a-card);border:1px solid var(--a-line);border-radius:12px;padding:10px 11px;display:grid;gap:4px;position:relative}
+.cd .h{font-weight:600;font-size:12.5px}
+.cd .d{font-size:11.5px;color:var(--a-muted)}
+.lbl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--a-muted);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.campo{border:1px solid var(--a-line);border-radius:8px;padding:6px 9px;background:var(--a-card);font-size:12px;color:var(--a-soft)}
+.campo.vacio{color:var(--a-muted)}
+
+/* planilla */
+.pl{width:100%;border-collapse:collapse;font-size:12px;background:var(--a-card)}
+.pl th{font-weight:400;color:var(--a-muted);font-size:10.5px;padding:6px 3px;border-bottom:1px solid var(--a-line);text-align:center;line-height:1.25}
+.pl th.nm,.pl td.nm{text-align:left;padding-left:10px}
+.pl td{padding:6px 3px;border-bottom:1px solid var(--a-line);text-align:center}
+.pl td.nm{color:var(--a-strong);font-size:11.5px;white-space:nowrap}
+.av{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--a-elev);border:2px solid var(--a-line-2);
+  vertical-align:middle;margin-right:6px}
+.c{display:inline-flex;width:26px;height:26px;border-radius:7px;align-items:center;justify-content:center;font-size:15px;font-weight:600}
+.c.ok{background:var(--a-ok-soft);color:var(--a-ok-ink)}
+.c.no{background:var(--a-bad-soft);color:var(--a-bad-ink)}
+.c.vac{border:1.5px dashed var(--a-line-2)}
+.c.txt{font-size:10.5px;letter-spacing:-.02em}
+.c.w{background:var(--a-warn-soft);color:var(--a-warn-ink)}
+.c.i{background:var(--a-info-soft);color:var(--a-info-ink)}
+.c.p{background:var(--a-pur-soft);color:var(--a-pur-ink)}
+
+/* hoja emergente dentro de la pantalla */
+.velo{position:absolute;inset:0;background:rgb(0 0 0 / .42);display:flex;align-items:flex-end}
+.hoja{background:var(--a-card);width:100%;border-radius:16px 16px 0 0;padding:14px;display:grid;gap:9px;position:relative}
+.hoja .h{font-weight:600;font-size:14px}
+.hoja .d{font-size:12px;color:var(--a-soft);line-height:1.5}
+
+/* horario y reservas */
+.hr{width:100%;border-collapse:separate;border-spacing:3px;font-size:10px}
+.hr th{font-weight:500;color:var(--a-muted);font-size:10px;padding:2px}
+.hr td{height:30px;border-radius:6px;text-align:center;line-height:1.15;padding:2px;font-size:9.5px}
+.hr td.lib{background:var(--a-ok-soft);color:var(--a-ok-ink)}
+.hr td.cla{background:var(--a-elev);color:var(--a-muted)}
+.hr td.ocu{background:var(--a-bad-soft);color:var(--a-bad-ink)}
+.hr td.tuy{background:var(--a-info-soft);color:var(--a-info-ink)}
+.hr td.rec{background:var(--a-warn-soft);color:var(--a-warn-ink)}
+.hr td.cls{background:var(--a-accent-soft);color:var(--a-accent-ink);font-weight:500}
+.hr td.nada{background:transparent}
+.hr td.bl{color:var(--a-muted);font-weight:500;background:transparent}
+.ley{display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--a-muted)}
+.ley i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+
+/* chat */
+.msg{max-width:78%;padding:7px 10px;border-radius:12px;font-size:12px;line-height:1.4}
+.msg.el{background:var(--a-card);border:1px solid var(--a-line);justify-self:start}
+.msg.yo{background:var(--a-accent);color:var(--a-accent-fg);justify-self:end}
+.msg .quien2{display:block;font-size:10.5px;font-weight:600;color:var(--a-accent-ink);margin-bottom:2px}
+.leido{justify-self:end;font-size:10px;color:var(--a-muted);margin-top:-6px}
+.cita{border-left:3px solid var(--a-accent-fg);padding-left:6px;margin-bottom:4px;font-size:10.5px;opacity:.85}
+
+/* número de la flecha: el bolígrafo rojo del manual sobre la pantalla */
+.n{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--pen);color:var(--pen-fg);
+  font-family:"Atkinson Hyperlegible",sans-serif;font-size:12.5px;font-weight:700;display:grid;place-items:center;
+  box-shadow:0 0 0 3px var(--a-app);z-index:3;font-variant-numeric:tabular-nums}
+.n.tr{top:-10px;right:-10px}
+.n.tl{top:-10px;left:-10px}
+.n.r{top:50%;right:-12px;transform:translateY(-50%)}
+
+/* ── Tareas: piezas propias ────────────────────────────────────────────── */
+.indice-mod{display:flex;flex-wrap:wrap;gap:6px 8px;padding:12px 14px;border:1px solid var(--rule);border-radius:12px;font-size:15px}
+.indice-mod a{text-decoration:none;color:var(--ink-2);padding:3px 9px;border-radius:7px;background:var(--paper)}
+.indice-mod a:hover{color:var(--ink);background:var(--green-soft)}
+.conceptos{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.concepto{border-top:3px solid var(--green);padding-top:12px;display:grid;gap:6px;align-content:start}
+.concepto .cifra{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:34px;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.concepto .cifra small{font-size:16px;font-weight:500;color:var(--muted);margin-left:2px}
+.concepto p{color:var(--ink-2);font-size:16px}
+.reparto{margin:0;border:1px solid var(--rule);border-radius:14px;padding:18px;display:grid;gap:14px;background:var(--paper)}
+.reparto figcaption{color:var(--ink-2);max-width:64ch}
+.rep-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;overflow-x:auto}
+.rep-dia{display:grid;gap:6px;justify-items:stretch;min-width:64px}
+.rep-d{font-size:14px;font-weight:700;text-align:center;color:var(--ink)}
+.rep-col{display:grid;grid-template-rows:repeat(4,30px);gap:4px;padding:5px;border-radius:10px;background:var(--sheet);border:1px solid var(--rule)}
+.m{display:grid;place-items:center;border-radius:6px;font-style:normal;font-size:12px;font-family:Inter,system-ui,sans-serif;font-weight:500;overflow:hidden;white-space:nowrap}
+.m.fis{background:var(--pen);color:var(--pen-fg)}
+.m.otr{background:var(--green-soft);color:var(--green-ink)}
+.m.vac{border:1.5px dashed var(--rule)}
+.rep-est{font-size:12px;text-align:center;color:var(--muted)}
+.rep-est.entrega{color:var(--pen-ink);font-weight:700}
+.rep-ley{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:14px;color:var(--muted);align-items:center}
+.rep-ley span{display:inline-flex;align-items:center;gap:6px}
+.rep-ley .m{width:18px;height:14px;display:inline-block}
+.calor{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center}
+.calor span{display:block;font-size:9.5px;color:var(--a-muted);white-space:nowrap}
+.calor .hoy span{color:var(--a-accent);font-weight:700}
+.calor b{display:grid;place-items:center;height:30px;border-radius:9px;border:1px solid var(--a-line);font-size:11px;font-weight:600;color:var(--a-soft)}
+.calor i{display:block;height:8px;margin-top:2px}
+.calor i.p::after{content:"";display:block;width:6px;height:6px;border-radius:50%;background:#34d399;margin:1px auto 0}
+.tarea-est{display:grid;grid-template-columns:22px 1fr;gap:8px;padding:8px;border-radius:10px;border:1px solid var(--a-line);background:var(--a-elev)}
+.tarea-est.hecha{opacity:.7}
+.casilla{width:20px;height:20px;border-radius:5px;border:1.5px solid var(--a-line-2);display:grid;place-items:center;font-size:12px;margin-top:2px}
+.casilla.on{background:var(--a-accent);border-color:var(--a-accent);color:var(--a-accent-fg)}
+.ideas{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.ideas div{background:var(--paper);border-radius:12px;padding:14px 16px;color:var(--ink-2);font-size:16px}
+.ideas b{display:block;color:var(--ink);margin-bottom:4px;font-size:17px}
+.anuncio{border:1px solid var(--rule);border-radius:4px 16px 16px 16px;background:var(--green-soft);color:var(--ink);padding:18px 20px;display:grid;gap:10px;max-width:62ch;font-size:16px}
+.anuncio-de{font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--green-ink)}
+.anuncio-link{display:inline-block;margin-top:4px;font-family:Inter,system-ui,sans-serif;font-size:14px;color:var(--green-ink);text-decoration:underline}
+.tarjeta{max-width:440px;border:2px solid var(--ink);border-radius:18px;padding:22px;display:grid;gap:16px;background:var(--sheet)}
+.tarj-cab{display:flex;gap:12px;align-items:center}
+.tarj-sello{width:44px;height:44px;flex:0 0 auto;border-radius:11px;display:grid;place-items:center;color:#fff;font-size:22px;
+  background:linear-gradient(135deg,#127E48,#2A9E8C 68%,#3684B5);box-shadow:inset 0 0 0 3px #C4222F}
+.tarj-kicker{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tarj-tit{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:26px;line-height:1.1}
+.tarj-pasos{margin:0;padding-left:22px;display:grid;gap:8px;font-size:16px;color:var(--ink-2)}
+.tarj-pasos li::marker{color:var(--pen);font-weight:700}
+.tarj-pasos b{color:var(--ink)}
+.tarj-datos{display:grid;gap:4px;border-top:1px dashed var(--rule);border-bottom:1px dashed var(--rule);padding:10px 0;font-size:15px;color:var(--ink-2)}
+.tarj-datos b{display:inline-block;min-width:26px;color:var(--pen);font-size:17px}
+.tarj-pie{font-size:14px;color:var(--muted)}
+@media print{.tarjeta{break-inside:avoid}.indice-mod{display:none}}
+
+.cupos{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;align-items:start}
+.cu-col{border:1px solid var(--rule);border-radius:14px;padding:16px;display:grid;gap:12px;background:var(--sheet)}
+.cu-cab h4{margin:0;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:20px;color:var(--ink)}
+.cu-cab p{font-size:14px;color:var(--muted)}
+.cu-cab .cu-per{font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--green);margin-top:4px}
+.cu-lista{list-style:none;margin:0;padding:0;display:grid}
+.cu-lista li{display:grid;grid-template-columns:1fr auto 18px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--rule);font-size:15px}
+.cu-asig{color:var(--ink-2);line-height:1.3}
+.cu-pts{display:flex;gap:4px}
+.cu-pts i{width:12px;height:12px;border-radius:3px;background:var(--pen)}
+.cu-num{font-weight:700;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.cu-total{display:flex;justify-content:space-between;align-items:baseline;font-size:15px;color:var(--muted)}
+.cu-total b{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:22px;color:var(--ink);font-variant-numeric:tabular-nums}
+.cu-nota{font-size:13.5px;color:var(--muted);line-height:1.45}
+.cu-nota b{color:var(--ink-2)}
+.cu-fuente{font-size:13.5px;color:var(--muted)}
+
+/* ── Pie ──────────────────────────────────────────────────────────────────── */
+.pie{max-width:1080px;margin:0 auto;padding:0 20px 56px;color:var(--muted);font-size:14.5px;display:grid;gap:6px}
+.pie b{color:var(--ink-2)}
+
+@media print{
+  body{background:#fff;font-size:12pt}
+  .nav,.pasa,.contenido{display:none}
+  .mod{box-shadow:none;border:1px solid #ccc;break-inside:avoid-page}
+  .bloque{break-inside:avoid}
+  .pantalla{box-shadow:none}
+}
+</style>
+
+<header class="cab">
+  <div class="sello"><i aria-hidden="true">⚜</i> I.E. Manuel J. Betancur · MJB Préstamos</div>
+  <h1>Manual del <span>profesor</span></h1>
+  <p class="lead">Lo esencial de cada sección de la aplicación: para qué sirve y cómo se hace lo que más vas a usar. Cada pantalla está dibujada con los mismos botones que ves en tu celular; los números rojos señalan qué tocar, en orden.</p>
+  <div class="etiquetas">
+    <span class="et nivel">Nivel básico</span>
+    <span class="et">Rol: profesor</span>
+    <span class="et">Septiembre 2026</span>
+  </div>
+</header>
+
+<nav class="nav" aria-label="Secciones del manual">
+  <div class="nav-in">
+    <a class="nav-ini" href="#contenido" title="Volver al índice">⚜ Manual</a>
+    <span class="nav-sep" aria-hidden="true">/</span>
+    <span class="nav-aqui" id="nav-aqui">Índice</span>
+    <details class="nav-menu" id="nav-menu">
+      <summary>Secciones <span aria-hidden="true">▾</span></summary>
+      <ol><li><a href="#entrar">Entrar, moverte y salir</a></li><li><a href="#inicio">Inicio</a></li><li><a href="#agenda">Agenda</a></li><li><a href="#horario">Horario</a></li><li><a href="#asistencia">Asistencia</a></li><li><a href="#centros">Centros de interés</a></li><li><a href="#tareas">Tareas</a></li><li><a href="#estudiantes">Para tus estudiantes</a></li><li><a href="#chatbot">Chatbot</a></li><li><a href="#riesgo">Gestión del Riesgo</a></li><li><a href="#reservas">Reservas</a></li><li><a href="#asignacion">Asignación 2026</a></li><li><a href="#chat">Chat</a></li></ol>
+    </details>
+  </div>
+</nav>
+
+<main>
+
+<section class="contenido" id="contenido" aria-labelledby="contenido-t">
+  <div class="cont-cab"><h2 id="contenido-t">¿Qué quieres aprender?</h2><p>Toca una sección para ir directo a ella. Están en el mismo orden del menú de la aplicación.</p></div>
+  <ol class="ix"><li><a href="#entrar"><span class="ix-t">Entrar, moverte y salir</span><span class="ix-d">Tu cuenta del colegio, los avisos y cerrar sesión</span></a></li><li><a href="#inicio"><span class="ix-t">Inicio</span><span class="ix-d">Tu resumen del día</span></a></li><li><a href="#agenda"><span class="ix-t">Agenda</span><span class="ix-d">Las actividades de la semana</span></a></li><li><a href="#horario"><span class="ix-t">Horario</span><span class="ix-d">Tu horario y el de todo el colegio</span></a></li><li><a href="#asistencia"><span class="ix-t">Asistencia</span><span class="ix-d">Pasar lista y las siete marcas</span><span class="ix-b">Lo más usado</span></a></li><li><a href="#centros"><span class="ix-t">Centros de interés</span><span class="ix-d">Cómo funcionan y qué hace el líder</span><span class="ix-b">Nuevo</span></a></li><li><a href="#tareas"><span class="ix-t">Tareas</span><span class="ix-d">Publicar tareas, momentos y cupos</span><span class="ix-b">Lo más usado</span></a></li><li><a href="#estudiantes"><span class="ix-t">Para tus estudiantes</span><span class="ix-d">Cómo presentarle la agenda al grupo</span><span class="ix-b">Nuevo</span></a></li><li><a href="#chatbot"><span class="ix-t">Chatbot</span><span class="ix-d">Convivencia y sistema de evaluación</span></a></li><li><a href="#riesgo"><span class="ix-t">Gestión del Riesgo</span><span class="ix-d">Primeros auxilios y contención emocional</span></a></li><li><a href="#reservas"><span class="ix-t">Reservas</span><span class="ix-d">Pedir un aula o un equipo</span></a></li><li><a href="#asignacion"><span class="ix-t">Asignación 2026</span><span class="ix-d">Quién dicta qué y en qué grupo</span></a></li><li><a href="#chat"><span class="ix-t">Chat</span><span class="ix-d">Los mensajes del colegio</span></a></li></ol>
+</section>
+
+
+<!-- ═══════════════ ENTRAR ═══════════════ -->
+<section class="mod" id="entrar">
+  <div class="mod-cab">
+    <p class="menu">Antes de empezar</p>
+    <h2>Entrar, moverte y salir</h2>
+    <p class="para">Se entra con tu cuenta de correo del colegio. No hay PIN ni contraseña aparte.</p>
+  </div>
+
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Pantalla de inicio de sesión con el botón Continuar con Google">
+        <div class="scr">
+          <div class="pad" style="padding:26px 16px 22px;justify-items:center;text-align:center;gap:12px">
+            <div style="width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#127E48,#2A9E8C 68%,#3684B5);box-shadow:inset 0 0 0 4px #C4222F;display:grid;place-items:center;color:#fff;font-size:26px">⚜</div>
+            <div style="font-weight:600;font-size:15px">I.E. Manuel J. Betancur</div>
+            <div class="d" style="color:var(--a-muted);font-size:12px">Inicia sesión con tu cuenta institucional</div>
+            <span class="b" style="padding:9px 14px;font-size:12.5px;font-weight:600;color:var(--a-strong)">
+              <span style="font-weight:700;color:#4285F4">G</span> Continuar con Google<span class="n tr">1</span></span>
+          </div>
+          <div style="margin:0 12px 12px" class="cd">
+            <div class="fila"><span class="lbl" style="flex:1">🔔 Tienes 2 notificaciones nuevas</span><span class="b" style="font-size:10.5px;padding:3px 7px">Descartar todas</span></div>
+            <div class="fila" style="justify-content:space-between"><span class="d">📋 Coordinador · Aprobada tu reserva</span><span class="b" style="font-size:10.5px;padding:3px 7px">✕ Listo<span class="n tr">2</span></span></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Toca <span class="bt">Continuar con Google</span></span><p>Elige tu correo <b>@iemanueljbetancur.edu.co</b>. Una cuenta personal (Gmail) no entra.</p></div></li>
+        <li><div><span class="t">Lee tus avisos</span><p>Si algo te llegó mientras no estabas, aparece arriba: una reserva aprobada, un cambio de horario, un mensaje de coordinación. Tócale <span class="bt">✕ Listo</span> a cada uno, o <span class="bt">Descartar todas</span>.</p></div></li>
+        <li><div><span class="t">Muévete con el menú</span><p>Cada sección de este manual es una opción del menú, en el mismo orden.</p></div></li>
+        <li><div><span class="t">Para salir, el ícono de la puerta</span><p>Está en la barra de arriba y se llama <b>Cerrar sesión</b>. Úsalo siempre en un computador que no sea tuyo.</p></div></li>
+      </ol>
+    </div>
+  </div>
+  <p class="sabias">Los avisos no se borran solos: si cierras la aplicación sin marcarlos, <b>vuelven a salir la próxima vez</b>. Así no se te pierde ninguno.</p>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#contenido"><small>Volver</small>← Índice</a><a class="ps-next" href="#inicio"><small>Siguiente</small>Inicio →</a></nav>
+</section>
+
+<!-- ═══════════════ INICIO ═══════════════ -->
+<section class="mod" id="inicio">
+  <div class="mod-cab">
+    <p class="menu">Menú · Inicio</p>
+    <h2>Inicio</h2>
+    <p class="para">Tu resumen del día: qué clase sigue, qué cambió y qué hay en la agenda del colegio.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Pantalla de Inicio con las tarjetas de Tu día">
+        <div class="scr">
+          <div class="hd"><div class="tit">Ana Gómez<div class="sub2">jueves, 10 de septiembre</div></div></div>
+          <div class="pad">
+            <span class="lbl">Tu día</span>
+            <div class="cd"><span class="n tl">1</span>
+              <div class="fila"><span class="dot" style="background:#34d399"></span><span class="h" style="flex:1">Siguiente: 3.ª hora</span><span class="b">Mi horario<span class="n tr">2</span></span></div>
+              <span class="d">10.2 en Aula 5 · desde las 08:10</span>
+            </div>
+            <div class="cd">
+              <div class="fila"><span class="h" style="flex:1">Agenda institucional de hoy</span><span class="b">Ver</span></div>
+              <span class="d">Reunión de área · 12:00</span>
+            </div>
+            <span class="lbl" style="margin-top:4px">¿Qué deseas hacer?<span style="position:relative;display:inline-block;width:22px;height:0;vertical-align:top"><span class="n" style="top:-6px;left:4px">3</span></span></span>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div class="cd"><span class="h">Asistencia</span></div>
+              <div class="cd"><span class="h">Tareas</span></div>
+              <div class="cd"><span class="h">Horario</span></div>
+              <div class="cd"><span class="h">Reservas</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Mira «Tu día»</span><p>Son tarjetas que se deslizan de lado. La primera casi siempre es tu próxima clase: grupo, aula y hora.</p></div></li>
+        <li><div><span class="t">Toca el botón de la tarjeta</span><p><span class="bt">Mi horario</span> te lleva a tu horario. Si tu horario cambió hoy verás <b>Tu horario cambió hoy</b> con el botón <span class="bt">Ver mi día</span>.</p></div></li>
+        <li><div><span class="t">Usa los accesos rápidos</span><p>«¿Qué deseas hacer?» te lleva de un toque a cualquier sección, sin abrir el menú.</p></div></li>
+      </ol>
+    </div>
+  </div>
+  <p class="sabias">La tarjeta de la clase se actualiza sola con la hora: dice <b>«Siguiente: 3.ª hora»</b> antes de empezar y <b>«Ahora: 3.ª hora»</b> mientras estás en ella. Cuando terminas la jornada cambia a <b>«No tienes más clases hoy»</b>.</p>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#entrar"><small>Anterior</small>← Entrar, moverte y salir</a><a class="ps-next" href="#agenda"><small>Siguiente</small>Agenda →</a></nav>
+</section>
+
+<!-- ═══════════════ AGENDA ═══════════════ -->
+<section class="mod" id="agenda">
+  <div class="mod-cab">
+    <p class="menu">Menú · Agenda</p>
+    <h2>Agenda</h2>
+    <p class="para">La agenda institucional de la semana: actos, reuniones, festivos y quién responde por cada actividad.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Agenda semanal con el selector Semana y Día">
+        <div class="scr">
+          <div class="hd"><div class="tit">Agenda — Semana 3 · 3.º periodo</div></div>
+          <div class="pad">
+            <div class="tabs" style="position:relative"><span>Semana</span><span class="on">Día</span><span class="n tr">1</span></div>
+            <div class="fila" style="gap:4px;position:relative">
+              <span class="b">Lu</span><span class="b">Ma</span><span class="b pri">Mi</span><span class="b">Ju</span><span class="b">Vi</span>
+              <span class="n" style="top:-8px;right:-4px">2</span>
+            </div>
+            <div class="cd"><span class="n tl">3</span>
+              <span class="h">Izada de bandera</span>
+              <span class="d">06:00 · 👥 Toda la jornada · 📍 Patio · 🧭 Área de Sociales</span>
+            </div>
+            <div class="cd">
+              <span class="h">Reunión de área</span>
+              <span class="d">12:00 · 📍 Sala de profesores</span>
+            </div>
+            <div class="cd">
+              <span class="h">Entrega de planeaciones</span>
+              <span class="d">Durante la jornada</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Elige cómo verla</span><p><span class="bt">Semana</span> muestra los cinco días seguidos. <span class="bt">Día</span> muestra uno solo, más cómodo en el celular.</p></div></li>
+        <li><div><span class="t">En «Día», toca el día</span><p>Lu, Ma, Mi, Ju, Vi. Hoy ya viene seleccionado.</p></div></li>
+        <li><div><span class="t">Lee cada actividad</span><p>Nombre y hora, y si aplica: 👥 quiénes asisten, 📍 dónde y 🧭 quién es responsable. «Durante la jornada» quiere decir que no tiene hora fija.</p></div></li>
+      </ol>
+    </div>
+  </div>
+  <p class="sabias">La agenda es <b>solo de lectura</b> para todos. Si ves un error o falta una actividad, avísale a coordinación.</p>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#inicio"><small>Anterior</small>← Inicio</a><a class="ps-next" href="#horario"><small>Siguiente</small>Horario →</a></nav>
+</section>
+
+<!-- ═══════════════ HORARIO ═══════════════ -->
+<section class="mod" id="horario">
+  <div class="mod-cab">
+    <p class="menu">Menú · Horario</p>
+    <h2>Horario</h2>
+    <p class="para">Tu horario de clases, y el de cualquier compañero, grupo o aula. También quién acompaña cada zona en los descansos.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Horario por docente en vista de semana">
+        <div class="scr">
+          <div class="hd"><div class="tit">Horario</div></div>
+          <div class="pad">
+            <div class="tabs" style="position:relative"><span>Por aulas</span><span class="on">Por docente</span><span>Por grupo</span><span>Acompañamiento</span><span class="n tr">2</span></div>
+            <div class="fila" style="justify-content:space-between">
+              <span class="b">← Todos los docentes<span class="n tr">3</span></span>
+              <div class="tabs" style="flex:0 0 auto;position:relative"><span class="on">Semana</span><span>Día</span><span class="n tr">1</span></div>
+            </div>
+            <table class="hr" aria-hidden="true">
+              <tr><th></th><th>Lu</th><th>Ma</th><th>Mi</th><th>Ju</th><th>Vi</th></tr>
+              <tr><td class="bl">1</td><td class="cls">10.2<br>A5</td><td class="nada"></td><td class="cls">11.1<br>A3</td><td class="cls">10.2<br>A5</td><td class="nada"></td></tr>
+              <tr><td class="bl">2</td><td class="cls">10.2<br>A5</td><td class="cls">9.3<br>A10</td><td class="nada"></td><td class="cls">11.1<br>A3</td><td class="cls">9.3<br>A10</td></tr>
+              <tr><td class="bl">3</td><td class="nada"></td><td class="cls">9.3<br>A10</td><td class="cls">10.4<br>A8</td><td class="nada"></td><td class="cls">10.4<br>A8</td></tr>
+              <tr><td class="bl">4</td><td class="cls">11.1<br>A3</td><td class="nada"></td><td class="cls">10.4<br>A8</td><td class="cls">9.3<br>A10</td><td class="nada"></td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Abre y ya estás en tu horario</span><p>Entra en <b>Por docente</b>, con tu semana. <span class="bt">Día</span> lo muestra en tarjetas grandes, con los descansos y tu acompañamiento si te toca.</p></div></li>
+        <li><div><span class="t">Cambia lo que quieres consultar</span><p><b>Por grupo</b> muestra la semana de un curso; <b>Por aulas</b>, qué pasa en cada salón; <b>Acompañamiento</b>, quién cuida cada zona en los descansos. Coordinación puede cambiar esa distribución: si tu acompañamiento cambia, te llega un aviso en la aplicación y un correo con lo que tenías y lo que te queda, y la pestaña dice «Cambia desde el…» hasta que llega la fecha.</p></div></li>
+        <li><div><span class="t">Consulta a un compañero</span><p><span class="bt">← Todos los docentes</span> y elige a quien buscas.</p></div></li>
+      </ol>
+    </div>
+  </div>
+  <p class="sabias">Si coordinación cambió el horario por una ausencia, arriba aparece <b>«Hay 1 modificación de horario»</b> con <span class="bt">Ver detalle →</span>, y si se acorta la jornada, <b>«Hay 1 jornada acortada»</b>. Mirar esos avisos antes de ir al salón te ahorra llegar a una clase que se movió.</p>
+  <p class="sabias ojo">El horario lo modifica solo coordinación, cada coordinador en su jornada. Si ves algo que no corresponde, avísale a tu coordinador.</p>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#agenda"><small>Anterior</small>← Agenda</a><a class="ps-next" href="#asistencia"><small>Siguiente</small>Asistencia →</a></nav>
+</section>
+
+<!-- ═══════════════ ASISTENCIA ═══════════════ -->
+<section class="mod" id="asistencia">
+  <div class="mod-cab">
+    <p class="menu">Menú · Asistencia</p>
+    <h2>Asistencia</h2>
+    <p class="para">Pasar lista en cada clase. Adentro encuentras cuatro pestañas: <b>Planillas</b>, <b>Eventos</b>, <b>Centros de interés</b> y <b>Restaurante</b>.</p>
+  </div>
+
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Planilla de asistencia de 10.2 Física">
+        <div class="scr">
+          <div class="hd"><div class="tit">10.2 · Física<div class="sub2">Asistencia · 4 estudiantes de ejemplo</div></div></div>
+          <div class="pad" style="padding-bottom:8px">
+            <div class="fila">
+              <span class="b">Mosaico de fotos</span>
+              <span class="b">Pasar lista con QR</span>
+              <span class="b pri">+ Sesión de hoy<span class="n tr">1</span></span>
+            </div>
+          </div>
+          <table class="pl" aria-hidden="true">
+            <tr><th class="nm">Estudiante</th><th>09-08<br>b2</th><th style="position:relative">09-10<br>b3 🔓 ⋯<span class="n" style="top:-4px;right:-2px">3</span></th></tr>
+            <tr><td class="nm"><span class="av"></span>Arango, Luisa</td><td><span class="c ok">✓</span></td><td><span class="c vac"></span></td></tr>
+            <tr><td class="nm"><span class="av"></span>Benítez, Tomás</td><td><span class="c ok">✓</span></td><td style="position:relative"><span class="c no">✗</span><span class="n" style="top:-2px;right:2px">2</span></td></tr>
+            <tr><td class="nm"><span class="av"></span>Cardona, Sara</td><td><span class="c no">✗</span></td><td><span class="c vac"></span></td></tr>
+            <tr><td class="nm"><span class="av"></span>Duque, Mateo</td><td><span class="c txt w">R</span></td><td><span class="c vac"></span></td></tr>
+          </table>
+          <div style="height:10px"></div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Pasar lista</h3>
+      <ol class="pasos">
+        <li><div><span class="t">Entra a «Planillas», elige el grupo y toca <span class="bt">+ Sesión de hoy</span></span><p>Aparece una columna nueva, con las casillas vacías.</p></div></li>
+        <li><div><span class="t">Marca primero a quien faltó</span><p>Toca su casilla y elige la marca. <span class="c no" style="width:20px;height:20px;font-size:12px;vertical-align:-4px">✗</span> es falta.</p></div></li>
+        <li><div><span class="t">Llena el resto de una vez</span><p>Toca <b>⋯</b> encima de la columna y elige <b>Asistencia</b>: se llenan <b>solo las casillas vacías</b>. Lo que ya marcaste no se toca.</p></div></li>
+        <li><div><span class="t">Cierra la clase con el candado 🔓</span><p>No hay botón de guardar: cada marca queda registrada al tocarla.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="bloque solo">
+    <div>
+      <h3 class="sub">Las siete marcas</h3>
+      <div class="tabla-w">
+        <table class="t">
+          <thead><tr><th>Se ve</th><th>Marca</th><th>Cuándo usarla</th><th>Va a Master2000</th></tr></thead>
+          <tbody>
+            <tr><td><span class="c ok">✓</span></td><td>Asistencia</td><td>Estuvo en clase.</td><td>No</td></tr>
+            <tr><td><span class="c no">✗</span></td><td>Ausencia</td><td>No vino y no sabes por qué.</td><td class="si-no">Sí</td></tr>
+            <tr><td><span class="c txt w">R</span></td><td>Retraso</td><td>Llegó tarde a tu clase.</td><td>No</td></tr>
+            <tr><td><span class="c txt i">FJ</span></td><td>Ausencia justificada</td><td>Faltó y ya trajo la excusa.</td><td>No</td></tr>
+            <tr><td><span class="c txt i">RJ</span></td><td>Retraso justificado</td><td>Llegó tarde con una razón válida.</td><td>No</td></tr>
+            <tr><td><span class="c txt p">EV</span></td><td>Evasión</td><td>Vino al colegio pero no a tu clase.</td><td class="si-no">Sí</td></tr>
+            <tr><td><span class="c txt i">FP</span></td><td>Ausencia con autorización</td><td>Salió o faltó con permiso del colegio.</td><td>No</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p class="sabias">¿Llegó la excusa días después? No hay que borrar nada: <b>cambia la marca</b> de Ausencia a Ausencia justificada. La aplicación guarda quién la cambió y cuándo.</p>
+  </div>
+
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Aviso de posible evasión">
+        <div class="scr" style="min-height:330px">
+          <div class="hd"><div class="tit">11.2 · Química<div class="sub2">5.ª hora</div></div></div>
+          <div class="velo">
+            <div class="hoja">
+              <span class="h">⚠️ Posible evasión</span>
+              <span class="d">Duque, Mateo no está entre los que se reportaron como ausentes hoy en 11.2; por lo tanto debería estar en su clase. Advertencia de posible evasión.</span>
+              <span class="b pri" style="justify-content:center;padding:8px">Marcar como Evasión<span class="n tr">1</span></span>
+              <span class="b" style="justify-content:center;padding:8px">Dejar la falta<span class="n tr">2</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Si aparece un aviso de posible evasión</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">Desde la <b>4.ª hora</b>, cuando marcas falta a alguien que <b>sí vino al colegio</b> (no estaba en la lista de ausentes de la 3.ª hora), la aplicación te avisa. La falta ya quedó guardada: el aviso no bloquea nada.</p>
+      <ol class="pasos">
+        <li><div><span class="t"><span class="bt">Marcar como Evasión</span> si no tiene por qué faltar</span><p>La marca pasa a EV y le llega un aviso a coordinación, que sale a buscarlo.</p></div></li>
+        <li><div><span class="t"><span class="bt">Dejar la falta</span> si sabes algo que la aplicación no sabe</span><p>Por ejemplo, que salió con permiso o se fue a enfermería.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px">Si en tu grupo nadie pasó lista en la 3.ª hora, el aviso dice <b>«Sin lista de tercera hora»</b>: ese día no hay con qué comparar. La falta queda registrada igual.</p>
+    </div>
+  </div>
+
+  <div class="bloque solo">
+    <h3 class="sub">Otras cosas que puedes hacer aquí</h3>
+    <div class="grid-si">
+      <div class="si"><span class="quien">Todos</span><h3>Pasar lista con QR</h3><p>En la planilla, <span class="bt">Pasar lista con QR</span> y luego <span class="bt">Activar cámara</span>. Escaneas el carné de cada estudiante, uno detrás de otro, sin volver a encender la cámara.</p></div>
+      <div class="si"><span class="quien">Todos</span><h3>Ver la ficha de un estudiante</h3><p>Toca su <b>nombre</b> en cualquier planilla. Ahí están su foto y el teléfono del acudiente, para llamar o escribir por WhatsApp.</p></div>
+      <div class="si"><span class="quien">Todos</span><h3>Eventos</h3><p>Para una salida, una feria o una actividad con estudiantes de varios grupos: <span class="bt">+ Crear evento</span>, le pones nombre y fechas, agregas a los integrantes y pasas lista igual que en clase.</p></div>
+      <div class="si"><span class="quien">Todos</span><h3>Restaurante</h3><p>Registra quién pasó por el vaso de leche o el restaurante: escaneas o buscas al estudiante y tocas <span class="bt">Registrar</span>. Se registra a cualquiera, esté o no en la lista oficial.</p></div>
+      <div class="si"><span class="quien">Si eres director de grupo</span><h3>Dirección de grupo</h3><p>Una pestaña más en tu grupo: tu cuaderno de cuotas, aseo, requisitos o lo que necesites. <span class="bt">+ Crear la primera columna</span> y eliges el tipo (casilla, número, puntos o ícono). Se descarga con <span class="bt">Descargar a Excel</span>.</p></div>
+      <div class="si"><span class="quien">Si eres director de grupo</span><h3>Guía de color</h3><p>Desde la ficha le das a un estudiante un color con una palabra corta («Refuerzo», por ejemplo) y el anillo de su foto se pinta de ese color. Solo lo ves tú.</p></div>
+      <div class="si"><span class="quien">Si lideras un centro de interés</span><h3>Centros de interés</h3><p>Tu centro trae dos pestañas: <b>Asistencia</b>, para pasar lista, y <b>Gestión CI</b>, tu cuaderno. Todo está explicado en <a href="#centros">Centros de interés</a>.</p></div>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#horario"><small>Anterior</small>← Horario</a><a class="ps-next" href="#centros"><small>Siguiente</small>Centros de interés →</a></nav>
+</section>
+
+<!-- ═══════════════ CENTROS DE INTERÉS ═══════════════ -->
+<section class="mod" id="centros">
+  <div class="mod-cab">
+    <p class="menu">Asistencia · Centros de interés</p>
+    <h2>Centros de interés</h2>
+    <p class="para">Una vez a la semana, los estudiantes dejan su grupo y van a un centro que eligieron por interés, con un profesor que lo lidera. Esta sección explica cómo está organizado y qué hace el líder de un centro en la aplicación.</p>
+  </div>
+
+  <nav class="indice-mod" aria-label="Contenido de Centros de interés">
+    <a href="#c-idea">Cómo está organizado</a>
+    <a href="#c-listas">Quién arma las listas</a>
+    <a href="#c-planilla">Pasar lista en tu centro</a>
+    <a href="#c-ubicar">Estudiantes sin ubicar</a>
+    <a href="#c-gestion">Gestión CI</a>
+    <a href="#c-valoracion">Valorar a tus estudiantes</a>
+    <a href="#c-limites">Lo que hace la coordinación</a>
+  </nav>
+
+  <div class="bloque solo" id="c-idea">
+    <h3 class="sub">Cómo está organizado</h3>
+    <div class="conceptos">
+      <div class="concepto"><span class="cifra">Programa</span><p>Reúne <b>todos los centros de un semestre</b>, por ejemplo «Centros de Interés 2026-2», con fecha de inicio y de fin. Lo dirige la <b>coordinación del programa</b>.</p></div>
+      <div class="concepto"><span class="cifra">Centro</span><p>Cada grupo concreto, con su <b>líder</b>, su lista de inscritos y su propia planilla. Normalmente cada estudiante está en un solo centro.</p></div>
+      <div class="concepto"><span class="cifra">Martes</span><p>En la mañana, en la <b>6.ª hora</b>; en la tarde, en la <b>1.ª hora</b>. En el horario aparece como <b>★CI</b>.</p></div>
+    </div>
+    <p class="sabias">Los centros de interés <b>no dejan tareas</b>: no tienen cupo de momentos, así que no aparecen en el formulario de Tareas.</p>
+  </div>
+
+  <div class="bloque solo" id="c-listas">
+    <h3 class="sub">Quién arma las listas</h3>
+    <p style="color:var(--ink-2);max-width:64ch">Tú no inscribes a nadie. La <b>coordinación del programa</b> carga la lista de cada centro desde un Excel, y la aplicación cruza cada nombre con la matrícula del colegio. Si un nombre no cruza (hay dos estudiantes que se llaman igual, está mal escrito o no está matriculado), queda como pendiente para que coordinación lo resuelva.</p>
+    <div class="grid-si">
+      <div class="si"><span class="quien">Si no lideras ningún centro</span><h3>«No tiene ningún centro de interés asignado.»</h3><p>Es lo que ves al entrar a la pestaña. Si deberías tener uno, pídeselo a la coordinación del programa: ella crea los centros y asigna a su responsable.</p></div>
+      <div class="si"><span class="quien">Si lideras un centro</span><h3>Entras directo</h3><p>Si solo tienes uno, al tocar <b>Centros de interés</b> abres de una vez su planilla. Si tienes uno en cada jornada, eliges en <b>«Sus centros de interés»</b>.</p></div>
+    </div>
+  </div>
+
+  <div class="bloque" id="c-planilla">
+    <div>
+      <div class="pantalla" role="img" aria-label="Planilla de un centro de interés">
+        <div class="scr">
+          <div class="hd"><div class="tit">Robótica<div class="sub2">CI 2026-2 · 24 inscritos · 1 retirado · lidera Ana Gómez</div></div></div>
+          <div class="pad" style="padding-bottom:8px">
+            <div class="tabs" style="position:relative"><span class="on">Asistencia</span><span>Gestión CI</span><span class="n tr">4</span></div>
+            <div class="fila"><span class="b">Escanear código</span><span class="b pri" style="position:relative">+ Nueva sesión<span class="n tr">1</span></span></div>
+          </div>
+          <table class="pl" aria-hidden="true">
+            <tr><th class="nm">Estudiante</th><th>09-01</th><th style="position:relative">09-08 ⋯<span class="n" style="top:-4px;right:-2px">3</span></th></tr>
+            <tr><td class="nm"><span class="av"></span>Arango, Luisa <span style="color:var(--a-muted);font-size:10px">9.1</span></td><td><span class="c ok">✓</span></td><td><span class="c vac"></span></td></tr>
+            <tr><td class="nm"><span class="av"></span>Benítez, Tomás <span style="color:var(--a-muted);font-size:10px">10.3</span></td><td><span class="c ok">✓</span></td><td style="position:relative"><span class="c no">✗</span><span class="n" style="top:-2px;right:2px">2</span></td></tr>
+            <tr><td class="nm"><span class="av"></span>Cardona, Sara <span style="color:var(--a-muted);font-size:10px">11.2</span></td><td><span class="c no">✗</span></td><td><span class="c vac"></span></td></tr>
+          </table>
+          <div class="pad" style="padding-top:8px"><span class="d">1 de 24 marcados</span></div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Pasar lista en tu centro</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">Se parece a la planilla de clase, con dos diferencias: tus estudiantes vienen de <b>varios grados</b> (la planilla dice de cuál es cada uno) y la sesión va <b>por día</b>, no por hora.</p>
+      <ol class="pasos">
+        <li><div><span class="t">Toca <span class="bt">+ Nueva sesión</span>, elige el día y <span class="bt">Abrir la columna</span></span><p>Abrirla no guarda nada todavía: la sesión queda registrada con la primera marca que pongas.</p></div></li>
+        <li><div><span class="t">Marca a quien faltó</span><p>Toca su casilla y elige la marca. Con <span class="bt">Escanear código</span> pasas lista con el carné.</p></div></li>
+        <li><div><span class="t">Toca <b>⋯</b> y <span class="bt">Llenar la lista</span></span><p>Llena solo las casillas vacías; lo que ya marcaste no se toca. Abajo ves cuántos llevas: «18 de 24 marcados».</p></div></li>
+        <li><div><span class="t">Cambia a <b>Gestión CI</b> cuando necesites tu cuaderno</span><p>Se explica más abajo.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px">En los centros <b>no hay candado</b> para cerrar la sesión: puedes corregir una marca después, como en cualquier planilla. Tocar el nombre de un estudiante abre su ficha, con el teléfono del acudiente.</p>
+    </div>
+  </div>
+
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">Cabecera</span><h3>«24 inscritos · 1 retirado»</h3><p>Si alguien de tu lista se retiró del colegio, deja de aparecer en la planilla y la cabecera lo cuenta aparte. Así sabes por qué bajó el número.</p></div>
+      <div class="si"><span class="quien">Evasión</span><h3>El aviso también funciona aquí</h3><p>Si marcas falta a alguien que <b>sí vino hoy al colegio</b> según la lista de la 3.ª hora de su grado, te sale el aviso de posible evasión. Si ese grado todavía no tiene lista de la 3.ª hora, en el centro <b>no sale ningún aviso</b>: no hay con qué comparar.</p></div>
+      <div class="si"><span class="quien">Estadística</span><h3>Cómo va cada estudiante</h3><p>La planilla muestra cómo va cada uno: asistencias, retrasos, ausencias y evasiones, siempre sobre el número de sesiones registradas.</p></div>
+    </div>
+  </div>
+
+  <div class="bloque" id="c-ubicar">
+    <div>
+      <div class="pantalla" role="img" aria-label="Aviso de estudiantes que no se pudieron ubicar">
+        <div class="scr">
+          <div class="hd"><div class="tit">Robótica</div></div>
+          <div class="pad">
+            <div class="cd" style="background:var(--a-warn-soft);border-color:transparent;position:relative"><span class="n tl">1</span>
+              <div class="fila"><span class="h" style="flex:1;color:var(--a-warn-ink)">2 estudiantes de su lista no se pudieron ubicar</span><span class="d" style="color:var(--a-warn-ink);text-decoration:underline">Ver quiénes son</span></div>
+            </div>
+            <div class="cd" style="gap:6px">
+              <span class="h">«Mateo Duque» · Dos personas se llaman igual</span>
+              <div class="fila" style="position:relative"><span class="b"><span class="av" style="margin-right:4px"></span>Duque, Mateo · 9.2</span><span class="b"><span class="av" style="margin-right:4px"></span>Duque, Mateo · 11.1</span><span class="n tr">2</span></div>
+            </div>
+            <div class="cd"><span class="d">Usted señaló a <b>Duque, Mateo · 11.1</b>. Está esperando que la coordinación lo confirme. <b>Usted no tiene que hacer nada más.</b></span></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Estudiantes que no se pudieron ubicar</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">Si un nombre de tu lista no cruzó con la matrícula, arriba de la planilla sale un aviso amarillo. Tú conoces a tus estudiantes de vista, así que puedes ayudar a resolverlo.</p>
+      <ol class="pasos">
+        <li><div><span class="t">Toca <b>Ver quiénes son</b></span><p>Aparecen los nombres dudosos, cada uno con los posibles estudiantes y su foto.</p></div></li>
+        <li><div><span class="t">Toca al que es</span><p>Eso <b>no lo inscribe</b>: le deja tu propuesta a la coordinación. Cuando ella lo confirma, el estudiante pasa a tu planilla normal.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px">Si sale <b>«No aparece en la matrícula»</b>, no se arregla desde la aplicación: el estudiante no está matriculado o está registrado con otro nombre. Verifícalo en secretaría.</p>
+    </div>
+  </div>
+
+  <div class="bloque solo" id="c-gestion">
+    <h3 class="sub">Gestión CI: el cuaderno de tu centro</h3>
+    <p style="color:var(--ink-2);max-width:64ch">Es la misma herramienta que el cuaderno del director de grupo, pero para tu centro: creas las columnas que necesites (casilla, número, puntos o ícono) para materiales, cuotas, avances de un proyecto o lo que lleves.</p>
+    <div class="grid-si">
+      <div class="si"><span class="quien">Automática</span><h3>«Inasistencias al centro»</h3><p>Una columna que se llena sola con las faltas y evasiones de cada estudiante <b>en tu centro</b>. No incluye las faltas de sus clases: esas son del grado.</p></div>
+      <div class="si"><span class="quien">Excel</span><h3><span class="bt">Descargar a Excel</span></h3><p>Te llevas el cuaderno completo para un informe o para entregarlo a coordinación.</p></div>
+      <div class="si"><span class="quien">Privado</span><h3>Solo tuyo</h3><p>Lo ven los profesores del centro. Ni la coordinación del programa entra a tu cuaderno.</p></div>
+    </div>
+  </div>
+
+  <div class="bloque solo" id="c-valoracion">
+    <h3 class="sub">Valorar a tus estudiantes</h3>
+    <p style="color:var(--ink-2);max-width:64ch">Al final del semestre, el líder valora a cada inscrito en la pestaña <b>Valoración</b> de su centro. Reemplaza el Drive que se llenaba estudiante por estudiante: el director de grupo ve el resultado solo, sin consolidar a mano.</p>
+    <ol class="pasos" style="margin-top:14px">
+      <li><div><span class="t">Primero, <span class="bt">Definir los indicadores</span></span><p>Los códigos de tu centro en el Máster, con su texto, para cada nivel. Va primero porque cada valoración copia esos indicadores: si valoras antes, habría que rehacerlas.</p></div></li>
+      <li><div><span class="t">Valora con un toque por estudiante</span><p>Los niveles llevan el número que se digita en el Máster: <b>2 Básico</b>, <b>3 Alto</b>, <b>4 Superior</b>. <b>Plan de apoyo</b> por ahora no se digita en el Máster y no lleva indicadores.</p></div></li>
+      <li><div><span class="t">Toca <span class="bt">Entregar</span></span><p>Después de entregar ya no puedes cambiar valoraciones ni indicadores. Si hay que corregir, pídelo a coordinación: te reabre con un plazo, y la pantalla dice «Reabierto para corregir. Tiene plazo hasta…».</p></div></li>
+    </ol>
+    <p class="sabias" style="margin-top:16px"><b>Si eres director de grupo:</b> en Asistencia tienes la pestaña <b>Resultado CI</b>, con la valoración de tus estudiantes en el centro al que vaya cada uno.</p>
+  </div>
+
+  <div class="bloque solo" id="c-limites">
+    <h3 class="sub">Lo que hace la coordinación del programa, no el líder</h3>
+    <div class="tabla-w">
+      <table class="t">
+        <thead><tr><th>Necesitas…</th><th>Quién lo hace</th></tr></thead>
+        <tbody>
+          <tr><td>Inscribir a un estudiante nuevo</td><td>La coordinación del programa</td></tr>
+          <tr><td>Retirar a alguien o pasarlo a otro centro</td><td>La coordinación del programa</td></tr>
+          <tr><td>Crear un centro o cambiar su líder</td><td>La coordinación del programa</td></tr>
+          <tr><td>Resolver un estudiante que está en dos centros</td><td>La coordinación del programa (tú puedes proponer)</td></tr>
+          <tr><td>Corregir un nombre en la matrícula</td><td>Secretaría</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sabias">Mientras la coordinación no decide en qué centro queda un estudiante inscrito en dos, aparece en <b>las dos planillas a propósito</b>, para que ningún líder se quede sin poder llamarlo a lista. No es un error.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#asistencia"><small>Anterior</small>← Asistencia</a><a class="ps-next" href="#tareas"><small>Siguiente</small>Tareas →</a></nav>
+</section>
+
+<!-- ═══════════════ TAREAS ═══════════════ -->
+<section class="mod" id="tareas">
+  <div class="mod-cab">
+    <p class="menu">Menú · Tareas</p>
+    <h2>Tareas</h2>
+    <p class="para">Publicas la tarea de tu asignatura y la aplicación la reparte en los días que el estudiante tiene antes de la entrega, sin que ningún día se le cargue de más. El grupo la ve en su agenda, desde el celular y sin contraseña.</p>
+  </div>
+
+  <nav class="indice-mod" aria-label="Contenido de Tareas">
+    <a href="#t-idea">Cómo funciona</a>
+    <a href="#t-cupos">Cupos de la sede central</a>
+    <a href="#t-publicar">Publicar una tarea</a>
+    <a href="#t-nocabe">Cuando no cabe</a>
+    <a href="#t-adjuntos">Adjuntos y fotos</a>
+    <a href="#t-vigentes">Mis tareas vigentes</a>
+    <a href="#t-cupo">Ceder y pedir momentos</a>
+    <a href="#t-agenda">La agenda del grupo</a>
+    <a href="#t-director">Si eres director de grupo</a>
+  </nav>
+
+  <!-- ── La idea ── -->
+  <div class="bloque solo" id="t-idea">
+    <h3 class="sub">Cómo funciona: tareas medidas en momentos</h3>
+    <div class="conceptos">
+      <div class="concepto"><span class="cifra">25<small> min</small></span><p><b>Un momento</b> es un bloque de 25 minutos de trabajo en casa. Una tarea toma de 1 a 4 momentos.</p></div>
+      <div class="concepto"><span class="cifra">4<small> al día</small></span><p><b>El tope diario del estudiante.</b> Sumando todas las asignaturas, nadie recibe más de 4 momentos en un día (en primaria, 3).</p></div>
+      <div class="concepto"><span class="cifra">20<small> min</small></span><p><b>Estudio personal</b>, todos los días y aparte de las tareas. No cuenta dentro del tope (en primaria son 15).</p></div>
+      <div class="concepto"><span class="cifra">Cupo</span><p><b>Cada asignatura tiene un cupo de momentos por semana</b> en cada grupo. Lo fija coordinación. En media técnica se cuenta por quincena.</p></div>
+    </div>
+
+    <figure class="reparto" aria-label="Ejemplo de una semana: una tarea de Física de 3 momentos repartida en tres días antes de la entrega del viernes">
+      <figcaption><b>Ejemplo.</b> El lunes publicas en 10.2 una tarea de Física de 3 momentos para el viernes. La aplicación no la deja toda para el jueves en la noche: la reparte en los días con espacio.</figcaption>
+      <div class="rep-grid">
+        <div class="rep-dia"><span class="rep-d">Lun 14</span>
+          <div class="rep-col"><i class="m fis">Física</i><i class="m otr">Inglés</i><i class="m vac"></i><i class="m vac"></i></div>
+          <span class="rep-est">+ estudio 20 min</span></div>
+        <div class="rep-dia"><span class="rep-d">Mar 15</span>
+          <div class="rep-col"><i class="m otr">Inglés</i><i class="m otr">Sociales</i><i class="m otr">Sociales</i><i class="m otr">Español</i></div>
+          <span class="rep-est">+ estudio 20 min</span></div>
+        <div class="rep-dia"><span class="rep-d">Mié 16</span>
+          <div class="rep-col"><i class="m fis">Física</i><i class="m otr">Español</i><i class="m vac"></i><i class="m vac"></i></div>
+          <span class="rep-est">+ estudio 20 min</span></div>
+        <div class="rep-dia"><span class="rep-d">Jue 17</span>
+          <div class="rep-col"><i class="m fis">Física</i><i class="m vac"></i><i class="m vac"></i><i class="m vac"></i></div>
+          <span class="rep-est">+ estudio 20 min</span></div>
+        <div class="rep-dia"><span class="rep-d">Vie 18</span>
+          <div class="rep-col"><i class="m vac"></i><i class="m vac"></i><i class="m vac"></i><i class="m vac"></i></div>
+          <span class="rep-est entrega">● entrega de Física</span></div>
+      </div>
+      <p class="rep-ley"><span><i class="m fis"></i> tu tarea</span><span><i class="m otr"></i> tareas de otras asignaturas</span><span><i class="m vac"></i> espacio libre</span> <span>Cada columna es un día: 4 espacios de 25 minutos.</span></p>
+    </figure>
+    <p class="sabias">El martes ya estaba lleno con cuatro momentos de otras asignaturas, así que tu tarea lo saltó. Por eso <b>el orden en que se publican las tareas importa</b>: quien publica temprano encuentra más espacio.</p>
+    <p class="sabias ojo">No hay tareas los fines de semana ni los festivos. En los grupos de media técnica tampoco los días de contrajornada.</p>
+  </div>
+
+
+  <!-- ── Cupos vigentes ── -->
+  <div class="bloque solo" id="t-cupos">
+    <h3 class="sub">Los cupos de la sede central, hoy</h3>
+    <p style="color:var(--ink-2);max-width:64ch">Cuántos momentos puede dejar cada asignatura en cada grupo. Son los valores que tiene configurados la aplicación: no son una propuesta. Coordinación los puede cambiar con el botón «Asignación de momentos».</p>
+    <div class="cupos"><div class="cu-col">
+      <div class="cu-cab"><h4>Básica</h4><p>6º, 7º, 8º (tarde) y 9.1 a 9.3 (mañana)</p><p class="cu-per">Momentos por semana</p></div>
+      <ol class="cu-lista"><li><span class="cu-asig">Ciencias Naturales</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Ciencias Sociales</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Educación Artística</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Educación Física</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Educación Religiosa</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Inglés</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Lengua Castellana</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Matemáticas</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Tecnología e Informática</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Ética y Valores</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li></ol>
+      <div class="cu-total"><span>Total</span><b>20 de 20</b></div>
+      <p class="cu-nota">20 es lo máximo que cabe: 4 momentos × 5 días.</p>
+    </div><div class="cu-col">
+      <div class="cu-cab"><h4>Media académica</h4><p>10.3, 10.4 y 11.3</p><p class="cu-per">Momentos por semana</p></div>
+      <ol class="cu-lista"><li><span class="cu-asig">Economía y Política</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Educación Artística</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Educación Física</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Filosofía</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Tecnología e Informática</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Ética y Valores</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Biología</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Ciencias Sociales</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Educación Religiosa</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Física</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Inglés</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Lengua Castellana</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Matemáticas</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Química</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li></ol>
+      <div class="cu-total"><span>Total</span><b>20 de 20</b></div>
+      <p class="cu-nota">20 es lo máximo que cabe: 4 momentos × 5 días.</p>
+    </div><div class="cu-col">
+      <div class="cu-cab"><h4>Media técnica</h4><p>10.1, 10.2, 11.1 y 11.2</p><p class="cu-per">Momentos por quincena</p></div>
+      <ol class="cu-lista"><li><span class="cu-asig">Biología</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Ciencias Sociales</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Economía y Política</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Educación Artística</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Educación Religiosa</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Filosofía</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Tecnología e Informática</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Ética y Valores</span><span class="cu-pts" aria-label="2 momentos"><i></i><i></i></span><span class="cu-num">2</span></li><li><span class="cu-asig">Educación Física</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Física</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Inglés</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Lengua Castellana</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Matemáticas</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Media Técnica · Audiovisuales</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Media Técnica · Desarrollo de Software</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li><li><span class="cu-asig">Química</span><span class="cu-pts" aria-label="1 momento"><i></i></span><span class="cu-num">1</span></li></ol>
+      <div class="cu-total"><span>Total</span><b>24 de 24</b></div>
+      <p class="cu-nota">24 es lo máximo que cabe: 4 momentos × 3 días × 2 semanas.</p><p class="cu-nota">Cada grupo tiene solo una de las dos especialidades, así que en la práctica suma <b>23</b>.</p>
+    </div></div>
+    <p class="sabias">Las tres tablas <b>suman exactamente lo que cabe</b>: no sobra ni un momento. Por eso ceder los momentos que no vas a usar le sirve de verdad a un compañero, y por eso una asignatura con cupo 1 necesita plazos largos para las tareas grandes.</p>
+    <p class="cu-fuente">Valores leídos de la aplicación el 10 de septiembre de 2026. Los Centros de Interés no tienen cupo de tareas.</p>
+  </div>
+  <!-- ── Publicar ── -->
+  <div class="bloque" id="t-publicar">
+    <div>
+      <div class="pantalla" role="img" aria-label="Formulario Asignar tarea con el calendario de colores y la vista previa del reparto">
+        <div class="scr">
+          <div class="hd"><div class="tit">Asignar tarea</div><span class="b" style="font-size:10.5px">Agenda de 10.2</span></div>
+          <div class="pad">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;position:relative">
+              <div><span class="lbl">Grupo</span><div class="campo">10.2</div></div>
+              <div><span class="lbl">Asignatura</span><div class="campo">Física</div></div>
+              <span class="n tr">1</span>
+            </div>
+            <div><span class="lbl">Título de la tarea</span><div class="campo">Taller de vectores</div></div>
+            <div><span class="lbl">Indicaciones para el estudiante (opcional)</span><div class="campo vacio">Resolver los puntos 1 a 6 de la guía…</div></div>
+            <div class="fila" style="justify-content:space-between;position:relative">
+              <span class="lbl">Momentos (25 min)</span>
+              <div class="tabs" style="flex:0 0 auto"><span>1</span><span>2</span><span class="on">3</span><span>4</span></div>
+              <span class="n" style="top:-8px;left:-10px">2</span>
+            </div>
+            <div class="cd" style="gap:6px"><span class="n tl">3</span>
+              <span class="d">3 de 4 momentos · esta semana</span>
+              <table class="hr" aria-hidden="true">
+                <tr><th>Lu</th><th>Ma</th><th>Mi</th><th>Ju</th><th>Vi</th></tr>
+                <tr><td class="cla">14</td><td class="lib">15</td><td class="lib">16</td><td class="rec">17</td><td class="lib" style="outline:2px solid var(--a-accent);outline-offset:-2px">18</td></tr>
+              </table>
+              <span class="d" style="font-size:10px">verde: cabe · ámbar: caben menos · rojo: no cabe</span>
+            </div>
+            <div class="cd" style="background:var(--a-elev);border-color:transparent;position:relative"><span class="n tl">4</span>
+              <span class="d"><b style="color:var(--a-soft)">Se repartirá así:</b> Lun 14 (1) · Mié 16 (1) · Jue 17 (1) — entrega viernes 18 de sep</span>
+            </div>
+            <span class="b pri" style="justify-content:center;padding:9px;font-size:12.5px">Publicar tarea<span class="n tr">5</span></span>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Publicar una tarea</h3>
+      <ol class="pasos">
+        <li><div><span class="t">Elige el grupo y la asignatura, y escribe el título</span><p>Si dictas más de una asignatura en ese grupo, elige cuál. Las indicaciones son opcionales, pero es lo que el estudiante lee en su casa: escríbelas pensando en que no te tiene al lado.</p></div></li>
+        <li><div><span class="t">Di cuántos momentos toma</span><p>Calcula el tiempo de un estudiante promedio, no el tuyo. Un taller de una hora son 2 o 3 momentos.</p></div></li>
+        <li><div><span class="t">Toca la fecha de entrega</span><p>Cada día del calendario tiene un color. <b>Verde</b>: la tarea cabe completa. <b>Ámbar</b>: caben menos momentos de los que pediste. <b>Rojo</b>: no cabe. Los días sin color no se pueden elegir. Arriba ves cuántos momentos le quedan a tu asignatura esta semana.</p></div></li>
+        <li><div><span class="t">Revisa «Se repartirá así»</span><p>Te muestra qué días va a trabajar el estudiante y cuántos momentos cada día. Si no te convence, cambia la fecha o los momentos y vuelve a mirar.</p></div></li>
+        <li><div><span class="t">Toca <span class="bt">Publicar tarea</span></span><p>Sale <b>«Tarea publicada. La agenda del grupo ya se actualizó.»</b> Tus estudiantes ya la ven.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">Cuándo puedes publicar</span><h3>El día de tu clase, o hasta dos días después</h3><p>La tarea se asigna cuando la explicas en clase. Si ya pasó la ventana, la pantalla dice <b>«Hoy no puedes asignarle tarea a 10.2»</b> y te indica cuál es tu próxima clase con ese grupo. Los festivos y fines de semana la ventana está cerrada para todos.</p></div>
+      <div class="si"><span class="quien">Con tiempo</span><h3>Las tareas largas necesitan plazo</h3><p>El cupo se cuenta en la semana en que el estudiante <b>trabaja</b>, no en la que entrega. Una tarea de 4 momentos, en una asignatura con cupo de 1 por semana, necesita unas cuatro semanas de plazo. Para un trabajo grande, pon la entrega lejos.</p></div>
+    </div>
+  </div>
+
+  <!-- ── Cuando no cabe ── -->
+  <div class="bloque" id="t-nocabe">
+    <div>
+      <div class="pantalla" role="img" aria-label="Aviso en rojo cuando la tarea no cabe, con una fecha sugerida">
+        <div class="scr">
+          <div class="hd"><div class="tit">Asignar tarea</div></div>
+          <div class="pad">
+            <div class="cd" style="gap:6px">
+              <table class="hr" aria-hidden="true">
+                <tr><th>Lu</th><th>Ma</th><th>Mi</th><th>Ju</th><th>Vi</th></tr>
+                <tr><td class="cla">14</td><td class="ocu" style="outline:2px solid var(--a-accent);outline-offset:-2px">15</td><td class="rec">16</td><td class="lib">17</td><td class="lib">18</td></tr>
+              </table>
+            </div>
+            <div class="cd" style="background:var(--a-bad-soft);border-color:var(--a-bad);position:relative">
+              <span class="d" style="color:var(--a-bad-ink)">No hay capacidad en la agenda del grupo para esa fecha. Primera entrega viable: jueves 17 de sep. <u style="font-weight:600">usar jueves 17 de sep</u></span>
+              <span class="n tr">1</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Cuando la tarea no cabe</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">La aplicación no deja publicar una tarea que obligaría al estudiante a pasar el tope de un día, o que se sale del cupo de tu asignatura. En vez de un «no» a secas, te ofrece salidas:</p>
+      <ol class="pasos">
+        <li><div><span class="t">Toca la fecha que te sugiere</span><p>El aviso rojo te dice por qué no cabe (el día del grupo está lleno, o se acabó el cupo de tu asignatura) y el enlace <b>«usar …»</b> pone de una vez la primera fecha de entrega en la que sí cabe.</p></div></li>
+        <li><div><span class="t">O pide menos momentos</span><p>Si el día está en ámbar, cabe una versión más corta de la tarea. Baja los momentos y el color cambia.</p></div></li>
+        <li><div><span class="t">O consigue más cupo</span><p>Si lo que se agotó es el cupo de tu asignatura, un compañero te puede ceder momentos (más abajo).</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ── Adjuntos ── -->
+  <div class="bloque" id="t-adjuntos">
+    <div>
+      <div class="pantalla" role="img" aria-label="Aviso antes de tomar una foto">
+        <div class="scr" style="min-height:300px">
+          <div class="hd"><div class="tit">Asignar tarea</div></div>
+          <div class="pad"><div class="fila"><span class="b">📷 Tomar foto</span><span class="b">Galería</span><span class="b">Archivo</span></div></div>
+          <div class="velo">
+            <div class="hoja">
+              <span class="h">Antes de tomar la foto</span>
+              <span class="d"><b>No fotografíe estudiantes.</b> Tampoco cuadernos con nombres, listas de asistencia ni carteleras del salón.</span>
+              <span class="d">La agenda del grupo se abre con el código QR, sin contraseña: <b>cualquiera con ese enlace podrá ver la foto</b>.</span>
+              <div class="fila" style="justify-content:flex-end"><span class="b">Cancelar</span><span class="b pri">Entendido, abrir cámara</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado</p>
+    </div>
+    <div>
+      <h3 class="sub">Adjuntar un archivo o una foto</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">Una guía en PDF, una lectura, una foto del tablero. Hasta 10 MB. El estudiante la abre desde su agenda, debajo de la tarea.</p>
+      <ol class="pasos">
+        <li><div><span class="t">Elige de dónde viene</span><p><span class="bt">Tomar foto</span> abre la cámara, <span class="bt">Galería</span> las fotos del celular y <span class="bt">Archivo</span> cualquier documento.</p></div></li>
+        <li><div><span class="t">Si es foto, lee el aviso y toca <span class="bt">Entendido, abrir cámara</span></span><p>El aviso sale siempre, todas las veces. No es un error.</p></div></li>
+        <li><div><span class="t">Revisa la foto antes de publicar</span><p>Que no aparezca ningún estudiante ni nada con su nombre.</p></div></li>
+      </ol>
+      <p class="sabias ojo" style="margin-top:16px">La agenda del grupo es pública: <b>cualquiera con el enlace ve lo que adjuntas</b>. Nunca subas fotos de estudiantes, listas con nombres, notas ni nada con datos personales.</p>
+    </div>
+  </div>
+
+  <!-- ── Vigentes ── -->
+  <div class="bloque" id="t-vigentes">
+    <div>
+      <div class="pantalla" role="img" aria-label="Lista Mis tareas vigentes con los íconos de replicar y cancelar">
+        <div class="scr">
+          <div class="hd"><div class="tit">Mis tareas vigentes</div></div>
+          <div class="pad">
+            <div class="cd"><div class="fila"><div style="flex:1;min-width:0"><span class="h">Taller de vectores</span><div class="d">10.2 · Física · 3 momentos · entrega vie 18</div></div>
+              <span class="b" style="padding:5px 7px" title="Replicar a otros grupos">⧉<span class="n tr">1</span></span><span class="b" style="padding:5px 7px;color:var(--a-bad)" title="Cancelar tarea">✕<span class="n tr">2</span></span></div></div>
+            <div class="cd"><div class="fila"><div style="flex:1;min-width:0"><span class="h">Lectura: la fuerza</span><div class="d">10.4 · Física · 1 momento · entrega mar 22</div></div>
+              <span class="b" style="padding:5px 7px">⧉</span><span class="b" style="padding:5px 7px;color:var(--a-bad)">✕</span></div></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Mis tareas vigentes</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">Debajo del formulario están tus tareas que aún no se han entregado.</p>
+      <ol class="pasos">
+        <li><div><span class="t">Replicar a otros grupos</span><p>¿Dictas la misma asignatura en 10.1, 10.2 y 10.3? Publica una vez y cópiala a los demás con este ícono. Antes de crearlas te muestra cómo quedaría en cada grupo: en alguno puede no caber, porque cada grupo tiene su propia agenda.</p></div></li>
+        <li><div><span class="t">Cancelar tarea</span><p>Si te equivocaste o la tarea ya no va, cancélala. Sale de la agenda del grupo y sus momentos quedan libres para otras asignaturas.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px">Solo puedes cancelar tus propias tareas. Si hay un problema con la de un compañero, díselo a él o a coordinación. Coordinación sí puede cancelar una tarea tuya; si lo hace, te llega un aviso en la aplicación con la tarea, el grupo y la fecha.</p>
+    </div>
+  </div>
+
+  <!-- ── Cupo ── -->
+  <div class="bloque solo" id="t-cupo">
+    <h3 class="sub">Ceder y pedir momentos</h3>
+    <p style="color:var(--ink-2);max-width:64ch">El cupo de cada asignatura es un máximo, no una obligación. Si esta semana no vas a dejar tarea en un grupo, esos momentos le pueden servir a un compañero, y al revés.</p>
+    <div class="grid-si">
+      <div class="si"><span class="quien">Dar</span><h3><span class="bt">Ceder momentos</span></h3><p>Eliges la asignatura que los recibe, cuántos (1 o 2) y si es para <b>esta semana</b> o la <b>próxima</b>. Se aplica de inmediato.</p></div>
+      <div class="si"><span class="quien">Pedir</span><h3><span class="bt">Solicitar momentos</span></h3><p>Eliges grupo, tu asignatura y <b>a quién le pides</b>. A tu compañero le llega un aviso; si toca <b>Conceder</b>, el cupo se te suma. Lo que enviaste queda en <b>Mis solicitudes enviadas</b>.</p></div>
+      <div class="si"><span class="quien">Responder</span><h3>Solicitudes por responder</h3><p>Cuando alguien te pide momentos, la solicitud aparece en tu pantalla de Tareas con dos botones: <b>Conceder</b> o <b>Rechazar</b>.</p></div>
+    </div>
+    <p class="sabias">Ceder amplía el cupo de una asignatura, pero <b>nunca el tope diario del estudiante</b>: aunque te cedan momentos, un día lleno sigue lleno. Las cesiones vencen al terminar la semana. Los momentos de los Centros de Interés no se ceden.</p>
+  </div>
+
+  <!-- ── Agenda del grupo ── -->
+  <div class="bloque" id="t-agenda">
+    <div>
+      <div class="pantalla" role="img" aria-label="Agenda del grupo tal como la ve un estudiante en el celular">
+        <div class="scr">
+          <div class="hd"><div class="tit">Agenda de 10.2<div class="sub2">Director: Julián</div></div><div class="tabs" style="flex:0 0 auto"><span class="on">Día</span><span>Semana</span></div></div>
+          <div class="pad">
+            <div class="calor" style="position:relative"><span class="n tr">1</span>
+              <div><span>Lun</span><b style="background:var(--a-ok-soft)">2/4</b><i class="p"></i></div>
+              <div><span>Mar</span><b style="background:var(--a-warn-soft)">4/4</b><i></i></div>
+              <div class="hoy"><span>Mié · hoy</span><b style="background:var(--a-ok-soft)">2/4</b><i></i></div>
+              <div><span>Jue</span><b style="background:var(--a-ok-soft)">1/4</b><i></i></div>
+              <div><span>Vie</span><b>0/4</b><i class="p"></i></div>
+            </div>
+            <div class="cd" style="gap:6px">
+              <div class="fila" style="justify-content:space-between"><span class="h">miércoles 16 de sep</span><span class="d">2 de 4 momentos</span></div>
+              <div class="tarea-est">
+                <span class="casilla" style="position:relative"><span class="n tl">2</span></span>
+                <div style="display:grid;gap:2px;min-width:0">
+                  <div class="fila" style="justify-content:space-between"><span class="d" style="font-weight:600;color:var(--a-soft)">Física</span><span class="d">1 momento · 25 min</span></div>
+                  <span style="font-size:12.5px">Taller de vectores</span>
+                  <span class="d">📎 guia-vectores.pdf</span>
+                  <span class="d">entrega: viernes 18 de sep</span>
+                  <span class="b" style="justify-self:start;border-color:var(--a-accent);color:var(--a-accent);font-size:10.5px;position:relative">¿Cuándo la vas a hacer?<span class="n tr">3</span></span>
+                </div>
+              </div>
+              <div class="tarea-est hecha">
+                <span class="casilla on">✓</span>
+                <div style="display:grid;gap:2px;min-width:0">
+                  <div class="fila" style="justify-content:space-between"><span class="d">Español</span><span class="d">1 momento · 25 min</span></div>
+                  <span style="font-size:12.5px;text-decoration:line-through;color:var(--a-muted)">Resumen del capítulo 3</span>
+                  <span class="b" style="justify-self:start;font-size:10.5px">🕓 Después de almorzar</span>
+                </div>
+              </div>
+              <div class="cd" style="background:var(--a-warn-soft);border-color:transparent;padding:6px 9px"><div class="fila" style="justify-content:space-between"><span class="d" style="color:var(--a-warn-ink)">📖 Estudio personal</span><span class="d" style="color:var(--a-warn-ink)">20 min · todos los días</span></div></div>
+              <span class="d" style="text-align:center;font-size:10px">🔒 Lo que marcas aquí se guarda solo en este teléfono. Nadie más lo ve.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Lo que ve el estudiante · dibujo simplificado, datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">La agenda del grupo: lo que ven tus estudiantes</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">Cada grupo tiene su agenda. Se abre en cualquier celular, <b>sin cuenta ni contraseña</b>. Llegas a ella con el botón <span class="bt">Agenda de 10.2</span>, arriba del formulario.</p>
+      <ol class="pasos">
+        <li><div><span class="t">La franja de la semana</span><p>Cada día dice cuántos momentos tiene de su tope: <b>2/4</b>, <b>4/4</b>. El punto verde debajo marca un día de entrega. Tocar un día muestra lo de ese día.</p></div></li>
+        <li><div><span class="t">Lo de hoy, con casilla</span><p>Cada tarea dice la asignatura, cuánto tiempo toma hoy y cuándo se entrega. Al terminarla, el estudiante la tacha. El archivo adjunto se abre desde ahí.</p></div></li>
+        <li><div><span class="t">«¿Cuándo la vas a hacer?»</span><p>El estudiante elige en qué momento de su día la va a hacer: al llegar a la casa, después de almorzar, en la noche… o escribe el suyo. Es un compromiso consigo mismo, no un control.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">Compartir</span><h3>Con el código QR o el enlace</h3><p>En la agenda está <b>Compartir esta agenda</b>: el código QR para proyectarlo y que lo escaneen, y <span class="bt">Copiar enlace</span> para pegarlo en el grupo de WhatsApp del curso.</p></div>
+      <div class="si"><span class="quien">Sin celular</span><h3><span class="bt">Imprimir semana</span></h3><p>Una hoja con la semana y una casilla por tarea, para quien no tiene celular o prefiere el papel. Tiene una línea en blanco para escribir a mano cuándo la va a hacer.</p></div>
+      <div class="si"><span class="quien">En el salón</span><h3><span class="bt">Proyectar en el salón</span></h3><p>La agenda en letra grande, para verla todos juntos al comienzo o al final de la clase. No muestra lo que eligió o tachó cada estudiante.</p></div>
+    </div>
+    <p class="sabias">Lo que el estudiante tacha y el momento que elige <b>se guardan solo en su teléfono</b>. Ni tú ni el director ni coordinación lo pueden ver. La agenda es una herramienta para que el estudiante se organice, no para vigilarlo.</p>
+  </div>
+
+  <!-- ── Director ── -->
+  <div class="bloque solo" id="t-director">
+    <div class="si" style="border-color:var(--pen)">
+      <span class="quien">Si eres director de grupo</span>
+      <h3>Las anclas: los momentos del día de tu grupo</h3>
+      <p>Las opciones que aparecen en «¿Cuándo la vas a hacer?» se llaman <b>anclas</b>. Vienen unas de ejemplo según la jornada. En la mañana: «Al llegar a la casa», «Después de almorzar», «En la tarde», «En la noche». En la tarde: «En la mañana, antes de venir», «Al llegar a la casa», «En la noche».</p>
+      <p>Son provisionales a propósito, porque la rutina de un grupo no es la de otro. Con el botón <span class="bt">Anclas de 10.2</span> las cambias: hasta <b>seis</b>, de máximo 30 letras cada una. La idea es construirlas <b>con el grupo</b>, en una clase de dirección (ver la guía siguiente).</p>
+    </div>
+  </div>
+
+  <p class="sabias ojo">Coordinación define los cupos de cada asignatura con el botón «Asignación de momentos». Si el cupo de tu asignatura no te alcanza de forma permanente, habla con tu coordinador.</p>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#centros"><small>Anterior</small>← Centros de interés</a><a class="ps-next" href="#estudiantes"><small>Siguiente</small>Para tus estudiantes →</a></nav>
+</section>
+
+<!-- ═══════════════ PARA TUS ESTUDIANTES ═══════════════ -->
+<section class="mod" id="estudiantes">
+  <div class="mod-cab">
+    <p class="menu">Tareas · Para tus estudiantes</p>
+    <h2>Cómo presentarle la agenda a tu grupo</h2>
+    <p class="para">La agenda solo funciona si los estudiantes la abren. Esta guía es para el director de grupo, y para cualquier profesor que quiera repasarla en su clase: qué anunciar, cómo enseñarla en una sesión y qué dejarles por escrito.</p>
+  </div>
+
+  <div class="bloque solo">
+    <h3 class="sub">Lo que el estudiante tiene que entender</h3>
+    <div class="ideas">
+      <div><b>Las tareas ya no llegan todas el mismo día.</b> El colegio las reparte para que nunca tengas más de 4 momentos de 25 minutos en un día, sumando todas las materias.</div>
+      <div><b>Tu agenda te dice qué hacer cada día,</b> no solo cuándo se entrega. Si cumples lo de cada día, no te coge la noche antes.</div>
+      <div><b>Tú decides cuándo la haces</b> y la tachas al terminar. Eso es solo tuyo: nadie en el colegio lo ve.</div>
+      <div><b>No necesitas cuenta ni contraseña.</b> Se abre con el QR o el enlace del grupo. Si no tienes celular, pídela impresa.</div>
+    </div>
+    <div class="grid-si" style="margin-top:4px">
+      <div class="si"><span class="quien">Lo que NO es</span><h3>Aclararlo evita malentendidos</h3><p>La agenda <b>no sirve para entregar tareas</b>: se entregan como diga cada profesor. <b>No califica.</b> Y <b>no reemplaza al profesor</b>: las dudas sobre una tarea se le preguntan a él.</p></div>
+      <div class="si"><span class="quien">Advertencia honesta</span><h3>Lo que tachas vive en tu teléfono</h3><p>Si cambias de celular, usas el de otra persona o borras los datos del navegador, lo que tachaste y los momentos que elegiste <b>se pierden</b>. Las tareas no: esas siguen en la agenda.</p></div>
+    </div>
+  </div>
+
+  <div class="bloque solo">
+    <h3 class="sub">Antes de empezar: el anuncio</h3>
+    <p style="color:var(--ink-2);max-width:64ch">Unos días antes, avisa al grupo y a las familias. Este mensaje se puede leer en clase o pegar en el grupo de WhatsApp del curso; cambia el grupo, la fecha y el enlace.</p>
+    <div class="anuncio">
+      <p class="anuncio-de">Mensaje para el grupo · listo para copiar</p>
+      <p>📚 <b>Hola, 10.2.</b> Desde el <b>lunes 21 de septiembre</b> vamos a usar una nueva <b>agenda de tareas</b>.</p>
+      <p>Lo que cambia: el colegio va a <b>repartir las tareas</b> para que ningún día tengas más de <b>4 momentos de 25 minutos</b>, sumando todas las materias. La agenda te dice qué hacer cada día y cuándo se entrega cada cosa.</p>
+      <p>Cómo entrar: abre este enlace o escanea el código del salón. <b>No necesitas cuenta ni contraseña.</b> Guárdalo en tu celular.<br><span class="anuncio-link">[enlace de la agenda de 10.2]</span></p>
+      <p>Cada tarea tiene una casilla para tacharla y un botón para elegir <b>cuándo la vas a hacer</b>. Eso queda solo en tu celular, nadie más lo ve. Si no tienes celular, la pides impresa.</p>
+      <p>El <b>[día]</b> la vamos a abrir juntos en dirección de grupo. — <b>[tu nombre]</b>, director(a) de grupo</p>
+    </div>
+    <p class="sabias">Para las familias sirve el mismo enlace: un acudiente puede abrir la agenda y ver qué tareas tiene el grupo y cuándo se entregan, sin ninguna cuenta.</p>
+  </div>
+
+  <div class="bloque solo">
+    <h3 class="sub">La primera sesión: 20 minutos en dirección de grupo</h3>
+    <ol class="pasos">
+      <li><div><span class="t">Proyecta la agenda y explica la idea (3 min)</span><p>Abre la agenda del grupo con <span class="bt">Proyectar en el salón</span>. Muestra la franja de la semana: «este número es cuánto tienen ese día; nunca pasa de 4».</p></div></li>
+      <li><div><span class="t">Que todos entren desde su celular (5 min)</span><p>Proyecta el código QR de <b>Compartir esta agenda</b>. Pídeles que la guarden: en favoritos o, mejor, «Agregar a la pantalla de inicio» desde el menú del navegador. Así queda como una aplicación más.</p></div></li>
+      <li><div><span class="t">Construyan juntos las anclas (7 min)</span><p>Pregunta: «¿En qué momentos del día hacen tareas de verdad?». Escribe las respuestas en el tablero, elijan entre todos hasta seis, cortas y reales («En el bus», «Antes del entreno»), y cárgalas con <span class="bt">Anclas de 10.2</span>. Una rutina que el grupo eligió se cumple más que una impuesta.</p></div></li>
+      <li><div><span class="t">Practiquen con una tarea real (3 min)</span><p>Que cada uno toque <b>«¿Cuándo la vas a hacer?»</b> en una tarea y elija su momento. Recuérdales que eso solo lo ven ellos.</p></div></li>
+      <li><div><span class="t">Resuelve lo de quien no tiene celular (2 min)</span><p>Pregunta en privado, no frente al grupo. Para ellos, <span class="bt">Imprimir semana</span> cada lunes y la dejan en el salón.</p></div></li>
+    </ol>
+    <p class="sabias">Las primeras semanas, dedica un minuto al inicio de cada dirección de grupo a mirar juntos la agenda proyectada. El hábito se forma con la repetición, no con la primera explicación.</p>
+  </div>
+
+  <div class="bloque solo">
+    <h3 class="sub">Para imprimir o proyectar: la tarjeta del estudiante</h3>
+    <div class="tarjeta">
+      <div class="tarj-cab"><span class="tarj-sello">⚜</span><div><p class="tarj-kicker">I.E. Manuel J. Betancur</p><p class="tarj-tit">Tu agenda de tareas</p></div></div>
+      <ol class="tarj-pasos">
+        <li><b>Ábrela</b> con el código QR del salón o el enlace del grupo. Sin cuenta ni contraseña.</li>
+        <li><b>Mira el día de hoy.</b> Ahí está lo que te toca hacer hoy, no solo lo que se entrega.</li>
+        <li><b>Elige cuándo</b> vas a hacer cada tarea: toca «¿Cuándo la vas a hacer?».</li>
+        <li><b>Tacha</b> la casilla cuando la termines.</li>
+      </ol>
+      <div class="tarj-datos">
+        <p><b>4</b> momentos de 25 min como máximo al día</p>
+        <p><b>20</b> minutos de estudio personal, todos los días</p>
+        <p><b>🔒</b> Lo que marcas solo lo ves tú</p>
+      </div>
+      <p class="tarj-pie">¿Sin celular? Pide la agenda impresa a tu director de grupo.</p>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#tareas"><small>Anterior</small>← Tareas</a><a class="ps-next" href="#chatbot"><small>Siguiente</small>Chatbot →</a></nav>
+</section>
+
+<!-- ═══════════════ CHATBOT ═══════════════ -->
+<section class="mod" id="chatbot">
+  <div class="mod-cab">
+    <p class="menu">Menú · Chatbot</p>
+    <h2>Chatbot</h2>
+    <p class="para">Dos asistentes que responden preguntas sobre los documentos del colegio.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Pantalla Asistentes con dos tarjetas">
+        <div class="scr">
+          <div class="hd"><div class="tit">Asistentes<div class="sub2">Chatbots institucionales de convivencia y evaluación.</div></div></div>
+          <div class="pad">
+            <div class="cd"><span class="n tl">1</span><span class="h">El Jota — Manual de Convivencia</span><span class="d">Resuelve dudas sobre el manual de convivencia de la institución.</span></div>
+            <div class="cd"><span class="h">Asistente del Sistema de Evaluación</span><span class="d">Orientación sobre el sistema institucional de evaluación (SIEPE).</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Toca el asistente que necesitas</span><p><b>El Jota</b> para convivencia; el del <b>Sistema de Evaluación</b> para el SIEPE.</p></div></li>
+        <li><div><span class="t">Escribe tu pregunta como se la harías a un compañero</span><p>Si prefieres pantalla completa, toca <span class="bt">Abrir en pestaña ↗</span>.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px">Lo que le preguntas al asistente <b>no llega al chat del colegio</b> ni lo ve ningún compañero. Necesita internet.</p>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#estudiantes"><small>Anterior</small>← Para tus estudiantes</a><a class="ps-next" href="#riesgo"><small>Siguiente</small>Gestión del Riesgo →</a></nav>
+</section>
+
+<!-- ═══════════════ GESTIÓN DEL RIESGO ═══════════════ -->
+<section class="mod" id="riesgo">
+  <div class="mod-cab">
+    <p class="menu">Menú · Gestión del Riesgo</p>
+    <h2>Gestión del Riesgo</h2>
+    <p class="para">Brigadas, números de emergencia y una guía paso a paso para atender a un estudiante: primeros auxilios o contención emocional.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Emergencia escolar con Primeros auxilios y Contención emocional">
+        <div class="scr">
+          <div class="hd"><div class="tit">Gestión del Riesgo</div></div>
+          <div class="pad">
+            <div class="fila" style="gap:4px">
+              <span class="b">🧑‍🚒 Brigadas</span><span class="b">📞 Números de emergencia</span><span class="b pri">🚑 Emergencia escolar<span class="n tr">1</span></span><span class="b">📁 Casos</span>
+            </div>
+            <div class="cd" style="background:var(--a-warn-soft);border-color:transparent"><span class="d" style="color:var(--a-warn-ink)">⚠️ En pruebas. En una urgencia llama al 123; en salud mental, la Línea Naranja.</span></div>
+            <div class="cd"><span class="n tl">2</span><span class="h">Primeros auxilios</span><span class="d">Lesión, golpe, desmayo, malestar físico</span></div>
+            <div class="cd"><span class="h">Contención emocional</span><span class="d">Tristeza, angustia, crisis emocional</span></div>
+            <span class="b" style="justify-self:end">Generar informe →<span class="n tr">3</span></span>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Abre <b>🚑 Emergencia escolar</b></span><p>Tenlo a mano: la guía está pensada para seguirla mientras atiendes.</p></div></li>
+        <li><div><span class="t">Elige qué le pasa al estudiante</span><p><b>Primeros auxilios</b> si es algo físico. <b>Contención emocional</b> si está en crisis, triste o angustiado. La guía te lleva fase por fase.</p></div></li>
+        <li><div><span class="t">Al terminar, deja el informe</span><p><span class="bt">Generar informe →</span> y completa los datos. Puedes descargarlo con <span class="bt">📄 Descargar PDF</span>.</p></div></li>
+        <li><div><span class="t">Haz el seguimiento en <b>📁 Casos</b></span><p>Ahí están los casos que tú registraste: agregas seguimiento y los cierras.</p></div></li>
+      </ol>
+    </div>
+  </div>
+  <div class="bloque solo">
+    <h3 class="sub">¿A quién le llega el informe?</h3>
+    <div class="tabla-w">
+      <table class="t">
+        <thead><tr><th>Informe</th><th>Cuando lo registras</th><th>Si pasan 8 días sin seguimiento</th></tr></thead>
+        <tbody>
+          <tr><td>Contención emocional</td><td>Llega de inmediato por correo al <b>coordinador de la jornada</b>, al <b>director de grupo</b>, a la <b>rectora</b> y al <b>psicoorientador</b>.</td><td>Les llega un aviso a esas mismas cuatro personas.</td></tr>
+          <tr><td>Primeros auxilios</td><td>No se envía correo. El caso queda en <b>📁 Casos</b>, donde lo ven tú, el coordinador de la jornada y la rectora.</td><td>Les llega un aviso al <b>coordinador</b>, al <b>director de grupo</b>, a la <b>rectora</b> y a <b>ti</b>, como quien atendió.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sabias">Los casos de primeros auxilios <b>no le llegan al psicoorientador</b>: son datos de salud física y no son de su área. Los de contención emocional sí, porque son su trabajo.</p>
+    <p class="sabias ojo">Como un caso de primeros auxilios no avisa a nadie en el momento, si es algo que coordinación debe saber hoy, <b>díselo tú directamente</b>. El aviso automático solo llega si el caso se queda ocho días sin seguimiento.</p>
+    <p class="sabias">No hace falta inscribirte a la <b>Brigada de evacuación</b>: todo profesor que esté en un aula ya hace parte de ella.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#chatbot"><small>Anterior</small>← Chatbot</a><a class="ps-next" href="#reservas"><small>Siguiente</small>Reservas →</a></nav>
+</section>
+
+<!-- ═══════════════ RESERVAS ═══════════════ -->
+<section class="mod" id="reservas">
+  <div class="mod-cab">
+    <p class="menu">Menú · Reservas</p>
+    <h2>Reservas</h2>
+    <p class="para">Pedir prestada un aula, un espacio o un equipo para una hora de clase. Coordinación aprueba cada solicitud.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Cuadrícula de disponibilidad de aulas">
+        <div class="scr">
+          <div class="hd"><div class="tit">Reservas</div></div>
+          <div class="pad">
+            <div class="tabs"><span class="on">🗓️ Reservar</span><span>📋 Mis reservas</span></div>
+            <div class="tabs" style="position:relative"><span class="on">Aulas</span><span>Otros espacios</span><span>Equipos</span><span class="n tr">1</span></div>
+            <table class="hr" aria-hidden="true">
+              <tr><th></th><th>Lu</th><th>Ma</th><th>Mi</th><th>Ju</th><th>Vi</th></tr>
+              <tr><td class="bl">1</td><td class="cla">·</td><td class="lib"></td><td class="cla">·</td><td class="ocu">✕</td><td class="lib"></td></tr>
+              <tr><td class="bl">2</td><td class="lib" style="position:relative"><span class="n" style="top:-9px;right:-9px">2</span></td><td class="tuy">●</td><td class="lib"></td><td class="cla">·</td><td class="rec">★</td></tr>
+              <tr><td class="bl">3</td><td class="cla">·</td><td class="lib"></td><td class="ocu">✕</td><td class="lib"></td><td class="cla">·</td></tr>
+            </table>
+            <div class="ley"><span><i style="background:var(--a-ok-soft)"></i>Libre</span><span><i style="background:var(--a-elev)"></i>Clase regular</span><span><i style="background:var(--a-bad-soft)"></i>Reservado</span><span><i style="background:var(--a-info-soft)"></i>Tuyo</span><span><i style="background:var(--a-warn-soft)"></i>Rectoría</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Elige qué necesitas</span><p><b>Aulas</b>, <b>Otros espacios</b> o <b>Equipos</b>. Con las flechas cambias de semana; <span class="bt">Hoy</span> te devuelve a la actual.</p></div></li>
+        <li><div><span class="t">Toca un cuadro verde</span><p>Verde es libre. Gris es que ahí hay clase, rojo que ya lo reservó otra persona, ámbar que lo apartó la rectoría. El azul es tuyo.</p></div></li>
+        <li><div><span class="t">Di para qué es y toca <span class="bt">Solicitar</span></span><p>El <b>Propósito</b> es obligatorio. Si necesitas equipos adicionales, márcalos ahí mismo.</p></div></li>
+        <li><div><span class="t">Revisa la respuesta en <b>📋 Mis reservas</b></span><p>Queda <b>Pendiente</b> hasta que coordinación la <b>Aprueba</b> o la <b>Rechaza</b>. Si la rechazan, ahí ves el motivo.</p></div></li>
+      </ol>
+    </div>
+  </div>
+  <p class="sabias">Los profesores reservan de lunes a viernes. Si necesitas algo un sábado, pídeselo a coordinación.</p>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#riesgo"><small>Anterior</small>← Gestión del Riesgo</a><a class="ps-next" href="#asignacion"><small>Siguiente</small>Asignación 2026 →</a></nav>
+</section>
+
+<!-- ═══════════════ ASIGNACIÓN ═══════════════ -->
+<section class="mod" id="asignacion">
+  <div class="mod-cab">
+    <p class="menu">Menú · Asignación 2026</p>
+    <h2>Asignación 2026</h2>
+    <p class="para">Qué asignaturas y grupos tiene cada profesor este año, empezando por los tuyos.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Mi asignación 2026 y el plantel docente">
+        <div class="scr">
+          <div class="hd"><div class="tit">Asignación 2026</div></div>
+          <div class="pad">
+            <div class="cd" style="border-color:var(--a-accent)"><span class="n tl">1</span>
+              <span class="h">Mi asignación 2026</span>
+              <span class="d">Física · 10.1, 10.2, 10.3, 10.4 · 12 h</span>
+              <span class="d">Química · 11.1 · 3 h</span>
+              <span class="d" style="color:var(--a-strong)">Total: 15 h/semana · Director de grupo: 10.2</span>
+            </div>
+            <div class="fila" style="justify-content:space-between;position:relative"><span class="lbl">Plantel docente</span>
+              <div class="tabs" style="flex:0 0 auto"><span class="on">Todas</span><span>Mañana</span><span>Tarde</span></div><span class="n tr">2</span></div>
+            <div class="cd"><div class="fila"><span class="h" style="flex:1">Luis Pérez</span><span class="b" style="font-size:10px;padding:2px 6px;background:var(--a-warn-soft);color:var(--a-warn-ink);border-color:transparent">mixta</span></div></div>
+            <div class="cd"><div class="fila"><span class="h" style="flex:1">Marta Ríos</span><span class="d">Dir. 9.1</span></div></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Arriba está la tuya, ya abierta</span><p>Asignaturas, grupos, horas de cada una y el total a la semana.</p></div></li>
+        <li><div><span class="t">Abajo, la de tus compañeros</span><p>Filtra por <b>Mañana</b> o <b>Tarde</b> y toca un nombre para ver su asignación.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px">La etiqueta <b>mixta</b> señala a quien trabaja en las dos jornadas. Te sirve para saber si un compañero está en el colegio en la tarde antes de buscarlo.</p>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#reservas"><small>Anterior</small>← Reservas</a><a class="ps-next" href="#chat"><small>Siguiente</small>Chat →</a></nav>
+</section>
+
+<!-- ═══════════════ CHAT ═══════════════ -->
+<section class="mod" id="chat">
+  <div class="mod-cab">
+    <p class="menu">Menú · Chat</p>
+    <h2>Chat</h2>
+    <p class="para">Mensajería interna del colegio: con un compañero, con un grupo o en los canales institucionales.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Conversación del chat con Leído por">
+        <div class="scr">
+          <div class="hd"><div class="tit">Área de Ciencias<div class="sub2">4 miembros</div></div></div>
+          <div class="pad" style="gap:10px">
+            <div class="msg el"><span class="quien2">Marta Ríos</span>¿Alguien tiene el laboratorio el jueves?</div>
+            <div class="msg yo" style="position:relative"><div class="cita">Marta Ríos: ¿Alguien tiene el laboratorio…</div>Yo, a segunda hora. Después queda libre.<span class="n tl">2</span></div>
+            <span class="leido">Leído por 2 de 3</span>
+            <div class="fila" style="gap:6px;position:relative">
+              <span class="b" style="padding:6px 8px">📎<span class="n tl">3</span></span>
+              <div class="campo vacio" style="flex:1">Escribe un mensaje…</div>
+              <span class="n tr">1</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Elige la conversación y escribe</span><p>Para hablar con alguien que no está en tu lista, búscalo por su nombre.</p></div></li>
+        <li><div><span class="t">Responde citando</span><p>Sobre un mensaje, el ícono <b>Responder citando</b> deja claro a qué le respondes, aunque la conversación siga.</p></div></li>
+        <li><div><span class="t">Adjunta con el clip 📎</span><p>Imagen, audio o archivo, de hasta 10 MB.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px"><b>«Leído por 2 de 3»</b> te dice cuántos lo leyeron, sin contarte a ti. En los canales grandes solo dice «Leído por» y el número.</p>
+    </div>
+  </div>
+  <p class="sabias ojo">Si reenvías un mensaje de una conversación privada, la aplicación te pregunta primero: <b>«Es un mensaje privado.»</b> Piénsalo antes de moverlo a un grupo.</p>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#asignacion"><small>Anterior</small>← Asignación 2026</a><a class="ps-next" href="#contenido"><small>Fin</small>Volver al índice ↑</a></nav>
+</section>
+
+</main>
+
+<footer class="pie">
+  <p><b>Manual del profesor · nivel básico.</b> Se escribió a partir de la aplicación tal como funciona el 10 de septiembre de 2026. Si una pantalla ya no coincide, el manual se quedó atrás: avísale a Julián Medina.</p>
+  <p>Todos los nombres, grupos y datos de las pantallas son de ejemplo. Ningún dibujo muestra a un estudiante real.</p>
+  <p>MJB Préstamos · © 2025-2026 Julián David Medina Tamayo. Todos los derechos reservados.</p>
+</footer>
+<script>
+(function () {
+  var aqui = document.getElementById('nav-aqui'), menu = document.getElementById('nav-menu');
+  if (!aqui || !menu) return;
+  var enlaces = [].slice.call(menu.querySelectorAll('a'));
+  var nombres = { contenido: 'Índice' };
+  enlaces.forEach(function (a) { nombres[a.getAttribute('href').slice(1)] = a.textContent; });
+  menu.addEventListener('click', function (e) { if (e.target.closest('a')) menu.removeAttribute('open'); });
+  document.addEventListener('click', function (e) { if (!menu.contains(e.target)) menu.removeAttribute('open'); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') menu.removeAttribute('open'); });
+  var secciones = [].slice.call(document.querySelectorAll('#contenido, main > section.mod'));
+  function marcar() {
+    var y = window.innerHeight * 0.3, actual = 'contenido';
+    secciones.forEach(function (s) { if (s.getBoundingClientRect().top <= y) actual = s.id; });
+    aqui.textContent = nombres[actual] || 'Índice';
+    enlaces.forEach(function (a) { a.setAttribute('aria-current', a.getAttribute('href') === '#' + actual ? 'true' : 'false'); });
+  }
+  var pend = false;
+  window.addEventListener('scroll', function () {
+    if (!pend) { pend = true; requestAnimationFrame(function () { pend = false; marcar(); }); }
+  }, { passive: true });
+  marcar();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1113 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="../mjb_icon.png">
+</head>
+<body>
+<title>Manual del coordinador MJB</title>
+<meta name="description" content="Guía básica de MJB Préstamos para coordinadores de la I.E. Manuel J. Betancur">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* ── Tokens del MANUAL (lo que rodea a las pantallas) ─────────────────────── */
+:root{
+  --paper:#F2F5F3; --sheet:#FFFFFF; --ink:#15201C; --ink-2:#3B4843; --muted:#5E6C66;
+  --rule:#D5DDD8; --pen:#C4222F; --pen-fg:#FFFFFF; --pen-soft:#FBE8EA; --pen-ink:#8E1621;
+  --green:#127E48; --green-soft:#E1F0E7; --green-ink:#0B5230;
+  --shadow:0 1px 2px rgb(21 32 28 / .06), 0 8px 24px -12px rgb(21 32 28 / .18);
+
+  /* Tokens de la APLICACIÓN, copiados de src/index.css: las pantallas dibujadas
+     se ven como la app real, en claro y en oscuro. */
+  --a-app:#f7f8fa; --a-card:#ffffff; --a-elev:#eef1f6; --a-strong:#0e1525; --a-soft:#374151;
+  --a-muted:#5b6678; --a-line:#d8dde6; --a-line-2:#b3bac8;
+  --a-accent:#2563eb; --a-accent-fg:#ffffff; --a-accent-soft:#dbeafe; --a-accent-ink:#1e3a8a;
+  --a-ok:#15803d; --a-ok-soft:#dcfce7; --a-ok-ink:#14532d;
+  --a-warn:#b45309; --a-warn-soft:#fef3c7; --a-warn-ink:#78350f;
+  --a-bad:#b91c1c; --a-bad-soft:#fee2e2; --a-bad-ink:#7f1d1d;
+  --a-info-soft:#dbeafe; --a-info-ink:#1e3a8a;
+  --a-pur-soft:#ede9fe; --a-pur-ink:#4c1d95;
+  --a-teal-soft:#ccfbf1; --a-teal-ink:#134e4a;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0D1311; --sheet:#151D1A; --ink:#E7EEEA; --ink-2:#C2CCC7; --muted:#93A29B;
+    --rule:#27322E; --pen:#EE5B66; --pen-fg:#1A0A0C; --pen-soft:#3A1519; --pen-ink:#FFB3B9;
+    --green:#4FC28A; --green-soft:#14291E; --green-ink:#9FE3C0;
+    --shadow:0 1px 2px rgb(0 0 0 / .3), 0 8px 24px -12px rgb(0 0 0 / .6);
+    --a-app:#0a0e1a; --a-card:#141a2a; --a-elev:#1e2538; --a-strong:#f5f7fb; --a-soft:#cfd5e3;
+    --a-muted:#94a0b6; --a-line:#252b3d; --a-line-2:#3a425a;
+    --a-accent:#3b82f6; --a-accent-fg:#ffffff; --a-accent-soft:#1e3a8a66; --a-accent-ink:#93c5fd;
+    --a-ok:#22c55e; --a-ok-soft:#14532d66; --a-ok-ink:#86efac;
+    --a-warn:#f59e0b; --a-warn-soft:#78350f66; --a-warn-ink:#fcd34d;
+    --a-bad:#ef4444; --a-bad-soft:#7f1d1d66; --a-bad-ink:#fca5a5;
+    --a-info-soft:#1e3a8a66; --a-info-ink:#93c5fd;
+    --a-pur-soft:#4c1d9566; --a-pur-ink:#c4b5fd;
+    --a-teal-soft:#134e4a66; --a-teal-ink:#5eead4;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0D1311; --sheet:#151D1A; --ink:#E7EEEA; --ink-2:#C2CCC7; --muted:#93A29B;
+  --rule:#27322E; --pen:#EE5B66; --pen-fg:#1A0A0C; --pen-soft:#3A1519; --pen-ink:#FFB3B9;
+  --green:#4FC28A; --green-soft:#14291E; --green-ink:#9FE3C0;
+  --shadow:0 1px 2px rgb(0 0 0 / .3), 0 8px 24px -12px rgb(0 0 0 / .6);
+  --a-app:#0a0e1a; --a-card:#141a2a; --a-elev:#1e2538; --a-strong:#f5f7fb; --a-soft:#cfd5e3;
+  --a-muted:#94a0b6; --a-line:#252b3d; --a-line-2:#3a425a;
+  --a-accent:#3b82f6; --a-accent-fg:#ffffff; --a-accent-soft:#1e3a8a66; --a-accent-ink:#93c5fd;
+  --a-ok:#22c55e; --a-ok-soft:#14532d66; --a-ok-ink:#86efac;
+  --a-warn:#f59e0b; --a-warn-soft:#78350f66; --a-warn-ink:#fcd34d;
+  --a-bad:#ef4444; --a-bad-soft:#7f1d1d66; --a-bad-ink:#fca5a5;
+  --a-info-soft:#1e3a8a66; --a-info-ink:#93c5fd;
+  --a-pur-soft:#4c1d9566; --a-pur-ink:#c4b5fd;
+  --a-teal-soft:#134e4a66; --a-teal-ink:#5eead4;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:"Bricolage Grotesque","Atkinson Hyperlegible",system-ui,sans-serif;
+  font-weight:700;letter-spacing:-.01em;text-wrap:balance;margin:0;color:var(--ink)}
+p{margin:0}
+b,strong{font-weight:700}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--pen);outline-offset:3px;border-radius:4px}
+
+/* ── Cabecera y navegación ────────────────────────────────────────────────── */
+.cab{max-width:1080px;margin:0 auto;padding:40px 20px 24px;display:grid;gap:18px}
+.sello{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted)}
+.sello i{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-style:normal;
+  background:linear-gradient(135deg,#127E48,#2A9E8C 68%,#3684B5);box-shadow:inset 0 0 0 3px var(--pen);
+  color:#fff;font-size:17px}
+.cab h1{font-size:clamp(34px,6vw,54px);line-height:1.02}
+.cab h1 span{color:var(--pen)}
+.cab .lead{font-size:19px;color:var(--ink-2);max-width:60ch}
+.etiquetas{display:flex;gap:8px;flex-wrap:wrap}
+.et{font-size:13px;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:999px;
+  border:1px solid var(--rule);color:var(--muted);background:var(--sheet)}
+.et.nivel{background:var(--green-soft);color:var(--green-ink);border-color:transparent;font-weight:700}
+
+.nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--sheet) 94%,transparent);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);
+  box-shadow:0 6px 18px -14px rgb(21 32 28 / .5)}
+.nav-in{max-width:1080px;margin:0 auto;padding:8px 20px;display:flex;align-items:center;gap:10px;min-height:56px}
+.nav-ini{text-decoration:none;font-weight:700;color:var(--green);white-space:nowrap;font-size:15px}
+.nav-sep{color:var(--rule)}
+.nav-aqui{flex:1;min-width:0;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:17px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-menu{position:relative}
+.nav-menu summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  background:var(--pen);color:var(--pen-fg);font-weight:700;font-size:15px;padding:8px 14px;border-radius:999px;min-height:40px}
+.nav-menu summary::-webkit-details-marker{display:none}
+.nav-menu[open] summary span{display:inline-block;transform:rotate(180deg)}
+.nav-menu ol{position:absolute;right:0;top:calc(100% + 8px);list-style:none;margin:0;padding:6px;width:min(290px,86vw);
+  max-height:70vh;overflow-y:auto;background:var(--sheet);border:1px solid var(--rule);border-radius:14px;box-shadow:var(--shadow)}
+.nav-menu li a{display:block;text-decoration:none;padding:10px 12px;border-radius:9px;color:var(--ink-2);font-size:16px}
+.nav-menu li a:hover{background:var(--paper);color:var(--ink)}
+.nav-menu li a[aria-current="true"]{background:var(--green-soft);color:var(--green-ink);font-weight:700}
+
+/* Índice visible */
+.contenido{background:var(--sheet);border-radius:18px;box-shadow:var(--shadow);padding:clamp(20px,4vw,36px);display:grid;gap:18px}
+.cont-cab h2{font-size:clamp(24px,3.6vw,32px)}
+.cont-cab p{color:var(--ink-2);margin-top:4px}
+.ix{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.ix a{position:relative;display:grid;gap:3px;align-content:start;height:100%;text-decoration:none;padding:14px 16px;border-radius:12px;
+  border:1px solid var(--rule);background:var(--paper);transition:border-color .15s,transform .15s}
+.ix a:hover{border-color:var(--green);transform:translateY(-1px)}
+@media (prefers-reduced-motion: reduce){.ix a{transition:none}.ix a:hover{transform:none}}
+.ix-t{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:18px;color:var(--ink);padding-right:22px}
+.ix-t::after{content:"→";position:absolute;right:14px;top:14px;color:var(--green);font-family:"Atkinson Hyperlegible",sans-serif}
+.ix-d{font-size:14.5px;color:var(--muted);line-height:1.4}
+.ix-b{justify-self:start;margin-top:6px;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;
+  padding:2px 8px;border-radius:999px;background:var(--pen-soft);color:var(--pen-ink)}
+
+/* Anterior / siguiente */
+.pasa{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid var(--rule);padding-top:18px}
+.pasa a{display:grid;gap:1px;align-content:start;text-decoration:none;padding:12px 14px;border-radius:12px;border:1px solid var(--rule);
+  color:var(--ink);font-weight:700;font-size:16px}
+.pasa a:hover{border-color:var(--green);background:var(--paper)}
+.pasa small{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.ps-next{text-align:right}
+
+/* ── Módulos ──────────────────────────────────────────────────────────────── */
+main{max-width:1080px;margin:0 auto;padding:12px 20px 80px;display:grid;gap:28px}
+.mod{background:var(--sheet);border-radius:18px;box-shadow:var(--shadow);padding:clamp(20px,4vw,40px);
+  display:grid;gap:26px}
+.mod-cab{display:grid;gap:8px;max-width:64ch}
+.mod-cab .menu{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--green);font-weight:700}
+.mod-cab h2{font-size:clamp(28px,4.2vw,38px);line-height:1.08}
+.mod-cab .para{font-size:19px;color:var(--ink-2)}
+
+.bloque{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:clamp(20px,4vw,44px);align-items:start}
+.bloque.solo{grid-template-columns:1fr}
+@media (max-width:760px){.bloque{grid-template-columns:1fr}}
+.bloque + .bloque{padding-top:26px;border-top:1px dashed var(--rule)}
+.sub{font-size:22px;margin-bottom:12px}
+
+.pasos{list-style:none;margin:0;padding:0;display:grid;gap:16px;counter-reset:p}
+.pasos li{display:grid;grid-template-columns:30px 1fr;gap:12px;align-items:start}
+.pasos li::before{counter-increment:p;content:counter(p);width:30px;height:30px;border-radius:50%;
+  background:var(--pen);color:var(--pen-fg);font-weight:700;font-size:15px;display:grid;place-items:center;
+  margin-top:1px;font-variant-numeric:tabular-nums}
+.pasos b{color:var(--ink)}
+.pasos p{color:var(--ink-2)}
+.pasos .t{display:block;font-weight:700;color:var(--ink);font-size:18px;line-height:1.35;margin-bottom:2px}
+
+/* Texto de un botón tal como aparece en la pantalla */
+.bt{font-family:Inter,system-ui,sans-serif;font-size:.86em;font-weight:600;white-space:nowrap;
+  padding:1px 7px;border-radius:6px;background:var(--a-elev);color:var(--a-strong);border:1px solid var(--a-line)}
+
+.sabias{display:grid;grid-template-columns:auto 1fr;gap:12px;background:var(--green-soft);color:var(--green-ink);
+  border-radius:12px;padding:14px 16px;font-size:16px;line-height:1.55}
+.sabias::before{content:"Sabías que";font-size:12px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;
+  writing-mode:vertical-rl;transform:rotate(180deg);border-left:2px solid currentColor;padding-left:8px;opacity:.9}
+.sabias b{color:inherit}
+.ojo{background:var(--pen-soft);color:var(--pen-ink)}
+.ojo::before{content:"Importante"}
+
+.si{border:1px solid var(--rule);border-radius:14px;padding:18px 20px;display:grid;gap:12px}
+.si .quien{justify-self:start;font-size:13px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;
+  color:var(--pen-ink);background:var(--pen-soft);padding:3px 10px;border-radius:999px}
+.si h3{font-size:20px}
+.si p{color:var(--ink-2)}
+.grid-si{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+
+.tabla-w{overflow-x:auto;border:1px solid var(--rule);border-radius:12px}
+table.t{border-collapse:collapse;width:100%;font-size:15.5px;min-width:560px}
+table.t th{text-align:left;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);
+  font-weight:700;padding:10px 14px;border-bottom:1px solid var(--rule);background:var(--paper)}
+table.t td{padding:11px 14px;border-bottom:1px solid var(--rule);vertical-align:top;color:var(--ink-2)}
+table.t tr:last-child td{border-bottom:0}
+table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
+.si-no{font-weight:700}
+
+/* ── PANTALLAS DIBUJADAS (usan los tokens de la app) ──────────────────────── */
+.pantalla{position:relative;background:var(--a-app);border:1px solid var(--rule);border-radius:26px;
+  padding:10px;box-shadow:var(--shadow);font-family:Inter,system-ui,sans-serif;color:var(--a-strong);
+  font-size:13px;line-height:1.4;max-width:340px;width:100%}
+.pantalla .scr{background:var(--a-app);border-radius:18px;overflow:hidden;position:relative}
+.pie-pantalla{font-size:13px;color:var(--muted);margin-top:10px;text-align:center}
+.hd{background:var(--a-card);border-bottom:1px solid var(--a-line);padding:10px 12px;display:flex;align-items:center;gap:8px}
+.hd .tit{font-weight:600;font-size:14px;flex:1;min-width:0}
+.hd .sub2{font-size:11px;color:var(--a-muted);font-weight:400}
+.pad{padding:12px;display:grid;gap:10px}
+.fila{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.b{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;border:1px solid var(--a-line);
+  border-radius:8px;padding:5px 9px;background:var(--a-card);color:var(--a-soft);position:relative;white-space:nowrap}
+.b.pri{background:var(--a-accent);border-color:transparent;color:var(--a-accent-fg);font-weight:600}
+.tabs{display:flex;flex-wrap:wrap;gap:2px;background:var(--a-elev);border-radius:9px;padding:3px}
+.tabs span{flex:1 1 auto;text-align:center;font-size:11px;padding:5px 4px;border-radius:7px;color:var(--a-muted);white-space:nowrap}
+.tabs span.on{background:var(--a-card);color:var(--a-strong);font-weight:600;box-shadow:0 1px 2px rgb(0 0 0 / .08)}
+.cd{background:var(--a-card);border:1px solid var(--a-line);border-radius:12px;padding:10px 11px;display:grid;gap:4px;position:relative}
+.cd .h{font-weight:600;font-size:12.5px}
+.cd .d{font-size:11.5px;color:var(--a-muted)}
+.lbl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--a-muted);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.campo{border:1px solid var(--a-line);border-radius:8px;padding:6px 9px;background:var(--a-card);font-size:12px;color:var(--a-soft)}
+.campo.vacio{color:var(--a-muted)}
+
+/* planilla */
+.pl{width:100%;border-collapse:collapse;font-size:12px;background:var(--a-card)}
+.pl th{font-weight:400;color:var(--a-muted);font-size:10.5px;padding:6px 3px;border-bottom:1px solid var(--a-line);text-align:center;line-height:1.25}
+.pl th.nm,.pl td.nm{text-align:left;padding-left:10px}
+.pl td{padding:6px 3px;border-bottom:1px solid var(--a-line);text-align:center}
+.pl td.nm{color:var(--a-strong);font-size:11.5px;white-space:nowrap}
+.av{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--a-elev);border:2px solid var(--a-line-2);
+  vertical-align:middle;margin-right:6px}
+.c{display:inline-flex;width:26px;height:26px;border-radius:7px;align-items:center;justify-content:center;font-size:15px;font-weight:600}
+.c.ok{background:var(--a-ok-soft);color:var(--a-ok-ink)}
+.c.no{background:var(--a-bad-soft);color:var(--a-bad-ink)}
+.c.vac{border:1.5px dashed var(--a-line-2)}
+.c.txt{font-size:10.5px;letter-spacing:-.02em}
+.c.w{background:var(--a-warn-soft);color:var(--a-warn-ink)}
+.c.i{background:var(--a-info-soft);color:var(--a-info-ink)}
+.c.p{background:var(--a-pur-soft);color:var(--a-pur-ink)}
+
+/* hoja emergente dentro de la pantalla */
+.velo{position:absolute;inset:0;background:rgb(0 0 0 / .42);display:flex;align-items:flex-end}
+.hoja{background:var(--a-card);width:100%;border-radius:16px 16px 0 0;padding:14px;display:grid;gap:9px;position:relative}
+.hoja .h{font-weight:600;font-size:14px}
+.hoja .d{font-size:12px;color:var(--a-soft);line-height:1.5}
+
+/* horario y reservas */
+.hr{width:100%;border-collapse:separate;border-spacing:3px;font-size:10px}
+.hr th{font-weight:500;color:var(--a-muted);font-size:10px;padding:2px}
+.hr td{height:30px;border-radius:6px;text-align:center;line-height:1.15;padding:2px;font-size:9.5px}
+.hr td.lib{background:var(--a-ok-soft);color:var(--a-ok-ink)}
+.hr td.cla{background:var(--a-elev);color:var(--a-muted)}
+.hr td.ocu{background:var(--a-bad-soft);color:var(--a-bad-ink)}
+.hr td.tuy{background:var(--a-info-soft);color:var(--a-info-ink)}
+.hr td.rec{background:var(--a-warn-soft);color:var(--a-warn-ink)}
+.hr td.cls{background:var(--a-accent-soft);color:var(--a-accent-ink);font-weight:500}
+.hr td.nada{background:transparent}
+.hr td.bl{color:var(--a-muted);font-weight:500;background:transparent}
+.ley{display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--a-muted)}
+.ley i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+
+/* chat */
+.msg{max-width:78%;padding:7px 10px;border-radius:12px;font-size:12px;line-height:1.4}
+.msg.el{background:var(--a-card);border:1px solid var(--a-line);justify-self:start}
+.msg.yo{background:var(--a-accent);color:var(--a-accent-fg);justify-self:end}
+.msg .quien2{display:block;font-size:10.5px;font-weight:600;color:var(--a-accent-ink);margin-bottom:2px}
+.leido{justify-self:end;font-size:10px;color:var(--a-muted);margin-top:-6px}
+.cita{border-left:3px solid var(--a-accent-fg);padding-left:6px;margin-bottom:4px;font-size:10.5px;opacity:.85}
+
+/* número de la flecha: el bolígrafo rojo del manual sobre la pantalla */
+.n{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--pen);color:var(--pen-fg);
+  font-family:"Atkinson Hyperlegible",sans-serif;font-size:12.5px;font-weight:700;display:grid;place-items:center;
+  box-shadow:0 0 0 3px var(--a-app);z-index:3;font-variant-numeric:tabular-nums}
+.n.tr{top:-10px;right:-10px}
+.n.tl{top:-10px;left:-10px}
+.n.r{top:50%;right:-12px;transform:translateY(-50%)}
+
+/* ── Tareas: piezas propias ────────────────────────────────────────────── */
+.indice-mod{display:flex;flex-wrap:wrap;gap:6px 8px;padding:12px 14px;border:1px solid var(--rule);border-radius:12px;font-size:15px}
+.indice-mod a{text-decoration:none;color:var(--ink-2);padding:3px 9px;border-radius:7px;background:var(--paper)}
+.indice-mod a:hover{color:var(--ink);background:var(--green-soft)}
+.conceptos{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.concepto{border-top:3px solid var(--green);padding-top:12px;display:grid;gap:6px;align-content:start}
+.concepto .cifra{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:34px;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.concepto .cifra small{font-size:16px;font-weight:500;color:var(--muted);margin-left:2px}
+.concepto p{color:var(--ink-2);font-size:16px}
+.reparto{margin:0;border:1px solid var(--rule);border-radius:14px;padding:18px;display:grid;gap:14px;background:var(--paper)}
+.reparto figcaption{color:var(--ink-2);max-width:64ch}
+.rep-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;overflow-x:auto}
+.rep-dia{display:grid;gap:6px;justify-items:stretch;min-width:64px}
+.rep-d{font-size:14px;font-weight:700;text-align:center;color:var(--ink)}
+.rep-col{display:grid;grid-template-rows:repeat(4,30px);gap:4px;padding:5px;border-radius:10px;background:var(--sheet);border:1px solid var(--rule)}
+.m{display:grid;place-items:center;border-radius:6px;font-style:normal;font-size:12px;font-family:Inter,system-ui,sans-serif;font-weight:500;overflow:hidden;white-space:nowrap}
+.m.fis{background:var(--pen);color:var(--pen-fg)}
+.m.otr{background:var(--green-soft);color:var(--green-ink)}
+.m.vac{border:1.5px dashed var(--rule)}
+.rep-est{font-size:12px;text-align:center;color:var(--muted)}
+.rep-est.entrega{color:var(--pen-ink);font-weight:700}
+.rep-ley{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:14px;color:var(--muted);align-items:center}
+.rep-ley span{display:inline-flex;align-items:center;gap:6px}
+.rep-ley .m{width:18px;height:14px;display:inline-block}
+.calor{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center}
+.calor span{display:block;font-size:9.5px;color:var(--a-muted);white-space:nowrap}
+.calor .hoy span{color:var(--a-accent);font-weight:700}
+.calor b{display:grid;place-items:center;height:30px;border-radius:9px;border:1px solid var(--a-line);font-size:11px;font-weight:600;color:var(--a-soft)}
+.calor i{display:block;height:8px;margin-top:2px}
+.calor i.p::after{content:"";display:block;width:6px;height:6px;border-radius:50%;background:#34d399;margin:1px auto 0}
+.tarea-est{display:grid;grid-template-columns:22px 1fr;gap:8px;padding:8px;border-radius:10px;border:1px solid var(--a-line);background:var(--a-elev)}
+.tarea-est.hecha{opacity:.7}
+.casilla{width:20px;height:20px;border-radius:5px;border:1.5px solid var(--a-line-2);display:grid;place-items:center;font-size:12px;margin-top:2px}
+.casilla.on{background:var(--a-accent);border-color:var(--a-accent);color:var(--a-accent-fg)}
+.ideas{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.ideas div{background:var(--paper);border-radius:12px;padding:14px 16px;color:var(--ink-2);font-size:16px}
+.ideas b{display:block;color:var(--ink);margin-bottom:4px;font-size:17px}
+.anuncio{border:1px solid var(--rule);border-radius:4px 16px 16px 16px;background:var(--green-soft);color:var(--ink);padding:18px 20px;display:grid;gap:10px;max-width:62ch;font-size:16px}
+.anuncio-de{font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--green-ink)}
+.anuncio-link{display:inline-block;margin-top:4px;font-family:Inter,system-ui,sans-serif;font-size:14px;color:var(--green-ink);text-decoration:underline}
+.tarjeta{max-width:440px;border:2px solid var(--ink);border-radius:18px;padding:22px;display:grid;gap:16px;background:var(--sheet)}
+.tarj-cab{display:flex;gap:12px;align-items:center}
+.tarj-sello{width:44px;height:44px;flex:0 0 auto;border-radius:11px;display:grid;place-items:center;color:#fff;font-size:22px;
+  background:linear-gradient(135deg,#127E48,#2A9E8C 68%,#3684B5);box-shadow:inset 0 0 0 3px #C4222F}
+.tarj-kicker{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tarj-tit{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:26px;line-height:1.1}
+.tarj-pasos{margin:0;padding-left:22px;display:grid;gap:8px;font-size:16px;color:var(--ink-2)}
+.tarj-pasos li::marker{color:var(--pen);font-weight:700}
+.tarj-pasos b{color:var(--ink)}
+.tarj-datos{display:grid;gap:4px;border-top:1px dashed var(--rule);border-bottom:1px dashed var(--rule);padding:10px 0;font-size:15px;color:var(--ink-2)}
+.tarj-datos b{display:inline-block;min-width:26px;color:var(--pen);font-size:17px}
+.tarj-pie{font-size:14px;color:var(--muted)}
+@media print{.tarjeta{break-inside:avoid}.indice-mod{display:none}}
+
+.cupos{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;align-items:start}
+.cu-col{border:1px solid var(--rule);border-radius:14px;padding:16px;display:grid;gap:12px;background:var(--sheet)}
+.cu-cab h4{margin:0;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:20px;color:var(--ink)}
+.cu-cab p{font-size:14px;color:var(--muted)}
+.cu-cab .cu-per{font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--green);margin-top:4px}
+.cu-lista{list-style:none;margin:0;padding:0;display:grid}
+.cu-lista li{display:grid;grid-template-columns:1fr auto 18px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--rule);font-size:15px}
+.cu-asig{color:var(--ink-2);line-height:1.3}
+.cu-pts{display:flex;gap:4px}
+.cu-pts i{width:12px;height:12px;border-radius:3px;background:var(--pen)}
+.cu-num{font-weight:700;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.cu-total{display:flex;justify-content:space-between;align-items:baseline;font-size:15px;color:var(--muted)}
+.cu-total b{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:22px;color:var(--ink);font-variant-numeric:tabular-nums}
+.cu-nota{font-size:13.5px;color:var(--muted);line-height:1.45}
+.cu-nota b{color:var(--ink-2)}
+.cu-fuente{font-size:13.5px;color:var(--muted)}
+
+/* ── Pie ──────────────────────────────────────────────────────────────────── */
+.pie{max-width:1080px;margin:0 auto;padding:0 20px 56px;color:var(--muted);font-size:14.5px;display:grid;gap:6px}
+.pie b{color:var(--ink-2)}
+
+@media print{
+  body{background:#fff;font-size:12pt}
+  .nav,.pasa,.contenido{display:none}
+  .mod{box-shadow:none;border:1px solid #ccc;break-inside:avoid-page}
+  .bloque{break-inside:avoid}
+  .pantalla{box-shadow:none}
+}
+</style>
+
+<header class="cab">
+  <div class="sello"><i aria-hidden="true">⚜</i> I.E. Manuel J. Betancur · MJB Préstamos</div>
+  <h1>Manual del <span>coordinador</span></h1>
+  <p class="lead">Lo que tu rol tiene de más: aprobar reservas, reorganizar el día cuando falta un profesor, llevar la asistencia del colegio y el seguimiento de los casos. Cada pantalla está dibujada con los mismos botones de la aplicación; los números rojos señalan qué tocar, en orden.</p>
+  <div class="etiquetas">
+    <span class="et nivel">Nivel básico</span>
+    <span class="et">Rol: coordinador</span>
+    <span class="et">Septiembre 2026</span>
+  </div>
+</header>
+
+<nav class="nav" aria-label="Secciones del manual">
+  <div class="nav-in">
+    <a class="nav-ini" href="#contenido" title="Volver al índice">⚜ Manual</a>
+    <span class="nav-sep" aria-hidden="true">/</span>
+    <span class="nav-aqui" id="nav-aqui">Índice</span>
+    <details class="nav-menu" id="nav-menu">
+      <summary>Secciones <span aria-hidden="true">▾</span></summary>
+      <ol><li><a href="#rol">Tu rol</a></li><li><a href="#inicio">Inicio</a></li><li><a href="#panel">Panel</a></li><li><a href="#agenda">Agenda</a></li><li><a href="#horario">Horario</a></li><li><a href="#generar">Generar horario</a></li><li><a href="#asistencia">Asistencia</a></li><li><a href="#tareas">Tareas</a></li><li><a href="#chatbot">Chatbot</a></li><li><a href="#riesgo">Gestión del Riesgo</a></li><li><a href="#reservas">Reservas</a></li><li><a href="#asignacion">Asignación 2026</a></li><li><a href="#chat">Chat</a></li></ol>
+    </details>
+  </div>
+</nav>
+
+<main>
+
+<section class="contenido" id="contenido" aria-labelledby="contenido-t">
+  <div class="cont-cab"><h2 id="contenido-t">¿Qué quieres aprender?</h2><p>Toca una sección para ir directo a ella. Están en el mismo orden del menú de la aplicación. Lo que es igual para todos, como pasar lista o publicar una tarea, está en el <a href="profesores.html"><b>manual del profesor</b></a>.</p></div>
+  <ol class="ix"><li><a href="#rol"><span class="ix-t">Tu rol</span><span class="ix-d">Qué consultas y qué cambias en cada sección</span></a></li><li><a href="#inicio"><span class="ix-t">Inicio</span><span class="ix-d">Los avisos de tu jornada</span></a></li><li><a href="#panel"><span class="ix-t">Panel</span><span class="ix-d">Aprobar reservas y lo del día</span><span class="ix-b">Solo coordinación</span></a></li><li><a href="#agenda"><span class="ix-t">Agenda</span><span class="ix-d">Las actividades de la semana</span></a></li><li><a href="#horario"><span class="ix-t">Horario</span><span class="ix-d">Ausencias, jornada acortada, aviso web y acompañamientos</span><span class="ix-b">Lo más usado</span></a></li><li><a href="#generar"><span class="ix-t">Generar horario</span><span class="ix-d">Preparar el horario del próximo año</span><span class="ix-b">Nuevo</span></a></li><li><a href="#asistencia"><span class="ix-t">Asistencia</span><span class="ix-d">Tercera hora, llegadas tarde y evasiones</span><span class="ix-b">Lo más usado</span></a></li><li><a href="#tareas"><span class="ix-t">Tareas</span><span class="ix-d">Carga de los grupos y cupos de momentos</span></a></li><li><a href="#chatbot"><span class="ix-t">Chatbot</span><span class="ix-d">Convivencia y sistema de evaluación</span></a></li><li><a href="#riesgo"><span class="ix-t">Gestión del Riesgo</span><span class="ix-d">El seguimiento de los casos</span></a></li><li><a href="#reservas"><span class="ix-t">Reservas</span><span class="ix-d">Reservar, y dónde aprobar</span></a></li><li><a href="#asignacion"><span class="ix-t">Asignación 2026</span><span class="ix-d">El plantel completo</span></a></li><li><a href="#chat"><span class="ix-t">Chat</span><span class="ix-d">Crear grupos y fijar mensajes</span></a></li></ol>
+</section>
+<!-- ═══════════════ TU ROL ═══════════════ -->
+<section class="mod" id="rol">
+  <div class="mod-cab">
+    <p class="menu">Antes de empezar</p>
+    <h2>Tu rol: ves las dos jornadas, cambias la tuya</h2>
+    <p class="para">Hay dos coordinadores, uno por jornada. Casi todo lo que ves en la aplicación abarca el colegio entero, pero lo que <b>cambia</b> el día de otros (el horario, la jornada, las publicaciones) queda en tu jornada. Así ninguno de los dos borra por error el trabajo del otro.</p>
+  </div>
+  <div class="bloque solo">
+    <div class="tabla-w">
+      <table class="t">
+        <thead><tr><th>Sección</th><th>Lo que consultas</th><th>Lo que cambias</th></tr></thead>
+        <tbody>
+          <tr><td>Horario</td><td>Mañana y tarde</td><td>Solo tu jornada: editar el día, acortar la jornada, borrar modificaciones, publicar los acompañamientos</td></tr>
+          <tr><td>Generar horario</td><td>Cualquier sede y jornada</td><td>Borradores del próximo año, guardados en tu computador; aún no se publican</td></tr>
+          <tr><td>Asistencia</td><td>Las planillas de tu jornada y tu sede</td><td>Tercera hora, llegadas tarde, evasiones, fichas</td></tr>
+          <tr><td>Tareas</td><td>Mañana y tarde</td><td>Cancelar tareas y los cupos de momentos, que valen para todo el colegio</td></tr>
+          <tr><td>Gestión del Riesgo</td><td>Los casos de tu jornada</td><td>Seguimiento y cierre de esos casos</td></tr>
+          <tr><td>Reservas</td><td>Las solicitudes de los profesores de tu jornada</td><td>Aprobar o rechazar, desde el Panel</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sabias">Entras igual que los profesores: <span class="bt">Continuar con Google</span> con tu correo del colegio. Todo lo que ellos ven en su manual también lo puedes hacer tú. Este manual cubre lo que tu rol tiene <b>de más</b>.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#contenido"><small>Volver</small>← Índice</a><a class="ps-next" href="#inicio"><small>Siguiente</small>Inicio →</a></nav>
+</section>
+
+<!-- ═══════════════ INICIO ═══════════════ -->
+<section class="mod" id="inicio">
+  <div class="mod-cab">
+    <p class="menu">Menú · Inicio</p>
+    <h2>Inicio</h2>
+    <p class="para">Tu resumen del día. Además de lo que ve cualquier profesor, te avisa de dos cosas que son de tu trabajo.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Inicio del coordinador con las tarjetas de modificaciones y casos">
+        <div class="scr">
+          <div class="hd"><div class="tit">Coordinación · mañana<div class="sub2">jueves, 10 de septiembre</div></div></div>
+          <div class="pad">
+            <span class="lbl">Tu día</span>
+            <div class="cd"><span class="n tl">1</span>
+              <div class="fila"><span class="h" style="flex:1">2 modificaciones de horario</span><span class="b">Ver panel</span></div>
+              <span class="d">En los próximos 14 días.</span>
+            </div>
+            <div class="cd" style="background:var(--a-warn-soft);border-color:transparent"><span class="n tl">2</span>
+              <div class="fila"><span class="h" style="flex:1;color:var(--a-warn-ink)">1 caso sin seguimiento</span><span class="b">Ver</span></div>
+              <span class="d" style="color:var(--a-warn-ink)">Llevan 8 días o más sin actualizarse.</span>
+            </div>
+            <div class="cd">
+              <div class="fila"><span class="h" style="flex:1">Agenda institucional de hoy</span><span class="b">Ver</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Modificaciones de horario próximas</span><p>Cuántos cambios de horario hay en las próximas dos semanas. <span class="bt">Ver panel</span> te lleva a revisarlos.</p></div></li>
+        <li><div><span class="t">Casos sin seguimiento</span><p>Casos de primeros auxilios o contención emocional de tu jornada que llevan <b>8 días o más</b> sin que nadie los actualice. <span class="bt">Ver</span> te lleva a Gestión del Riesgo.</p></div></li>
+      </ol>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#rol"><small>Anterior</small>← Tu rol</a><a class="ps-next" href="#panel"><small>Siguiente</small>Panel →</a></nav>
+</section>
+
+<!-- ═══════════════ PANEL ═══════════════ -->
+<section class="mod" id="panel">
+  <div class="mod-cab">
+    <p class="menu">Menú · Panel</p>
+    <h2>Panel</h2>
+    <p class="para">Tu escritorio de coordinación. Aquí apruebas las reservas de los profesores y ves lo del día. Solo lo tienen los coordinadores.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Panel con la pestaña Pendientes y los botones Aprobar y Rechazar">
+        <div class="scr">
+          <div class="hd"><div class="tit">Panel</div></div>
+          <div class="pad">
+            <div class="fila" style="gap:4px;position:relative">
+              <span class="b pri">Pendientes · 2</span><span class="b">Hoy · 3</span><span class="b">Historial</span><span class="b">Informes</span>
+              <span class="n tr">1</span>
+            </div>
+            <div class="cd">
+              <span class="h">Lab. Ciencias · jueves 17 · bloque 3</span>
+              <span class="d">Luis Pérez · Práctica de laboratorio</span>
+              <span class="d">Equipos: video beam</span>
+              <div class="fila" style="justify-content:flex-end;position:relative"><span class="b">Rechazar</span><span class="b pri">Aprobar</span><span class="n tr">2</span></div>
+            </div>
+            <div class="cd">
+              <span class="h">Sala de Informática · viernes 18 · bloque 1</span>
+              <span class="d">Marta Ríos · Evaluación</span>
+              <div class="fila" style="justify-content:flex-end"><span class="b">Rechazar</span><span class="b pri">Aprobar</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Abre <b>Pendientes</b></span><p>El número al lado de cada pestaña te dice cuántas hay. Solo ves las de <b>los profesores de tu jornada</b> (y las de quienes trabajan en las dos): las de la otra jornada las aprueba el otro coordinador. <b>Hoy</b> muestra las reservas aprobadas para hoy; <b>Historial</b>, todas las de tu jornada.</p></div></li>
+        <li><div><span class="t">Revisa y decide</span><p>Cada tarjeta dice qué espacio, qué día y hora, quién lo pide, para qué y qué equipos necesita. Toca <span class="bt">Aprobar</span> o <span class="bt">Rechazar</span>. El profesor ve el resultado en su pestaña «Mis reservas».</p></div></li>
+      </ol>
+    </div>
+  </div>
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">Pestaña</span><h3>Informes</h3><p>El tablero de los casos de primeros auxilios y contención emocional, el mismo de <a href="#riesgo">Gestión del Riesgo</a>.</p></div>
+      <div class="si"><span class="quien">Pestaña</span><h3>Horario del J</h3><p>Un acceso directo a la sección <a href="#horario">Horario</a>, con todo lo que puedes hacer allí.</p></div>
+      <div class="si"><span class="quien">Pestaña</span><h3>Configuración</h3><p><b>Tema de la interfaz</b>: <span class="bt">🌙 Oscuro</span> o <span class="bt">☀️ Claro</span>.</p></div>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#inicio"><small>Anterior</small>← Inicio</a><a class="ps-next" href="#agenda"><small>Siguiente</small>Agenda →</a></nav>
+</section>
+
+<!-- ═══════════════ AGENDA ═══════════════ -->
+<section class="mod" id="agenda">
+  <div class="mod-cab">
+    <p class="menu">Menú · Agenda</p>
+    <h2>Agenda</h2>
+    <p class="para">La agenda institucional de la semana. La ves igual que los profesores: <span class="bt">Semana</span> para los cinco días, <span class="bt">Día</span> para uno solo, y en cada actividad 👥 quiénes asisten, 📍 dónde y 🧭 quién responde.</p>
+  </div>
+  <p class="sabias">La agenda es de solo lectura también para coordinación: no se edita desde la aplicación.</p>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#panel"><small>Anterior</small>← Panel</a><a class="ps-next" href="#horario"><small>Siguiente</small>Horario →</a></nav>
+</section>
+
+<!-- ═══════════════ HORARIO ═══════════════ -->
+<section class="mod" id="horario">
+  <div class="mod-cab">
+    <p class="menu">Menú · Horario</p>
+    <h2>Horario</h2>
+    <p class="para">Consultas el horario de las dos jornadas y, en la tuya, reorganizas el día cuando falta un profesor, acortas la jornada, publicas el aviso en la página del colegio y repartes los acompañamientos de descanso.</p>
+  </div>
+
+  <nav class="indice-mod" aria-label="Contenido de Horario">
+    <a href="#h-ver">Ver las dos jornadas</a>
+    <a href="#h-ausencia">Cuando falta un profesor</a>
+    <a href="#h-editor">Reorganizar el día</a>
+    <a href="#h-acortar">Acortar la jornada</a>
+    <a href="#h-web">Publicar en la página del colegio</a>
+    <a href="#h-borrar">Borrar una modificación</a>
+    <a href="#h-acomp">Acompañamientos de descanso</a>
+  </nav>
+
+  <div class="bloque" id="h-ver">
+    <div>
+      <div class="pantalla" role="img" aria-label="Horario con el selector de jornada y los botones Editar y Acortar">
+        <div class="scr">
+          <div class="hd"><div class="tit">Horario</div></div>
+          <div class="pad">
+            <div class="tabs"><span>Por aulas</span><span class="on">Por docente</span><span>Por grupo</span><span>Acompañamiento</span></div>
+            <div class="fila" style="justify-content:space-between">
+              <div class="tabs" style="flex:0 0 auto;position:relative"><span class="on">Mañana</span><span>Tarde</span><span class="n tr">1</span></div>
+              <div class="fila" style="gap:4px;position:relative"><span class="b pri">✎ Editar</span><span class="b">⏱ Acortar</span><span class="n tr">2</span></div>
+            </div>
+            <div class="cd" style="background:var(--a-accent-soft);border-color:transparent">
+              <span class="h" style="color:var(--a-accent-ink)">Hay 1 modificación de horario</span>
+              <span class="d" style="color:var(--a-accent-ink)">martes 15 de sep · 1 ausencia · Ver detalle →</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Ver las dos jornadas</h3>
+      <ol class="pasos">
+        <li><div><span class="t">Cambia de jornada con <span class="bt">Mañana</span> / <span class="bt">Tarde</span></span><p>Los profesores solo ven la suya; tú ves las dos.</p></div></li>
+        <li><div><span class="t"><span class="bt">✎ Editar</span> y <span class="bt">⏱ Acortar</span> solo salen en tu jornada</span><p>Si estás consultando la otra, esos botones desaparecen. Vuelve a tu jornada para usarlos.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="bloque" id="h-ausencia">
+    <div>
+      <div class="pantalla" role="img" aria-label="Asistente Editar horario del día, paso 2">
+        <div class="scr">
+          <div class="hd"><div class="tit">Editar horario del día<div class="sub2">Paso 2 de 4</div></div></div>
+          <div class="pad">
+            <span class="h" style="font-size:13.5px">¿Qué docentes no estarán?</span>
+            <div class="cd" style="border-color:var(--a-accent)"><div class="fila"><span class="casilla on">✓</span><span class="h" style="flex:1">Luis Pérez</span><span class="d">6 bloques</span></div></div>
+            <div class="cd"><div class="fila"><span class="casilla"></span><span class="h" style="flex:1">Marta Ríos</span></div></div>
+            <div class="cd"><div class="fila"><span class="casilla"></span><span class="h" style="flex:1">Ana Gómez</span></div></div>
+            <div class="fila" style="justify-content:space-between"><span class="b">← Atrás</span><span class="b pri">Continuar →</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Cuando falta un profesor</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">Toca <span class="bt">✎ Editar</span>. Un asistente te hace cuatro preguntas y con eso arma el borrador del día.</p>
+      <ol class="pasos">
+        <li><div><span class="t">«¿Para qué fecha es la modificación?»</span><p>Solo se pueden elegir días de clase.</p></div></li>
+        <li><div><span class="t">«¿Qué docentes no estarán?»</span><p>Al marcar a alguien se marcan todos sus bloques del día.</p></div></li>
+        <li><div><span class="t">«¿Qué bloques se ven afectados?»</span><p>Si falta solo una parte del día, desmarca los bloques que sí dicta. Ahí también dices si <b>«¿Estará en el colegio ese día?»</b>: si está, puede supervisar talleres.</p></div></li>
+        <li><div><span class="t">«¿Hay apoyos disponibles?»</span><p>Si hay PTA, UAI o un docente de apoyo que pueda cubrir, lo registras aquí. Luego toca <span class="bt">Crear borrador</span>.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="bloque" id="h-editor">
+    <div>
+      <div class="pantalla" role="img" aria-label="Editor del día con las pastillas de clase y la bandeja de Pendientes">
+        <div class="scr">
+          <div class="hd" style="background:var(--a-warn-soft)"><div class="tit" style="color:var(--a-warn-ink)">✎ Editando horario<div class="sub2" style="color:var(--a-warn-ink)">martes 15 de sep · mañana</div></div></div>
+          <div class="pad">
+            <table class="hr" aria-hidden="true">
+              <tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th></tr>
+              <tr><td class="bl">10.2</td><td class="cls">Mat</td><td class="ocu" style="text-decoration:line-through">Fís</td><td class="cls" style="position:relative">Ing<span class="n" style="top:-9px;right:-9px">1</span></td><td class="rec">T</td></tr>
+              <tr><td class="bl">11.1</td><td class="ocu" style="text-decoration:line-through">Quí</td><td class="cls">Soc</td><td class="nada"></td><td class="cls">Leng</td></tr>
+            </table>
+            <div class="cd" style="gap:5px;position:relative"><span class="n tl">2</span>
+              <span class="lbl">Pendientes</span>
+              <div class="fila"><span class="b" style="background:var(--a-bad-soft);color:var(--a-bad-ink);border-color:transparent">Fís · 10.2</span><span class="b">Art · 9.3</span></div>
+            </div>
+            <div class="fila" style="justify-content:flex-end;position:relative"><span class="b">↩ Deshacer</span><span class="b">Descartar</span><span class="b pri">Guardar</span><span class="n tr">3</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Reorganizar el día</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">El borrador abre el día de tu jornada con las clases como pastillas. Las del profesor ausente salen tachadas.</p>
+      <ol class="pasos">
+        <li><div><span class="t">Arrastra las pastillas dentro de su fila</span><p>Mueve una clase a otro bloque del mismo grupo para tapar el hueco. Si el profesor o el grupo ya está ocupado en ese bloque, la aplicación no te deja soltarla ahí.</p></div></li>
+        <li><div><span class="t">Resuelve lo que queda en <b>Pendientes</b></span><p>Lo que sacas de su lugar va a la bandeja. <b>T</b> deja un taller supervisado; <b>✕</b> quita la clase de ese día.</p></div></li>
+        <li><div><span class="t">Toca <span class="bt">Guardar</span></span><p>No se activa mientras quede en Pendientes alguna clase de un profesor que <b>sí</b> vino. Las del ausente no bloquean: ese profesor no está, y sus clases simplemente no se dan.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">Al guardar</span><h3>A quién le llega</h3><p>Cada profesor afectado recibe un aviso en la aplicación y un <b>correo</b>, con copia a Juan Carlos Blandón y a Uriel López. Si registraste acompañantes, también se les avisa. Y queda lista una <a href="#h-web">publicación para la página del colegio</a>, que revisas antes de que salga.</p></div>
+      <div class="si"><span class="quien">Solo informa</span><h3>Dos salones a la misma hora</h3><p>Si al mover clases dos grupos quedan en el mismo salón, la aplicación te lo señala, pero no te impide guardar. El Patio no cuenta: ahí caben varios grupos.</p></div>
+      <div class="si"><span class="quien">Consejo</span><h3>Cancelar una clase aunque el profesor esté</h3><p>El <b>✕</b> sirve para cualquier clase, por ejemplo si el grupo sale a una actividad. El <b>T</b> de taller, en cambio, solo aplica a clases de un profesor ausente.</p></div>
+    </div>
+  </div>
+
+  <div class="bloque" id="h-acortar">
+    <div>
+      <div class="pantalla" role="img" aria-label="Acortar jornada del día">
+        <div class="scr">
+          <div class="hd"><div class="tit">⏱ Acortar jornada del día</div></div>
+          <div class="pad">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div><span class="lbl">Hora de inicio</span><div class="campo">06:00</div></div>
+              <div><span class="lbl">Hora de fin</span><div class="campo">10:00</div></div>
+            </div>
+            <div class="fila" style="justify-content:space-between;position:relative"><span class="lbl">Horas de clase a dictar</span><div class="tabs" style="flex:0 0 auto"><span>3</span><span class="on">4</span><span>5</span></div><span class="n" style="top:-8px;left:-10px">1</span></div>
+            <div><span class="lbl">Motivo</span><div class="campo">Reunión de padres</div></div>
+            <span class="b pri" style="justify-content:center;padding:8px;position:relative">Guardar jornada acortada<span class="n tr">2</span></span>
+            <div class="cd" style="gap:6px;position:relative"><span class="n tl">3</span>
+              <span class="b" style="justify-content:center">Copiar resumen para difundir</span>
+              <span class="b" style="justify-content:center">📧 Enviar correo a todos los docentes de la jornada</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Acortar la jornada</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">Para un acto cívico, una reunión o una jornada pedagógica. La aplicación recalcula las horas de cada bloque.</p>
+      <ol class="pasos">
+        <li><div><span class="t">Fecha, horas y cuántas clases se dictan</span><p>Los descansos salen con el patrón del colegio. Si los mueves, <b>Volver al patrón institucional</b> los restablece.</p></div></li>
+        <li><div><span class="t">Elige el motivo y toca <span class="bt">Guardar jornada acortada</span></span><p>Solo puede haber una jornada acortada por fecha en cada jornada.</p></div></li>
+        <li><div><span class="t">Avisa tú a los profesores</span><p><span class="bt">📧 Enviar correo a todos los docentes de la jornada</span> o <span class="bt">Copiar resumen para difundir</span> para pegarlo en WhatsApp.</p></div></li>
+      </ol>
+      <p class="sabias ojo" style="margin-top:16px">A diferencia del cambio por ausencia, aquí <b>el correo no sale solo</b>. Si cierras la ventana sin tocar el paso 3, los profesores no se enteran por la aplicación.</p>
+    </div>
+  </div>
+
+  <div class="bloque" id="h-web">
+    <div>
+      <div class="pantalla" role="img" aria-label="Revisar publicación para la web">
+        <div class="scr">
+          <div class="hd"><div class="tit">📄 Revisar publicación para la web</div></div>
+          <div class="pad">
+            <div class="tabs" style="position:relative"><span class="on">Vista previa</span><span>Editar HTML</span><span class="n tr">1</span></div>
+            <div class="cd">
+              <span class="h">Cambios de horario · martes 15 de sep</span>
+              <div class="fila"><span class="casilla on">✓</span><span class="d">10.2</span><span class="casilla on">✓</span><span class="d">11.1</span></div>
+            </div>
+            <span class="b pri" style="justify-content:center;padding:8px;position:relative">✓ Aprobar y publicar<span class="n tr">2</span></span>
+            <div class="fila" style="justify-content:space-between"><span class="b">Revisar después</span><span class="b">Descartar publicación</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Publicar en la página del colegio</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">Cada cambio de horario y cada jornada acortada preparan un aviso para la página web del colegio. <b>No sale hasta que lo apruebes.</b> Mientras tanto, en Horario verás «Hay 1 publicación pendiente de revisar para la página del colegio» con <span class="bt">Revisar y aprobar →</span>.</p>
+      <ol class="pasos">
+        <li><div><span class="t">Revisa la vista previa</span><p>Con las casillas eliges qué grupos aparecen. Si prefieres, <b>Editar HTML</b> te deja cambiar el texto a mano; desde ese momento las casillas ya no cuentan.</p></div></li>
+        <li><div><span class="t">Toca <span class="bt">✓ Aprobar y publicar</span></span><p>Si luego hay que quitarlo, <b>Retirar aviso</b> lo baja de la página sin borrarlo.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px">La página del colegio muestra <b>solo el último aviso publicado</b>. Si ambos coordinadores publican el mismo día, el segundo reemplaza al primero: pónganse de acuerdo.</p>
+    </div>
+  </div>
+
+  <div class="bloque solo" id="h-borrar">
+    <h3 class="sub">Borrar una modificación</h3>
+    <p style="color:var(--ink-2);max-width:64ch">En el aviso «Hay N modificaciones de horario», cada fecha tiene una <b>✕</b> (<b>Eliminar esta modificación</b>). Confirma con <span class="bt">Eliminar</span>. Solo puedes borrar las de tu jornada.</p>
+    <p class="sabias ojo">Borrar una modificación <b>no deshace lo que ya salió</b>: los correos enviados siguen en la bandeja de los profesores y el aviso de la página sigue publicado. Si el cambio ya se había comunicado, retira el aviso de la página y avisa tú de la corrección.</p>
+  </div>
+  <div class="bloque" id="h-acomp">
+    <div>
+      <div class="pantalla" role="img" aria-label="Editor manual de acompañamientos con la bandeja de profesores y la matriz de zonas por día">
+        <div class="scr">
+          <div class="hd"><div class="tit">Editar a mano<div class="sub2">Jornada mañana</div></div><span class="b pri" style="position:relative">Publicar…<span class="n tr">3</span></span></div>
+          <div class="pad">
+            <div class="cd" style="background:var(--a-bad-soft);border-color:transparent"><span class="d" style="color:var(--a-bad-ink)">⛔ Tienda Escolar el lunes tiene 0 de 1 profesores.</span></div>
+            <div class="cd" style="gap:5px;position:relative"><span class="n tl">1</span>
+              <span class="lbl">Profesores</span>
+              <div class="fila"><span class="b">Luis 2</span><span class="b">Ana 3</span><span class="b">Marta <small>MIXTO</small> 1</span></div>
+            </div>
+            <table class="hr" aria-hidden="true" style="position:relative">
+              <tr><th></th><th>Lun</th><th>Mar</th><th>Mié</th></tr>
+              <tr><td class="bl">Tienda</td><td class="nada" style="border:1.5px dashed var(--a-line-2)">0/1</td><td class="cls">Luis</td><td class="cls">Ana</td></tr>
+              <tr><td class="bl">Restaurante</td><td class="cls">Doris 🔒</td><td class="cls" style="position:relative">Ana<span class="n" style="top:-9px;right:-9px">2</span></td><td class="cls">Marta</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Cambiar los acompañamientos de descanso</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">En la pestaña <b>Acompañamiento</b>, en tu jornada, toca <span class="bt">✎ Editar</span>. Todo lo que hagas queda en un <b>borrador</b> guardado en tu navegador: nadie lo ve hasta que publicas.</p>
+      <ol class="pasos">
+        <li><div><span class="t">Arma el borrador</span><p><b>Zonas</b> agrega o quita zonas y cambia cuántos profesores pide cada una. <b>Carga por profesor</b> muestra cuántos tiene cada quien y si cae en un día de 5 o 6 clases. <b>Generar alternativas</b> propone 2 o 3 repartos automáticos; <span class="bt">Usar esta propuesta</span> la lleva al editor.</p></div></li>
+        <li><div><span class="t">Ajusta a mano</span><p>Arrastra un profesor de la bandeja a una casilla; <b>✕</b> lo quita. La aplicación no te deja poner a alguien fuera de su jornada ni en dos zonas el mismo día. El <b>🔒</b> fija una asignación para que las alternativas no la muevan.</p></div></li>
+        <li><div><span class="t">Toca <span class="bt">Publicar…</span></span><p>Eliges desde qué fecha rige y ves la <b>vista previa</b>: a quién le llega el aviso y qué tenía y qué le queda. No se puede publicar con casillas vacías ni con una fecha pasada.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">Al publicar</span><h3>A quién le llega</h3><p>Solo a los profesores cuyo acompañamiento <b>cambió</b>: un aviso en la aplicación y un correo. Los demás no reciben nada. Mientras llega la fecha, la pestaña dice «Cambia desde el…».</p></div>
+      <div class="si"><span class="quien">No se borra</span><h3>Una publicación queda para siempre</h3><p>Para corregir un error, publica otra. En <b>Historial</b> ves todas, empezando por la «Distribución inicial», con quién publicó y desde cuándo rige cada una.</p></div>
+      <div class="si"><span class="quien">Consejo</span><h3>Mixtos y días cargados</h3><p>Los profesores mixtos cuentan a la mitad y solo se asignan los días que están en tu jornada. La aplicación te avisa en ámbar si alguien queda en un día de 5 o 6 clases, pero no te lo impide.</p></div>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#agenda"><small>Anterior</small>← Agenda</a><a class="ps-next" href="#generar"><small>Siguiente</small>Generar horario →</a></nav>
+</section>
+
+<!-- ═══════════════ GENERAR HORARIO ═══════════════ -->
+<section class="mod" id="generar">
+  <div class="mod-cab">
+    <p class="menu">Menú · Generar horario</p>
+    <h2>Generar horario</h2>
+    <p class="para">Aquí se prepara el horario del <b>próximo año</b>. Nada de lo que hagas en esta sección cambia el horario que se usa hoy: ese sigue en <a href="#horario">Horario</a>.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Generar horario con el selector de sede y jornada, los pasos y los horarios guardados">
+        <div class="scr">
+          <div class="hd"><div class="tit">Generar horario</div></div>
+          <div class="pad">
+            <span class="lbl">¿Qué horario va a construir?</span>
+            <div class="fila" style="position:relative"><div class="campo" style="flex:1">Sede Central</div><div class="campo" style="flex:1">Mañana</div><span class="n tr">1</span></div>
+            <div class="cd" style="position:relative"><span class="n tl">2</span><span class="h">Configuración del año · Disponibilidad docente · Revisión de datos</span></div>
+            <div class="cd" style="gap:6px;position:relative"><span class="n tl">3</span>
+              <span class="d">1 · Descargar los datos para el generador</span>
+              <span class="d">2 · Generar el horario con el motor</span>
+              <span class="d">3 · Cargar el horario generado</span>
+            </div>
+            <div class="cd" style="position:relative"><span class="n tl">4</span>
+              <span class="h">Horarios guardados en este computador</span>
+              <div class="fila" style="justify-content:flex-end"><span class="b">Comparar</span><span class="b pri">Revisar</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Elige sede y jornada</span><p>«Cualquier coordinador puede construir cualquiera. Publicarlo es otra cosa.»</p></div></li>
+        <li><div><span class="t">Revisa los datos antes de generar</span><p>En <b>Disponibilidad docente</b> marcas cuándo puede dictar cada profesor, y <b>Revisión de datos</b> te dice qué falta o no cuadra.</p></div></li>
+        <li><div><span class="t">Los tres pasos del generador</span><p>El paso 2 no se hace en la aplicación: lo corre, en su computador, quien tiene instalado el generador. Luego tú cargas el archivo con <span class="bt">Elegir archivo del horario</span> y ves cuántas clases quedaron ubicadas y cuáles no.</p></div></li>
+        <li><div><span class="t">Ajusta y compara</span><p>Mueves clases a mano en el borrador. En la lista, <span class="bt">Comparar</span> muestra en qué se diferencian dos versiones y <span class="bt">Revisar</span> deja una como la versión en revisión.</p></div></li>
+      </ol>
+    </div>
+  </div>
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">Importante</span><h3>Todavía no se publica</h3><p>No hay botón para volverlo el horario oficial. El borrador sirve para construir y revisar; los profesores no lo ven.</p></div>
+      <div class="si"><span class="quien">Ojo</span><h3>Vive en este computador</h3><p>Los horarios guardados quedan <b>en el navegador donde los hiciste</b>: no aparecen en otro equipo ni en tu celular. En un computador compartido puedes encontrar el borrador de otra persona.</p></div>
+      <div class="si"><span class="quien">En Horario</span><h3>«Horario oficial» o «Ver el borrador»</h3><p>Si en ese navegador hay un borrador, en <a href="#horario">Horario</a> aparece una franja para pasar del oficial al borrador. Fíjate siempre en cuál estás mirando.</p></div>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#horario"><small>Anterior</small>← Horario</a><a class="ps-next" href="#asistencia"><small>Siguiente</small>Asistencia →</a></nav>
+</section>
+
+<!-- ═══════════════ ASISTENCIA ═══════════════ -->
+<section class="mod" id="asistencia">
+  <div class="mod-cab">
+    <p class="menu">Menú · Asistencia</p>
+    <h2>Asistencia</h2>
+    <p class="para">Además de Planillas, Eventos, Centros de interés y Restaurante, tienes tres pestañas que solo son de coordinación: <b>Reporte de tercera hora</b>, <b>Llegadas tarde</b> y <b>Evasiones</b>.</p>
+  </div>
+
+  <nav class="indice-mod" aria-label="Contenido de Asistencia">
+    <a href="#a-panorama">Todos los grupos</a>
+    <a href="#a-tercera">Reporte de tercera hora</a>
+    <a href="#a-tarde">Llegadas tarde</a>
+    <a href="#a-evasiones">Evasiones</a>
+    <a href="#a-ficha">La ficha del estudiante</a>
+    <a href="#a-centros">Centros de interés</a>
+    <a href="#a-restaurante">Restaurante</a>
+  </nav>
+
+  <div class="bloque solo" id="a-panorama">
+    <h3 class="sub">Todos los grupos</h3>
+    <p style="color:var(--ink-2);max-width:64ch">En Planillas ves <b>«Todos los grupos del colegio»</b> de tu jornada, con la cuenta <b>«N de M están registrando asistencia»</b>. Tocas un grado y entras a su planilla.</p>
+    <div class="grid-si">
+      <div class="si"><span class="quien">Grupos en gris</span><h3>Nadie ha pasado lista ahí</h3><p>No es un problema de permisos: ese grupo todavía no tiene ninguna planilla. Si hace falta, <span class="bt">Abrir una sesión a mano</span>.</p></div>
+      <div class="si"><span class="quien">Para Master2000</span><h3>La columna «A Master2000»</h3><p>En el <b>Resumen del periodo</b> de cada planilla, esa columna dice cuántas faltas hay que transcribir. Solo cuentan <b>Ausencia</b> y <b>Evasión</b>. Las justificadas van en su propia columna, como contexto: no se copian.</p></div>
+      <div class="si"><span class="quien">Lo que no ves</span><h3>El cuaderno del director</h3><p>La pestaña <b>Dirección de grupo</b> es solo del director de cada grupo. Tú ves <b>Asistencia</b> y <b>Fotos</b>.</p></div>
+    </div>
+  </div>
+
+  <div class="bloque" id="a-tercera">
+    <div>
+      <div class="pantalla" role="img" aria-label="Reporte de tercera hora">
+        <div class="scr">
+          <div class="hd"><div class="tit">Reporte de tercera hora</div></div>
+          <div class="pad">
+            <div class="campo" style="position:relative">Mañana (bloque 3: 08:10–09:05)<span class="n tr">1</span></div>
+            <span class="lbl">No ingresaron al colegio</span>
+            <div class="cd" style="position:relative"><span class="n tl">2</span>
+              <span class="h">Cardona, Sara · 10.2</span>
+              <span class="d">Acudiente: 300 000 0000</span>
+              <div class="fila" style="justify-content:flex-end"><span class="b">No contestó</span><span class="b pri">Contestó</span></div>
+            </div>
+            <span class="lbl">Ingresaron pero no están en clase</span>
+            <div class="cd"><span class="h">Duque, Mateo · 11.2</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Reporte de tercera hora</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">En la 3.ª hora ya entraron los que llegan tarde, así que ahí se sabe quién no vino al colegio. El reporte sale de las listas que pasaron los profesores en esa hora.</p>
+      <ol class="pasos">
+        <li><div><span class="t">Elige la fecha y la jornada</span><p>Si quieres, escribe los grados que esperas ver, separados por coma.</p></div></li>
+        <li><div><span class="t">Llama a los acudientes de «No ingresaron al colegio»</span><p>Registra <span class="bt">Contestó</span> o <span class="bt">No contestó</span>, con una observación si hace falta. La llamada queda en la ficha del estudiante.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px">Si un estudiante que faltó no aparece en el reporte, no es un error: ya tenía la falta <b>justificada</b> o <b>con autorización</b>, y el colegio ya sabía por qué.</p>
+      <p class="sabias ojo">Este reporte es también la lista con la que la aplicación detecta <a href="#a-evasiones">posibles evasiones</a> desde la 4.ª hora. Si un grupo no pasa lista en la 3.ª hora, ese día no hay con qué comparar.</p>
+    </div>
+  </div>
+
+  <div class="bloque" id="a-tarde">
+    <div>
+      <div class="pantalla" role="img" aria-label="Llegadas tarde a la institución">
+        <div class="scr">
+          <div class="hd"><div class="tit">Llegadas tarde a la institución</div><span class="b" style="font-size:10.5px">Ajustar alertas</span></div>
+          <div class="pad">
+            <div class="fila" style="position:relative"><div class="campo vacio" style="flex:1">Buscar estudiante…</div><span class="b">QR</span><span class="n tr">1</span></div>
+            <div class="cd">
+              <div class="fila"><span class="av" style="width:34px;height:34px"></span><div style="flex:1"><span class="h">Benítez, Tomás · 9.3</span><div><span class="b" style="font-size:10px;padding:2px 6px;background:var(--a-warn-soft);color:var(--a-warn-ink);border-color:transparent">3.ª llegada tarde sin justificar en el año.</span></div></div></div>
+              <div class="fila" style="justify-content:flex-end;position:relative"><span class="b">Dice traer excusa</span><span class="b pri">Registrar</span><span class="n tr">2</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Llegadas tarde</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">El registro de la entrada al colegio. No es lo mismo que el «Retraso» que pone un profesor en su clase.</p>
+      <ol class="pasos">
+        <li><div><span class="t">Busca al estudiante o escanea su carné</span><p>Confirma que es él con la foto.</p></div></li>
+        <li><div><span class="t"><span class="bt">Registrar</span>, o <span class="bt">Dice traer excusa</span></span><p>La segunda queda <b>pendiente de verificar</b> con el acudiente. Cuando llegue la excusa, abres el registro y tocas <b>Justificar</b>.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px">Las etiquetas de color avisan de la reincidencia en el año: amarillo en el primer umbral, naranja al siguiente y rojo después. Si alguien lleva varios días seguidos sin asistir a ninguna clase, arriba sale un bloque rojo. Los umbrales se cambian con <span class="bt">Ajustar alertas</span> y valen para <b>todo el colegio</b>, no solo tu jornada.</p>
+      <p class="sabias">Un registro equivocado no se borra: <b>Corregir</b> lo deja justificado con una nota del error. Así queda claro qué pasó.</p>
+    </div>
+  </div>
+
+  <div class="bloque" id="a-evasiones">
+    <div>
+      <div class="pantalla" role="img" aria-label="Resolver un aviso de evasión">
+        <div class="scr" style="min-height:320px">
+          <div class="hd"><div class="tit">Evasiones reportadas</div></div>
+          <div class="pad">
+            <div class="cd"><span class="h">Duque, Mateo · 11.2</span><span class="d">5.ª hora · reportado por Luis Pérez</span></div>
+          </div>
+          <div class="velo">
+            <div class="hoja">
+              <span class="h">Resolver</span>
+              <div class="campo vacio">Nota: salió a las 11:10 con la mamá…</div>
+              <span class="b" style="justify-content:center;padding:8px;position:relative">No era evasión: salió con permiso<span class="n tr">1</span></span>
+              <span class="b pri" style="justify-content:center;padding:8px;position:relative">Sí era evasión<span class="n tr">2</span></span>
+              <span class="d" style="font-size:10.5px">Ninguna de las dos opciones borra el aviso.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Evasiones</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">Cuando un profesor marca a alguien como <b>Evasión</b> (desde la 4.ª hora, si vino al colegio y no está en su clase), el aviso llega aquí. El profesor lo detecta; decidir qué pasó es tuyo, porque tú sabes si salió con permiso.</p>
+      <ol class="pasos">
+        <li><div><span class="t">«No era evasión: salió con permiso»</span><p>Escribe la nota (a qué hora y con quién salió) y descártalo.</p></div></li>
+        <li><div><span class="t">«Sí era evasión»</span><p>El estudiante está en alguna parte del colegio donde no le corresponde: puedes ir a buscarlo o pedir apoyo.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px">Ninguna de las dos opciones borra el aviso. <b>Un aviso descartado documenta que se revisó</b>, y queda registrado quién lo cerró.</p>
+      <p class="sabias ojo">El aviso dice que el estudiante <b>no está entre los reportados como ausentes</b>, no que esté en el colegio. Quien vino, estuvo en la 3.ª hora y se fue para la casa se ve igual que quien se quedó en el patio.</p>
+    </div>
+  </div>
+
+  <div class="bloque solo" id="a-ficha">
+    <h3 class="sub">La ficha del estudiante</h3>
+    <p style="color:var(--ink-2);max-width:64ch">Los profesores la ven; tú puedes cambiarla, para cualquier estudiante de tu sede.</p>
+    <div class="grid-si">
+      <div class="si"><span class="quien">Editar</span><h3>Contacto y foto</h3><p><span class="bt">Editar contacto</span> para el acudiente y los teléfonos. Desde la pestaña <b>Fotos</b> de un grupo subes las fotos de los estudiantes.</p></div>
+      <div class="si"><span class="quien">Llamadas</span><h3>Registrar una llamada</h3><p>Queda en la ficha, con la fecha y quién llamó. Las del reporte de tercera hora se guardan igual.</p></div>
+      <div class="si"><span class="quien">Retiro</span><h3>Marcar como retirado</h3><p>Está en la parte de abajo de la ficha. <b>Retirar no borra nada</b>: el estudiante deja de aparecer en planillas y conteos y su historial se conserva. Si vuelve, <span class="bt">Reintegrar</span>.</p></div>
+    </div>
+  </div>
+
+  <div class="bloque solo" id="a-centros">
+    <h3 class="sub">Centros de interés</h3>
+    <p style="color:var(--ink-2);max-width:64ch">Ves los programas de tu sede y puedes crear el primero con <span class="bt">+ Crear programa</span>. Administrar un programa (centros, inscripciones, pendientes) es de quien figura como <b>coordinador de ese programa</b>, que puede ser otra persona.</p>
+    <div class="grid-si">
+      <div class="si"><span class="quien">Por confirmar</span><h3>Los casos que no cruzaron</h3><p>Al cargar las listas desde Excel, algunos quedan dudosos: <b>«Dos personas se llaman igual»</b>, <b>«El nombre no coincide exactamente»</b>, <b>«No aparece en la matrícula»</b>, <b>«Está en dos centros a la vez»</b>. Eliges el correcto en cada uno.</p></div>
+      <div class="si"><span class="quien">Cobertura y asistencia</span><h3>Estudiantes sin centro</h3><p>La lista de <b>«Los que no están en ningún centro»</b>, con <span class="bt">Asignar centro</span> al lado de cada uno. Se descarga en Excel.</p></div>
+      <div class="si"><span class="quien">Valoración</span><h3>Reabrir una entrega</h3><p>Cada líder valora su centro y lo <b>entrega</b>; después ya no puede cambiarlo. Para que corrija, <span class="bt">Reabrir para corregir</span> le abre la valoración hasta la fecha y hora que pongas. Ese botón solo lo ven las personas autorizadas en la configuración de la valoración; si no lo ves, pídelo a quien administra la aplicación.</p></div>
+      <div class="si"><span class="quien">Consejo</span><h3>En dos centros a la vez</h3><p>Mientras no resuelvas un duplicado, el estudiante aparece en los dos centros <b>a propósito</b>, para que ningún líder se quede sin poder llamarlo a lista. No es un error.</p></div>
+    </div>
+  </div>
+
+  <div class="bloque solo" id="a-restaurante">
+    <h3 class="sub">Restaurante: reporte y lista oficial</h3>
+    <p style="color:var(--ink-2);max-width:64ch">Los profesores solo registran. Tú además tienes <b>Reporte</b> y <b>Lista oficial</b>.</p>
+    <div class="grid-si">
+      <div class="si"><span class="quien">Reporte</span><h3>Quién usó el servicio</h3><p>Eliges sede y fechas, y el reporte cruza el uso real con la lista oficial en cuatro grupos: <b>«Usaron el servicio sin estar inscritos»</b>, <b>«Inscritos que sí usaron su servicio»</b>, <b>«Inscritos que solo usaron el otro servicio»</b> e <b>«Inscritos que no aparecieron nunca»</b>. <span class="bt">Descargar para el proveedor</span> genera el Excel.</p></div>
+      <div class="si"><span class="quien">Lista oficial</span><h3>Cargar los inscritos</h3><p>Eliges servicio, sede y año, subes el Excel, tocas <b>Previsualizar (no escribe nada)</b>, resuelves los nombres dudosos y confirmas. Volver a cargar la lista la actualiza, no la duplica.</p></div>
+      <div class="si"><span class="quien">Importante</span><h3>La lista no restringe</h3><p>Se le registra a cualquiera, esté o no inscrito: la comida que sobra se le da a quien esté ahí. La lista sirve para el reporte, no para negarle a nadie.</p></div>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#generar"><small>Anterior</small>← Generar horario</a><a class="ps-next" href="#tareas"><small>Siguiente</small>Tareas →</a></nav>
+</section>
+
+<!-- ═══════════════ TAREAS ═══════════════ -->
+<section class="mod" id="tareas">
+  <div class="mod-cab">
+    <p class="menu">Menú · Tareas</p>
+    <h2>Tareas</h2>
+    <p class="para">Tú no publicas tareas: supervisas la carga de todos los grupos, fijas los cupos de momentos de cada asignatura y puedes retirar una tarea si hace falta.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Carga de tareas por grupo, mapa de calor">
+        <div class="scr">
+          <div class="hd"><div class="tit">Carga de tareas por grupo</div><span class="b" style="font-size:10.5px;position:relative">Asignación de momentos<span class="n tr">3</span></span></div>
+          <div class="pad">
+            <div class="tabs" style="position:relative"><span class="on">Mañana</span><span>Tarde</span><span class="n tr">1</span></div>
+            <table class="hr" aria-hidden="true" style="position:relative">
+              <tr><th></th><th>Lu</th><th>Ma</th><th>Mi</th><th>Ju</th><th>Vi</th></tr>
+              <tr><td class="bl">9.1</td><td class="lib">1/4</td><td class="lib">2/4</td><td class="rec">4/4</td><td class="lib">2/4</td><td class="nada">0/4</td></tr>
+              <tr><td class="bl">10.1</td><td class="lib">2/4</td><td class="nada" style="border:1px dashed var(--a-line-2)">—</td><td class="lib">1/4</td><td class="nada" style="border:1px dashed var(--a-line-2)">—</td><td class="rec">3/4</td></tr>
+              <tr><td class="bl">10.2</td><td class="lib">2/4</td><td class="ocu">4/4</td><td class="lib">2/4</td><td class="lib">1/4</td><td class="nada">0/4</td></tr>
+            </table>
+            <span class="d" style="font-size:10px;position:relative">Cada celda: momentos agendados / tope diario. Los días punteados no reciben tareas.<span class="n" style="top:-4px;right:-8px">2</span></span>
+            <div class="cd"><div class="fila"><div style="flex:1"><span class="h">Taller de vectores</span><div class="d">10.2 · Física · Luis Pérez</div></div><span class="b" style="padding:5px 7px;color:var(--a-bad)">🗑</span></div></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Elige la jornada</span><p>Puedes mirar cualquiera de las dos.</p></div></li>
+        <li><div><span class="t">Lee el mapa de calor</span><p>Cada celda es un grupo en un día: momentos agendados sobre el tope (4). El punto verde marca entregas. Los días punteados no reciben tareas (festivo o contrajornada de media técnica). Toca un grupo para ver su agenda y su código QR.</p></div></li>
+        <li><div><span class="t">Ajusta los cupos con <span class="bt">Asignación de momentos</span></span><p>Por nivel y asignatura, con los botones − y +. Arriba ves «Momentos asignados: X de 20». Si un nivel se pasa del máximo, se pinta en rojo y no te deja guardar.</p></div></li>
+      </ol>
+    </div>
+  </div>
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">Cupos</span><h3>Valen para todo el colegio</h3><p>Los cupos son por nivel, no por jornada: si cambias los de básica, cambian para 6º–8º de la tarde y para 9.º de la mañana. Se aplican de inmediato a las tareas nuevas. Pónganse de acuerdo los dos coordinadores antes de moverlos.</p></div>
+      <div class="si"><span class="quien">Cancelar</span><h3>Retirar la tarea de un profesor</h3><p>En <b>Tareas vigentes</b>, el ícono de la papelera la cancela y libera sus momentos. Al profesor le llega <b>un aviso en la aplicación</b>: «Coordinación canceló tu tarea…», con la asignatura, el grupo y la fecha de entrega. Si hubo un motivo, cuéntaselo tú.</p></div>
+      <div class="si"><span class="quien">Cesiones</span><h3>Quién le cedió a quién</h3><p><b>Cesiones registradas</b> muestra los momentos que se han pasado entre asignaturas esta semana.</p></div>
+    </div>
+    <p class="sabias">Hoy los cupos de la sede central suman exactamente lo que cabe en cada nivel: 20 de 20 en básica, 20 de 20 en media académica y 24 de 24 por quincena en media técnica. Para subirle a una asignatura hay que bajarle a otra.</p>
+    <p class="sabias ojo">En media técnica la suma incluye las dos especialidades, pero cada grupo cursa solo una: en la práctica cada grupo usa 23. Ese momento sobrante podría pasar a otra asignatura.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#asistencia"><small>Anterior</small>← Asistencia</a><a class="ps-next" href="#chatbot"><small>Siguiente</small>Chatbot →</a></nav>
+</section>
+
+<!-- ═══════════════ CHATBOT ═══════════════ -->
+<section class="mod" id="chatbot">
+  <div class="mod-cab">
+    <p class="menu">Menú · Chatbot</p>
+    <h2>Chatbot</h2>
+    <p class="para">Los mismos dos asistentes que tienen los profesores: <b>El Jota</b>, para el Manual de Convivencia, y el del <b>Sistema de Evaluación</b> (SIEPE). Lo que les preguntas no lo ve nadie.</p>
+  </div>
+  <p class="sabias">Sirven para responderle rápido a un profesor o a un acudiente qué dice el manual sobre un caso. La decisión sigue siendo tuya: el asistente orienta, no reemplaza el documento.</p>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#tareas"><small>Anterior</small>← Tareas</a><a class="ps-next" href="#riesgo"><small>Siguiente</small>Gestión del Riesgo →</a></nav>
+</section>
+
+<!-- ═══════════════ RIESGO ═══════════════ -->
+<section class="mod" id="riesgo">
+  <div class="mod-cab">
+    <p class="menu">Menú · Gestión del Riesgo</p>
+    <h2>Gestión del Riesgo</h2>
+    <p class="para">Recibes los casos de primeros auxilios y contención emocional de tu jornada, y respondes por su seguimiento.</p>
+  </div>
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Detalle de un caso con seguimiento">
+        <div class="scr">
+          <div class="hd"><div class="tit">📁 Casos</div></div>
+          <div class="pad">
+            <div class="cd" style="border-color:var(--a-warn)">
+              <div class="fila"><span class="h" style="flex:1">Contención emocional · 10.2</span><span class="b" style="font-size:10px;padding:2px 6px;background:var(--a-warn-soft);color:var(--a-warn-ink);border-color:transparent">⏳ 9 días sin seguimiento</span></div>
+              <span class="d">Registrado por Ana Gómez · 1 de sep</span>
+              <div class="fila" style="justify-content:flex-end;position:relative"><span class="b">📄 Exportar historial</span><span class="b pri">+ Agregar seguimiento</span><span class="n tr">1</span></div>
+            </div>
+            <div class="cd"><div class="fila"><span class="h" style="flex:1">Primeros auxilios · 9.1</span><span class="b" style="font-size:10px;padding:2px 6px">En seguimiento</span></div></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <ol class="pasos">
+        <li><div><span class="t">Revisa <b>📁 Casos</b> y deja seguimiento</span><p>Ves los casos de <b>tu jornada</b>. <span class="bt">+ Agregar seguimiento</span> registra lo que se hizo y permite cerrar el caso. <span class="bt">📄 Exportar historial</span> saca la línea de tiempo completa en PDF para una comisión o una entidad.</p></div></li>
+      </ol>
+      <div class="tabla-w" style="margin-top:16px">
+        <table class="t" style="min-width:420px">
+          <thead><tr><th>Caso</th><th>Te llega un correo</th></tr></thead>
+          <tbody>
+            <tr><td>Contención emocional</td><td>En cuanto el profesor lo registra. Y otra vez si pasan 8 días sin seguimiento.</td></tr>
+            <tr><td>Primeros auxilios</td><td>Solo si pasan 8 días sin seguimiento. <b>Al registrarlo no llega correo.</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <p class="sabias ojo">Los casos de primeros auxilios no avisan en el momento: revisa la pestaña <b>📁 Casos</b> con frecuencia en vez de esperar el correo. El aviso de Inicio, «caso sin seguimiento», también te lo recuerda.</p>
+  <p class="sabias">En <b>🧑‍🚒 Brigadas</b> tú ves las brigadas de todas las sedes; los profesores solo ven la suya.</p>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#chatbot"><small>Anterior</small>← Chatbot</a><a class="ps-next" href="#reservas"><small>Siguiente</small>Reservas →</a></nav>
+</section>
+
+<!-- ═══════════════ RESERVAS ═══════════════ -->
+<section class="mod" id="reservas">
+  <div class="mod-cab">
+    <p class="menu">Menú · Reservas</p>
+    <h2>Reservas</h2>
+    <p class="para">Reservas un aula o un equipo igual que un profesor: tocas un cuadro verde, dices el propósito y solicitas. Hay dos diferencias.</p>
+  </div>
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">Diferencia</span><h3>Ves hasta el sábado</h3><p>Los profesores reservan de lunes a viernes; tú también ves y reservas el sábado.</p></div>
+      <div class="si"><span class="quien">Diferencia</span><h3>Aprobar es en el Panel</h3><p>Las solicitudes de los profesores no se aprueban aquí sino en <a href="#panel">Panel → Pendientes</a>.</p></div>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#riesgo"><small>Anterior</small>← Gestión del Riesgo</a><a class="ps-next" href="#asignacion"><small>Siguiente</small>Asignación 2026 →</a></nav>
+</section>
+
+<!-- ═══════════════ ASIGNACIÓN ═══════════════ -->
+<section class="mod" id="asignacion">
+  <div class="mod-cab">
+    <p class="menu">Menú · Asignación 2026</p>
+    <h2>Asignación 2026</h2>
+    <p class="para">La <b>Asignación académica 2026</b> de todo el plantel: qué asignaturas y grupos tiene cada profesor, con sus horas. Filtras por <b>Mañana</b> o <b>Tarde</b> y tocas un nombre para abrirlo; todos empiezan cerrados.</p>
+  </div>
+  <p class="sabias">Es de solo lectura. La etiqueta <b>mixta</b> marca a quien trabaja en las dos jornadas: te sirve para saber con qué coordinador cruzar un cambio que lo afecte.</p>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#reservas"><small>Anterior</small>← Reservas</a><a class="ps-next" href="#chat"><small>Siguiente</small>Chat →</a></nav>
+</section>
+
+<!-- ═══════════════ CHAT ═══════════════ -->
+<section class="mod" id="chat">
+  <div class="mod-cab">
+    <p class="menu">Menú · Chat</p>
+    <h2>Chat</h2>
+    <p class="para">Además de escribir como cualquier profesor, puedes crear grupos y fijar mensajes en los canales del colegio.</p>
+  </div>
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">Crear</span><h3><span class="bt">＋ Nuevo grupo</span></h3><p>Para un equipo que trabaja junto: un área, un comité, los directores de grupo de tu jornada. Los profesores no tienen este botón.</p></div>
+      <div class="si"><span class="quien">Fijar</span><h3>Un mensaje arriba de todo</h3><p>En los canales generales, solo coordinación y rectoría pueden <b>fijar</b> un mensaje. Fijar uno nuevo reemplaza al anterior, y la aplicación te pide confirmación.</p></div>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#asignacion"><small>Anterior</small>← Asignación 2026</a><a class="ps-next" href="#contenido"><small>Fin</small>Volver al índice ↑</a></nav>
+</section>
+
+</main>
+
+<footer class="pie">
+  <p><b>Manual del coordinador · nivel básico.</b> Se escribió a partir de la aplicación tal como funciona el 10 de septiembre de 2026. Si una pantalla ya no coincide, el manual se quedó atrás: avísale a Julián Medina.</p>
+  <p>Todos los nombres, grupos, teléfonos y datos de las pantallas son de ejemplo. Ningún dibujo muestra a un estudiante real.</p>
+  <p>MJB Préstamos · © 2025-2026 Julián David Medina Tamayo. Todos los derechos reservados.</p>
+</footer>
+<script>
+(function () {
+  var aqui = document.getElementById('nav-aqui'), menu = document.getElementById('nav-menu');
+  if (!aqui || !menu) return;
+  var enlaces = [].slice.call(menu.querySelectorAll('a'));
+  var nombres = { contenido: 'Índice' };
+  enlaces.forEach(function (a) { nombres[a.getAttribute('href').slice(1)] = a.textContent; });
+  menu.addEventListener('click', function (e) { if (e.target.closest('a')) menu.removeAttribute('open'); });
+  document.addEventListener('click', function (e) { if (!menu.contains(e.target)) menu.removeAttribute('open'); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') menu.removeAttribute('open'); });
+  var secciones = [].slice.call(document.querySelectorAll('#contenido, main > section.mod'));
+  function marcar() {
+    var y = window.innerHeight * 0.3, actual = 'contenido';
+    secciones.forEach(function (s) { if (s.getBoundingClientRect().top <= y) actual = s.id; });
+    aqui.textContent = nombres[actual] || 'Índice';
+    enlaces.forEach(function (a) { a.setAttribute('aria-current', a.getAttribute('href') === '#' + actual ? 'true' : 'false'); });
+  }
+  var pend = false;
+  window.addEventListener('scroll', function () {
+    if (!pend) { pend = true; requestAnimationFrame(function () { pend = false; marcar(); }); }
+  }, { passive: true });
+  marcar();
+})();
+</script>
+
+</body>
+</html>

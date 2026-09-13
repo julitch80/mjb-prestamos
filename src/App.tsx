@@ -2,7 +2,7 @@ import { useEffect, useState, Suspense, lazy } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import { onIdTokenChanged } from 'firebase/auth';
-import { Sun, Moon, LogOut, Bell, BellRing, Home } from 'lucide-react';
+import { Sun, Moon, LogOut, Bell, BellRing, Home, BookOpen } from 'lucide-react';
 import { useAppStore } from './data/store';
 import { useTheme } from './hooks/useTheme';
 import { useNotificacionesSistema } from './hooks/useNotificacionesSistema';
@@ -294,6 +294,20 @@ export default function App() {
                 <span className="hidden sm:inline">Activar avisos</span>
               </button>
             )}
+
+            {/* Manual de uso: archivos estáticos en public/manuales/. Se abren en otra
+                pestaña para no perder lo que se estaba haciendo. El docente ve el suyo;
+                los directivos, el del coordinador (que remite al del profesor). */}
+            <a
+              href={`/mjb-prestamos/manuales/${rol === 'docente' ? 'profesores' : 'coordinadores'}.html`}
+              target="_blank"
+              rel="noopener"
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-muted hover:text-strong hover:bg-elevated transition text-xs font-medium"
+              title="Abrir el manual de uso"
+            >
+              <BookOpen size={16} />
+              <span className="hidden sm:inline">Manual</span>
+            </a>
 
             {/* Toggle tema */}
             <button
