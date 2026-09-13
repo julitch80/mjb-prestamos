@@ -3,7 +3,7 @@
 *Regla: una subtarea sin evidencia no está hecha, está afirmada.*
 
 ## 1. Cimientos: dónde se guarda y quién puede publicar
-- [ ] 1.1 Verificar en producción la jornada de las fichas de usuario de Janneth y de Juan Diego.
+- [x] 1.1 Verificar en producción la jornada de las fichas de usuario de Janneth y de Juan Diego.
       Hecho cuando: se muestra lo que dice cada ficha (`manana` / `tarde`) o, si alguna está mal, Julián lo corrige y se vuelve a mostrar.
 - [ ] 1.2 Avisar a la sesión de horarios qué se va a cambiar en `VistaHorario.tsx` y `PanelInicio.tsx`.
       Hecho cuando: Julián tiene el mensaje listo para pegar en esa pestaña, y confirma que lo pasó.
