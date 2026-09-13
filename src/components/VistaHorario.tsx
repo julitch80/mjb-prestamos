@@ -1234,6 +1234,10 @@ function VistaHorarioContenido() {
 
   const [modo, setModo]               = useState<Modo>('docente');
   const [jornadaTab, setJornadaTab]   = useState<'manana' | 'tarde'>(defaultJornada);
+  // Siempre arriba, nunca dentro del render de la pestaña: un hook que solo corre
+  // en Acompañamiento cambia el número de hooks al cambiar de pestaña y React
+  // tumba la aplicación entera (pantalla negra).
+  const { vigente: acompVigente, proxima: acompProxima, publicaciones: acompPublicaciones } = useAcompanamientos(jornadaTab, fechaHoyLocal());
   const [docenteSel, setDocenteSel]   = useState(rol === 'docente' ? (userId ?? '') : '');
   const [grupoSel, setGrupoSel]       = useState('');
   const [vistaOverview, setVistaOverview] = useState<VistaDetalle>('semana');
@@ -1556,7 +1560,6 @@ function VistaHorarioContenido() {
             )
           )}
           {modo === 'acompanamiento' && (() => {
-            const { vigente: acompVigente, proxima: acompProxima, publicaciones: acompPublicaciones } = useAcompanamientos(jornadaTab, fechaHoyLocal());
             const zonas = acompVigente.zonas;
             const puedeEditarAcomp = rol === 'coordinador' && jornadaTab === jornadaPropia;
             return (
