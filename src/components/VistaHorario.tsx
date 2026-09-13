@@ -11,9 +11,6 @@ import {
   DIRECTORES_TARDE,
   AULA_GRUPO_TARDE,
   COLORES_AULA,
-  ACOMPAÑAMIENTOS,
-  ZONAS_ACOMPANAMIENTO,
-  ZONAS_ACOMPANAMIENTO_TARDE,
   MOMENTOS_TARDE,
   momentosDeDocente,
   colorGrado,
@@ -29,6 +26,15 @@ import { horarioBase as horarioVigente } from '../data/horarioBase';
 import { borradorEnRevision, nombrarJornadas, ProveedorHorario, useHorario } from '../data/horarios/fuente';
 import { abrevDeCelda, asignaturasDeCelda, ASIGNACION_2026, getAsignatura } from '../data/asignacionAcademica';
 import { cn } from '@/lib/utils';
+import { fechaHoyLocal } from '../data/horarioModificado';
+import { useAcompanamientos } from '../data/acompanamientos/useAcompanamientos';
+import { asignacionesDeZonaEnDia, asignacionesDeDocenteEnDia } from '../data/acompanamientos/vigente';
+import { textoCambiaDesde, fechaLegibleAcomp } from '../data/acompanamientos/textos';
+import PanelEditarAcompanamientos from './acompanamientos/PanelEditarAcompanamientos';
+import { publicarDistribucion } from '../data/acompanamientos/almacen';
+import type { AvisoDocente } from '../data/acompanamientos/avisos';
+import { auth } from '../lib/firebase';
+import { enviarCorreoMasivo, crearNotificacionesLote } from '../data/api';
 import EditorHorarioWizard from './EditorHorarioWizard';
 import EditorHorarioMode from './EditorHorarioMode';
 import ModalDiaModificado from './ModalDiaModificado';
@@ -314,12 +320,19 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
 
   const CELL_H = 52;
 
-  function getAcomp(dia: string, numDescanso: 1 | 2) {
-    return ACOMPAÑAMIENTOS.find(a =>
-      a.docente === docenteId && a.dia === dia &&
-      (a.descansos === 'ambos' || a.descansos === numDescanso) &&
-      a.jornada === jornadaTab
-    );
+  // La distribución vigente de acompañamientos de esta jornada (2.3/2.4):
+  // reemplaza la lectura directa de ACOMPAÑAMIENTOS de maestros.ts.
+  const { vigente: acompVigente } = useAcompanamientos(jornadaTab, fechaHoyLocal());
+
+  // El modelo nuevo no distingue descanso 1 de 2 (PRD.md: «cada asignación
+  // cubre los dos descansos del día»): se conserva la firma con `numDescanso`
+  // porque el resto del componente la usa para dos celdas distintas, pero el
+  // resultado es el mismo para ambas.
+  function getAcomp(dia: string, _numDescanso: 1 | 2) {
+    const asignaciones = asignacionesDeDocenteEnDia(acompVigente, docenteId, dia as never);
+    if (asignaciones.length === 0) return null;
+    const zona = acompVigente.zonas.find(z => z.id === asignaciones[0].zonaId);
+    return zona ? { lugar: zona.nombre, dia, docente: docenteId, jornada: jornadaTab } : null;
   }
 
   const materiasDocente = [...new Set(
@@ -1216,7 +1229,7 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
 // ── Componente principal ─────────────────────────────────────────────────────
 
 function VistaHorarioContenido() {
-  const { jornada, rol, userId, horariosModificados, jornadasReducidas, publicacionesPendientes, eliminarHorarioModificado } = useAppStore();
+  const { jornada, rol, userId, nombre, horariosModificados, jornadasReducidas, publicacionesPendientes, eliminarHorarioModificado } = useAppStore();
   const defaultJornada: 'manana' | 'tarde' = jornada === 'tarde' ? 'tarde' : 'manana';
 
   const [modo, setModo]               = useState<Modo>('docente');
@@ -1234,6 +1247,7 @@ function VistaHorarioContenido() {
   const [confirmarEliminarMod, setConfirmarEliminarMod] = useState<string | null>(null);
   const [verDetalleJr, setVerDetalleJr] = useState<JornadaReducida | null>(null);
   const [revisarPub, setRevisarPub] = useState<PublicacionPendiente | null>(null);
+  const [editandoAcomp, setEditandoAcomp] = useState(false);
 
   // Modificaciones y jornadas reducidas próximas — visibles para todos
   const proximasMods = modificacionesProximas(horariosModificados);
@@ -1542,9 +1556,26 @@ function VistaHorarioContenido() {
             )
           )}
           {modo === 'acompanamiento' && (() => {
-            const zonas = jornadaTab === 'tarde' ? ZONAS_ACOMPANAMIENTO_TARDE : ZONAS_ACOMPANAMIENTO;
+            const { vigente: acompVigente, proxima: acompProxima, publicaciones: acompPublicaciones } = useAcompanamientos(jornadaTab, fechaHoyLocal());
+            const zonas = acompVigente.zonas;
+            const puedeEditarAcomp = rol === 'coordinador' && jornadaTab === jornadaPropia;
             return (
             <div className="space-y-4">
+              {acompProxima && (
+                <div className="rounded-xl border border-line bg-elevated/40 px-4 py-2.5 text-center">
+                  <span className="text-soft text-xs font-medium">{textoCambiaDesde(acompProxima.vigenteDesde)}</span>
+                </div>
+              )}
+              {puedeEditarAcomp && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setEditandoAcomp(true)}
+                    className="rounded-lg border border-line bg-elevated px-3 py-1.5 text-xs font-semibold text-strong hover:bg-hover transition"
+                  >
+                    ✎ Editar
+                  </button>
+                </div>
+              )}
               {vistaOverview === 'semana' ? (
                 <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
                   <table className="text-xs border-collapse w-full">
@@ -1560,25 +1591,29 @@ function VistaHorarioContenido() {
                     </thead>
                     <tbody>
                       {zonas.map((zona, i) => (
-                        <tr key={zona} className={cn('border-b border-line/50', i % 2 === 0 ? '' : 'bg-card/30')}>
+                        <tr key={zona.id} className={cn('border-b border-line/50', i % 2 === 0 ? '' : 'bg-card/30')}>
                           <td className="px-3 py-2 font-semibold text-strong sticky left-0 bg-elevated/80 z-10 whitespace-nowrap">
-                            {zona}
+                            {zona.nombre}
                           </td>
                           {DIAS.map(dia => {
-                            const entrada = ACOMPAÑAMIENTOS.find(
-                              a => a.lugar === zona && a.dia === dia && a.jornada === jornadaTab
-                            );
-                            const usuario = entrada ? USUARIOS.find(u => u.id === entrada.docente) : null;
+                            const asignados = asignacionesDeZonaEnDia(acompVigente, zona.id, dia)
+                              .map(a => USUARIOS.find(u => u.id === a.docenteId))
+                              .filter((u): u is NonNullable<typeof u> => !!u);
                             return (
                               <td key={dia} className="px-1.5 py-1">
-                                {usuario ? (
-                                  <div
-                                    className="rounded-lg px-2 py-1.5 flex items-center justify-center"
-                                    style={{ borderWidth: 1, borderColor: usuario.color, backgroundColor: `${usuario.color}15` }}
-                                  >
-                                    <span className="text-[11px] font-bold leading-none text-center" style={{ color: usuario.color }}>
-                                      {usuario.nombreCorto}
-                                    </span>
+                                {asignados.length > 0 ? (
+                                  <div className="flex flex-col gap-1">
+                                    {asignados.map(usuario => (
+                                      <div
+                                        key={usuario.id}
+                                        className="rounded-lg px-2 py-1.5 flex items-center justify-center"
+                                        style={{ borderWidth: 1, borderColor: usuario.color, backgroundColor: `${usuario.color}15` }}
+                                      >
+                                        <span className="text-[11px] font-bold leading-none text-center" style={{ color: usuario.color }}>
+                                          {usuario.nombreCorto}
+                                        </span>
+                                      </div>
+                                    ))}
                                   </div>
                                 ) : (
                                   <div className="rounded-lg border border-dashed border-line flex items-center justify-center py-2">
@@ -1615,23 +1650,27 @@ function VistaHorarioContenido() {
                   {/* Tarjetas por zona: lugar arriba, docente (pastilla) abajo */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {zonas.map(zona => {
-                      const entrada = ACOMPAÑAMIENTOS.find(
-                        a => a.lugar === zona && a.dia === diaOverview && a.jornada === jornadaTab
-                      );
-                      const usuario = entrada ? USUARIOS.find(u => u.id === entrada.docente) : null;
+                      const asignados = asignacionesDeZonaEnDia(acompVigente, zona.id, diaOverview as never)
+                        .map(a => USUARIOS.find(u => u.id === a.docenteId))
+                        .filter((u): u is NonNullable<typeof u> => !!u);
                       return (
                         <div
-                          key={zona}
+                          key={zona.id}
                           className="flex flex-col items-center justify-center gap-2 text-center rounded-xl bg-elevated border border-line p-3"
                         >
-                          <span className="text-strong font-semibold text-[13px] leading-tight">{zona}</span>
-                          {usuario ? (
-                            <span
-                              className="rounded-lg px-3 py-1.5 text-sm font-bold leading-none"
-                              style={{ borderWidth: 1, borderColor: usuario.color, backgroundColor: `${usuario.color}15`, color: usuario.color }}
-                            >
-                              {usuario.nombreCorto}
-                            </span>
+                          <span className="text-strong font-semibold text-[13px] leading-tight">{zona.nombre}</span>
+                          {asignados.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                              {asignados.map(usuario => (
+                                <span
+                                  key={usuario.id}
+                                  className="rounded-lg px-3 py-1.5 text-sm font-bold leading-none"
+                                  style={{ borderWidth: 1, borderColor: usuario.color, backgroundColor: `${usuario.color}15`, color: usuario.color }}
+                                >
+                                  {usuario.nombreCorto}
+                                </span>
+                              ))}
+                            </div>
                           ) : (
                             <span className="text-muted opacity-50 text-sm">—</span>
                           )}
@@ -1725,6 +1764,55 @@ function VistaHorarioContenido() {
                     </div>
                   ))}
                 </div>
+              )}
+              {editandoAcomp && jornadaPropia && (
+                <PanelEditarAcompanamientos
+                  jornada={jornadaPropia}
+                  vigente={acompVigente}
+                  publicaciones={acompPublicaciones}
+                  usuario={{ correo: auth?.currentUser?.email?.toLowerCase() ?? null, nombre: nombre ?? '' }}
+                  onPublicar={async (dist, vigenteDesde, avisos) => {
+                    const correo = auth?.currentUser?.email?.toLowerCase();
+                    if (!correo) throw new Error('No se pudo confirmar tu sesión.');
+                    // a) Publicar. Si falla, el error sube y no se avisa a nadie (PLAN.md § 7.3).
+                    await publicarDistribucion(dist, vigenteDesde, correo, nombre ?? '');
+
+                    // b) Notificaciones in-app — un fallo aquí no deshace la publicación.
+                    let notifOk = true;
+                    try {
+                      const res = await crearNotificacionesLote(
+                        avisos.map((a: AvisoDocente) => ({ destinatario: a.docenteId, tipo: 'coordinador', mensaje: a.mensaje })),
+                      );
+                      notifOk = res.ok;
+                    } catch {
+                      notifOk = false;
+                    }
+
+                    // c) Un correo por profesor — los fallos se reportan, no deshacen nada.
+                    const correosFallidos: string[] = [];
+                    for (const aviso of avisos) {
+                      const correoDocente = USUARIOS.find((u) => u.id === aviso.docenteId)?.correo;
+                      if (!correoDocente) {
+                        correosFallidos.push(`${aviso.nombre} (sin correo registrado)`);
+                        continue;
+                      }
+                      const asunto = `[MJB] Tus acompañamientos de descanso cambian desde el ${fechaLegibleAcomp(vigenteDesde)}`;
+                      try {
+                        const res = await enviarCorreoMasivo([correoDocente], asunto, aviso.html);
+                        if (!res.ok) correosFallidos.push(correoDocente);
+                      } catch {
+                        correosFallidos.push(correoDocente);
+                      }
+                    }
+                    if (!notifOk) {
+                      // Las notificaciones in-app fallidas no tienen destinatario "correo": se
+                      // reportan aparte para no mezclarlas con los correos fallidos.
+                      correosFallidos.push('(no se pudieron crear las notificaciones en la app)');
+                    }
+                    return { correosFallidos };
+                  }}
+                  onCerrar={() => setEditandoAcomp(false)}
+                />
               )}
             </div>
             );

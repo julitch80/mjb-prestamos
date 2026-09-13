@@ -29,7 +29,7 @@
 // escritura sin guarda en /config. Cuenta con: grep -E '^\s*allow [a-z, ]*(write|create|update|delete)'
 //
 // Comprobacion despues de cada sincronizacion: el numero de `allow` de escritura debe
-// coincidir con el de `esSuplantacion()`. Hoy son 80 escrituras y 36 lecturas libres.
+// coincidir con el de `esSuplantacion()`. Hoy son 83 escrituras y 37 lecturas libres.
 //
 // El 2026-08-30 esta cifra decia 57 cuando ya eran 58: se habia quedado atras sin que
 // nada avisara. Si vuelves a tocar el archivo, actualizala en el mismo commit — es el
@@ -279,6 +279,59 @@ service cloud.firestore {
       allow write: if !esSuplantacion() && (isSuper());
       allow delete: if !esSuplantacion() && (false);
     }
+
+    // ---------- Publicaciones de acompanamientos de descanso ----------
+    //
+    // Una publicacion es la distribucion completa de una jornada (zonas, cupos,
+    // asignaciones y candados) que un coordinador dejo en firme, con la fecha desde la
+    // que rige. Ver PRD.md y PLAN.md en la raiz, y el modelo en
+    // src/data/acompanamientos/tipos.ts.
+    //
+    // INMUTABLE (update y delete siempre en false): el PRD dice que el historial de
+    // publicaciones es irremplazable — corregir un error es publicar otra, nunca tocar
+    // la que ya rigio. Si se pudiera editar o borrar una publicacion, la distribucion
+    // que "rigio" un dia cualquiera dejaria de ser reconstruible con certeza.
+    //
+    // LA JORNADA SE VALIDA AQUI, NO SOLO ESCONDIENDO EL BOTON: la pantalla ya oculta
+    // "Editar" fuera de la jornada del coordinador, pero eso no protege nada por si
+    // solo (misma leccion que la cuenta de portería, PLAN.md §4) — una peticion armada
+    // a mano igual llegaria a Firestore. Por eso la regla exige que
+    // `callerDoc().jornada` coincida con `request.resource.data.jornada`: aunque
+    // alguien fabrique la escritura, el servidor la rechaza si no es la suya.
+    //
+    // No se valida el contenido de `zonas` ni de `asignaciones` elemento por elemento:
+    // las reglas de Firestore no iteran listas. Solo se comprueba que sean listas y su
+    // tamaño; la forma interna de cada zona/asignacion la garantiza el codigo cliente
+    // (tipos.ts) y, en las pruebas de reglas, casos manuales.
+    match /acompanamientosPublicaciones/{pubId} {
+      // Todo el personal activo ve la distribucion vigente y el historial.
+      allow read: if isActiveUser();
+
+      allow create: if !esSuplantacion() && (
+        isActiveUser()
+        && callerDoc().role == 'coordinador'
+        && request.resource.data.jornada in ['manana', 'tarde']
+        && callerDoc().jornada == request.resource.data.jornada
+        && request.resource.data.publicadoPor == callerEmail()
+        && request.resource.data.publicadoEn == request.time
+        && request.resource.data.publicadoPorNombre is string
+        && request.resource.data.vigenteDesde is string
+        && request.resource.data.vigenteDesde.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.zonas is list
+        && request.resource.data.zonas.size() >= 1
+        && request.resource.data.zonas.size() <= 30
+        && request.resource.data.asignaciones is list
+        && request.resource.data.asignaciones.size() <= 300
+        && request.resource.data.keys().hasOnly(
+             ['jornada', 'vigenteDesde', 'zonas', 'asignaciones', 'publicadoPor',
+              'publicadoPorNombre', 'publicadoEn'])
+      );
+
+      // Nunca se edita ni se borra: ver la nota de arriba.
+      allow update: if !esSuplantacion() && (false);
+      allow delete: if !esSuplantacion() && (false);
+    }
+
     // =========================================================================
     //  BLOQUE DE REGLAS DEL MODULO DE ASISTENCIA
     //

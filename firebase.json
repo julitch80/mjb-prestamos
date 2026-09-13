@@ -7,5 +7,6 @@
   "functions": [
     { "source": "functions", "codebase": "default" },
     { "source": "functions-asistencia", "codebase": "asistencia" }
-  ]
+  ],
+  "emulators": { "firestore": { "port": 8080 }, "singleProjectMode": true }
 }

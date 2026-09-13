@@ -10,9 +10,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:reglas": "firebase emulators:exec --only firestore --project demo-mjb \"npx vitest run --config vitest.rules.config.ts\""
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^25.9.3",
     "@types/qrcode": "^1.5.6",

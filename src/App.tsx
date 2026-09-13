@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense, lazy } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import { onIdTokenChanged } from 'firebase/auth';
@@ -77,6 +77,11 @@ const ROL_COLOR: Record<string, string> = {
   coordinador: 'rgba(240,128,128,0.18)',
   docente:     'rgba(134,239,172,0.18)',
 };
+
+// Banco de pruebas local del editor de acompañamientos — SOLO DESARROLLO
+// (TAREAS.md § D). `import.meta.env.DEV` hace que Vite excluya esta rama
+// completa (y el lazy import) del build de producción.
+const BancoAcompanamientos = import.meta.env.DEV ? lazy(() => import('./dev/BancoAcompanamientos')) : null;
 
 export default function App() {
   const [sugerenciaAbierta, setSugerenciaAbierta] = useState(false);
@@ -170,6 +175,17 @@ export default function App() {
     }
   }, [userId, rol]);
 
+  // ── Ruta de desarrollo: banco de acompañamientos ──────────
+  // Va aqui, despues de TODOS los hooks, igual que la ruta de la agenda: un return
+  // antes de un hook cambia cuantos hooks corren segun el hash, y React lo rechaza
+  // («Rendered fewer hooks than expected») en cuanto el hash cambia en vivo.
+  if (import.meta.env.DEV && BancoAcompanamientos && hash === '#/dev/acompanamientos') {
+    return (
+      <Suspense fallback={null}>
+        <BancoAcompanamientos />
+      </Suspense>
+    );
+  }
   // ── Ruta pública: agenda de tareas por grupo (sin login) ──────────
   const agendaMatch = hash.match(/^#\/agenda\/(.+)$/);
   if (agendaMatch) return <AgendaPublica grupo={decodeURIComponent(agendaMatch[1])} />;

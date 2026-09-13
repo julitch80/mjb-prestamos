@@ -14,9 +14,10 @@ import {
   BLOQUES_MANANA,
   BLOQUES_TARDE,
   horaOrdinal,
-  ACOMPAÑAMIENTOS,
 } from '../data/maestros';
 import { horarioBase } from '../data/horarioBase';
+import { useAcompanamientos } from '../data/acompanamientos/useAcompanamientos';
+import { asignacionesDeDocenteEnDia } from '../data/acompanamientos/vigente';
 import {
   modificacionesProximas,
   jornadasReducidasProximas,
@@ -147,16 +148,23 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   }, [esDocente, userId, hoy]);
 
   // ── Acompañamiento de hoy ────────────────────────────────────────────────
+  // Lee la distribución vigente (2.3/2.4), no la lista fija de maestros.ts. Se
+  // consultan las dos jornadas: un mixto puede tener hoy su acompañamiento en la
+  // jornada que no es la de su ficha.
+  const { vigente: acompManana } = useAcompanamientos('manana', hoy);
+  const { vigente: acompTarde } = useAcompanamientos('tarde', hoy);
   const acompanamientoHoy = useMemo(() => {
     if (!esDocente || !userId) return null;
     const diaHoy = diaDeSemana(hoy);
-    const jornadaEfectiva = jornada === 'ambas' ? 'manana' : (jornada as 'manana' | 'tarde' | null);
-    return (
-      ACOMPAÑAMIENTOS.find(
-        (a) => a.docente === userId && a.dia === diaHoy && (!jornadaEfectiva || a.jornada === jornadaEfectiva)
-      ) ?? null
+    // Varios ese día: se muestran separados por « · ».
+    const nombresZonas = [acompManana, acompTarde].flatMap((dist) =>
+      asignacionesDeDocenteEnDia(dist, userId, diaHoy as never)
+        .map((a) => dist.zonas.find((z) => z.id === a.zonaId)?.nombre)
+        .filter((n): n is string => !!n),
     );
-  }, [esDocente, userId, jornada, hoy]);
+    if (nombresZonas.length === 0) return null;
+    return { lugar: nombresZonas.join(' · ') };
+  }, [esDocente, userId, hoy, acompManana, acompTarde]);
 
   // ── Agenda institucional de hoy ──────────────────────────────────────────
   const agendaHoy = useMemo(() => AGENDA_ACTUAL.dias.find((d) => d.fecha === hoy) ?? null, [hoy]);

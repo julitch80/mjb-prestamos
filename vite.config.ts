@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import path from 'path'
 import { writeFileSync } from 'fs'
 import { defineConfig } from 'vite'
@@ -97,5 +98,10 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+  },
+  test: {
+    // tests-reglas/ necesita el emulador de Firestore arriba (npm run test:reglas,
+    // vitest.rules.config.ts aparte): sin el, fallarian todos en `npm test`.
+    exclude: ['**/node_modules/**', '**/dist/**', 'tests-reglas/**'],
   },
 })
