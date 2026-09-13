@@ -89,7 +89,7 @@
       Hecho cuando: el despliegue de reglas e índice sale bien, producción tiene 23 índices y Actions termina bien.
 - [ ] 9.4 Comprobar en producción sin notificar a nadie.
       Hecho cuando: el archivo servido lleva las guardas por rol, y Julián confirma con «Ver como» que la pestaña es idéntica a la de hoy y que «Editar» solo le aparece al coordinador.
-- [ ] 9.5 Agregar al manual del coordinador la sección de editar y publicar acompañamientos.
+- [x] 9.5 Agregar al manual del coordinador la sección de editar y publicar acompañamientos.
       Hecho cuando: la sección está publicada en el enlace del manual del coordinador.
 
 ---
