@@ -1950,31 +1950,48 @@ export default function VistaHorario() {
   return (
     <ProveedorHorario horario={mostrandoBorrador ? borrador.horario : horarioVigente}>
       {borrador && (
-        <div className={`mb-4 rounded-2xl border p-3 flex flex-wrap items-center gap-3 ${
-          mostrandoBorrador ? 'border-warning bg-warning-soft' : 'border-line bg-card'
+        // Esta franja tiene que verse sin buscarla. La primera versión era una
+        // línea gris y pequeña, y el propio Julián no la encontraba: en producción
+        // eso significa un coordinador que cree estar viendo el horario oficial
+        // cuando mira un borrador, o que no sabe que tiene uno por revisar.
+        <div className={`mb-4 rounded-2xl border-2 px-4 py-3 flex flex-wrap items-center gap-3 ${
+          mostrandoBorrador ? 'border-warning bg-warning-soft' : 'border-accent bg-accent-soft'
         }`}>
-          <span className={`text-xs font-semibold ${
-            mostrandoBorrador ? 'text-warning-soft-fg' : 'text-muted'
-          }`}>
-            {mostrandoBorrador
-              ? `Estas viendo un BORRADOR de ${nombrarJornadas(borrador.jornadas)} `
-                + `(${borrador.clases} clases). El resto se muestra como esta hoy.`
-              : `Hay un borrador sin publicar de ${nombrarJornadas(borrador.jornadas)} `
-                + `(${borrador.clases} clases).`}
-          </span>
-          <div className="flex gap-1 ml-auto">
+          <div className="flex-1 min-w-[16rem]">
+            <div className={`text-sm font-semibold ${
+              mostrandoBorrador ? 'text-warning-soft-fg' : 'text-accent-soft-fg'
+            }`}>
+              {mostrandoBorrador
+                ? 'Estás viendo un BORRADOR. No es el horario oficial.'
+                : 'Estás viendo el horario oficial. Tienes un borrador sin publicar.'}
+            </div>
+            <div className={`text-xs mt-0.5 ${
+              mostrandoBorrador ? 'text-warning-soft-fg' : 'text-accent-soft-fg'
+            } opacity-80`}>
+              {mostrandoBorrador
+                ? `Borrador de ${nombrarJornadas(borrador.jornadas)} (${borrador.clases} clases). `
+                  + 'La otra jornada se muestra como está hoy. Nadie más ve este borrador.'
+                : `Borrador de ${nombrarJornadas(borrador.jornadas)}, ${borrador.clases} clases. `
+                  + 'Solo lo ves tú, en este navegador.'}
+            </div>
+          </div>
+          <div className="flex rounded-xl border border-line bg-card p-0.5">
             <button
               onClick={() => setVerBorrador(false)}
-              className={`text-xs px-3 py-1 rounded-full transition ${
-                !mostrandoBorrador ? 'bg-accent text-accent-fg' : 'text-muted hover:text-strong'
+              className={`text-sm px-4 py-1.5 rounded-lg transition ${
+                !mostrandoBorrador
+                  ? 'bg-accent text-accent-fg font-medium'
+                  : 'text-muted hover:text-strong'
               }`}
             >
-              Horario vigente
+              Horario oficial
             </button>
             <button
               onClick={() => setVerBorrador(true)}
-              className={`text-xs px-3 py-1 rounded-full transition ${
-                mostrandoBorrador ? 'bg-accent text-accent-fg' : 'text-muted hover:text-strong'
+              className={`text-sm px-4 py-1.5 rounded-lg transition ${
+                mostrandoBorrador
+                  ? 'bg-warning text-white font-medium'
+                  : 'text-muted hover:text-strong'
               }`}
             >
               Ver el borrador

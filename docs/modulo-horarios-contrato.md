@@ -19,7 +19,7 @@ Qué cambia para cada rol:
 | Rol | Qué ve |
 |---|---|
 | Docente, rectora | **Nada nuevo.** El Horario es exactamente el de siempre. |
-| Coordinador, superusuario | La entrada **Generar horario** en el menú, y en **Horario** un conmutador *Horario vigente / Ver el borrador* **solo si tienen un borrador cargado en ese navegador**. |
+| Coordinador, superusuario | La entrada **Generar horario** en el menú, y en **Horario** un conmutador *Horario oficial / Ver el borrador* **solo si tienen un borrador cargado en ese navegador**. |
 
 Julián decidió desplegarlo ya aunque no se usará hasta 2027 (con la asignación nueva):
 cuando se active lo tendrán todo el año, así que no hay razón para esconderlo ahora.
@@ -119,9 +119,10 @@ leen de un **contexto de React** (`useHorario()`), cuyo valor por defecto es exa
 - Sin borrador cargado, la pantalla se comporta **igual que antes**, línea por línea.
 - El componente grande se renombró a `VistaHorarioContenido` y el nuevo `VistaHorario`
   es un envoltorio delgado que elige la fuente. No se reindentó el JSX.
-- El conmutador "Horario vigente / Ver el borrador" **solo aparece si hay un borrador
+- El conmutador "Horario oficial / Ver el borrador" **solo aparece si hay un borrador
   cargado y quien mira es coordinador o superusuario**, y arranca siempre en "Horario
-  vigente". La comprobación de rol existe por los computadores compartidos: el borrador
+  oficial". Es una franja ancha y de color, a propósito: la primera versión, gris y
+  pequeña, pasaba desapercibida. La comprobación de rol existe por los computadores compartidos: el borrador
   es del navegador, no de la persona.
 
 Los borradores viven en `localStorage` del navegador del coordinador. **No tocan el
