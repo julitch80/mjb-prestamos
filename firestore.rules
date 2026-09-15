@@ -309,9 +309,10 @@ service cloud.firestore {
 
       allow create: if !esSuplantacion() && (
         isActiveUser()
-        && callerDoc().role == 'coordinador'
         && request.resource.data.jornada in ['manana', 'tarde']
-        && callerDoc().jornada == request.resource.data.jornada
+        // El coordinador publica su jornada; el superusuario, cualquiera (15-09-2026).
+        && ((callerDoc().role == 'coordinador' && callerDoc().jornada == request.resource.data.jornada)
+            || callerDoc().role == 'superusuario')
         && request.resource.data.publicadoPor == callerEmail()
         && request.resource.data.publicadoEn == request.time
         && request.resource.data.publicadoPorNombre is string
@@ -327,8 +328,26 @@ service cloud.firestore {
               'publicadoPorNombre', 'publicadoEn'])
       );
 
-      // Nunca se edita ni se borra: ver la nota de arriba.
-      allow update: if !esSuplantacion() && (false);
+      // No se edita ni se borra: ver la nota de arriba. La UNICA escritura posterior
+      // es cancelarla antes de que empiece a regir (15-09-2026): se agregan tres
+      // campos, una sola vez, por quien podria haberla publicado. El resto del
+      // documento queda intacto, asi el historial sigue diciendo que se publico.
+      allow update: if !esSuplantacion() && (
+        isActiveUser()
+        && ((callerDoc().role == 'coordinador' && callerDoc().jornada == resource.data.jornada)
+            || callerDoc().role == 'superusuario')
+        && !('canceladaPor' in resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['canceladaPor', 'canceladaPorNombre', 'canceladaEn'])
+        && request.resource.data.canceladaPor == callerEmail()
+        && request.resource.data.canceladaPorNombre is string
+        && request.resource.data.canceladaEn == request.time
+        // Solo mientras no rige: antes de la medianoche (UTC) de su fecha de vigencia.
+        && request.time < timestamp.date(
+             int(resource.data.vigenteDesde.split('-')[0]),
+             int(resource.data.vigenteDesde.split('-')[1]),
+             int(resource.data.vigenteDesde.split('-')[2]))
+      );
       allow delete: if !esSuplantacion() && (false);
     }
 

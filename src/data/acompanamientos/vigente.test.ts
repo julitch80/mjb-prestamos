@@ -83,3 +83,13 @@ describe('publicación recién hecha', () => {
     expect(publicacionVigente([vieja, nueva], 'manana', '2026-09-15').id).toBe('nueva');
   });
 });
+
+describe('publicación cancelada', () => {
+  it('no rige ni aparece como próxima, pero sigue en el historial', () => {
+    const buena = pub({ id: 'buena', vigenteDesde: '2026-09-15', publicadoEn: 2000 });
+    const errada = pub({ id: 'errada', vigenteDesde: '2026-11-27', publicadoEn: 1000, canceladaPor: 'x@y' });
+    expect(publicacionVigente([buena, errada], 'manana', '2026-11-30').id).toBe('buena');
+    expect(proximaPublicacion([buena, errada], 'manana', '2026-09-15')).toBeNull();
+    expect(historial([buena, errada], 'manana').map((p) => p.id)).toContain('errada');
+  });
+});

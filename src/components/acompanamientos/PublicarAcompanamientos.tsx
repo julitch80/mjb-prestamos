@@ -26,7 +26,14 @@ function fechaHoyLocal(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function proximoLunes(): string {
+function diasHasta(desde: string, hasta: string): number {
+  const a = new Date(`${desde}T12:00:00`).getTime();
+  const b = new Date(`${hasta}T12:00:00`).getTime();
+  return Number.isFinite(b) ? Math.round((b - a) / 86_400_000) : 0;
+}
+
+// Ya no se usa como fecha por defecto (15-09-2026: se propone hoy).
+export function proximoLunes(): string {
   const d = new Date();
   const diaSemana = d.getDay(); // 0=domingo
   const diasHastaLunes = diaSemana === 0 ? 1 : diaSemana === 1 ? 7 : 8 - diaSemana;
@@ -55,7 +62,7 @@ export default function PublicarAcompanamientos({
   onCancelar,
 }: Props) {
   const hoy = fechaHoyLocal();
-  const [fecha, setFecha] = useState(proximoLunes());
+  const [fecha, setFecha] = useState(hoy);
   const [paso, setPaso] = useState<Paso>('form');
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{ correosFallidos: string[]; avisados: number } | null>(null);
@@ -168,7 +175,8 @@ export default function PublicarAcompanamientos({
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-soft block">Fecha de vigencia</label>
+        <label className="text-xs font-semibold text-soft block">¿Desde qué día empieza a regir?</label>
+        <p className="text-muted text-[11px]">No es la fecha en que termina: rige desde ese día hasta que se publique otra.</p>
         <input
           type="date"
           value={fecha}
@@ -176,6 +184,16 @@ export default function PublicarAcompanamientos({
           onChange={(e) => setFecha(e.target.value)}
           className="rounded-lg border border-line bg-card px-3 py-2 text-sm text-strong"
         />
+        {/^\d{4}-\d{2}-\d{2}$/.test(fecha) && fecha >= hoy && (
+          <p className="text-strong text-xs font-semibold">
+            Rige desde el {fechaLegibleAcomp(fecha)}{fecha === hoy ? ' (hoy)' : ''} hasta que se publique otra.
+          </p>
+        )}
+        {diasHasta(hoy, fecha) > 14 && (
+          <p className="rounded-lg border border-warning bg-warning-soft px-3 py-2 text-warning-soft-fg text-xs">
+            ⚠ Faltan {diasHasta(hoy, fecha)} días para que empiece a regir. Hasta entonces todos siguen con la distribución actual. ¿Es la fecha correcta?
+          </p>
+        )}
       </div>
       {motivoDeshabilitado && (
         <p className="text-warning-soft-fg text-xs">{motivoDeshabilitado}</p>

@@ -12,6 +12,8 @@ import { fechaLegibleAcomp } from '../../data/acompanamientos/textos';
 interface Props {
   jornada: JornadaAcomp;
   publicaciones: Publicacion[];
+  /** Si viene, se ofrece cancelar las publicaciones programadas que aún no rigen. */
+  onCancelar?: (pub: Publicacion) => Promise<void>;
 }
 
 const DIA_LABEL: Record<string, string> = {
@@ -74,8 +76,11 @@ function MatrizSoloLectura({ distribucion }: { distribucion: Distribucion }) {
   );
 }
 
-export default function HistorialAcompanamientos({ jornada, publicaciones }: Props) {
+export default function HistorialAcompanamientos({ jornada, publicaciones, onCancelar }: Props) {
   const [seleccionada, setSeleccionada] = useState<string | null>(null);
+  const [confirmando, setConfirmando] = useState<string | null>(null);
+  const [cancelando, setCancelando] = useState(false);
+  const [errorCancelar, setErrorCancelar] = useState<string | null>(null);
   const lista = historial(publicaciones, jornada).slice().reverse(); // más reciente primero
   const hoy = fechaHoyLocal();
   const vigenteId = publicacionVigente(publicaciones, jornada, hoy).id;
@@ -84,7 +89,8 @@ export default function HistorialAcompanamientos({ jornada, publicaciones }: Pro
     <div className="space-y-2">
       {lista.map((pub) => {
         const esVigente = pub.id === vigenteId;
-        const esFutura = pub.vigenteDesde > hoy;
+        const cancelada = !!pub.canceladaPor;
+        const esFutura = pub.vigenteDesde > hoy && !cancelada;
         return (
           <div key={pub.id} className="rounded-xl border border-line bg-card overflow-hidden">
             <button
@@ -110,6 +116,11 @@ export default function HistorialAcompanamientos({ jornada, publicaciones }: Pro
                       rige hoy
                     </span>
                   )}
+                  {cancelada && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-danger-soft-fg bg-danger-soft border border-danger rounded-full px-2 py-0.5">
+                      cancelada por {pub.canceladaPorNombre || pub.canceladaPor}
+                    </span>
+                  )}
                   {esFutura && (
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-info-soft-fg bg-info-soft border border-info rounded-full px-2 py-0.5">
                       programada
@@ -120,7 +131,38 @@ export default function HistorialAcompanamientos({ jornada, publicaciones }: Pro
               <span className={cn('text-muted transition-transform', seleccionada === pub.id && 'rotate-180')}>⌄</span>
             </button>
             {seleccionada === pub.id && (
-              <div className="px-4 pb-4">
+              <div className="px-4 pb-4 space-y-2">
+                {esFutura && onCancelar && (
+                  confirmando === pub.id ? (
+                    <div className="rounded-lg border border-danger bg-danger-soft px-3 py-2 space-y-2">
+                      <p className="text-danger-soft-fg text-xs">
+                        ¿Cancelar la publicación que iba a regir desde el {fechaLegibleAcomp(pub.vigenteDesde)}? No se borra: queda en el historial como cancelada y nunca rige.
+                      </p>
+                      {errorCancelar && <p className="text-danger-soft-fg text-xs font-semibold">No se pudo cancelar: {errorCancelar}</p>}
+                      <div className="flex gap-2">
+                        <button onClick={() => { setConfirmando(null); setErrorCancelar(null); }} className="rounded-lg border border-line px-3 py-1.5 text-xs text-soft hover:bg-hover transition">No</button>
+                        <button
+                          disabled={cancelando}
+                          onClick={async () => {
+                            setCancelando(true); setErrorCancelar(null);
+                            try { await onCancelar(pub); setConfirmando(null); }
+                            catch (e) { setErrorCancelar(e instanceof Error ? e.message : 'error desconocido'); }
+                            finally { setCancelando(false); }
+                          }}
+                          className="rounded-lg bg-danger text-white px-3 py-1.5 text-xs font-semibold hover:opacity-90 transition disabled:opacity-60"
+                        >
+                          {cancelando ? 'Cancelando…' : 'Sí, cancelarla'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-end">
+                      <button onClick={() => setConfirmando(pub.id)} className="rounded-lg border border-danger px-3 py-1.5 text-xs font-semibold text-danger-soft-fg hover:bg-danger-soft transition">
+                        Cancelar esta publicación
+                      </button>
+                    </div>
+                  )
+                )}
                 <MatrizSoloLectura distribucion={pub} />
               </div>
             )}

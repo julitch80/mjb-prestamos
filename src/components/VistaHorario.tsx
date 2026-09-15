@@ -31,7 +31,7 @@ import { useAcompanamientos } from '../data/acompanamientos/useAcompanamientos';
 import { asignacionesDeZonaEnDia, asignacionesDeDocenteEnDia } from '../data/acompanamientos/vigente';
 import { textoCambiaDesde, fechaLegibleAcomp } from '../data/acompanamientos/textos';
 import PanelEditarAcompanamientos from './acompanamientos/PanelEditarAcompanamientos';
-import { publicarDistribucion } from '../data/acompanamientos/almacen';
+import { publicarDistribucion, cancelarPublicacion } from '../data/acompanamientos/almacen';
 import type { AvisoDocente } from '../data/acompanamientos/avisos';
 import { auth } from '../lib/firebase';
 import { enviarCorreoMasivo, crearNotificacionesLote } from '../data/api';
@@ -1561,7 +1561,9 @@ function VistaHorarioContenido() {
           )}
           {modo === 'acompanamiento' && (() => {
             const zonas = acompVigente.zonas;
-            const puedeEditarAcomp = rol === 'coordinador' && jornadaTab === jornadaPropia;
+            // El superusuario también publica y cancela, en cualquier jornada (15-09-2026:
+            // Julián corrige una publicación con fecha equivocada sin cargar a coordinación).
+            const puedeEditarAcomp = (rol === 'coordinador' && jornadaTab === jornadaPropia) || rol === 'superusuario';
             return (
             <div className="space-y-4">
               {acompError && (
@@ -1773,12 +1775,17 @@ function VistaHorarioContenido() {
                   ))}
                 </div>
               )}
-              {editandoAcomp && jornadaPropia && (
+              {editandoAcomp && (jornadaPropia || rol === 'superusuario') && (
                 <PanelEditarAcompanamientos
-                  jornada={jornadaPropia}
+                  jornada={rol === 'superusuario' ? jornadaTab : jornadaPropia!}
                   vigente={acompVigente}
                   publicaciones={acompPublicaciones}
                   usuario={{ correo: auth?.currentUser?.email?.toLowerCase() ?? null, nombre: nombre ?? '' }}
+                  onCancelarPublicacion={async (pub) => {
+                    const correo = auth?.currentUser?.email?.toLowerCase();
+                    if (!correo) throw new Error('No se pudo confirmar tu sesión.');
+                    await cancelarPublicacion(pub.id, correo, nombre ?? '');
+                  }}
                   onPublicar={async (dist, vigenteDesde, avisos) => {
                     const correo = auth?.currentUser?.email?.toLowerCase();
                     if (!correo) throw new Error('No se pudo confirmar tu sesión.');

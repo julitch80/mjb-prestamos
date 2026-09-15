@@ -35,6 +35,11 @@ function deLaJornada(publicaciones: Publicacion[], jornada: JornadaAcomp): Publi
   return publicaciones.filter((p) => p.jornada === jornada).sort(compararVigencia);
 }
 
+/** Las que pueden regir: una publicación cancelada queda en el historial pero no rige. */
+function activasDeLaJornada(publicaciones: Publicacion[], jornada: JornadaAcomp): Publicacion[] {
+  return deLaJornada(publicaciones, jornada).filter((p) => !p.canceladaPor);
+}
+
 /**
  * La distribución que rige en `fecha`: de las publicaciones de esa jornada con
  * `vigenteDesde <= fecha`, la de mayor vigencia. Si no hay ninguna (todavía no
@@ -45,7 +50,7 @@ export function publicacionVigente(
   jornada: JornadaAcomp,
   fecha: FechaISO,
 ): Publicacion {
-  const candidatas = deLaJornada(publicaciones, jornada).filter((p) => p.vigenteDesde <= fecha);
+  const candidatas = activasDeLaJornada(publicaciones, jornada).filter((p) => p.vigenteDesde <= fecha);
   if (candidatas.length === 0) return distribucionInicial(jornada);
   return candidatas[candidatas.length - 1];
 }
@@ -60,7 +65,7 @@ export function proximaPublicacion(
   jornada: JornadaAcomp,
   fecha: FechaISO,
 ): Publicacion | null {
-  const futuras = deLaJornada(publicaciones, jornada).filter((p) => p.vigenteDesde > fecha);
+  const futuras = activasDeLaJornada(publicaciones, jornada).filter((p) => p.vigenteDesde > fecha);
   return futuras.length === 0 ? null : futuras[0];
 }
 

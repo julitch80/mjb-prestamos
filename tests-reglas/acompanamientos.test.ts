@@ -144,9 +144,9 @@ describe('acompanamientosPublicaciones — crear', () => {
     );
   });
 
-  it('el superusuario no puede publicar', async () => {
-    await assertFails(
-      addDoc(collection(ctx(SUPERUSUARIO), COLECCION), publicacionValida('manana', SUPERUSUARIO, 'Admin')),
+  it('el superusuario puede publicar en cualquier jornada', async () => {
+    await assertSucceeds(
+      addDoc(collection(ctx(SUPERUSUARIO), COLECCION), publicacionValida('tarde', SUPERUSUARIO, 'Admin')),
     );
   });
 
@@ -247,5 +247,50 @@ describe('acompanamientosPublicaciones — leer', () => {
     const id = await sembrarPublicacion();
     const { getDoc } = await import('firebase/firestore');
     await assertFails(getDoc(doc(ctx(EXTERNO), COLECCION, id)));
+  });
+});
+
+describe('acompanamientosPublicaciones — cancelar antes de regir', () => {
+  async function sembrar(vigenteDesde: string, extra: Record<string, unknown> = {}): Promise<string> {
+    let id = '';
+    await env.withSecurityRulesDisabled(async (c) => {
+      const ref = await addDoc(collection(c.firestore(), COLECCION), {
+        ...publicacionValida('manana', COORD_MANANA, 'Janneth Ocampo'),
+        vigenteDesde,
+        publicadoEn: new Date(),
+        ...extra,
+      });
+      id = ref.id;
+    });
+    return id;
+  }
+  const cancelacion = (correo: string) => ({ canceladaPor: correo, canceladaPorNombre: 'X', canceladaEn: serverTimestamp() });
+
+  it('el superusuario cancela una programada', async () => {
+    const id = await sembrar('2099-11-27');
+    await assertSucceeds(updateDoc(doc(ctx(SUPERUSUARIO), COLECCION, id), cancelacion(SUPERUSUARIO)));
+  });
+
+  it('la coordinadora de la jornada cancela una programada', async () => {
+    const id = await sembrar('2099-11-27');
+    await assertSucceeds(updateDoc(doc(ctx(COORD_MANANA), COLECCION, id), cancelacion(COORD_MANANA)));
+  });
+
+  it('el coordinador de la otra jornada y un docente no pueden', async () => {
+    const id = await sembrar('2099-11-27');
+    await assertFails(updateDoc(doc(ctx(COORD_TARDE), COLECCION, id), cancelacion(COORD_TARDE)));
+    await assertFails(updateDoc(doc(ctx(DOCENTE), COLECCION, id), cancelacion(DOCENTE)));
+  });
+
+  it('no se cancela una que ya rige', async () => {
+    const id = await sembrar('2020-01-01');
+    await assertFails(updateDoc(doc(ctx(SUPERUSUARIO), COLECCION, id), cancelacion(SUPERUSUARIO)));
+  });
+
+  it('no se cancela dos veces ni se cambia otra cosa al cancelar', async () => {
+    const id = await sembrar('2099-11-27', { canceladaPor: COORD_MANANA, canceladaPorNombre: 'J', canceladaEn: new Date() });
+    await assertFails(updateDoc(doc(ctx(SUPERUSUARIO), COLECCION, id), cancelacion(SUPERUSUARIO)));
+    const id2 = await sembrar('2099-11-27');
+    await assertFails(updateDoc(doc(ctx(SUPERUSUARIO), COLECCION, id2), { ...cancelacion(SUPERUSUARIO), vigenteDesde: '2099-12-01' }));
   });
 });

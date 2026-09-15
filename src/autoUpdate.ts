@@ -1,6 +1,7 @@
 // Auto-limpiador de caché: si hay una versión más nueva publicada, limpia el
 // service worker y las cachés y recarga una sola vez. Evita el "baile del caché".
 const GUARD = 'mjb-auto-reloaded';
+const REINTENTO_MS = 15 * 60_000;
 
 async function check(): Promise<void> {
   try {
@@ -12,8 +13,15 @@ async function check(): Promise<void> {
       sessionStorage.removeItem(GUARD); // versión al día: permite futuras detecciones
       return;
     }
-    if (sessionStorage.getItem(GUARD)) return; // ya intentamos en esta sesión: no repetir (evita bucle)
-    sessionStorage.setItem(GUARD, '1');
+    // Evita el bucle, pero sin rendirse para siempre. Antes la marca era
+    // permanente en la sesión: si justo después de un despliegue GitHub Pages
+    // aún servía la página vieja (su caché dura ~10 min), la recarga traía la
+    // misma versión, la marca quedaba puesta y la app NO volvía a intentarlo
+    // hasta cerrarla. Así pasó el 15-09-2026: los profesores siguieron con una
+    // versión anterior a los acompañamientos publicados. Ahora reintenta cada 15 min.
+    const ultimo = Number(sessionStorage.getItem(GUARD) || 0);
+    if (Date.now() - ultimo < REINTENTO_MS) return;
+    sessionStorage.setItem(GUARD, String(Date.now()));
 
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();

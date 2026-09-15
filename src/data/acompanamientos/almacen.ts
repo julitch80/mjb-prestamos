@@ -11,8 +11,10 @@ import {
   collection,
   onSnapshot,
   query,
+  doc,
   serverTimestamp,
   Timestamp,
+  updateDoc,
   where,
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -43,13 +45,15 @@ export function suscribirPublicaciones(
     q,
     (snap) => {
       const publicaciones: Publicacion[] = snap.docs.map((d) => {
-        const data = d.data() as Omit<Publicacion, 'id' | 'esInicial' | 'publicadoEn'> & {
+        const data = d.data() as Omit<Publicacion, 'id' | 'esInicial' | 'publicadoEn' | 'canceladaEn'> & {
           publicadoEn: Timestamp | null;
+          canceladaEn?: Timestamp | null;
         };
         return {
           ...data,
           id: d.id,
           publicadoEn: data.publicadoEn instanceof Timestamp ? data.publicadoEn.toMillis() : null,
+          canceladaEn: data.canceladaEn instanceof Timestamp ? data.canceladaEn.toMillis() : null,
           esInicial: false,
         };
       });
@@ -109,4 +113,18 @@ export async function publicarDistribucion(
     documentoDePublicacion(dist, vigenteDesde, correo, nombre, serverTimestamp()),
   );
   return ref.id;
+}
+
+/**
+ * Cancela una publicación programada que todavía no rige. No la borra: queda en
+ * el historial marcada como cancelada. La regla solo deja escribir estos tres
+ * campos, una sola vez, y antes de la fecha de vigencia.
+ */
+export async function cancelarPublicacion(id: string, correo: string, nombre: string): Promise<void> {
+  if (!db) throw new Error('Firebase no está configurado en esta compilación.');
+  await updateDoc(doc(db, COLECCION_PUBLICACIONES, id), {
+    canceladaPor: correo,
+    canceladaPorNombre: nombre,
+    canceladaEn: serverTimestamp(),
+  });
 }

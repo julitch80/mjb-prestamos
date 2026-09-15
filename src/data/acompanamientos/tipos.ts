@@ -57,6 +57,10 @@ export interface Publicacion extends Distribucion {
   publicadoEn: number | null;
   /** La distribución escrita en el programa, vigente mientras no haya publicaciones. */
   esInicial: boolean;
+  /** Si se canceló antes de empezar a regir. Queda en el historial pero no rige nunca. */
+  canceladaPor?: string;
+  canceladaPorNombre?: string;
+  canceladaEn?: number | null;
 }
 
 /** Colección de Firestore. Un documento por publicación, inmutable. */

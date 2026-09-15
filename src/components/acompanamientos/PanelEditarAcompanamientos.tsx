@@ -34,6 +34,7 @@ interface Props {
   /** `correo` es null cuando no se pudo confirmar la sesión — deshabilita Publicar. */
   usuario: { correo: string | null; nombre: string };
   onPublicar: (dist: Distribucion, vigenteDesde: string, avisos: AvisoDocente[]) => Promise<{ correosFallidos: string[] }>;
+  onCancelarPublicacion?: (pub: Publicacion) => Promise<void>;
   onCerrar: () => void;
 }
 
@@ -50,6 +51,7 @@ export default function PanelEditarAcompanamientos({
   publicaciones,
   usuario,
   onPublicar,
+  onCancelarPublicacion,
   onCerrar,
 }: Props) {
   const [opcion, setOpcion] = useState<Opcion>('menu');
@@ -253,7 +255,7 @@ export default function PanelEditarAcompanamientos({
             )}
 
             {opcion === 'historial' && (
-              <HistorialAcompanamientos jornada={jornada} publicaciones={publicaciones} />
+              <HistorialAcompanamientos jornada={jornada} publicaciones={publicaciones} onCancelar={onCancelarPublicacion} />
             )}
 
             {opcion === 'publicar' && (
