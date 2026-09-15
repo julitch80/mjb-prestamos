@@ -10,12 +10,15 @@ import { revisar } from '../../data/acompanamientos/revision';
 import { publicacionVigente } from '../../data/acompanamientos/vigente';
 import { avisosDeCambio, DIA_CAPITALIZADO, type AvisoDocente } from '../../data/acompanamientos/avisos';
 import { fechaLegibleAcomp } from '../../data/acompanamientos/textos';
+import AcompanamientosImprimible from './AcompanamientosImprimible';
 
 interface Props {
   jornada: JornadaAcomp;
   borrador: Distribucion;
   vigente: Publicacion;
   publicaciones: Publicacion[];
+  /** Nombre de quien publica — solo para el botón «Exportar para imprimir» del resultado. */
+  nombrePublicador?: string;
   onPublicar: (dist: Distribucion, vigenteDesde: string, avisos: AvisoDocente[]) => Promise<{ correosFallidos: string[] }>;
   onPublicado: () => void;
   onCancelar: () => void;
@@ -57,6 +60,7 @@ export default function PublicarAcompanamientos({
   borrador,
   vigente,
   publicaciones,
+  nombrePublicador,
   onPublicar,
   onPublicado,
   onCancelar,
@@ -66,6 +70,7 @@ export default function PublicarAcompanamientos({
   const [paso, setPaso] = useState<Paso>('form');
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{ correosFallidos: string[]; avisados: number } | null>(null);
+  const [imprimiendo, setImprimiendo] = useState(false);
 
   const { bloqueos } = revisar(borrador);
   const anterior = publicacionVigente(publicaciones, jornada, fecha);
@@ -105,12 +110,29 @@ export default function PublicarAcompanamientos({
             </p>
           )}
         </div>
-        <button
-          onClick={onPublicado}
-          className="rounded-lg bg-accent text-accent-fg px-3 py-2 text-sm font-semibold hover:opacity-90 transition"
-        >
-          Aceptar
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={onPublicado}
+            className="rounded-lg bg-accent text-accent-fg px-3 py-2 text-sm font-semibold hover:opacity-90 transition"
+          >
+            Aceptar
+          </button>
+          <button
+            onClick={() => setImprimiendo(true)}
+            className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-soft hover:bg-hover transition"
+          >
+            Exportar para imprimir
+          </button>
+        </div>
+        {imprimiendo && (
+          <AcompanamientosImprimible
+            jornada={jornada}
+            distribucion={borrador}
+            vigenteDesde={fecha}
+            publicadoPorNombre={nombrePublicador ?? ''}
+            onCerrar={() => setImprimiendo(false)}
+          />
+        )}
       </div>
     );
   }

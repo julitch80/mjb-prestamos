@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { generarAlternativas } from './generador';
 import { revisar } from './revision';
 import { distribucionInicial } from './inicial';
+import { metasAutomaticas } from './metas';
+import { docentesDeLaJornada } from './disponibilidad';
 import { clasesEnDia, DIA_CARGADO } from './clases';
 import type { Distribucion } from './tipos';
 
@@ -163,6 +165,78 @@ describe('generarAlternativas — 6.3 zona imposible de cubrir', () => {
     const { bloqueos } = revisar(alt.distribucion);
     const tipos = new Set(bloqueos.map((b) => b.tipo));
     expect([...tipos]).toEqual(['casilla_incompleta']);
+  });
+});
+
+describe('generarAlternativas — metas como objetivo duro (tarea A.4)', () => {
+  it('metasAutomaticas(distribucionInicial) suma exactamente el total de casillas', () => {
+    for (const jornada of ['manana', 'tarde'] as const) {
+      const base = distribucionInicial(jornada);
+      const metas = metasAutomaticas(base);
+      const totalCasillas = base.zonas.reduce((s, z) => s + z.cupo * 5, 0);
+      const suma = Object.values(metas).reduce((s, n) => s + n, 0);
+      expect(suma).toBe(totalCasillas);
+    }
+  });
+
+  it('con metas automáticas (objetivo duro), nadie queda con más de su meta aunque alguna casilla quede sin cubrir', () => {
+    // La suma de las metas automáticas cuadra con el total de casillas (prueba de
+    // arriba), pero cuadrar la SUMA no garantiza que cada casilla concreta se
+    // pueda llenar sin pasarse de meta: los días disponibles de cada docente
+    // (jornada, mixtos) son distintos, así que un día puede quedarse sin nadie
+    // que aún tenga margen. El generador debe seguir sin romper la meta dura
+    // en ese caso, y reportarlo como faltante en vez de excederse.
+    const base = distribucionInicial('manana');
+    const conMetas: Distribucion = { ...base, metas: metasAutomaticas(base) };
+    const alts = generarAlternativas(conMetas, { semilla: 11, cantidad: 1 });
+    const conteos = new Map<string, number>();
+    for (const a of alts[0].distribucion.asignaciones) conteos.set(a.docenteId, (conteos.get(a.docenteId) ?? 0) + 1);
+    for (const [docenteId, n] of conteos) {
+      expect(n, docenteId).toBeLessThanOrEqual(conMetas.metas![docenteId] ?? 0);
+    }
+    for (const f of alts[0].metricas.faltantes) {
+      expect(f.motivo).toContain('metas');
+    }
+  });
+
+  it('con metas presentes, ningún docente supera su meta y no se rompe ninguna regla dura, en 200 semillas', () => {
+    const base = distribucionInicial('manana');
+    const metas: Record<string, number> = {};
+    // Meta baja para Uriel (2) y una meta holgada (5) para el resto de docentes
+    // de la mañana, para no dejar faltantes por culpa de las metas mismas.
+    for (const u of docentesDeLaJornada('manana')) {
+      metas[u.id] = u.id === 'uriel' ? 2 : 5;
+    }
+    const conMetas: Distribucion = { ...base, metas };
+    for (let semilla = 0; semilla < 200; semilla++) {
+      const alts = generarAlternativas(conMetas, { semilla, cantidad: 2 });
+      for (const alt of alts) {
+        const { bloqueos } = revisar(alt.distribucion);
+        const bloqueosNoCasillaIncompleta = bloqueos.filter((b) => b.tipo !== 'casilla_incompleta');
+        expect(bloqueosNoCasillaIncompleta, `semilla ${semilla}: ${JSON.stringify(bloqueosNoCasillaIncompleta)}`).toEqual([]);
+        const conteoUriel = alt.distribucion.asignaciones.filter((a) => a.docenteId === 'uriel').length;
+        expect(conteoUriel, `semilla ${semilla}`).toBeLessThanOrEqual(2);
+        const conteos = new Map<string, number>();
+        for (const a of alt.distribucion.asignaciones) conteos.set(a.docenteId, (conteos.get(a.docenteId) ?? 0) + 1);
+        for (const [docenteId, n] of conteos) {
+          const meta = conMetas.metas![docenteId];
+          if (meta !== undefined) expect(n, `${docenteId} semilla ${semilla}`).toBeLessThanOrEqual(meta);
+        }
+      }
+    }
+  });
+
+  it('cuando la suma de metas es menor que las casillas, se reportan faltantes con motivo de metas', () => {
+    const base: Distribucion = {
+      jornada: 'manana',
+      zonas: [{ id: 'z1', nombre: 'Zona 1', cupo: 1 }],
+      asignaciones: [],
+      metas: { julian: 1 }, // 1 sola meta puesta, para 5 casillas (una por día)
+    };
+    const alts = generarAlternativas(base, { semilla: 3, cantidad: 1 });
+    const alt = alts[0];
+    expect(alt.metricas.faltantes.length).toBeGreaterThan(0);
+    expect(alt.metricas.faltantes.some((f) => f.motivo.includes('metas'))).toBe(true);
   });
 });
 

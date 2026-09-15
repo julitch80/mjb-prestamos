@@ -176,6 +176,53 @@ describe('revisar — avisos', () => {
   });
 });
 
+describe('revisar — metas', () => {
+  it('meta_distinta: no aparece cuando cada docente tiene exactamente su meta', () => {
+    const dist: Distribucion = {
+      jornada: 'manana',
+      zonas: [{ id: 'z1', nombre: 'Zona 1', cupo: 1 }],
+      asignaciones: [{ zonaId: 'z1', dia: 'lunes', docenteId: 'julian', candado: false }],
+      metas: { julian: 1 },
+    };
+    expect(tiene(revisar(dist).avisos, 'meta_distinta')).toBe(false);
+  });
+
+  it('meta_distinta: aparece con el mensaje "N de M" cuando alguien no cuadra con su meta', () => {
+    const dist: Distribucion = {
+      jornada: 'manana',
+      zonas: [{ id: 'z1', nombre: 'Zona 1', cupo: 1 }],
+      asignaciones: [
+        { zonaId: 'z1', dia: 'lunes', docenteId: 'uriel', candado: false },
+        { zonaId: 'z1', dia: 'martes', docenteId: 'uriel', candado: false },
+        { zonaId: 'z1', dia: 'miercoles', docenteId: 'uriel', candado: false },
+      ],
+      metas: { uriel: 2 },
+    };
+    const avisos = revisar(dist).avisos;
+    expect(tiene(avisos, 'meta_distinta')).toBe(true);
+    const aviso = avisos.find((a) => a.tipo === 'meta_distinta' && a.docenteId === 'uriel');
+    expect(aviso?.mensaje).toContain('3 de 2');
+  });
+
+  it('con metas presentes, no se emiten carga_desigual ni mixto_excedido', () => {
+    const dist: Distribucion = {
+      jornada: 'manana',
+      zonas: [{ id: 'z1', nombre: 'Zona 1', cupo: 1 }],
+      asignaciones: [
+        { zonaId: 'z1', dia: 'lunes', docenteId: 'julian', candado: false },
+        { zonaId: 'z1', dia: 'martes', docenteId: 'julian', candado: false },
+        { zonaId: 'z1', dia: 'miercoles', docenteId: 'marta', candado: false },
+        { zonaId: 'z1', dia: 'jueves', docenteId: 'marta', candado: false },
+        { zonaId: 'z1', dia: 'viernes', docenteId: 'marta', candado: false },
+      ],
+      metas: { julian: 2, marta: 3 },
+    };
+    const avisos = revisar(dist).avisos;
+    expect(tiene(avisos, 'carga_desigual')).toBe(false);
+    expect(tiene(avisos, 'mixto_excedido')).toBe(false);
+  });
+});
+
 describe('revisar — distribución inicial real', () => {
   it('distribucionInicial("manana") no tiene ningún bloqueo', () => {
     const { bloqueos } = revisar(distribucionInicial('manana'));

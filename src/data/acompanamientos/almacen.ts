@@ -48,6 +48,7 @@ export function suscribirPublicaciones(
         const data = d.data() as Omit<Publicacion, 'id' | 'esInicial' | 'publicadoEn' | 'canceladaEn'> & {
           publicadoEn: Timestamp | null;
           canceladaEn?: Timestamp | null;
+          metas?: Record<string, number>;
         };
         return {
           ...data,
@@ -88,6 +89,10 @@ export function documentoDePublicacion(
     publicadoPor: correo,
     publicadoPorNombre: nombre,
     publicadoEn: marcaTiempo,
+    // Solo se manda cuando hay metas: así una publicación sin metas (o hecha
+    // antes de esta funcionalidad) no agrega el campo, y la regla de Firestore
+    // no exige presencia — ver firestore.rules § acompanamientosPublicaciones.
+    ...(dist.metas ? { metas: dist.metas } : {}),
   };
 }
 

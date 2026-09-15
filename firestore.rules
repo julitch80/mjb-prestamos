@@ -323,9 +323,10 @@ service cloud.firestore {
         && request.resource.data.zonas.size() <= 30
         && request.resource.data.asignaciones is list
         && request.resource.data.asignaciones.size() <= 300
+        && (!('metas' in request.resource.data) || request.resource.data.metas is map)
         && request.resource.data.keys().hasOnly(
              ['jornada', 'vigenteDesde', 'zonas', 'asignaciones', 'publicadoPor',
-              'publicadoPorNombre', 'publicadoEn'])
+              'publicadoPorNombre', 'publicadoEn', 'metas'])
       );
 
       // No se edita ni se borra: ver la nota de arriba. La UNICA escritura posterior

@@ -8,6 +8,7 @@ import type { Distribucion, JornadaAcomp, Publicacion } from '../../data/acompan
 import { DIAS } from '../../data/acompanamientos/tipos';
 import { historial, publicacionVigente } from '../../data/acompanamientos/vigente';
 import { fechaLegibleAcomp } from '../../data/acompanamientos/textos';
+import AcompanamientosImprimible from './AcompanamientosImprimible';
 
 interface Props {
   jornada: JornadaAcomp;
@@ -81,6 +82,7 @@ export default function HistorialAcompanamientos({ jornada, publicaciones, onCan
   const [confirmando, setConfirmando] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState(false);
   const [errorCancelar, setErrorCancelar] = useState<string | null>(null);
+  const [imprimiendo, setImprimiendo] = useState<string | null>(null);
   const lista = historial(publicaciones, jornada).slice().reverse(); // más reciente primero
   const hoy = fechaHoyLocal();
   const vigenteId = publicacionVigente(publicaciones, jornada, hoy).id;
@@ -132,6 +134,23 @@ export default function HistorialAcompanamientos({ jornada, publicaciones, onCan
             </button>
             {seleccionada === pub.id && (
               <div className="px-4 pb-4 space-y-2">
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setImprimiendo(pub.id)}
+                    className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-soft hover:bg-hover transition"
+                  >
+                    Exportar para imprimir
+                  </button>
+                </div>
+                {imprimiendo === pub.id && (
+                  <AcompanamientosImprimible
+                    jornada={jornada}
+                    distribucion={pub}
+                    vigenteDesde={pub.vigenteDesde}
+                    publicadoPorNombre={pub.publicadoPorNombre}
+                    onCerrar={() => setImprimiendo(null)}
+                  />
+                )}
                 {esFutura && onCancelar && (
                   confirmando === pub.id ? (
                     <div className="rounded-lg border border-danger bg-danger-soft px-3 py-2 space-y-2">

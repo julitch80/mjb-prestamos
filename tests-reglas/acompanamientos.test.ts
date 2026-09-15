@@ -190,6 +190,24 @@ describe('acompanamientosPublicaciones — crear', () => {
     await assertSucceeds(addDoc(collection(ctx(COORD_MANANA), COLECCION), documento));
   });
 
+  it('publicacion con metas (mapa) se acepta', async () => {
+    await assertSucceeds(
+      addDoc(collection(ctx(COORD_MANANA), COLECCION), {
+        ...publicacionValida('manana', COORD_MANANA, 'Janneth Ocampo'),
+        metas: { doris: 2, julian: 1 },
+      }),
+    );
+  });
+
+  it('metas como string (no mapa) se rechaza', async () => {
+    await assertFails(
+      addDoc(collection(ctx(COORD_MANANA), COLECCION), {
+        ...publicacionValida('manana', COORD_MANANA, 'Janneth Ocampo'),
+        metas: 'no es un mapa',
+      }),
+    );
+  });
+
   it('vigenteDesde con formato invalido se rechaza', async () => {
     await assertFails(
       addDoc(collection(ctx(COORD_MANANA), COLECCION), {

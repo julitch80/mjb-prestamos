@@ -235,7 +235,10 @@ export default function PanelEditarAcompanamientos({
             )}
 
             {opcion === 'carga' && (
-              <CargaPorProfesor distribucion={borrador.distribucion} />
+              <CargaPorProfesor
+                distribucion={borrador.distribucion}
+                onCambiarMetas={(metas) => actualizarBorrador({ ...borrador.distribucion, metas })}
+              />
             )}
 
             {opcion === 'manual' && (
@@ -265,6 +268,7 @@ export default function PanelEditarAcompanamientos({
                   borrador={borrador.distribucion}
                   vigente={vigente}
                   publicaciones={publicaciones}
+                  nombrePublicador={usuario.nombre}
                   onPublicar={onPublicar}
                   onPublicado={() => {
                     descartarBorrador(jornada);

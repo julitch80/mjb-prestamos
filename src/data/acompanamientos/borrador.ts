@@ -9,6 +9,7 @@
  */
 
 import type { Distribucion, JornadaAcomp } from './tipos';
+import { metasDesdeCargaActual } from './metas';
 
 export interface Borrador {
   distribucion: Distribucion;
@@ -55,14 +56,21 @@ export function descartarBorrador(jornada: JornadaAcomp): void {
   }
 }
 
-/** Construye el borrador de arranque a partir de la publicación vigente (copia, no referencia). */
+/**
+ * Construye el borrador de arranque a partir de la publicación vigente (copia,
+ * no referencia). Si la vigente ya trae metas, se copian tal cual; si no
+ * (publicación anterior a esta funcionalidad), arrancan en la carga actual de
+ * cada profesor (`metasDesdeCargaActual`).
+ */
 export function borradorDesdeVigente(vigente: Distribucion, idVigente: string): Borrador {
+  const distribucion: Distribucion = {
+    jornada: vigente.jornada,
+    zonas: vigente.zonas.map((z) => ({ ...z })),
+    asignaciones: vigente.asignaciones.map((a) => ({ ...a })),
+  };
+  distribucion.metas = vigente.metas ? { ...vigente.metas } : metasDesdeCargaActual(distribucion);
   return {
-    distribucion: {
-      jornada: vigente.jornada,
-      zonas: vigente.zonas.map((z) => ({ ...z })),
-      asignaciones: vigente.asignaciones.map((a) => ({ ...a })),
-    },
+    distribucion,
     basadoEn: idVigente,
     guardadoEn: Date.now(),
   };

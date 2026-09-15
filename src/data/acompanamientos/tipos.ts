@@ -44,6 +44,12 @@ export interface Distribucion {
   jornada: JornadaAcomp;
   zonas: Zona[];
   asignaciones: Asignacion[];
+  /**
+   * Metas de acompañamientos por semana, por docente (opcional — distribuciones y
+   * publicaciones viejas no la traen y siguen funcionando: ver `metasAutomaticas`
+   * en `metas.ts` y `borradorDesdeVigente` en `borrador.ts`).
+   */
+  metas?: Record<string, number>;
 }
 
 export interface Publicacion extends Distribucion {

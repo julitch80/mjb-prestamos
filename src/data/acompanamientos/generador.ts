@@ -18,6 +18,20 @@
  *   base, se descartan las que quedan a menos de 4 asignaciones de otra ya
  *   elegida (para que las alternativas sean realmente distintas), y se
  *   devuelven las `cantidad` con mejor puntaje.
+ *
+ * METAS (tarea A.4): cuando `base.metas` viene puesto, cada docente tiene un
+ * objetivo DURO — nunca se le asigna por encima de su meta. Se implementa
+ * como un filtro más sobre los candidatos de cada casilla (igual que
+ * `fuera_de_jornada` o `dos_zonas_mismo_dia`: si ya alcanzó su meta, sale de
+ * la lista de candidatos) y, entre los que quedan, se prefiere a quien está
+ * MÁS LEJOS de la suya (mayor "restante"), para que las metas se completen
+ * parejo en vez de que unos pocos las agoten primero y dejen a otros sin
+ * llegar. Los candados también cuentan para la meta de quien los tiene
+ * (se suman antes de repartir los huecos, igual que con la carga normal). Si
+ * las metas no alcanzan para llenar una casilla (candidatos vacíos porque
+ * todos los que podrían cubrirla ya están en su meta), se reporta como
+ * faltante con un motivo distinto que deja claro que es cosa de las metas,
+ * no de disponibilidad.
  */
 
 import type { Asignacion, Dia, Distribucion, Zona } from './tipos';
@@ -36,6 +50,8 @@ export interface Metricas {
   profesoresQueCambian: number;
   diasCargados: number;
   faltantes: Faltante[];
+  /** Cuántos docentes de la jornada NO quedaron exactamente en su meta (solo tiene sentido si `base.metas` venía puesto; si no, siempre 0). */
+  fueraDeMeta: number;
 }
 
 export interface Alternativa {
@@ -163,23 +179,31 @@ function construir(base: Distribucion, semilla: number): { distribucion: Distrib
   }
 
   const faltantes: Faltante[] = [];
+  const metas = base.metas; // si viene, es objetivo DURO: nunca se asigna por encima.
 
   for (const hueco of huecos) {
     const ocupadosEnEstaCasilla = new Set(
       asignaciones.filter((a) => a.zonaId === hueco.zonaId && a.dia === hueco.dia).map((a) => a.docenteId),
     );
-    const candidatos = docentesJornada.filter((u) => {
+    const candidatosBase = docentesJornada.filter((u) => {
       if (ocupadosEnEstaCasilla.has(u.id)) return false; // repetido_en_casilla
       if (!puedeCubrir(u.id, jornada, hueco.dia)) return false; // fuera_de_jornada
       if (diaOcupadoPorDocente.get(u.id)?.has(hueco.dia)) return false; // dos_zonas_mismo_dia
       return true;
     });
+    // Con metas duras: además hay que tener margen (cargaActual < meta) — nunca se
+    // pasa a nadie de su meta.
+    const candidatos = metas
+      ? candidatosBase.filter((u) => (cargaDocente.get(u.id) ?? 0) < (metas[u.id] ?? 0))
+      : candidatosBase;
 
     if (candidatos.length === 0) {
       faltantes.push({
         zonaId: hueco.zonaId,
         dia: hueco.dia,
-        motivo: `Nadie más puede cubrir el ${hueco.dia} sin quedar en dos zonas o salirse de su jornada.`,
+        motivo: metas && candidatosBase.length > 0
+          ? 'las metas no alcanzan para cubrir todas las casillas.'
+          : `Nadie más puede cubrir el ${hueco.dia} sin quedar en dos zonas o salirse de su jornada.`,
       });
       continue;
     }
@@ -191,8 +215,6 @@ function construir(base: Distribucion, semilla: number): { distribucion: Distrib
       const clases = clasesEnDia(u.id, jornada, hueco.dia);
       const peso = pesoDeCarga(u.id, jornada);
       const cargaActual = cargaDocente.get(u.id) ?? 0;
-      const cargaNormalizada = cargaActual / peso;
-      const meta = peso * (totalCasillas / (sumaPesos || 1));
 
       let puntaje = 0;
       if (clases >= DIA_CARGADO) {
@@ -200,9 +222,18 @@ function construir(base: Distribucion, semilla: number): { distribucion: Distrib
       } else {
         puntaje += clases * 10; // prefiere el día más liviano del profesor
       }
-      puntaje += cargaNormalizada * 50; // equidad
-      if (peso < 1 && cargaActual + 1 > meta) {
-        puntaje += (cargaActual + 1 - meta) * 30; // mixto cerca de su meta
+      if (metas) {
+        // Objetivo duro: prefiere a quien le falte más para llegar a su meta
+        // (mayor margen restante = menor puntaje = se elige primero).
+        const margenRestante = (metas[u.id] ?? 0) - cargaActual;
+        puntaje += (100 - margenRestante) * 50;
+      } else {
+        const cargaNormalizada = cargaActual / peso;
+        const metaAutomatica = peso * (totalCasillas / (sumaPesos || 1));
+        puntaje += cargaNormalizada * 50; // equidad
+        if (peso < 1 && cargaActual + 1 > metaAutomatica) {
+          puntaje += (cargaActual + 1 - metaAutomatica) * 30; // mixto cerca de su meta
+        }
       }
       if (zonasDelDocente.get(u.id)?.has(hueco.zonaId)) {
         puntaje += 5; // rotación de zonas: penalización leve, no bloquea
@@ -223,7 +254,27 @@ function construir(base: Distribucion, semilla: number): { distribucion: Distrib
     zonasDelDocente.get(mejor.id)!.add(hueco.zonaId);
   }
 
-  return { distribucion: { jornada, zonas, asignaciones }, faltantes };
+  return {
+    distribucion: metas ? { jornada, zonas, asignaciones, metas } : { jornada, zonas, asignaciones },
+    faltantes,
+  };
+}
+
+/** Cuántos docentes de la jornada NO quedaron exactamente en su meta. 0 si la distribución no tiene metas. */
+function fueraDeMeta(dist: Distribucion): number {
+  if (!dist.metas) return 0;
+  const docentes = docentesDeLaJornada(dist.jornada);
+  const conteo = new Map<string, number>();
+  for (const u of docentes) conteo.set(u.id, 0);
+  for (const a of dist.asignaciones) {
+    if (conteo.has(a.docenteId)) conteo.set(a.docenteId, (conteo.get(a.docenteId) ?? 0) + 1);
+  }
+  let n = 0;
+  for (const u of docentes) {
+    const meta = dist.metas[u.id] ?? 0;
+    if ((conteo.get(u.id) ?? 0) !== meta) n += 1;
+  }
+  return n;
 }
 
 function diasCargados(dist: Distribucion): number {
@@ -252,6 +303,7 @@ export function generarAlternativas(base: Distribucion, opciones: OpcionesGenera
         profesoresQueCambian: profesoresQueCambian(distribucion, referencia),
         diasCargados: diasCargados(distribucion),
         faltantes,
+        fueraDeMeta: fueraDeMeta(distribucion),
       },
     });
   }
@@ -261,6 +313,7 @@ export function generarAlternativas(base: Distribucion, opciones: OpcionesGenera
     return (
       alt.metricas.diasCargados * 1000 +
       alt.metricas.faltantes.length * 500 +
+      alt.metricas.fueraDeMeta * 200 +
       alt.metricas.diferenciaCarga * 100
     );
   }

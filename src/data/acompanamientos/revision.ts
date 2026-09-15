@@ -23,7 +23,8 @@ export type TipoProblema =
   | 'repetido_en_casilla'
   | 'dia_cargado'
   | 'carga_desigual'
-  | 'mixto_excedido';
+  | 'mixto_excedido'
+  | 'meta_distinta';
 
 export interface Problema {
   tipo: TipoProblema;
@@ -181,7 +182,11 @@ export function revisar(dist: Distribucion): { bloqueos: Problema[]; avisos: Pro
     }
   }
 
-  // carga_desigual: carga normalizada = acompañamientos / pesoDeCarga.
+  // carga_desigual / mixto_excedido / meta_distinta: carga normalizada =
+  // acompañamientos / pesoDeCarga. Cuando la distribución trae `metas`
+  // (coordinador definió números por profesor), estas reemplazan la regla de
+  // equidad automática: solo se avisa 'meta_distinta' por quien no cuadre con
+  // su meta, y NO se emiten 'carga_desigual' ni 'mixto_excedido' (PRD/tarea A.5).
   const docentesJornada = docentesDeLaJornada(dist.jornada);
   const conteoAsignaciones = new Map<string, number>();
   for (const u of docentesJornada) conteoAsignaciones.set(u.id, 0);
@@ -190,46 +195,61 @@ export function revisar(dist: Distribucion): { bloqueos: Problema[]; avisos: Pro
       conteoAsignaciones.set(a.docenteId, (conteoAsignaciones.get(a.docenteId) ?? 0) + 1);
     }
   }
-  if (docentesJornada.length > 0) {
-    let maxDocente = docentesJornada[0].id;
-    let minDocente = docentesJornada[0].id;
-    let maxCarga = -Infinity;
-    let minCarga = Infinity;
-    for (const u of docentesJornada) {
-      const carga = (conteoAsignaciones.get(u.id) ?? 0) / pesoDeCarga(u.id, dist.jornada);
-      if (carga > maxCarga) {
-        maxCarga = carga;
-        maxDocente = u.id;
-      }
-      if (carga < minCarga) {
-        minCarga = carga;
-        minDocente = u.id;
-      }
-    }
-    if (maxCarga - minCarga > 1) {
-      avisos.push({
-        tipo: 'carga_desigual',
-        mensaje: `La carga no queda equitativa: ${nombreCorto(maxDocente)} tiene más acompañamientos que ${nombreCorto(minDocente)}. Conviene repartir mejor.`,
-        docenteId: maxDocente,
-      });
-    }
-  }
 
-  // mixto_excedido: meta = pesoDeCarga * (total de casillas / suma de pesos de todos los docentes de la jornada).
-  const totalCasillas = dist.zonas.reduce((suma, z) => suma + z.cupo * 5, 0);
-  const sumaPesos = docentesJornada.reduce((suma, u) => suma + pesoDeCarga(u.id, dist.jornada), 0);
-  if (sumaPesos > 0) {
+  if (dist.metas) {
     for (const u of docentesJornada) {
-      const peso = pesoDeCarga(u.id, dist.jornada);
-      if (peso >= 1) continue; // no es mixto
-      const meta = peso * (totalCasillas / sumaPesos);
+      const meta = dist.metas[u.id] ?? 0;
       const total = conteoAsignaciones.get(u.id) ?? 0;
-      if (total > Math.ceil(meta)) {
+      if (total !== meta) {
         avisos.push({
-          tipo: 'mixto_excedido',
-          mensaje: `${nombreCorto(u.id)} es mixto y tiene ${total} acompañamientos; su meta es ${Math.ceil(meta)}.`,
+          tipo: 'meta_distinta',
+          mensaje: `${nombreCorto(u.id)}: ${total} de ${meta} acompañamiento${meta === 1 ? '' : 's'}.`,
           docenteId: u.id,
         });
+      }
+    }
+  } else {
+    if (docentesJornada.length > 0) {
+      let maxDocente = docentesJornada[0].id;
+      let minDocente = docentesJornada[0].id;
+      let maxCarga = -Infinity;
+      let minCarga = Infinity;
+      for (const u of docentesJornada) {
+        const carga = (conteoAsignaciones.get(u.id) ?? 0) / pesoDeCarga(u.id, dist.jornada);
+        if (carga > maxCarga) {
+          maxCarga = carga;
+          maxDocente = u.id;
+        }
+        if (carga < minCarga) {
+          minCarga = carga;
+          minDocente = u.id;
+        }
+      }
+      if (maxCarga - minCarga > 1) {
+        avisos.push({
+          tipo: 'carga_desigual',
+          mensaje: `La carga no queda equitativa: ${nombreCorto(maxDocente)} tiene más acompañamientos que ${nombreCorto(minDocente)}. Conviene repartir mejor.`,
+          docenteId: maxDocente,
+        });
+      }
+    }
+
+    // mixto_excedido: meta = pesoDeCarga * (total de casillas / suma de pesos de todos los docentes de la jornada).
+    const totalCasillas = dist.zonas.reduce((suma, z) => suma + z.cupo * 5, 0);
+    const sumaPesos = docentesJornada.reduce((suma, u) => suma + pesoDeCarga(u.id, dist.jornada), 0);
+    if (sumaPesos > 0) {
+      for (const u of docentesJornada) {
+        const peso = pesoDeCarga(u.id, dist.jornada);
+        if (peso >= 1) continue; // no es mixto
+        const meta = peso * (totalCasillas / sumaPesos);
+        const total = conteoAsignaciones.get(u.id) ?? 0;
+        if (total > Math.ceil(meta)) {
+          avisos.push({
+            tipo: 'mixto_excedido',
+            mensaje: `${nombreCorto(u.id)} es mixto y tiene ${total} acompañamientos; su meta es ${Math.ceil(meta)}.`,
+            docenteId: u.id,
+          });
+        }
       }
     }
   }

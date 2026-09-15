@@ -150,6 +150,12 @@ export default function AlternativasAcompanamientos({ borrador, vigente, onUsar 
                   Días cargados:{' '}
                   {alt.metricas.diasCargados === 0 ? 'ninguno en día de 5-6 clases' : alt.metricas.diasCargados}
                 </span>
+                {borrador.metas && (
+                  <span>
+                    Fuera de meta:{' '}
+                    {alt.metricas.fueraDeMeta === 0 ? 'nadie' : alt.metricas.fueraDeMeta}
+                  </span>
+                )}
               </div>
 
               {alt.metricas.faltantes.length > 0 && (
