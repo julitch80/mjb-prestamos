@@ -1237,7 +1237,7 @@ function VistaHorarioContenido() {
   // Siempre arriba, nunca dentro del render de la pestaña: un hook que solo corre
   // en Acompañamiento cambia el número de hooks al cambiar de pestaña y React
   // tumba la aplicación entera (pantalla negra).
-  const { vigente: acompVigente, proxima: acompProxima, publicaciones: acompPublicaciones } = useAcompanamientos(jornadaTab, fechaHoyLocal());
+  const { vigente: acompVigente, proxima: acompProxima, publicaciones: acompPublicaciones, error: acompError } = useAcompanamientos(jornadaTab, fechaHoyLocal());
   const [docenteSel, setDocenteSel]   = useState(rol === 'docente' ? (userId ?? '') : '');
   const [grupoSel, setGrupoSel]       = useState('');
   const [vistaOverview, setVistaOverview] = useState<VistaDetalle>('semana');
@@ -1564,6 +1564,11 @@ function VistaHorarioContenido() {
             const puedeEditarAcomp = rol === 'coordinador' && jornadaTab === jornadaPropia;
             return (
             <div className="space-y-4">
+              {acompError && (
+                <div className="rounded-xl border border-danger bg-danger-soft px-4 py-2.5 text-center text-danger-soft-fg text-xs font-medium">
+                  No se pudieron leer los acompañamientos publicados ({acompError}). Se muestra la distribución inicial.
+                </div>
+              )}
               {acompProxima && (
                 <div className="rounded-xl border border-line bg-elevated/40 px-4 py-2.5 text-center">
                   <span className="text-soft text-xs font-medium">{textoCambiaDesde(acompProxima.vigenteDesde)}</span>

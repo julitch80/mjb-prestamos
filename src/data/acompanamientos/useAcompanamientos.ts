@@ -18,6 +18,8 @@ import { proximaPublicacion, publicacionVigente } from './vigente';
 interface Snapshot {
   publicaciones: Publicacion[];
   cargando: boolean;
+  /** Código del error de Firestore si la lectura falló (p. ej. 'permission-denied'). */
+  error: string | null;
 }
 
 interface EntradaCache {
@@ -37,7 +39,7 @@ function obtenerEntrada(jornada: JornadaAcomp): EntradaCache {
   let entrada = cache.get(jornada);
   if (!entrada) {
     entrada = {
-      snapshot: { publicaciones: [], cargando: true },
+      snapshot: { publicaciones: [], cargando: true, error: null },
       suscriptores: 0,
       desuscribir: () => {},
       listeners: new Set(),
@@ -47,8 +49,8 @@ function obtenerEntrada(jornada: JornadaAcomp): EntradaCache {
   return entrada;
 }
 
-function actualizar(entrada: EntradaCache, publicaciones: Publicacion[], cargando: boolean) {
-  entrada.snapshot = { publicaciones, cargando };
+function actualizar(entrada: EntradaCache, publicaciones: Publicacion[], cargando: boolean, error: string | null = null) {
+  entrada.snapshot = { publicaciones, cargando, error };
   entrada.listeners.forEach((l) => l());
 }
 
@@ -59,11 +61,17 @@ function suscribir(jornada: JornadaAcomp, listener: () => void): () => void {
   if (entrada.suscriptores === 0) {
     entrada.desuscribir = suscribirPublicaciones(
       jornada,
-      (publicaciones) => actualizar(entrada, publicaciones, false),
-      () => {
+      (publicaciones) => {
+        // Tras un fallo, suscribirPublicaciones también entrega []: no borrar el error.
+        if (publicaciones.length === 0 && entrada.snapshot.error) return;
+        actualizar(entrada, publicaciones, false);
+      },
+      (err) => {
         // Falló la suscripción (permiso, sin red): quedan sin publicaciones,
         // así que `publicacionVigente` cae de vuelta a la inicial.
-        actualizar(entrada, [], false);
+        const codigo = (err as { code?: string })?.code ?? String(err);
+        console.error('[acompañamientos] no se pudieron leer las publicaciones:', err);
+        actualizar(entrada, [], false, codigo);
       },
     );
   }
@@ -88,6 +96,7 @@ export interface EstadoAcompanamientos {
   proxima: Publicacion | null;
   publicaciones: Publicacion[];
   cargando: boolean;
+  error: string | null;
 }
 
 export function useAcompanamientos(jornada: JornadaAcomp, fecha: FechaISO): EstadoAcompanamientos {
@@ -100,5 +109,6 @@ export function useAcompanamientos(jornada: JornadaAcomp, fecha: FechaISO): Esta
     proxima: proximaPublicacion(entrada.publicaciones, jornada, fecha),
     publicaciones: entrada.publicaciones,
     cargando: entrada.cargando,
+    error: entrada.error,
   };
 }
