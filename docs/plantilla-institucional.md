@@ -50,7 +50,7 @@ diálogo del navegador (ahí elige «Guardar como PDF»), **Cerrar** vuelve.
 
 ## Qué NO usa la plantilla, a propósito
 
- (carátula de fotos del grupo para la carpeta
+`src/asistencia/MosaicoGrupo.tsx` (carátula de fotos del grupo para la carpeta
 física del observador) se queda con formato propio. Decisión de Julián,
 16-09-2026: va en papel **oficio** (216×330 mm), no A4, y repite encabezado
 —grado, director, año y folio— en **cada hoja** cuando el grupo no cabe en una.
@@ -58,5 +58,5 @@ La plantilla es A4 con un solo encabezado por documento; forzarla cambiaría el
 tamaño de una carátula que se archiva en físico.
 
 Las demás pantallas imprimibles ya están migradas: agenda semanal
-(), historial de un caso (), informe de
-contención () y acompañamientos.
+(`AgendaImprimible.tsx`), historial de un caso (`HistorialCaso.tsx`), informe de
+contención (`InformeContencion.tsx`) y acompañamientos.
