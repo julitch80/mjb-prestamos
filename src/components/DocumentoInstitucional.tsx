@@ -31,6 +31,7 @@
 // contenido del documento queda visible.
 
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 const ID_DOCUMENTO = 'documento-institucional';
@@ -61,7 +62,12 @@ export default function DocumentoInstitucional({
 }: Props) {
   const horizontal = orientacion === 'horizontal';
 
-  return (
+  // Se monta directo en <body> con un portal. Dentro de la aplicación, cada sección
+  // vive en un motion.div de la transición entre vistas (App.tsx) que deja un
+  // `transform` puesto; un `position: fixed` bajo un ancestro con transform deja
+  // de cubrir la pantalla y queda atrapado en esa caja. Así pasó el 16-09-2026:
+  // la proyección de la agenda no se veía desde Tareas; aquí pasaría lo mismo.
+  return createPortal(
     <div className="doc-inst-overlay fixed inset-0 z-50 overflow-auto bg-[#525659] p-4">
       <style>{css(horizontal)}</style>
 
@@ -94,7 +100,8 @@ export default function DocumentoInstitucional({
           {pie ? `${pie} · ` : ''}Impreso el {fechaHoyLegible()}
         </p>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -160,6 +167,9 @@ function css(horizontal: boolean): string {
     padding: 0 !important;
     background: #fff !important;
   }
+  /* El documento vive en un portal, fuera de #root: la aplicación se saca del
+     flujo para que no deje páginas en blanco antes del documento. */
+  body > #root { display: none !important; }
   body * { visibility: hidden !important; }
   #${ID_DOCUMENTO}, #${ID_DOCUMENTO} * { visibility: visible !important; }
   .doc-inst-solo-pantalla, .doc-inst-solo-pantalla * { display: none !important; }

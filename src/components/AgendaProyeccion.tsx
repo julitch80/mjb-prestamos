@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { getAsignatura } from '../data/asignacionAcademica';
 import type { FechaISO, Tarea } from '../data/tareas/tipos';
@@ -15,7 +16,13 @@ export default function AgendaProyeccion({ grupo, semana, tareasDelDia, onCerrar
   tareasDelDia: (f: FechaISO) => { b: { momentos: number }; t: Tarea }[];
   onCerrar: () => void;
 }) {
-  return (
+  // Se monta directo en <body> con un portal. Dentro de la aplicación, cada sección
+  // vive en un motion.div de la transición entre vistas (App.tsx) que deja un
+  // `transform` puesto; un `position: fixed` bajo un ancestro con transform deja
+  // de cubrir la pantalla y queda atrapado en esa caja. Así pasó el 16-09-2026:
+  // «Proyectar en el salón» no mostraba nada desde Tareas, aunque en la agenda
+  // pública (sin esa transición) sí funcionaba.
+  return createPortal(
     <div className="fixed inset-0 z-50 overflow-auto bg-[#0b1220] text-white">
       <button
         onClick={onCerrar}
@@ -46,7 +53,8 @@ export default function AgendaProyeccion({ grupo, semana, tareasDelDia, onCerrar
           );
         })}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
