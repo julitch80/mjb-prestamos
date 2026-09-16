@@ -62,6 +62,14 @@ export function cargaPorDocente(dist: Distribucion): Map<string, { total: number
   return mapa;
 }
 
+/** «miercoles» se escribe con tilde en los avisos que lee un coordinador. */
+const DIA_TEXTO: Record<string, string> = {
+  lunes: 'lunes', martes: 'martes', miercoles: 'miércoles', jueves: 'jueves', viernes: 'viernes',
+};
+function diaTexto(dia: string): string {
+  return DIA_TEXTO[dia] ?? dia;
+}
+
 export function revisar(dist: Distribucion): { bloqueos: Problema[]; avisos: Problema[] } {
   const bloqueos: Problema[] = [];
   const avisos: Problema[] = [];
@@ -73,7 +81,7 @@ export function revisar(dist: Distribucion): { bloqueos: Problema[]; avisos: Pro
     if (!usuario) {
       bloqueos.push({
         tipo: 'profesor_desconocido',
-        mensaje: `El profesor "${a.docenteId}" asignado a ${nombreZona(dist, a.zonaId)} el ${a.dia} no existe en el plantel.`,
+        mensaje: `El profesor "${a.docenteId}" asignado a ${nombreZona(dist, a.zonaId)} el ${diaTexto(a.dia)} no existe en el plantel.`,
         zonaId: a.zonaId,
         dia: a.dia,
         docenteId: a.docenteId,
@@ -83,7 +91,7 @@ export function revisar(dist: Distribucion): { bloqueos: Problema[]; avisos: Pro
     if (!zonaIds.has(a.zonaId)) {
       bloqueos.push({
         tipo: 'zona_inexistente',
-        mensaje: `${nombreCorto(a.docenteId)} está asignado a una zona que ya no existe (${a.dia}).`,
+        mensaje: `${nombreCorto(a.docenteId)} está asignado a una zona que ya no existe (${diaTexto(a.dia)}).`,
         zonaId: a.zonaId,
         dia: a.dia,
         docenteId: a.docenteId,
@@ -93,7 +101,7 @@ export function revisar(dist: Distribucion): { bloqueos: Problema[]; avisos: Pro
     if (!puedeCubrir(a.docenteId, dist.jornada, a.dia)) {
       bloqueos.push({
         tipo: 'fuera_de_jornada',
-        mensaje: `${nombreCorto(a.docenteId)} no puede cubrir ${nombreZona(dist, a.zonaId)} el ${a.dia}: no es de esta jornada ese día.`,
+        mensaje: `${nombreCorto(a.docenteId)} no puede cubrir ${nombreZona(dist, a.zonaId)} el ${diaTexto(a.dia)}: no es de esta jornada ese día.`,
         zonaId: a.zonaId,
         dia: a.dia,
         docenteId: a.docenteId,
@@ -115,7 +123,7 @@ export function revisar(dist: Distribucion): { bloqueos: Problema[]; avisos: Pro
       if (zonas.size > 1) {
         bloqueos.push({
           tipo: 'dos_zonas_mismo_dia',
-          mensaje: `${nombreCorto(docenteId)} queda en más de una zona el ${dia}.`,
+          mensaje: `${nombreCorto(docenteId)} queda en más de una zona el ${diaTexto(dia)}.`,
           dia,
           docenteId,
         });
@@ -136,7 +144,7 @@ export function revisar(dist: Distribucion): { bloqueos: Problema[]; avisos: Pro
         if (n > 1) {
           bloqueos.push({
             tipo: 'repetido_en_casilla',
-            mensaje: `${nombreCorto(docenteId)} está repetido en ${zona.nombre} el ${dia}.`,
+            mensaje: `${nombreCorto(docenteId)} está repetido en ${zona.nombre} el ${diaTexto(dia)}.`,
             zonaId: zona.id,
             dia,
             docenteId,
@@ -146,14 +154,14 @@ export function revisar(dist: Distribucion): { bloqueos: Problema[]; avisos: Pro
       if (asignados.length > zona.cupo) {
         bloqueos.push({
           tipo: 'cupo_excedido',
-          mensaje: `${zona.nombre} el ${dia} tiene ${asignados.length} profesores para un cupo de ${zona.cupo}.`,
+          mensaje: `${zona.nombre} el ${diaTexto(dia)} tiene ${asignados.length} profesores para un cupo de ${zona.cupo}.`,
           zonaId: zona.id,
           dia,
         });
       } else if (asignados.length < zona.cupo) {
         bloqueos.push({
           tipo: 'casilla_incompleta',
-          mensaje: `${zona.nombre} el ${dia} tiene ${asignados.length} de ${zona.cupo} profesores.`,
+          mensaje: `${zona.nombre} el ${diaTexto(dia)} tiene ${asignados.length} de ${zona.cupo} profesores.`,
           zonaId: zona.id,
           dia,
         });
@@ -168,12 +176,12 @@ export function revisar(dist: Distribucion): { bloqueos: Problema[]; avisos: Pro
   for (const a of dist.asignaciones) {
     const clases = clasesEnDia(a.docenteId, dist.jornada, a.dia);
     if (clases >= DIA_CARGADO) {
-      const clave = `${a.docenteId}|${a.dia}`;
+      const clave = `${a.docenteId}|${diaTexto(a.dia)}`;
       if (!diasCargadosVistos.has(clave)) {
         diasCargadosVistos.add(clave);
         avisos.push({
           tipo: 'dia_cargado',
-          mensaje: `${nombreCorto(a.docenteId)} tiene ${clases} clases el ${a.dia} y además acompañamiento en ${nombreZona(dist, a.zonaId)}.`,
+          mensaje: `${nombreCorto(a.docenteId)} tiene ${clases} clases el ${diaTexto(a.dia)} y además acompañamiento en ${nombreZona(dist, a.zonaId)}.`,
           zonaId: a.zonaId,
           dia: a.dia,
           docenteId: a.docenteId,

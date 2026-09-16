@@ -137,7 +137,7 @@ function FichaCasilla({
         touchAction: asignacion.candado ? undefined : 'none',
       }}
       className={cn(
-        'relative rounded-lg border px-2 py-1 flex items-center justify-between gap-1 select-none',
+        'relative rounded-md border px-1.5 py-0.5 flex items-center justify-between gap-1 select-none',
         diaCargado && 'border-2',
       )}
       title={diaCargado ? `día cargado: ${clases} clases` : undefined}
@@ -195,7 +195,7 @@ function Casilla({
       <div
         ref={setNodeRef}
         className={cn(
-          'min-h-[52px] rounded-lg border p-1 flex flex-col gap-1 transition-colors',
+          'min-h-[42px] rounded-lg border p-0.5 flex flex-col gap-0.5 transition-colors',
           incompleta ? 'border-dashed border-line' : 'border-line',
           isOver && 'ring-2 ring-accent bg-accent/10',
         )}
@@ -253,9 +253,9 @@ function FichaBandeja({
         opacity: isDragging ? 0.4 : 1,
         touchAction: 'none',
       }}
-      className="rounded-lg border px-2 py-1.5 flex items-center justify-between gap-2 select-none cursor-grab"
+      className="rounded-full border px-2 py-1 flex items-center gap-1.5 select-none cursor-grab"
     >
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1">
         <span className="text-[11px] font-bold" style={{ color }}>{nombre}</span>
         {mixto && (
           <span className="text-[9px] font-semibold uppercase tracking-wide text-muted bg-elevated border border-line rounded-full px-1.5 py-0.5">
@@ -263,7 +263,7 @@ function FichaBandeja({
           </span>
         )}
       </div>
-      <span className="text-[10px] text-muted">{total}</span>
+      <span className="text-[10px] text-muted font-semibold">{total}</span>
     </div>
   );
 }
@@ -282,7 +282,8 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
   const docentes = docentesDeLaJornada(jornada);
   const carga = cargaPorDocente(distribucion);
   const { bloqueos, avisos } = revisar(distribucion);
-  const textoCarga = textoCargaDesigual(distribucion);
+  // Con metas fijadas por el coordinador manda el aviso meta_distinta, no el reparto parejo.
+  const textoCarga = distribucion.metas ? null : textoCargaDesigual(distribucion);
 
   function mostrarToast(motivo: string) {
     setToast(motivo);
@@ -350,10 +351,14 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
     });
   }
 
+  // La bandeja va ARRIBA y en fila (Julián, 16-09-2026): en columna a la izquierda
+  // se comía el ancho y la semana no cabía sin desplazarse de lado.
   const bandejaNode = (
-    <div className="lg:w-60 shrink-0 space-y-1.5">
-      <p className="text-[11px] font-semibold text-muted uppercase tracking-wide px-0.5">Profesores</p>
-      <div className="space-y-1.5 max-h-[50vh] lg:max-h-none overflow-y-auto pr-0.5">
+    <div className="space-y-1.5">
+      <p className="text-[11px] font-semibold text-muted uppercase tracking-wide px-0.5">
+        Profesores <span className="font-normal normal-case tracking-normal">· arrastra un nombre hasta una casilla</span>
+      </p>
+      <div className="flex flex-wrap gap-1.5 max-h-[24vh] overflow-y-auto pr-0.5">
         {docentes.map((u) => (
           <FichaBandeja
             key={u.id}
@@ -392,19 +397,19 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
           </div>
         )}
 
-        <div className="flex flex-col lg:flex-row gap-3">
-          {bandejaNode}
+        {bandejaNode}
 
+        <div className="flex flex-col gap-3">
           <div className="flex-1 min-w-0 overflow-x-auto rounded-xl border border-line">
-            <table className="text-xs border-collapse w-full" style={{ minWidth: 560 }}>
+            <table className="text-[11px] border-collapse w-full" style={{ minWidth: 520 }}>
               <thead>
                 <tr className="border-b border-line">
-                  <th className="sticky left-0 bg-card z-10 text-left px-2 py-2 text-muted font-medium w-28">Zona</th>
+                  <th className="sticky left-0 bg-card z-10 text-left px-2 py-1.5 text-muted font-medium w-24">Zona</th>
                   {DIAS.map((dia) => {
                     const clases = hoverDocenteId ? clasesEnDia(hoverDocenteId, jornada, dia) : null;
                     const puede = hoverDocenteId ? puedeCubrir(hoverDocenteId, jornada, dia) : true;
                     return (
-                      <th key={dia} className="text-center px-1 py-2 min-w-[90px]">
+                      <th key={dia} className="text-center px-1 py-1.5 min-w-[84px]">
                         <div className="text-soft font-semibold">{DIA_LABEL[dia]}</div>
                         {hoverDocenteId && (
                           <div className={cn('text-[10px] mt-0.5', !puede ? 'text-muted' : clases !== null && clases >= DIA_CARGADO ? 'text-warning-soft-fg font-semibold' : 'text-muted')}>
@@ -419,7 +424,7 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
               <tbody>
                 {distribucion.zonas.map((zona) => (
                   <tr key={zona.id} className="border-b border-line/50">
-                    <td className="sticky left-0 bg-card z-10 px-2 py-1 font-semibold text-strong whitespace-nowrap">
+                    <td className="sticky left-0 bg-card z-10 px-2 py-1 font-semibold text-strong text-[11px] leading-tight">
                       {zona.nombre}
                     </td>
                     {DIAS.map((dia) => {

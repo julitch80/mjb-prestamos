@@ -121,7 +121,11 @@ export default function PanelEditarAcompanamientos({
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 30, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-          className="w-full h-full sm:h-auto sm:max-w-2xl sm:max-h-[92vh] bg-card border border-line sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+          className={cn(
+            'w-full h-full sm:h-auto sm:max-h-[92vh] bg-card border border-line sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col',
+            // La matriz de la semana necesita todo el ancho; el resto se queda angosto.
+            opcion === 'manual' || opcion === 'alternativas' ? 'sm:max-w-6xl' : 'sm:max-w-2xl',
+          )}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
