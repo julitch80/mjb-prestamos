@@ -5,9 +5,7 @@ import { DIRECTORES_MANANA, DIRECTORES_TARDE, getUsuario } from '../data/maestro
 import { guardarInformeContencion } from '../data/api';
 import { useDictado } from '../hooks/useDictado';
 import { exportarInformeContencion, compartirInformeContencion, RUTA_LABEL, type DatosInformeContencion } from '../lib/exportarDoc';
-
-const ESCUDO = `${import.meta.env.BASE_URL}mjb_escudo.png`;
-const ID_IMPRIMIBLE = 'informe-contencion-imprimible';
+import DocumentoInstitucional from './DocumentoInstitucional';
 
 interface EstudianteBusqueda {
   studentId: string;
@@ -37,132 +35,61 @@ const RUTAS: Array<{ id: RutaDetalle; tipo: 'institucional' | 'externa'; label: 
 ];
 
 /**
- * Vista imprimible del informe: se monta como overlay sobre toda la app y se
- * imprime con `window.print()`, igual que el mosaico de asistencia
- * (src/asistencia/MosaicoGrupo.tsx) — sin librería de PDF, apoyándose en
- * "Guardar como PDF" del diálogo de impresión nativo de Android/escritorio.
- * La técnica de `visibility: hidden` en TODO menos el informe evita que el
- * menú, la cabecera o el resto de la app se cuelen en la hoja impresa.
+ * Vista imprimible del informe, dentro de la PLANTILLA INSTITUCIONAL
+ * (DocumentoInstitucional.tsx): el membrete (que ya trae el escudo), el
+ * overlay, los botones de imprimir/cerrar y el @media print son de ahí.
  */
 function VistaImprimibleInforme({ datos, onCerrar }: { datos: DatosInformeContencion; onCerrar: () => void }) {
   const rutaTexto = RUTA_LABEL[datos.rutaDetalle] ?? datos.rutaDetalle;
   return (
-    <div className="informe-overlay fixed inset-0 z-50 overflow-auto bg-[#525659] p-4">
+    <DocumentoInstitucional titulo="Informe de contención emocional" subtitulo={datos.grado} onCerrar={onCerrar}>
       <style>{CSS_INFORME_IMPRIMIBLE}</style>
 
-      <div className="informe-solo-pantalla mx-auto mb-4 flex max-w-[210mm] flex-wrap items-center gap-2 rounded-xl bg-surface p-3">
-        <h2 className="text-sm font-semibold text-strong">Vista previa del informe (PDF)</h2>
-        <span className="grow" />
-        <button
-          onClick={() => window.print()}
-          className="flex min-h-[36px] items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
-        >
-          Imprimir / Guardar PDF
-        </button>
-        <button
-          onClick={onCerrar}
-          className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-strong"
-        >
-          Cerrar
-        </button>
+      <table className="doc-inst-tabla">
+        <tbody>
+          <tr><td className="doc-inst-col-titulo">Nombres y apellidos del estudiante</td><td>{datos.estudianteNombre}</td></tr>
+          <tr><td className="doc-inst-col-titulo">Documento de identidad</td><td>{datos.estudianteDocumento || 'Sin registrar'}</td></tr>
+          <tr><td className="doc-inst-col-titulo">Grado / Grupo</td><td>{datos.grado}</td></tr>
+          <tr><td className="doc-inst-col-titulo">Director de grupo</td><td>{datos.director || '—'}</td></tr>
+          <tr>
+            <td className="doc-inst-col-titulo">Acudiente</td>
+            <td>{datos.acudienteNombre || 'Sin registrar'}{datos.acudienteParentesco ? ` (${datos.acudienteParentesco})` : ''}</td>
+          </tr>
+          <tr><td className="doc-inst-col-titulo">Teléfono del acudiente</td><td>{datos.acudienteTelefonos || 'Sin registrar'}</td></tr>
+          <tr><td className="doc-inst-col-titulo">Fecha de generación del informe</td><td>{datos.fecha}</td></tr>
+          <tr><td className="doc-inst-col-titulo">Docente que genera el informe</td><td>{datos.docenteNombre}</td></tr>
+        </tbody>
+      </table>
+
+      <table className="doc-inst-tabla informe-tabla-bloque">
+        <thead><tr><th colSpan={2}>DESCRIPCIÓN DEL INFORME</th></tr></thead>
+        <tbody><tr><td colSpan={2} style={{ whiteSpace: 'pre-wrap' }}>{datos.descripcion}</td></tr></tbody>
+      </table>
+
+      <table className="doc-inst-tabla informe-tabla-bloque">
+        <thead><tr><th colSpan={2}>RUTA DE ATENCIÓN</th></tr></thead>
+        <tbody><tr><td colSpan={2}>{rutaTexto}</td></tr></tbody>
+      </table>
+
+      <p className="informe-nota">
+        Este informe fue registrado automáticamente por el sistema y notificado a coordinación y psicoorientación.
+      </p>
+
+      <div className="informe-firma">
+        <div className="informe-firma-linea">Firma del docente</div>
       </div>
-
-      <div id={ID_IMPRIMIBLE} className="informe-hoja">
-        <div className="informe-encabezado">
-          <img src={ESCUDO} alt="" className="informe-escudo" />
-          <div>
-            <h1 className="informe-titulo">Institución Educativa Manuel J. Betancur</h1>
-            <h2 className="informe-subtitulo">INFORME DE CONTENCIÓN EMOCIONAL</h2>
-          </div>
-        </div>
-
-        <table className="informe-tabla">
-          <tbody>
-            <tr><td className="informe-etiqueta">Nombres y apellidos del estudiante</td><td>{datos.estudianteNombre}</td></tr>
-            <tr><td className="informe-etiqueta">Documento de identidad</td><td>{datos.estudianteDocumento || 'Sin registrar'}</td></tr>
-            <tr><td className="informe-etiqueta">Grado / Grupo</td><td>{datos.grado}</td></tr>
-            <tr><td className="informe-etiqueta">Director de grupo</td><td>{datos.director || '—'}</td></tr>
-            <tr>
-              <td className="informe-etiqueta">Acudiente</td>
-              <td>{datos.acudienteNombre || 'Sin registrar'}{datos.acudienteParentesco ? ` (${datos.acudienteParentesco})` : ''}</td>
-            </tr>
-            <tr><td className="informe-etiqueta">Teléfono del acudiente</td><td>{datos.acudienteTelefonos || 'Sin registrar'}</td></tr>
-            <tr><td className="informe-etiqueta">Fecha de generación del informe</td><td>{datos.fecha}</td></tr>
-            <tr><td className="informe-etiqueta">Docente que genera el informe</td><td>{datos.docenteNombre}</td></tr>
-          </tbody>
-        </table>
-
-        <table className="informe-tabla informe-tabla-bloque">
-          <thead><tr><th colSpan={2}>DESCRIPCIÓN DEL INFORME</th></tr></thead>
-          <tbody><tr><td colSpan={2} style={{ whiteSpace: 'pre-wrap' }}>{datos.descripcion}</td></tr></tbody>
-        </table>
-
-        <table className="informe-tabla informe-tabla-bloque">
-          <thead><tr><th colSpan={2}>RUTA DE ATENCIÓN</th></tr></thead>
-          <tbody><tr><td colSpan={2}>{rutaTexto}</td></tr></tbody>
-        </table>
-
-        <p className="informe-nota">
-          Este informe fue registrado automáticamente por el sistema y notificado a coordinación y psicoorientación.
-        </p>
-
-        <div className="informe-firma">
-          <div className="informe-firma-linea">Firma del docente</div>
-        </div>
-      </div>
-    </div>
+    </DocumentoInstitucional>
   );
 }
 
-/**
- * Colores literales (no tokens del tema): el papel siempre es blanco con
- * texto negro, independientemente de si el docente tenía el modo oscuro
- * activado al momento de imprimir.
- */
+// Solo lo que la plantilla institucional no trae: los bloques propios del
+// informe (descripción, ruta, firma). Tabla, overlay, membrete, @page y
+// @media print ya los aporta DocumentoInstitucional.
 const CSS_INFORME_IMPRIMIBLE = `
-@page { size: letter; margin: 18mm 16mm; }
-
-.informe-hoja {
-  width: 210mm;
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 10mm;
-  background: #fff;
-  color: #000;
-  box-sizing: border-box;
-  font-family: Arial, sans-serif;
-  font-size: 11pt;
-}
-.informe-encabezado { display: flex; align-items: center; gap: 4mm; justify-content: center; text-align: center; margin-bottom: 6mm; }
-.informe-escudo { width: 18mm; height: 18mm; object-fit: contain; }
-.informe-titulo { font-size: 14pt; margin: 0; }
-.informe-subtitulo { font-size: 11pt; margin: 2pt 0 0; color: #444; }
-.informe-tabla { border-collapse: collapse; width: 100%; margin: 0 0 4mm; break-inside: avoid; page-break-inside: avoid; }
-.informe-tabla td, .informe-tabla th { border: 1px solid #000; padding: 5pt 8pt; font-size: 10pt; vertical-align: top; text-align: left; }
-.informe-tabla th { background: #eaf1dd; }
-.informe-etiqueta { font-weight: bold; background: #eaf1dd; width: 32%; }
 .informe-tabla-bloque { break-inside: avoid; page-break-inside: avoid; }
 .informe-nota { font-size: 9pt; color: #555; margin-top: 6mm; }
 .informe-firma { margin-top: 16mm; break-inside: avoid; page-break-inside: avoid; }
 .informe-firma-linea { border-top: 1px solid #000; width: 70mm; margin-top: 12mm; padding-top: 3pt; font-size: 10pt; }
-
-@media print {
-  /* El imprimible cuelga de un contenedor de posicion fija con scroll propio, y Chrome
-     RECORTA A UNA SOLA PAGINA lo que hay dentro de un position:fixed. Con el
-     informe no se nota porque cabe en una hoja; con un historial de varias
-     atenciones se perderia todo menos la primera pagina, y justo el dia que hay
-     que presentar el caso. En papel el overlay deja de ser overlay. */
-  .informe-overlay {
-    position: static !important;
-    overflow: visible !important;
-    padding: 0 !important;
-    background: #fff !important;
-  }
-  body * { visibility: hidden !important; }
-  #${ID_IMPRIMIBLE}, #${ID_IMPRIMIBLE} * { visibility: visible !important; }
-  .informe-solo-pantalla, .informe-solo-pantalla * { display: none !important; }
-  .informe-hoja { width: auto; margin: 0; padding: 0; }
-}
 `;
 
 function directorDeGrupo(grado: string): string {
