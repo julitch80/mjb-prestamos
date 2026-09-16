@@ -48,15 +48,15 @@ diálogo del navegador (ahí elige «Guardar como PDF»), **Cerrar** vuelve.
 - **Una sola fuente del membrete.** Si el colegio cambia el papelería, se
   reemplaza `public/membrete-mjb.jpg` y cambian todos los documentos.
 
-## Qué falta por migrar
+## Qué NO usa la plantilla, a propósito
 
-Estas pantallas imprimen con su propio formato, anterior a esta plantilla:
+ (carátula de fotos del grupo para la carpeta
+física del observador) se queda con formato propio. Decisión de Julián,
+16-09-2026: va en papel **oficio** (216×330 mm), no A4, y repite encabezado
+—grado, director, año y folio— en **cada hoja** cuando el grupo no cabe en una.
+La plantilla es A4 con un solo encabezado por documento; forzarla cambiaría el
+tamaño de una carátula que se archiva en físico.
 
-- `src/components/AgendaImprimible.tsx` (agenda semanal)
-- `src/components/HistorialCaso.tsx` → `VistaImprimibleHistorial`
-- `src/components/InformeContencion.tsx`
-- `src/asistencia/MosaicoGrupo.tsx`
-
-Migrarlas es cambiar su envoltorio por `DocumentoInstitucional` y renombrar las
-clases de sus tablas. No se hizo todo de una vez a propósito: cada una imprime
-datos sensibles o de otro módulo y conviene verificarlas una por una.
+Las demás pantallas imprimibles ya están migradas: agenda semanal
+(), historial de un caso (), informe de
+contención () y acompañamientos.
