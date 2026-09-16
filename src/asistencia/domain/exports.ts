@@ -11,6 +11,7 @@ import { findMark, MARKS, type MarkCode } from './marks';
 // Un solo sitio compone el nombre: ver la nota en `./nombres`.
 import { compararEstudiantes, nombreCompleto, ordenarEstudiantes } from './nombres';
 import { computeStats, sesionesRelevantes } from './stats';
+import type { ResumenContactabilidad } from './permanencia';
 import type { DireccionGrupo, Enrollment, LateArrival, Session, Student, ValorCelda } from './types';
 
 export interface Hoja {
@@ -311,6 +312,49 @@ export function hojaResultadoCentros(
       'Plan de apoyo (1) todavía no se digita en el Máster: va al final, sin valoración.',
       'Los indicadores (C1 a C4) son los del centro de cada estudiante, no los del grupo.',
       'Este archivo es para leer y digitar. NO es todavía el formato de importación del Máster.',
+    ],
+  };
+}
+
+/**
+ * Contactabilidad de las familias, por grado. Dos hojas en una sola: el conteo por
+ * grado arriba y, abajo, la lista nominal de los que NO tienen celular — que es la que
+ * de verdad sirve para hacer algo, porque es a quienes hay que pedirles el dato.
+ */
+export function hojaContactabilidad(
+  resumen: ResumenContactabilidad,
+  sinMovil: { apellidos: string; nombres: string; grado: string; telefonos: string[] }[],
+): Hoja {
+  const filas: (string | number)[][] = resumen.porGrado.map((f) => [
+    f.grado,
+    f.total,
+    f.movil,
+    f.soloFijo,
+    f.sinTelefono,
+    `${f.porcentajeMovil}%`,
+  ]);
+  const t = resumen.total;
+  filas.push([]);
+  filas.push(['TOTAL', t.total, t.movil, t.soloFijo, t.sinTelefono, `${t.porcentajeMovil}%`]);
+
+  if (sinMovil.length > 0) {
+    filas.push([]);
+    filas.push(['SIN CELULAR — a estas familias solo se les puede llamar o citar']);
+    filas.push(['Estudiante', 'Grado', 'Teléfonos registrados']);
+    for (const e of ordenarEstudiantes(sinMovil)) {
+      filas.push([`${e.apellidos} ${e.nombres}`.trim(), e.grado, e.telefonos.join(' / ')]);
+    }
+  }
+
+  return {
+    nombre: 'Contactabilidad',
+    encabezados: ['Grado', 'Estudiantes', 'Con celular', 'Solo fijo', 'Sin teléfono', '% con celular'],
+    filas,
+    notas: [
+      'Solo estudiantes activos.',
+      'Un teléfono fijo no recibe mensajes de texto ni WhatsApp: a esas familias solo se les puede llamar.',
+      'Basta un celular en la ficha para contar como contactable por mensaje.',
+      'Un número que no corresponde a la numeración colombiana se cuenta como sin teléfono: es un dato que hay que corregir.',
     ],
   };
 }

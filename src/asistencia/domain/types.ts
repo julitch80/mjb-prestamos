@@ -189,7 +189,19 @@ export type ContactReason =
   | 'umbral_llegadas_tarde'
   | 'faltas_consecutivas';
 
-export type ContactResult = 'contesto' | 'no_contesto' | 'pendiente';
+/**
+ * Ampliado el 2026-09-15 con los casos que el Excel de ausentismo del colegio revela
+ * como frecuentes. La distincion que importa: `no_contesto` es una familia que no
+ * atiende; `numero_equivocado` y `numero_fuera_servicio` son una FICHA DESACTUALIZADA,
+ * y eso se corrige, no se escala. Ver `domain/permanencia.ts`.
+ */
+export type ContactResult =
+  | 'contesto'
+  | 'no_contesto'
+  | 'numero_equivocado'
+  | 'numero_fuera_servicio'
+  | 'buzon'
+  | 'pendiente';
 
 /**
  * UN solo historial de contactos con la familia: la llamada de la tercera hora y el
@@ -210,6 +222,13 @@ export interface FamilyContact {
   motivoContacto: ContactReason;
   telefonoUsado: string;
   resultado: ContactResult;
+  /**
+   * Que dijo la familia, del catalogo autogestionable (`asistenciaConfig/permanencia`).
+   * Opcional a proposito: solo tiene sentido cuando alguien contesto, y los contactos
+   * registrados antes del 2026-09-15 no lo tienen. Se guarda el ID, no la etiqueta: si
+   * la coordinacion corrige la redaccion de una opcion, los registros viejos la siguen.
+   */
+  motivoFamilia?: string | null;
   observacion: string;
   llamadoPor: string;
   llamadoEn: number;

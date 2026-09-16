@@ -767,6 +767,18 @@ service cloud.firestore {
       allow read: if isActiveUser();
       allow write: if !esSuplantacion() && (isSuper()
         || (docId == 'alertas' && asisIsCoordinador())
+        // EXCEPCION DELIBERADA (Julian, 2026-09-15). Es el unico sitio de todo el modulo
+        // donde la rectora escribe; en el resto solo consulta. Aqui se decide QUE
+        // ESTUDIANTE TERMINA REPORTADO A LA POLICIA, y esa politica es de rectoria tanto
+        // como de coordinacion. No abre nada mas: sigue sin pasar `asisCanRecord()`, asi
+        // que no marca asistencia ni toca una ficha. Y a diferencia de la rama de
+        // `alertas`, esta EXIGE el sello de autoria, porque dos cargos distintos escriben
+        // el mismo documento y hay que poder decir despues quien movio un umbral.
+        // Si alguien "limpia" las reglas y borra esta rama, la rectora pierde el acceso
+        // sin que nada falle ni avise: simplemente dejara de poder guardar.
+        || (docId == 'permanencia'
+            && (asisIsCoordinador() || asisIsRectora())
+            && asisAuthorStamp())
         || (docId == 'umbralesPorDocente' && asisCanRecord()));
     }
 

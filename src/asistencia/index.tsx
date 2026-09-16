@@ -85,6 +85,7 @@ import { toDateKey } from './domain/ids';
 import { nombreCompleto } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
+import ConfigPermanencia from './ConfigPermanencia';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
 import type {
   AlertConfig,
@@ -119,7 +120,8 @@ type VistaAsistencia =
   | 'eventos'
   | 'programas'
   | 'restaurante'
-  | 'evasiones';
+  | 'evasiones'
+  | 'permanencia';
 
 /**
  * Componente raiz del modulo de asistencia. ESTE es el punto de pegado.
@@ -816,6 +818,20 @@ export default function Asistencia() {
       <div className="space-y-3">
         <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
         <Evasiones sede={sede as Sede} />
+      </div>
+    );
+  }
+
+  // La UNICA pantalla del modulo donde la rectora escribe. Ver la excepcion documentada
+  // en `rules/asistencia.rules`: los umbrales de permanencia deciden que estudiante
+  // termina reportado a la Policia, y esa politica es de rectoria tanto como de
+  // coordinacion. La regla del servidor dice lo mismo que esta condicion; si algun dia
+  // dejaran de coincidir, manda la regla y aqui solo sobrarian botones.
+  if ((rol === 'coordinador' || rol === 'rectora') && vista === 'permanencia') {
+    return (
+      <div className="space-y-3">
+        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
+        <ConfigPermanencia sede={sede as Sede} />
       </div>
     );
   }
@@ -1764,6 +1780,8 @@ const SECCIONES: {
   nombre: string;
   descripcion: string;
   soloCoordinador?: boolean;
+  /** Coordinacion Y rectoria. Hoy solo permanencia; ver la nota de su bloque. */
+  coordinacionYRectoria?: boolean;
 }[] = [
   {
     vista: 'planilla',
@@ -1804,6 +1822,13 @@ const SECCIONES: {
       'Los centros de interés del semestre. Cada profesor entra a la planilla del suyo; la coordinación del programa los ve todos, carga las listas desde Excel y resuelve los casos que no cruzaron.',
   },
   {
+    vista: 'permanencia',
+    nombre: 'Permanencia',
+    descripcion:
+      'Los criterios con los que el sistema abre un caso de permanencia: cuántos días de inasistencia, y qué respuestas de la familia explican la falta o encienden una alerta. Lo administran coordinación y rectoría.',
+    coordinacionYRectoria: true,
+  },
+  {
     vista: 'restaurante',
     nombre: 'Restaurante',
     descripcion:
@@ -1822,7 +1847,10 @@ function Pestanas({
    * de roles que llegan hasta aqui (docente) solo ven Planillas y Eventos. */
   rol: string | null;
 }) {
-  const visibles = SECCIONES.filter((s) => !s.soloCoordinador || rol === 'coordinador');
+  const visibles = SECCIONES.filter((s) => {
+    if (s.coordinacionYRectoria) return rol === 'coordinador' || rol === 'rectora';
+    return !s.soloCoordinador || rol === 'coordinador';
+  });
 
   return (
     <div className="flex flex-wrap gap-1.5">

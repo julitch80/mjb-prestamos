@@ -43,10 +43,16 @@ import { db, esperarAuth, functions } from '../lib/firebase';
 import { sessionId as construirSessionId } from './domain/ids';
 import { compararEstudiantes } from './domain/nombres';
 import { avisoEvasionId, censoDiaId } from './domain/evasion';
+import {
+  MOTIVOS_SEMILLA,
+  PERMANENCIA_CONFIG_POR_DEFECTO,
+  type PermanenciaConfig,
+} from './domain/permanencia';
 import type { MarkCode } from './domain/marks';
 import type {
   AlertConfig,
   AvisoEvasion,
+  ContactResult,
   CensoDia,
   ColumnaDireccion,
   ConfigValoracion,
@@ -417,7 +423,9 @@ export async function registrarContacto(input: {
   fecha: string;
   motivoContacto: string;
   telefonoUsado: string;
-  resultado: 'contesto' | 'no_contesto' | 'pendiente';
+  resultado: ContactResult;
+  /** Del catálogo `asistenciaConfig/permanencia`. Solo cuando la familia contestó. */
+  motivoFamilia?: string | null;
   observacion: string;
 }): Promise<void> {
   const autor = await exigirAutor();
@@ -425,9 +433,47 @@ export async function registrarContacto(input: {
   await setDoc(ref, {
     contactId: ref.id,
     ...input,
+    // Nunca `undefined`: Firestore lo rechaza y tumbaría el registro entero de la
+    // llamada por un campo que es opcional a propósito.
+    motivoFamilia: input.motivoFamilia ?? null,
     llamadoPor: autor,
     llamadoEn: serverTimestamp(),
   });
+}
+
+/**
+ * Configuración de permanencia — umbrales y catálogo de motivos, en UN documento.
+ * Si no existe todavía, se devuelve la semilla: la pantalla tiene que funcionar antes
+ * de que nadie haya configurado nada, o nunca se configura.
+ */
+export async function leerConfigPermanencia(): Promise<PermanenciaConfig> {
+  if (!(await listo())) return PERMANENCIA_CONFIG_POR_DEFECTO;
+  const snap = await getDoc(doc(baseDatos(), 'asistenciaConfig', 'permanencia'));
+  if (!snap.exists()) return PERMANENCIA_CONFIG_POR_DEFECTO;
+  const d = snap.data() as Partial<PermanenciaConfig>;
+  return {
+    ...PERMANENCIA_CONFIG_POR_DEFECTO,
+    ...d,
+    // Un documento sin `motivos` dejaría la pantalla sin nada que ofrecer y bloquearía
+    // el registro de llamadas. Ante un documento a medias, mandan los valores base.
+    motivos: d.motivos?.length ? d.motivos : MOTIVOS_SEMILLA,
+  };
+}
+
+/**
+ * Guarda la configuración. El sello de autoría es obligatorio por regla
+ * (`asisAuthorStamp()`): este documento decide qué estudiante termina reportado a la
+ * Policía, y lo escriben dos cargos distintos.
+ */
+export async function guardarConfigPermanencia(
+  cambios: Partial<PermanenciaConfig>,
+): Promise<void> {
+  const autor = await exigirAutor();
+  await setDoc(
+    doc(baseDatos(), 'asistenciaConfig', 'permanencia'),
+    { ...cambios, ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp() },
+    { merge: true },
+  );
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   guardarGuiaDeColor,
   leerAutoridadSede,
   leerDireccionGrupo,
+  leerConfigPermanencia,
   leerEstudiante,
   leerMiCuenta,
   marcarCelda,
@@ -27,7 +28,19 @@ import { colorPorId, COLORES_GRUPO, estiloEtiqueta } from './domain/colores';
 import { subirFoto, urlDeFoto } from './fotos';
 import { iniciales, nombreCompleto } from './domain/nombres';
 import { toDateKey } from './domain/ids';
-import type { ContactReason, DireccionGrupo, OpcionColumna, Student } from './domain/types';
+import {
+  MOTIVOS_SEMILLA,
+  motivosVigentes,
+  RESULTADO_ETIQUETA,
+  type MotivoFamilia,
+} from './domain/permanencia';
+import type {
+  ContactReason,
+  ContactResult,
+  DireccionGrupo,
+  OpcionColumna,
+  Student,
+} from './domain/types';
 import TelefonoAcudiente from './TelefonoAcudiente';
 import { Check, Copy, UserCheck, UserX } from 'lucide-react';
 
@@ -90,6 +103,13 @@ export default function Ficha({
    */
   const [direccion, setDireccion] = useState<DireccionGrupo | null>(null);
   const [guiaAbierta, setGuiaAbierta] = useState(false);
+  /**
+   * Catalogo de "que dijo la familia". Se pide SOLO al abrir el modal de la llamada, no
+   * al abrir la ficha: la ficha se abre decenas de veces al dia y una llamada se
+   * registra muy de vez en cuando. Hasta que llegue del servidor se ofrece la semilla,
+   * para que nunca haya un desplegable vacio.
+   */
+  const [motivosFamilia, setMotivosFamilia] = useState<MotivoFamilia[]>(MOTIVOS_SEMILLA);
 
   useEffect(() => {
     void (async () => {
@@ -101,6 +121,17 @@ export default function Ficha({
       setAutoridadSede(await leerAutoridadSede());
     })();
   }, [studentId]);
+
+  useEffect(() => {
+    if (!registrandoLlamada) return;
+    let vivo = true;
+    void leerConfigPermanencia().then((c) => {
+      if (vivo) setMotivosFamilia(c.motivos);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [registrandoLlamada]);
 
   const grado = est?.gradoActual ?? null;
   const dirigeEsteGrupo = Boolean(grado && slotId && directores[grado] === slotId);
@@ -516,8 +547,9 @@ export default function Ficha({
       {registrandoLlamada && numeroLlamado && (
         <ModalRegistrarLlamada
           numero={numeroLlamado}
+          motivosFamilia={motivosFamilia}
           onCerrar={() => setRegistrandoLlamada(false)}
-          onGuardar={async (motivoContacto, resultado, observacion) => {
+          onGuardar={async (motivoContacto, resultado, motivoFamilia, observacion) => {
             setError(null);
             try {
               await registrarContacto({
@@ -528,6 +560,7 @@ export default function Ficha({
                 motivoContacto,
                 telefonoUsado: numeroLlamado,
                 resultado,
+                motivoFamilia,
                 observacion,
               });
               setRegistrandoLlamada(false);
@@ -946,20 +979,29 @@ function ModalConfirmarRetiro({
  */
 function ModalRegistrarLlamada({
   numero,
+  motivosFamilia,
   onCerrar,
   onGuardar,
 }: {
   numero: string;
   onCerrar: () => void;
+  motivosFamilia: MotivoFamilia[];
   onGuardar: (
     motivoContacto: ContactReason,
-    resultado: 'contesto' | 'no_contesto' | 'pendiente',
+    resultado: ContactResult,
+    motivoFamilia: string | null,
     observacion: string,
   ) => Promise<void>;
 }) {
   const [motivo, setMotivo] = useState<ContactReason>('inasistencia_dia');
-  const [resultado, setResultado] = useState<'contesto' | 'no_contesto' | 'pendiente'>('contesto');
+  const [resultado, setResultado] = useState<ContactResult>('contesto');
+  const [motivoFamilia, setMotivoFamilia] = useState<string>('');
   const [observacion, setObservacion] = useState('');
+
+  // Que dijo la familia solo tiene sentido si la familia hablo. Preguntarlo cuando
+  // nadie contesto invita a inventar un motivo, y ese dato inventado es justo el que
+  // despues decide si un caso escala o no.
+  const contesto = resultado === 'contesto';
 
   return (
     <Modal onCerrar={onCerrar}>
@@ -968,13 +1010,8 @@ function ModalRegistrarLlamada({
 
       <label className="block text-xs text-muted">Resultado</label>
       <div className="mb-2 flex flex-wrap gap-1.5">
-        {(
-          [
-            ['contesto', 'Contestó'],
-            ['no_contesto', 'No contestó'],
-            ['pendiente', 'Pendiente'],
-          ] as const
-        ).map(([valor, etiqueta]) => (
+        {(Object.entries(RESULTADO_ETIQUETA) as [ContactResult, string][]).map(
+          ([valor, etiqueta]) => (
           <button
             key={valor}
             onClick={() => setResultado(valor)}
@@ -986,10 +1023,37 @@ function ModalRegistrarLlamada({
           >
             {etiqueta}
           </button>
-        ))}
+          ),
+        )}
       </div>
 
-      <label className="block text-xs text-muted">Motivo</label>
+      {resultado === 'numero_equivocado' || resultado === 'numero_fuera_servicio' ? (
+        <p className="mb-2 rounded-lg border border-line bg-elevated p-2 text-xs text-muted">
+          El teléfono de la ficha no sirve. Esto <b>no</b> cuenta como intento de contacto
+          y no escala el caso: lo que hay que hacer es conseguir otro número y corregir la
+          ficha.
+        </p>
+      ) : null}
+
+      {contesto && (
+        <>
+          <label className="block text-xs text-muted">Qué informó la familia</label>
+          <select
+            value={motivoFamilia}
+            onChange={(e) => setMotivoFamilia(e.target.value)}
+            className="mb-2 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm"
+          >
+            <option value="">— Escoja una opción —</option>
+            {motivosVigentes(motivosFamilia).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.etiqueta}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
+
+      <label className="block text-xs text-muted">Motivo de la llamada</label>
       <select
         value={motivo}
         onChange={(e) => setMotivo(e.target.value as ContactReason)}
@@ -1013,7 +1077,9 @@ function ModalRegistrarLlamada({
 
       <div className="mt-3 flex gap-2">
         <button
-          onClick={() => void onGuardar(motivo, resultado, observacion.trim())}
+          onClick={() =>
+            void onGuardar(motivo, resultado, contesto ? motivoFamilia || null : null, observacion.trim())
+          }
           className="rounded-lg bg-accent px-3 py-1.5 text-sm text-accent-fg"
         >
           Guardar
