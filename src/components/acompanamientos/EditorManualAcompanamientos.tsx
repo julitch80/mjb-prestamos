@@ -310,6 +310,9 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
   const [seleccion, setSeleccion] = useState<{ docenteId: string; origen: Origen | null } | null>(null);
   const { isMobile } = useDevice();
   const [diaMovil, setDiaMovil] = useState<Dia>('lunes');
+  // «Vista completa»: la semana entera, solo para mirar cómo va quedando (Julián,
+  // 16-09-2026). Se edita en la vista por día, donde las casillas son grandes.
+  const [verSemanaMovil, setVerSemanaMovil] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -464,6 +467,73 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
 
         {isMobile ? (
           <div className="space-y-2">
+            <div className="flex gap-1">
+              <button
+                onClick={() => setVerSemanaMovil((v) => !v)}
+                className={cn(
+                  'flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition min-h-[40px]',
+                  verSemanaMovil ? 'border border-line text-soft' : 'bg-elevated text-strong',
+                )}
+              >
+                {verSemanaMovil ? '← Volver a editar por día' : '👁 Vista completa de la semana'}
+              </button>
+            </div>
+
+            {verSemanaMovil ? (
+              <div className="space-y-1.5">
+                <p className="text-muted text-[11px]">Solo para mirar. Para cambiar algo, vuelve a editar por día.</p>
+                <div className="overflow-x-auto rounded-xl border border-line">
+                  <table className="text-[10px] border-collapse w-full" style={{ minWidth: 460 }}>
+                    <thead>
+                      <tr className="border-b border-line">
+                        <th className="sticky left-0 bg-card z-10 text-left px-1.5 py-1 text-muted font-medium">Zona</th>
+                        {DIAS.map((dia) => (
+                          <th key={dia} className="px-1 py-1 text-soft font-semibold min-w-[74px]">{DIA_LABEL[dia].slice(0, 3)}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {distribucion.zonas.map((zona) => (
+                        <tr key={zona.id} className="border-b border-line/50">
+                          <td className="sticky left-0 bg-card z-10 px-1.5 py-1 font-semibold text-strong leading-tight">{zona.nombre}</td>
+                          {DIAS.map((dia) => {
+                            const enCasilla = distribucion.asignaciones.filter((a) => a.zonaId === zona.id && a.dia === dia);
+                            const falta = enCasilla.length < zona.cupo;
+                            return (
+                              <td key={dia} className="px-0.5 py-0.5 align-top">
+                                <button
+                                  onClick={() => { setDiaMovil(dia); setVerSemanaMovil(false); }}
+                                  className={cn(
+                                    'w-full rounded-md px-1 py-1 flex flex-col gap-0.5 min-h-[30px]',
+                                    falta && 'border border-dashed border-danger',
+                                  )}
+                                  title="Tocar para editar ese día"
+                                >
+                                  {enCasilla.length === 0 ? (
+                                    <span className="text-danger-soft-fg font-semibold">falta</span>
+                                  ) : (
+                                    enCasilla.map((a) => {
+                                      const u = USUARIOS.find((x) => x.id === a.docenteId);
+                                      return (
+                                        <span key={a.docenteId} className="font-bold leading-tight" style={{ color: u?.color ?? '#94a3b8' }}>
+                                          {u?.nombreCorto ?? a.docenteId}
+                                          {a.candado ? ' 🔒' : ''}
+                                        </span>
+                                      );
+                                    })
+                                  )}
+                                </button>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+            <>
             {/* Un día a la vez: la semana entera no cabe en un celular. */}
             <div className="flex gap-1 overflow-x-auto pb-1">
               {DIAS.map((dia) => {
@@ -513,6 +583,8 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
                 </div>
               ))}
             </div>
+            </>
+            )}
           </div>
         ) : (
         <div className="flex flex-col gap-3">
