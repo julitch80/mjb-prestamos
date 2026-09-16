@@ -21,6 +21,7 @@ import {
 import type { DragEndEvent } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import { USUARIOS } from '../../data/maestros';
+import { useDevice } from '../../hooks/useDevice';
 import type { Asignacion, Dia, Distribucion, JornadaAcomp } from '../../data/acompanamientos/tipos';
 import { DIAS } from '../../data/acompanamientos/tipos';
 import { puedeCubrir, docentesDeLaJornada, esMixto } from '../../data/acompanamientos/disponibilidad';
@@ -105,11 +106,15 @@ export function validarSoltar(
 function FichaCasilla({
   asignacion,
   jornada,
+  seleccionada,
+  onSeleccionar,
   onQuitar,
   onAlternarCandado,
 }: {
   asignacion: Asignacion;
   jornada: JornadaAcomp;
+  seleccionada: boolean;
+  onSeleccionar: () => void;
   onQuitar: () => void;
   onAlternarCandado: () => void;
 }) {
@@ -133,9 +138,12 @@ function FichaCasilla({
         borderColor: diaCargado ? '#f59e0b' : color,
         backgroundColor: `${color}18`,
         opacity: isDragging ? 0.4 : 1,
-        cursor: asignacion.candado ? 'not-allowed' : isDragging ? 'grabbing' : 'grab',
+        cursor: asignacion.candado ? 'not-allowed' : 'pointer',
         touchAction: asignacion.candado ? undefined : 'none',
+        outline: seleccionada ? `2px solid ${color}` : undefined,
+        outlineOffset: 2,
       }}
+      onClick={(e) => { e.stopPropagation(); if (!asignacion.candado) onSeleccionar(); }}
       className={cn(
         'relative rounded-md border px-1.5 py-0.5 flex items-center justify-between gap-1 select-none',
         diaCargado && 'border-2',
@@ -175,29 +183,43 @@ function Casilla({
   cupo,
   asignaciones,
   jornada,
+  haySeleccion,
+  seleccionDocenteId,
   onQuitar,
   onAlternarCandado,
+  onSoltarAqui,
+  onSeleccionarFicha,
+  envolver = true,
 }: {
   zonaId: string;
   dia: Dia;
   cupo: number;
   asignaciones: Asignacion[];
   jornada: JornadaAcomp;
+  haySeleccion: boolean;
+  seleccionDocenteId: string | null;
   onQuitar: (docenteId: string) => void;
   onAlternarCandado: (docenteId: string) => void;
+  /** Toque en la casilla con un profesor ya seleccionado (camino del celular). */
+  onSoltarAqui: () => void;
+  onSeleccionarFicha: (docenteId: string) => void;
+  /** En el celular la casilla no va dentro de una celda de tabla. */
+  envolver?: boolean;
 }) {
   const droppableId = `celda__${zonaId}__${dia}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
   const incompleta = asignaciones.length < cupo;
 
-  return (
-    <td className="p-1 align-top">
+  const cuerpo = (
       <div
         ref={setNodeRef}
+        onClick={() => { if (haySeleccion) onSoltarAqui(); }}
         className={cn(
           'min-h-[42px] rounded-lg border p-0.5 flex flex-col gap-0.5 transition-colors',
           incompleta ? 'border-dashed border-line' : 'border-line',
           isOver && 'ring-2 ring-accent bg-accent/10',
+          // Con alguien seleccionado, las casillas se ofrecen como destino.
+          haySeleccion && 'cursor-pointer ring-1 ring-accent/40',
         )}
       >
         <div className="text-[9px] text-muted text-right pr-0.5">
@@ -208,13 +230,16 @@ function Casilla({
             key={a.docenteId}
             asignacion={a}
             jornada={jornada}
+            seleccionada={seleccionDocenteId === a.docenteId}
+            onSeleccionar={() => onSeleccionarFicha(a.docenteId)}
             onQuitar={() => onQuitar(a.docenteId)}
             onAlternarCandado={() => onAlternarCandado(a.docenteId)}
           />
         ))}
       </div>
-    </td>
   );
+
+  return envolver ? <td className="p-1 align-top">{cuerpo}</td> : cuerpo;
 }
 
 // ── Ficha de la bandeja ──────────────────────────────────────────────────────
@@ -225,14 +250,18 @@ function FichaBandeja({
   color,
   mixto,
   total,
+  seleccionado,
   onHover,
+  onSeleccionar,
 }: {
   docenteId: string;
   nombreCorto: string;
   color: string;
   mixto: boolean;
   total: number;
+  seleccionado: boolean;
   onHover: (docenteId: string | null) => void;
+  onSeleccionar: () => void;
 }) {
   const id = `bandeja__${docenteId}`;
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
@@ -252,8 +281,11 @@ function FichaBandeja({
         backgroundColor: `${color}15`,
         opacity: isDragging ? 0.4 : 1,
         touchAction: 'none',
+        outline: seleccionado ? `2px solid ${color}` : undefined,
+        outlineOffset: 2,
       }}
-      className="rounded-full border px-2 py-1 flex items-center gap-1.5 select-none cursor-grab"
+      onClick={onSeleccionar}
+      className="rounded-full border px-2 py-1 flex items-center gap-1.5 select-none cursor-pointer"
     >
       <div className="flex items-center gap-1">
         <span className="text-[11px] font-bold" style={{ color }}>{nombre}</span>
@@ -273,6 +305,11 @@ function FichaBandeja({
 export default function EditorManualAcompanamientos({ jornada, distribucion, onCambiar }: Props) {
   const [toast, setToast] = useState<string | null>(null);
   const [hoverDocenteId, setHoverDocenteId] = useState<string | null>(null);
+  // Camino de dos toques (celular, 16-09-2026): tocar un profesor y luego la
+  // casilla. Arrastrar con el dedo sobre una tabla que se desplaza es inviable.
+  const [seleccion, setSeleccion] = useState<{ docenteId: string; origen: Origen | null } | null>(null);
+  const { isMobile } = useDevice();
+  const [diaMovil, setDiaMovil] = useState<Dia>('lunes');
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -317,6 +354,11 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
 
     if (origen && origen.zonaId === zonaId && origen.dia === dia) return; // soltó en el mismo sitio
 
+    asignar(docenteId, zonaId, dia, origen);
+  }
+
+  /** Único camino de escritura: lo usan el arrastre y los dos toques. */
+  function asignar(docenteId: string, zonaId: string, dia: Dia, origen: Origen | null) {
     const resultado = validarSoltar(distribucion, jornada, docenteId, zonaId, dia, origen);
     if (!resultado.ok) {
       mostrarToast(resultado.motivo ?? 'No se pudo mover.');
@@ -326,11 +368,21 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
     let asignaciones = distribucion.asignaciones;
     if (origen) {
       asignaciones = asignaciones.filter(
-        (a) => !(a.zonaId === origen!.zonaId && a.dia === origen!.dia && a.docenteId === docenteId),
+        (a) => !(a.zonaId === origen.zonaId && a.dia === origen.dia && a.docenteId === docenteId),
       );
     }
     asignaciones = [...asignaciones, { zonaId, dia, docenteId, candado: false }];
+    setSeleccion(null);
     onCambiar({ ...distribucion, asignaciones });
+  }
+
+  function soltarEn(zonaId: string, dia: Dia) {
+    if (!seleccion) return;
+    if (seleccion.origen && seleccion.origen.zonaId === zonaId && seleccion.origen.dia === dia) {
+      setSeleccion(null);
+      return;
+    }
+    asignar(seleccion.docenteId, zonaId, dia, seleccion.origen);
   }
 
   function quitar(zonaId: string, dia: Dia, docenteId: string) {
@@ -356,7 +408,14 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
   const bandejaNode = (
     <div className="space-y-1.5">
       <p className="text-[11px] font-semibold text-muted uppercase tracking-wide px-0.5">
-        Profesores <span className="font-normal normal-case tracking-normal">· arrastra un nombre hasta una casilla</span>
+        Profesores{' '}
+        <span className="font-normal normal-case tracking-normal">
+          {seleccion
+            ? `· ahora toca la casilla donde va ${nombreCorto(seleccion.docenteId)}`
+            : isMobile
+              ? '· toca un nombre y luego la casilla'
+              : '· arrástralo, o tócalo y luego toca la casilla'}
+        </span>
       </p>
       <div className="flex flex-wrap gap-1.5 max-h-[24vh] overflow-y-auto pr-0.5">
         {docentes.map((u) => (
@@ -367,7 +426,11 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
             color={u.color}
             mixto={esMixto(u.id)}
             total={carga.get(u.id)?.total ?? 0}
+            seleccionado={seleccion?.origen === null && seleccion.docenteId === u.id}
             onHover={setHoverDocenteId}
+            onSeleccionar={() =>
+              setSeleccion((s) => (s && s.origen === null && s.docenteId === u.id ? null : { docenteId: u.id, origen: null }))
+            }
           />
         ))}
       </div>
@@ -399,6 +462,59 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
 
         {bandejaNode}
 
+        {isMobile ? (
+          <div className="space-y-2">
+            {/* Un día a la vez: la semana entera no cabe en un celular. */}
+            <div className="flex gap-1 overflow-x-auto pb-1">
+              {DIAS.map((dia) => {
+                const faltan = distribucion.zonas.reduce(
+                  (s, z) => s + Math.max(0, z.cupo - distribucion.asignaciones.filter((a) => a.zonaId === z.id && a.dia === dia).length),
+                  0,
+                );
+                return (
+                  <button
+                    key={dia}
+                    onClick={() => setDiaMovil(dia)}
+                    className={cn(
+                      'shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition min-h-[40px]',
+                      diaMovil === dia ? 'bg-accent text-accent-fg' : 'border border-line text-soft',
+                    )}
+                  >
+                    {DIA_LABEL[dia]}
+                    {faltan > 0 && <span className="ml-1 text-[10px] opacity-90">({faltan})</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="space-y-1.5">
+              {distribucion.zonas.map((zona) => (
+                <div key={zona.id} className="rounded-xl border border-line p-2 space-y-1">
+                  <p className="text-[11px] font-semibold text-strong">{zona.nombre}</p>
+                  <Casilla
+                    zonaId={zona.id}
+                    dia={diaMovil}
+                    cupo={zona.cupo}
+                    asignaciones={distribucion.asignaciones.filter((a) => a.zonaId === zona.id && a.dia === diaMovil)}
+                    jornada={jornada}
+                    haySeleccion={seleccion !== null}
+                    seleccionDocenteId={seleccion?.docenteId ?? null}
+                    onQuitar={(docenteId) => quitar(zona.id, diaMovil, docenteId)}
+                    onAlternarCandado={(docenteId) => alternarCandado(zona.id, diaMovil, docenteId)}
+                    onSoltarAqui={() => soltarEn(zona.id, diaMovil)}
+                    onSeleccionarFicha={(docenteId) =>
+                      setSeleccion((s) =>
+                        s && s.docenteId === docenteId && s.origen?.zonaId === zona.id && s.origen?.dia === diaMovil
+                          ? null
+                          : { docenteId, origen: { zonaId: zona.id, dia: diaMovil } },
+                      )
+                    }
+                    envolver={false}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
         <div className="flex flex-col gap-3">
           <div className="flex-1 min-w-0 overflow-x-auto rounded-xl border border-line">
             <table className="text-[11px] border-collapse w-full" style={{ minWidth: 520 }}>
@@ -439,8 +555,18 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
                           cupo={zona.cupo}
                           asignaciones={asignaciones}
                           jornada={jornada}
+                          haySeleccion={seleccion !== null}
+                          seleccionDocenteId={seleccion?.docenteId ?? null}
                           onQuitar={(docenteId) => quitar(zona.id, dia, docenteId)}
                           onAlternarCandado={(docenteId) => alternarCandado(zona.id, dia, docenteId)}
+                          onSoltarAqui={() => soltarEn(zona.id, dia)}
+                          onSeleccionarFicha={(docenteId) =>
+                            setSeleccion((s) =>
+                              s && s.docenteId === docenteId && s.origen?.zonaId === zona.id && s.origen?.dia === dia
+                                ? null
+                                : { docenteId, origen: { zonaId: zona.id, dia } },
+                            )
+                          }
                         />
                       );
                     })}
@@ -450,6 +576,7 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
             </table>
           </div>
         </div>
+        )}
       </div>
     </DndContext>
   );
