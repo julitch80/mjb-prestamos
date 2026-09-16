@@ -13,7 +13,13 @@ import {
   type CampoFicha,
   type FilaCruda,
 } from './domain/import-parse';
-import { VERSION_IMPORTACION } from './domain/import-matching';
+import {
+  bloqueosDeImportacion,
+  VERSION_IMPORTACION,
+  type InformeDiferencias,
+} from './domain/import-matching';
+import { leerTodasLasFichas } from './datos';
+import { toDateKey } from './domain/ids';
 import { parseGrupoMaster2000 } from './domain/grados';
 import { functions } from '../lib/firebase';
 
@@ -81,6 +87,25 @@ interface Resumen {
   review: number;
 }
 
+/** Nombre de cada campo de la ficha tal como lo lee una persona, para la comparación. */
+const ETIQUETA_CAMPO: Record<string, string> = {
+  nombres: 'Nombres',
+  apellidos: 'Apellidos',
+  primerNombre: 'Primer nombre',
+  primerApellido: 'Primer apellido',
+  docType: 'Tipo de documento',
+  docNumber: 'Número de documento',
+  matricula: 'Código de matrícula',
+  sexo: 'Sexo',
+  fechaNacimiento: 'Fecha de nacimiento',
+  direccion: 'Dirección',
+  barrio: 'Barrio',
+  acudiente: 'Acudiente',
+  parentesco: 'Parentesco',
+  telefonos: 'Teléfonos',
+  correoAcudiente: 'Correo del acudiente',
+};
+
 export default function Importar() {
   const [archivo, setArchivo] = useState<ArchivoLeido | null>(null);
   const [nombreArchivo, setNombreArchivo] = useState('');
@@ -91,6 +116,13 @@ export default function Importar() {
   const [ocupado, setOcupado] = useState(false);
   const [previa, setPrevia] = useState<Resumen | null>(null);
   const [hecho, setHecho] = useState<Resumen | null>(null);
+  const [diferencias, setDiferencias] = useState<InformeDiferencias | null>(null);
+  /**
+   * El respaldo se descarga EN ESTA MISMA SESIÓN antes de poder confirmar. No se recuerda
+   * entre visitas a propósito: un respaldo de la semana pasada no sirve para deshacer la
+   * importación de hoy.
+   */
+  const [respaldo, setRespaldo] = useState<{ fichas: number; archivo: string } | null>(null);
 
   /** Vuelve al punto de partida. Nada de lo previsualizado se ha escrito. */
   function limpiar() {
@@ -101,7 +133,40 @@ export default function Importar() {
     setAvisos([]);
     setPrevia(null);
     setHecho(null);
+    setDiferencias(null);
     setError(null);
+  }
+
+  /**
+   * Descarga TODAS las fichas —retirados incluidos— en un archivo JSON a este computador.
+   * No depende de ninguna función del servidor ni del historial de Firebase: si todo lo
+   * demás fallara, con este archivo se reconstruye cada ficha como estaba.
+   */
+  async function descargarRespaldo() {
+    setOcupado(true);
+    setError(null);
+    try {
+      const fichas = await leerTodasLasFichas();
+      if (fichas.length === 0) throw new Error('No se leyó ninguna ficha: no se generó el respaldo.');
+      const ahora = new Date();
+      const archivo = `respaldo-fichas-${toDateKey(ahora)}-${String(ahora.getHours()).padStart(2, '0')}${String(ahora.getMinutes()).padStart(2, '0')}.json`;
+      const contenido = JSON.stringify(
+        { generado: ahora.toISOString(), coleccion: 'asistenciaStudents', total: fichas.length, fichas },
+        null,
+        2,
+      );
+      const url = URL.createObjectURL(new Blob([contenido], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = archivo;
+      a.click();
+      URL.revokeObjectURL(url);
+      setRespaldo({ fichas: fichas.length, archivo });
+    } catch (e) {
+      setError(`No se pudo generar el respaldo: ${(e as Error).message}`);
+    } finally {
+      setOcupado(false);
+    }
   }
 
   async function elegirArchivo(ev: React.ChangeEvent<HTMLInputElement>) {
@@ -157,6 +222,7 @@ export default function Importar() {
     const nuevo = mapeo.map((c, i) => (i === columna ? destino : c));
     setMapeo(nuevo);
     setPrevia(null);
+    setDiferencias(null);
     try {
       const { filas: fs, avisos: av } = aplicarMapeo(archivo, nuevo);
       setFilas(fs);
@@ -184,6 +250,7 @@ export default function Importar() {
   const filasAImportar = filas.length - filasExcluidas;
   const gruposDelArchivo = [...new Set(filas.map((f) => f.grupo).filter(Boolean))].sort();
   const presentes = camposPresentes(mapeo);
+  const bloqueos = previa ? bloqueosDeImportacion(diferencias) : [];
   const ausentes = TODOS_LOS_CAMPOS.filter((c) => !presentes.includes(c));
 
   async function enviar(dryRun: boolean) {
@@ -223,7 +290,11 @@ export default function Importar() {
             correoAcudiente: f.email,
           })),
       });
-      const datos = res.data as { resumen: Resumen; version?: number };
+      const datos = res.data as {
+        resumen: Resumen;
+        version?: number;
+        diferencias?: InformeDiferencias;
+      };
       // El freno que protege los acudientes. Una función desplegada antes del
       // 2026-09-16 no sabe de `camposPresentes` y sobrescribiría acudiente y teléfonos
       // con los vacíos de un archivo que no los trae. La previsualización no escribe, así
@@ -238,6 +309,7 @@ export default function Importar() {
         return;
       }
       const resumen = datos.resumen;
+      if (dryRun) setDiferencias(datos.diferencias ?? null);
       if (dryRun) setPrevia(resumen);
       else {
         setHecho(resumen);
@@ -403,7 +475,7 @@ export default function Importar() {
             >
               {ocupado ? 'Trabajando…' : 'Previsualizar (no escribe nada)'}
             </button>
-            {previa && (
+            {previa && bloqueos.length === 0 && respaldo && (
               <button
                 disabled={ocupado}
                 onClick={() => void enviar(false)}
@@ -413,6 +485,47 @@ export default function Importar() {
               </button>
             )}
           </div>
+
+          {previa && diferencias && (
+            <ComparacionFichas diferencias={diferencias} presentes={presentes} />
+          )}
+
+          {previa && bloqueos.length > 0 && (
+            <div className="rounded-xl border border-danger-soft bg-danger-soft p-3 text-sm text-danger-soft-fg">
+              <b>No se puede importar este archivo.</b>
+              <ul className="mt-1 list-disc pl-5">
+                {bloqueos.map((b) => (
+                  <li key={b}>{b}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {previa && bloqueos.length === 0 && (
+            <div className="rounded-xl border border-line bg-card p-3 text-sm">
+              {respaldo ? (
+                <p className="text-success-soft-fg">
+                  ✓ Respaldo descargado: <b>{respaldo.fichas}</b> fichas en <code>{respaldo.archivo}</code>.
+                  Guárdelo hasta comprobar que la importación quedó bien. Lleva números de documento:
+                  no lo comparta.
+                </p>
+              ) : (
+                <>
+                  <p className="text-strong">
+                    <b>Antes de confirmar, descargue el respaldo.</b> Es una copia de todas las fichas
+                    en este computador. El botón de confirmar aparece después.
+                  </p>
+                  <button
+                    disabled={ocupado}
+                    onClick={() => void descargarRespaldo()}
+                    className="mt-2 rounded-lg bg-accent px-3 py-2 text-sm text-accent-fg disabled:opacity-50"
+                  >
+                    Descargar respaldo de todas las fichas
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           {previa && (
             <div className="rounded-xl border border-info-soft bg-info-soft p-3 text-sm text-info-soft-fg">
@@ -438,6 +551,82 @@ export default function Importar() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Lo que la importación haría, campo por campo, contado por el servidor sobre los datos
+ * reales. Lo primero que se muestra es lo que NO se toca, porque es lo que preocupa.
+ */
+function ComparacionFichas({
+  diferencias,
+  presentes,
+}: {
+  diferencias: InformeDiferencias;
+  presentes: CampoFicha[];
+}) {
+  const protegidos: CampoFicha[] = ['acudiente', 'parentesco', 'telefonos'];
+  const tocados = new Set(diferencias.campos.map((c) => c.campo));
+
+  return (
+    <div className="space-y-2 rounded-xl border border-line bg-card p-3 text-sm">
+      <p className="font-semibold text-strong">Qué cambiaría, contado por el servidor ficha por ficha</p>
+
+      <ul className="space-y-0.5">
+        {protegidos.map((c) => (
+          <li key={c} className="text-strong">
+            {tocados.has(c) ? '⚠️' : '✓'} <b>{ETIQUETA_CAMPO[c]}</b>:{' '}
+            {tocados.has(c)
+              ? 'tendría cambios — revise la tabla de abajo'
+              : presentes.includes(c)
+                ? '0 cambios'
+                : '0 cambios · el archivo no lo trae y no se toca'}
+          </li>
+        ))}
+      </ul>
+
+      {diferencias.campos.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-muted">
+                <th className="py-1">Campo</th>
+                <th className="py-1 text-right">Se completa</th>
+                <th className="py-1 text-right">Se reemplaza</th>
+                <th className="py-1 pl-3">Ejemplo de reemplazo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {diferencias.campos.map((c) => (
+                <tr key={c.campo} className="border-t border-line align-top">
+                  <td className="py-1 text-strong">{ETIQUETA_CAMPO[c.campo] ?? c.campo}</td>
+                  <td className="py-1 text-right tabular-nums">{c.completa}</td>
+                  <td className="py-1 text-right tabular-nums">{c.reemplaza}</td>
+                  <td className="py-1 pl-3 text-soft">
+                    {c.ejemplos[0] ? (
+                      <>
+                        «{c.ejemplos[0].antes}» → «{c.ejemplos[0].despues}»
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-muted">Ninguna ficha existente cambiaría.</p>
+      )}
+
+      <p className="text-xs text-muted">
+        {diferencias.fichasSinCambios} ficha(s) quedarían exactamente igual. «Se reemplaza» es lo que
+        conviene mirar: si un número le parece raro, lea el ejemplo antes de confirmar. Y aunque
+        confirme, el servidor vuelve a hacer esta cuenta en el momento de escribir y se niega si algo
+        cambió.
+      </p>
     </div>
   );
 }

@@ -217,4 +217,143 @@ export function actualizacionDeFicha(
  * mandaría acudientes vacíos que la función vieja escribiría sin mirar. Se sube cuando
  * cambia lo que la función hace con los campos.
  */
-export const VERSION_IMPORTACION = 2;
+export const VERSION_IMPORTACION = 3;
+
+// ---------------------------------------------------------------------------
+//  Qué cambiaría, ficha por ficha — la verificación antes de escribir
+// ---------------------------------------------------------------------------
+
+/** Qué campo del archivo autoriza a escribir cada campo de la ficha. */
+const CAMPO_QUE_AUTORIZA: Record<string, CampoFicha | 'siempre'> = {
+  nombres: 'nombres',
+  apellidos: 'apellidos',
+  primerNombre: 'primerNombre',
+  primerApellido: 'primerApellido',
+  docType: 'docType',
+  matricula: 'matricula',
+  sexo: 'sexo',
+  fechaNacimiento: 'fechaNacimiento',
+  direccion: 'direccion',
+  barrio: 'barrio',
+  acudiente: 'acudiente',
+  parentesco: 'parentesco',
+  telefonos: 'telefonos',
+  correoAcudiente: 'correoAcudiente',
+  // Viaja siempre: es la llave. Sale del mismo número que dio el hash, así que en una
+  // ficha emparejada nunca debería REEMPLAZAR nada. Si lo hace, algo anda muy mal.
+  docNumber: 'siempre',
+};
+
+export interface DiferenciaCampo {
+  campo: string;
+  /** La ficha no tenía el dato y se llena. */
+  completa: number;
+  /** La ficha tenía OTRO valor y se reemplaza. Es lo que hay que mirar. */
+  reemplaza: number;
+  /** Hasta tres casos de reemplazo, para ver qué significa el número. */
+  ejemplos: { estudiante: string; antes: string; despues: string }[];
+}
+
+export interface InformeDiferencias {
+  campos: DiferenciaCampo[];
+  /**
+   * Escrituras a campos que el archivo NO trae. Por construcción debe ser CERO: si no lo
+   * es, la regla «lo que no viene no se toca» se rompió, y la pantalla no deja confirmar.
+   */
+  fueraDelArchivo: number;
+  /** Escrituras que dejarían vacío un dato que existía. También debe ser CERO. */
+  vaciaria: number;
+  fichasSinCambios: number;
+}
+
+function comoTexto(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (Array.isArray(v)) return v.filter(Boolean).join(' / ');
+  return String(v).trim();
+}
+
+/**
+ * Compara, ficha por ficha, lo que la importación ESCRIBIRÍA contra lo que la ficha tiene
+ * hoy. Corre dentro de la Cloud Function en la previsualización, sobre los datos reales y
+ * con la MISMA función que después escribe: no es una suposición sobre el código, es el
+ * servidor contando antes de tocar nada.
+ *
+ * `escribir` se recibe por parámetro solo para poder probar que el detector detecta: en
+ * producción es siempre `actualizacionDeFicha`.
+ */
+export function diferenciasDeImportacion(
+  updates: MatchPlan['updates'],
+  existentes: Map<string, Student>,
+  presentes: readonly CampoFicha[],
+  escribir: (row: IncomingRow, presentes: readonly CampoFicha[]) => Partial<Student> = actualizacionDeFicha,
+): InformeDiferencias {
+  const porCampo = new Map<string, DiferenciaCampo>();
+  let fueraDelArchivo = 0;
+  let vaciaria = 0;
+  let fichasSinCambios = 0;
+
+  for (const u of updates) {
+    const ficha = existentes.get(u.studentId);
+    if (!ficha) continue;
+    const cambios = escribir(u.row, presentes) as Record<string, unknown>;
+    let tocoAlgo = false;
+
+    for (const [campo, valor] of Object.entries(cambios)) {
+      const autoriza = CAMPO_QUE_AUTORIZA[campo];
+      if (autoriza !== 'siempre' && (!autoriza || !presentes.includes(autoriza))) fueraDelArchivo += 1;
+
+      const antes = comoTexto((ficha as unknown as Record<string, unknown>)[campo]);
+      const despues = comoTexto(valor);
+      if (antes === despues) continue;
+      tocoAlgo = true;
+
+      if (antes && !despues) vaciaria += 1;
+      const d = porCampo.get(campo) ?? { campo, completa: 0, reemplaza: 0, ejemplos: [] };
+      if (!antes) {
+        d.completa += 1;
+      } else {
+        d.reemplaza += 1;
+        if (d.ejemplos.length < 3) {
+          d.ejemplos.push({ estudiante: `${ficha.apellidos} ${ficha.nombres}`.trim(), antes, despues });
+        }
+      }
+      porCampo.set(campo, d);
+    }
+    if (!tocoAlgo) fichasSinCambios += 1;
+  }
+
+  return {
+    campos: [...porCampo.values()].sort((a, b) => b.reemplaza - a.reemplaza || a.campo.localeCompare(b.campo)),
+    fueraDelArchivo,
+    vaciaria,
+    fichasSinCambios,
+  };
+}
+
+/**
+ * Lo que impide confirmar. Vacío = se puede importar. Cada motivo es una frase para una
+ * persona, no un código.
+ */
+export function bloqueosDeImportacion(informe: InformeDiferencias | null | undefined): string[] {
+  if (!informe) {
+    return ['El servidor no devolvió la comparación ficha por ficha. Sin ella no se importa.'];
+  }
+  const b: string[] = [];
+  if (informe.fueraDelArchivo > 0) {
+    b.push(
+      `Se escribirían ${informe.fueraDelArchivo} dato(s) en campos que el archivo no trae. ` +
+        'Eso no debe pasar nunca: no importe y avise.',
+    );
+  }
+  if (informe.vaciaria > 0) {
+    b.push(`${informe.vaciaria} dato(s) existentes quedarían vacíos. No importe y avise.`);
+  }
+  const doc = informe.campos.find((c) => c.campo === 'docNumber');
+  if (doc && doc.reemplaza > 0) {
+    b.push(
+      `${doc.reemplaza} ficha(s) cambiarían de número de documento. Una ficha se empareja por ` +
+        'ese número: si cambia, algo anda muy mal. No importe y avise.',
+    );
+  }
+  return b;
+}

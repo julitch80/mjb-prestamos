@@ -23,6 +23,8 @@ import { defineSecret } from 'firebase-functions/params';
 
 import {
   actualizacionDeFicha,
+  bloqueosDeImportacion,
+  diferenciasDeImportacion,
   planImport,
   summarizePlan,
   VERSION_IMPORTACION,
@@ -293,10 +295,20 @@ export const importStudents = onCall(
     const plan = planImport(incoming, existentes);
     const resumen = summarizePlan(plan);
 
+    // La comparacion ficha por ficha se calcula SIEMPRE, no solo en la previsualizacion: al
+    // confirmar se vuelve a calcular sobre los datos de ESE momento, y si algo se sale de lo
+    // esperado la funcion se niega a escribir aunque la pantalla lo haya permitido. La
+    // pantalla es una comodidad; el freno de verdad es este.
+    const porId = new Map(existentes.map((s) => [s.studentId, s]));
+    const diferencias = diferenciasDeImportacion(plan.updates, porId, presentes);
+    const bloqueos = bloqueosDeImportacion(diferencias);
+
     if (payload.dryRun) {
       return {
         dryRun: true,
         version: VERSION_IMPORTACION,
+        diferencias,
+        bloqueos,
         resumen,
         revisiones: plan.reviews.map((r) => ({
           nombres: r.row.nombres,
@@ -305,6 +317,14 @@ export const importStudents = onCall(
           candidatos: r.candidateIds,
         })),
       };
+    }
+
+    if (bloqueos.length > 0) {
+      await audit({
+        action: 'importStudents', executedBy: email, fileName: payload.fileName ?? null,
+        anio: payload.anio, resumen, status: 'bloqueada', bloqueos,
+      });
+      throw new HttpsError('failed-precondition', `No se importó nada. ${bloqueos.join(' ')}`);
     }
 
     const ops: ((b: FirebaseFirestore.WriteBatch) => void)[] = [];

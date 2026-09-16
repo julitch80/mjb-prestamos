@@ -2963,3 +2963,14 @@ export async function cerrarCaso(
     ultimaEscrituraEn: serverTimestamp(),
   });
 }
+
+/**
+ * TODAS las fichas, retirados incluidos, para el respaldo previo a una importacion. No
+ * usar para pintar listas: para eso esta `leerEstudiantesDeSede`, que filtra. Un
+ * respaldo que dejara fuera a los retirados no permitiria deshacer una importacion que
+ * los hubiera tocado.
+ */
+export async function leerTodasLasFichas(): Promise<Student[]> {
+  if (!(await listo())) return [];
+  return aLista<Student>(await getDocs(collection(baseDatos(), 'asistenciaStudents')));
+}
