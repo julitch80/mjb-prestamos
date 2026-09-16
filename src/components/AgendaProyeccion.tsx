@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { getAsignatura } from '../data/asignacionAcademica';
 import type { FechaISO, Tarea } from '../data/tareas/tipos';
+import { lunesDe } from '../data/tareas/calendario';
 
 /**
  * Modo proyección: el director lo muestra al frente del salón mientras cada
@@ -10,9 +11,10 @@ import type { FechaISO, Tarea } from '../data/tareas/tipos';
  * es suyo y no se expone frente al grupo. Solo las tareas de la semana, en
  * letra grande legible desde la última fila, sin menús alrededor.
  */
-export default function AgendaProyeccion({ grupo, semana, tareasDelDia, onCerrar }: {
+export default function AgendaProyeccion({ grupo, dias, tareasDelDia, onCerrar }: {
   grupo: string;
-  semana: FechaISO[];
+  /** Días hábiles desde hoy hasta el viernes de la próxima semana. */
+  dias: FechaISO[];
   tareasDelDia: (f: FechaISO) => { b: { momentos: number }; t: Tarea }[];
   onCerrar: () => void;
 }) {
@@ -36,17 +38,24 @@ export default function AgendaProyeccion({ grupo, semana, tareasDelDia, onCerrar
 
         {/* Sin esto, una semana sin tareas dejaba la pantalla negra con solo el
             título, y parecía que la proyección no funcionaba (16-09-2026). */}
-        {semana.every(f => tareasDelDia(f).length === 0) && (
+        {dias.every(f => tareasDelDia(f).length === 0) && (
           <p className="text-2xl text-center text-white/70 pt-10">
-            Esta semana {grupo} no tiene tareas programadas. 🎉
+            Ni esta semana ni la próxima tiene {grupo} tareas programadas. 🎉
           </p>
         )}
 
-        {semana.map(f => {
+        {dias.map((f, i) => {
           const items = tareasDelDia(f);
+          // Separador de semana: aparece antes del primer día con tareas de cada una.
+          const semanaDe = lunesDe(f);
+          const primeraConTareas = dias.findIndex(d => lunesDe(d) === semanaDe && tareasDelDia(d).length > 0);
+          const titulo = i === primeraConTareas
+            ? (semanaDe === lunesDe(dias[0]) ? 'Esta semana' : 'Próxima semana')
+            : null;
           if (items.length === 0) return null;
           return (
             <div key={f} className="space-y-3">
+              {titulo && <p className="text-sm font-semibold uppercase tracking-widest text-amber-300 pt-4">{titulo}</p>}
               <h2 className="text-2xl font-bold border-b border-white/20 pb-1">{diaLargo(f)}</h2>
               <div className="space-y-2">
                 {items.map(({ b, t }, i) => (

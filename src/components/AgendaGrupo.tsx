@@ -152,6 +152,18 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
     return [0, 1, 2, 3, 4].map(i => addDias(lunes, i));
   }, [referencia]);
 
+  // Lo que se proyecta en el salón: desde hoy hasta el viernes de la PRÓXIMA
+  // semana (Julián, 16-09-2026). El director suele proyectar el viernes para
+  // organizar lo que viene; con solo la semana en curso, ese día no veía nada.
+  const diasProyeccion = useMemo(() => {
+    const finProxima = addDias(lunesDe(referencia), 11); // viernes de la próxima semana
+    const dias: FechaISO[] = [];
+    for (let f = referencia; f <= finProxima; f = addDias(f, 1)) {
+      if (esDiaHabil(f)) dias.push(f);
+    }
+    return dias;
+  }, [referencia]);
+
   const entregasDelGrupo = useMemo(() => {
     const s = new Set<string>();
     for (const t of activas) s.add(t.fechaEntrega);
@@ -454,7 +466,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
         <AgendaImprimible grupo={grupo} semana={semana} tareasDelDia={tareasDelDia} onCerrar={() => setMostrarImprimible(false)} />
       )}
       {mostrarProyeccion && (
-        <AgendaProyeccion grupo={grupo} semana={semana} tareasDelDia={tareasDelDia} onCerrar={() => setMostrarProyeccion(false)} />
+        <AgendaProyeccion grupo={grupo} dias={diasProyeccion} tareasDelDia={tareasDelDia} onCerrar={() => setMostrarProyeccion(false)} />
       )}
     </div>
   );
