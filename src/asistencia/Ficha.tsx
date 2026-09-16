@@ -29,6 +29,7 @@ import { subirFoto, urlDeFoto } from './fotos';
 import { iniciales, nombreCompleto } from './domain/nombres';
 import { toDateKey } from './domain/ids';
 import {
+  edadEn,
   MOTIVOS_SEMILLA,
   motivosVigentes,
   RESULTADO_ETIQUETA,
@@ -358,6 +359,36 @@ export default function Ficha({
                   )
                 }
               />
+              {/*
+                Datos del listado ampliado del Master (2026-09-16), para Guardianes de la
+                Permanencia. Solo aparecen si la ficha ya los tiene: cuatro renglones de
+                "sin registrar" en cada ficha vieja serian ruido, no informacion.
+              */}
+              {(est.fechaNacimiento || est.sexo || est.matricula || est.direccion || est.barrio) && (
+                <>
+                  <Dato
+                    termino="Nacimiento"
+                    valor={
+                      est.fechaNacimiento
+                        ? `${est.fechaNacimiento}${
+                            edadEn(est.fechaNacimiento, toDateKey(new Date())) !== null
+                              ? ` · ${edadEn(est.fechaNacimiento, toDateKey(new Date()))} años`
+                              : ''
+                          }`
+                        : ''
+                    }
+                  />
+                  <Dato
+                    termino="Sexo"
+                    valor={est.sexo === 'F' ? 'Femenino' : est.sexo === 'M' ? 'Masculino' : est.sexo ?? ''}
+                  />
+                  <Dato termino="Matrícula" valor={est.matricula ?? ''} />
+                  <Dato
+                    termino="Dirección"
+                    valor={[est.direccion, est.barrio].filter(Boolean).join(' · ')}
+                  />
+                </>
+              )}
             </dl>
 
             {/*

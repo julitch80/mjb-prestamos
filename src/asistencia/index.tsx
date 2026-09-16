@@ -40,6 +40,8 @@ const Programas = lazy(() => import('./Programas'));
 const ReporteRestaurante = lazy(() => import('./ReporteRestaurante'));
 /** Arrastra exceljs al leer el archivo: va con lazy() como Importar y DireccionGrupo. */
 const ImportarInscritosRestaurante = lazy(() => import('./ImportarInscritosRestaurante'));
+/** Arrastra exceljs al descargar: va con lazy() por la misma razon. */
+const ImportarCorreos = lazy(() => import('./ImportarCorreos'));
 import CargaFotos from './CargaFotos';
 import Restaurante from './Restaurante';
 import DiagnosticoPermisos from './DiagnosticoPermisos';
@@ -86,6 +88,7 @@ import { nombreCompleto } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
 import ConfigPermanencia from './ConfigPermanencia';
+import CasosPermanencia from './CasosPermanencia';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
 import type {
   AlertConfig,
@@ -757,6 +760,9 @@ export default function Asistencia() {
         <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando importación…</p>}>
           <Importar />
         </Suspense>
+        <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando correos…</p>}>
+          <ImportarCorreos sede={sede as Sede} />
+        </Suspense>
         {/*
           CENTROS DE INTERES AQUI, y no en las pestañas.
           El superusuario NUNCA llega a la barra de pestañas: el `return` de arriba corta
@@ -831,7 +837,15 @@ export default function Asistencia() {
     return (
       <div className="space-y-3">
         <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
-        <ConfigPermanencia sede={sede as Sede} />
+        <CasosPermanencia sede={sede as Sede} rol={rol} onAbrirFicha={setFichaAbierta} />
+        <details className="rounded-xl border border-line bg-card p-3">
+          <summary className="cursor-pointer text-sm font-semibold text-strong">
+            Criterios, catálogo de motivos y contactabilidad
+          </summary>
+          <div className="mt-3">
+            <ConfigPermanencia sede={sede as Sede} />
+          </div>
+        </details>
       </div>
     );
   }

@@ -29,6 +29,7 @@ import {
   getDocFromCache,
   getDocs,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -44,8 +45,12 @@ import { sessionId as construirSessionId } from './domain/ids';
 import { compararEstudiantes } from './domain/nombres';
 import { avisoEvasionId, censoDiaId } from './domain/evasion';
 import {
+  casoId,
   MOTIVOS_SEMILLA,
   PERMANENCIA_CONFIG_POR_DEFECTO,
+  type CasoPermanencia,
+  type EvaluacionPermanencia,
+  type Gestion,
   type PermanenciaConfig,
 } from './domain/permanencia';
 import type { MarkCode } from './domain/marks';
@@ -53,6 +58,7 @@ import type {
   AlertConfig,
   AvisoEvasion,
   ContactResult,
+  FamilyContact,
   CensoDia,
   ColumnaDireccion,
   ConfigValoracion,
@@ -2798,5 +2804,162 @@ export async function guardarValoracion(
     valoradoEn: serverTimestamp(),
     modificadoPor: null,
     modificadoEn: null,
+  });
+}
+
+// ---------- Correos institucionales desde Workspace ----------
+//
+// Ver `domain/correos-workspace.ts`. Lo que llega aqui ya paso por el plan: solo
+// emparejamientos inequivocos, nunca un correo que un director puso a mano y nunca lo
+// que ya estaba igual. Aqui solo se escribe.
+
+/**
+ * Aplica los correos en lotes de 400 (el tope de Firestore es 500 por lote). Devuelve
+ * cuantos escribio, para que la pantalla muestre el numero real y no el planeado.
+ */
+export async function aplicarCorreosInstitucionales(
+  escrituras: { studentId: string; cambios: Record<string, unknown> }[],
+): Promise<number> {
+  await exigirAutor();
+  let escritos = 0;
+  for (let i = 0; i < escrituras.length; i += 400) {
+    const lote = writeBatch(baseDatos());
+    for (const w of escrituras.slice(i, i + 400)) {
+      lote.update(doc(baseDatos(), 'asistenciaStudents', w.studentId), w.cambios);
+    }
+    await lote.commit();
+    escritos += Math.min(400, escrituras.length - i);
+  }
+  return escritos;
+}
+
+// ---------- Permanencia, etapa 3: censos, contactos y casos ----------
+//
+// Ver `domain/permanencia.ts`. Las alertas se CALCULAN con lo que se lee aqui; lo unico
+// que se guarda es el caso.
+
+/**
+ * Censos desde una fecha. Se filtra SOLO por fecha y la sede se filtra en el navegador:
+ * filtrar por las dos en la consulta exigiria un indice compuesto nuevo, y un despliegue
+ * de indices reemplaza la lista entera. Un mes de censos de una sede son unos
+ * seiscientos documentos pequeños (ids y contadores): el costo es aceptable.
+ */
+export async function leerCensosDesde(desde: string, sede: string): Promise<CensoDia[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(collection(baseDatos(), 'asistenciaCensoDia'), where('fecha', '>=', desde)),
+  );
+  return aLista<CensoDia>(snap).filter((c) => c.sede === sede);
+}
+
+/**
+ * Las llamadas a familias de una sede. Filtrada por `sede` porque la regla es
+ * `asisCoordinaSede(resource.data.sede)`: sin el filtro, Firestore rechaza la consulta
+ * entera aunque cada documento fuera legible.
+ */
+export async function leerContactosDeSede(sede: string): Promise<FamilyContact[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(collection(baseDatos(), 'asistenciaFamilyContacts'), where('sede', '==', sede)),
+  );
+  return aLista<FamilyContact>(snap);
+}
+
+export async function leerCasosDeSede(sede: string): Promise<CasoPermanencia[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(collection(baseDatos(), 'asistenciaCasosPermanencia'), where('sede', '==', sede)),
+  );
+  return aLista<CasoPermanencia>(snap);
+}
+
+/**
+ * Abre los casos que el calculo señalo. Cada uno en su propia transaccion, que primero
+ * mira si el documento ya existe: dos coordinadores que abren la pantalla el mismo dia
+ * apuntan al MISMO id, y solo el primero lo crea. Sin la transaccion, el segundo
+ * sobrescribiria el caso del primero con una gestion vacia.
+ *
+ * Devuelve cuantos abrio DE VERDAD, no cuantos intento.
+ */
+export async function abrirCasosPermanencia(
+  evaluaciones: EvaluacionPermanencia[],
+  estudiantes: Map<string, { gradoActual: string; sede: Sede }>,
+  fechaApertura: string,
+): Promise<number> {
+  const autor = await exigirAutor();
+  let abiertos = 0;
+  for (const ev of evaluaciones) {
+    const est = estudiantes.get(ev.studentId);
+    if (!est) continue;
+    const id = casoId(ev.studentId, fechaApertura);
+    const ref = doc(baseDatos(), 'asistenciaCasosPermanencia', id);
+    const creado = await runTransaction(baseDatos(), async (tx) => {
+      if ((await tx.get(ref)).exists()) return false;
+      tx.set(ref, {
+        casoId: id,
+        studentId: ev.studentId,
+        grado: est.gradoActual,
+        sede: est.sede,
+        anio: Number(fechaApertura.slice(0, 4)),
+        fechaApertura,
+        criterioQueLoAbrio: ev.razon,
+        nivel: ev.nivel,
+        estado: 'abierto',
+        motivoFamilia: ev.motivoId,
+        factorDeRiesgo: null,
+        descripcion: '',
+        gestiones: [],
+        abiertoPor: autor,
+        ultimaEscrituraPor: autor,
+        ultimaEscrituraEn: serverTimestamp(),
+      });
+      return true;
+    });
+    if (creado) abiertos += 1;
+  }
+  return abiertos;
+}
+
+/**
+ * Agrega una gestion al caso A NOMBRE DE QUIEN LA REGISTRA, tomado de la sesion y no de
+ * lo que mande la pantalla (`exigirAutor`, igual que todo el modulo: en modo «Ver como»
+ * el store dice otra persona). Es lo que despues demuestra quien actuo y cuando.
+ * Un caso recien abierto pasa a «en gestion» con la primera.
+ */
+export async function registrarGestionCaso(
+  caso: Pick<CasoPermanencia, 'casoId' | 'estado' | 'gestiones'>,
+  gestion: { tipo: Gestion['tipo']; fecha: string; nota?: string },
+): Promise<void> {
+  const autor = await exigirAutor();
+  const nueva: Gestion = {
+    tipo: gestion.tipo,
+    fecha: gestion.fecha,
+    realizadaPor: autor,
+    ...(gestion.nota?.trim() ? { nota: gestion.nota.trim() } : {}),
+  };
+  await updateDoc(doc(baseDatos(), 'asistenciaCasosPermanencia', caso.casoId), {
+    gestiones: [...caso.gestiones, nueva],
+    estado: caso.estado === 'abierto' ? 'en_gestion' : caso.estado,
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  });
+}
+
+/** Cierra el caso. El motivo es obligatorio: un caso cerrado sin explicacion no le sirve a nadie. */
+export async function cerrarCaso(
+  id: string,
+  estado: 'cerrado_reintegro' | 'cerrado_traslado' | 'cerrado_retiro',
+  motivoCierre: string,
+  fecha: string,
+): Promise<void> {
+  if (!motivoCierre.trim()) throw new Error('Hay que escribir por qué se cierra el caso.');
+  const autor = await exigirAutor();
+  await updateDoc(doc(baseDatos(), 'asistenciaCasosPermanencia', id), {
+    estado,
+    motivoCierre: motivoCierre.trim(),
+    cerradoEn: fecha,
+    cerradoPor: autor,
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
   });
 }

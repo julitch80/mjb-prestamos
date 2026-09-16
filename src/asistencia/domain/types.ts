@@ -105,6 +105,31 @@ export interface Student {
    */
   parentesco?: string;
   telefonos: string[];
+  /**
+   * Campos del listado ampliado del Master (2026-09-16), para el reporte a Guardianes
+   * de la Permanencia. Todos opcionales: las fichas existentes no los tienen hasta la
+   * siguiente importacion, y la pantalla debe decir "sin dato", nunca inventarlo.
+   * Solo los escribe la Cloud Function de importacion.
+   */
+  primerNombre?: string;
+  primerApellido?: string;
+  matricula?: string;
+  sexo?: 'F' | 'M' | 'otro';
+  /** ISO `AAAA-MM-DD`. De aqui sale la edad que pide el reporte. */
+  fechaNacimiento?: string;
+  direccion?: string;
+  barrio?: string;
+  /** En minusculas. Para avisos a la familia; ver `docs/reporte-guardianes-permanencia.md` §10b. */
+  correoAcudiente?: string;
+  /**
+   * Correo institucional del ESTUDIANTE, desde Workspace. Ver
+   * `docs/importar-correos-workspace.md`. `correoVerificadoEn` es la foto de un momento:
+   * una cuenta se puede suspender despues y la aplicacion no se entera.
+   */
+  correoInstitucional?: string;
+  correoVerificadoEn?: string;
+  correoOrigen?: 'workspace' | 'manual';
+  correoCuentaActiva?: boolean;
   fotoPath: string | null;
   qrToken: string;
   sede: Sede;

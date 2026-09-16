@@ -12,7 +12,11 @@
  * vino de Master2000 y se pueda volver a leer si algun dia la exportacion cambia.
  */
 
-function normalizar(s: string): string {
+/**
+ * Exportada el 2026-09-16 para el emparejamiento de correos de Workspace: dos criterios
+ * de normalizacion conviviendo en el modulo son una fuente de errores silenciosos.
+ */
+export function normalizar(s: string): string {
   return (s ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')

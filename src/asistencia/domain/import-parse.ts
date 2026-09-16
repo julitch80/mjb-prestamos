@@ -14,16 +14,33 @@
  * NOMBRE de columna y no por posicion, y se sugiere automaticamente pero se puede
  * corregir a mano antes de importar.
  *
+ * Desde el 2026-09-16 el archivo puede traer SOLO una parte de los datos (el listado
+ * para Guardianes trae sexo, matricula y direccion, pero NO acudiente ni telefonos,
+ * porque esos ya estan en la aplicacion). Por eso existe `camposPresentes`: lo que el
+ * archivo no trae no se toca. Ver `actualizacionDeFicha` en import-matching.ts.
+ *
  * Este modulo no toca Firestore ni ExcelJS: recibe una matriz de texto ya extraida.
  * Asi se prueba sin archivos y sin red.
  */
 
+import type { DocType } from './types';
+
 export type CampoDestino =
   | 'docNumber'
+  | 'tipoDocumento'
   | 'apellidos'
   | 'nombres'
+  | 'apellido1'
+  | 'apellido2'
+  | 'nombre1'
+  | 'nombre2'
   | 'grado'
   | 'grupo'
+  | 'matricula'
+  | 'sexo'
+  | 'fechaNacimiento'
+  | 'direccion'
+  | 'barrio'
   | 'acudiente'
   | 'afinidad'
   | 'telefono1'
@@ -34,10 +51,23 @@ export type CampoDestino =
 /** Nombres de columna vistos en los exports reales, por campo destino. */
 const ALIAS: Record<Exclude<CampoDestino, 'ignorar'>, string[]> = {
   docNumber: ['NRODOCUMENTO', 'DOCUMENTO', 'IDENTIFICACION', 'NUMERODOCUMENTO'],
+  tipoDocumento: ['TIPODOCUMENTO', 'TIPODOC'],
   apellidos: ['APELLIDOS'],
   nombres: ['NOMBRES'],
+  // El asistente de listados ofrece el nombre partido en cuatro. Es preferible: partir
+  // "RODRIGUEZ ARENAS CELESTE" es adivinar donde terminan los apellidos, y eso falla
+  // justo con los compuestos.
+  apellido1: ['APELLIDO1', 'PRIMERAPELLIDO'],
+  apellido2: ['APELLIDO2', 'SEGUNDOAPELLIDO'],
+  nombre1: ['NOMBRE1', 'PRIMERNOMBRE'],
+  nombre2: ['NOMBRE2', 'SEGUNDONOMBRE'],
   grado: ['GRADO'],
   grupo: ['GRUPO'],
+  matricula: ['MATRICULA', 'CODIGOMATRICULA'],
+  sexo: ['SEXO', 'GENERO'],
+  fechaNacimiento: ['FNACIMIENTO', 'FECHANACIMIENTO'],
+  direccion: ['DIRECCIONALUMNO', 'DIRECCION'],
+  barrio: ['BARRIO'],
   acudiente: ['NOMBREACUDIENTE', 'ACUDIENTE'],
   afinidad: ['AFINIDAD', 'PARENTESCO'],
   // Los dos telefonos cambian de nombre entre exports: en uno vino
@@ -45,6 +75,8 @@ const ALIAS: Record<Exclude<CampoDestino, 'ignorar'>, string[]> = {
   telefono1: ['TELMOVILACUDIENTE', 'CELULARACUDIENTE'],
   telefono2: ['TELEFONOACUDIENTE', 'TELMOVILFAMILIARCERCANO', 'TELEFONOFAMILIARCERCANO'],
   email: ['EMAILACUDIENTE', 'CORREOACUDIENTE', 'EMAIL'],
+  // COMUNA no tiene destino a proposito: todas las sedes estan en la comuna 80 y el
+  // Master la trae de tres formas distintas ("80", "COMUNA 80", vacia). Se ignora.
 };
 
 function normalizarEncabezado(s: string): string {
@@ -120,12 +152,140 @@ export function sugerirMapeo(encabezados: string[]): CampoDestino[] {
   });
 }
 
+// ---------------------------------------------------------------------------
+//  Qué trae el archivo
+// ---------------------------------------------------------------------------
+
+/**
+ * Los campos de la FICHA que este archivo puede actualizar. Es la otra mitad de la
+ * regla "lo que el archivo no trae no se toca": el servidor solo escribe lo que esta
+ * lista declara.
+ *
+ * Los nombres cuentan como presentes si viene la columna completa (APELLIDOS) o su
+ * version partida (APELLIDO1). Los telefonos, si viene cualquiera de los dos.
+ */
+export type CampoFicha =
+  | 'nombres'
+  | 'apellidos'
+  | 'primerNombre'
+  | 'primerApellido'
+  | 'docType'
+  | 'matricula'
+  | 'sexo'
+  | 'fechaNacimiento'
+  | 'direccion'
+  | 'barrio'
+  | 'acudiente'
+  | 'parentesco'
+  | 'telefonos'
+  | 'correoAcudiente';
+
+export function camposPresentes(mapeo: CampoDestino[]): CampoFicha[] {
+  const hay = (c: CampoDestino) => mapeo.includes(c);
+  const presentes: CampoFicha[] = [];
+  if (hay('nombres') || hay('nombre1')) presentes.push('nombres');
+  if (hay('apellidos') || hay('apellido1')) presentes.push('apellidos');
+  if (hay('nombre1')) presentes.push('primerNombre');
+  if (hay('apellido1')) presentes.push('primerApellido');
+  if (hay('tipoDocumento')) presentes.push('docType');
+  if (hay('matricula')) presentes.push('matricula');
+  if (hay('sexo')) presentes.push('sexo');
+  if (hay('fechaNacimiento')) presentes.push('fechaNacimiento');
+  if (hay('direccion')) presentes.push('direccion');
+  if (hay('barrio')) presentes.push('barrio');
+  if (hay('acudiente')) presentes.push('acudiente');
+  if (hay('afinidad')) presentes.push('parentesco');
+  if (hay('telefono1') || hay('telefono2')) presentes.push('telefonos');
+  if (hay('email')) presentes.push('correoAcudiente');
+  return presentes;
+}
+
+// ---------------------------------------------------------------------------
+//  Normalizaciones de los campos nuevos
+// ---------------------------------------------------------------------------
+
+/**
+ * El Master escribe "R.C.", "T.I.", "C.C." con puntos. Antes de esto, la pantalla
+ * mandaba `TI` para TODOS los estudiantes, fuera cual fuera su documento — un error que
+ * se veia en la ficha de cualquier niño de sexto con registro civil.
+ */
+export function normalizarTipoDocumento(raw: string): DocType | null {
+  const t = (raw ?? '').toUpperCase().replace(/[^A-Z]/g, '');
+  if (!t) return null;
+  if (t === 'RC' || t === 'REGISTROCIVIL') return 'RC';
+  if (t === 'TI' || t === 'TARJETADEIDENTIDAD') return 'TI';
+  if (t === 'CC' || t === 'CEDULA' || t === 'CEDULADECIUDADANIA') return 'CC';
+  if (t === 'PPT' || t === 'PERMISOPORPROTECCIONTEMPORAL') return 'PPT';
+  return 'otro';
+}
+
+export type Sexo = 'F' | 'M' | 'otro';
+
+export function normalizarSexo(raw: string): Sexo | null {
+  const t = (raw ?? '').trim().toUpperCase();
+  if (!t) return null;
+  if (t === 'F' || t.startsWith('FEM')) return 'F';
+  if (t === 'M' || t.startsWith('MAS')) return 'M';
+  return 'otro';
+}
+
+/**
+ * Fecha del Master (`19/01/2021`) a ISO (`2021-01-19`). Se acepta tambien ISO directo.
+ * Devuelve `null` si no es una fecha real: un 31/02 no se "corrige" al 3 de marzo, se
+ * avisa. Una fecha de nacimiento inventada es peor que una vacia, porque la edad que se
+ * reporta a Guardianes sale de aqui.
+ */
+export function normalizarFecha(raw: string): string | null {
+  const t = (raw ?? '').trim();
+  if (!t) return null;
+  let d: number, m: number, a: number;
+  const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(t);
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t);
+  if (dmy) {
+    d = Number(dmy[1]);
+    m = Number(dmy[2]);
+    a = Number(dmy[3]);
+  } else if (iso) {
+    a = Number(iso[1]);
+    m = Number(iso[2]);
+    d = Number(iso[3]);
+  } else {
+    return null;
+  }
+  const f = new Date(Date.UTC(a, m - 1, d));
+  if (f.getUTCFullYear() !== a || f.getUTCMonth() !== m - 1 || f.getUTCDate() !== d) return null;
+  return `${a}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/** Une partes de un nombre saltando las vacias: "MARIA" + "" = "MARIA", sin espacio colgado. */
+function unir(...partes: string[]): string {
+  return partes
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+// ---------------------------------------------------------------------------
+//  Aplicar el mapeo
+// ---------------------------------------------------------------------------
+
 export interface FilaCruda {
   docNumber: string;
+  docType: DocType | null;
   apellidos: string;
   nombres: string;
+  /** Solo si el archivo trae el nombre partido. Es lo que usa el emparejamiento con
+   *  los correos de Workspace (primer nombre + primer apellido). */
+  primerNombre: string;
+  primerApellido: string;
   grado: string;
   grupo: string;
+  matricula: string;
+  sexo: Sexo | null;
+  /** ISO `AAAA-MM-DD`, o vacio si no vino o no era una fecha real. */
+  fechaNacimiento: string;
+  direccion: string;
+  barrio: string;
   acudiente: string;
   afinidad: string;
   telefonos: string[];
@@ -185,16 +345,37 @@ export function aplicarMapeo(
       }
     }
 
+    const fechaCruda = val('fechaNacimiento');
+    const fechaNacimiento = normalizarFecha(fechaCruda);
+    if (fechaCruda && !fechaNacimiento) {
+      avisos.push({
+        fila: numeroFila,
+        motivo: `Fecha de nacimiento no válida («${fechaCruda}»): no se importa`,
+      });
+    }
+
     const telefonos = [val('telefono1'), val('telefono2')].filter(Boolean);
+
+    // La columna completa manda si viene; si no, se compone con las partidas.
+    const apellidos = val('apellidos') || unir(val('apellido1'), val('apellido2'));
+    const nombres = val('nombres') || unir(val('nombre1'), val('nombre2'));
 
     filas.push({
       docNumber,
-      apellidos: val('apellidos'),
-      nombres: val('nombres'),
+      docType: normalizarTipoDocumento(val('tipoDocumento')),
+      apellidos,
+      nombres,
+      primerNombre: val('nombre1'),
+      primerApellido: val('apellido1'),
       // El grado y el grupo viajan LITERALES; la traducción a la notación de la app
       // (6º3, 11.2) la hace grados.ts, no este parser.
       grado: val('grado'),
       grupo: val('grupo'),
+      matricula: val('matricula'),
+      sexo: normalizarSexo(val('sexo')),
+      fechaNacimiento: fechaNacimiento ?? '',
+      direccion: val('direccion'),
+      barrio: val('barrio'),
       acudiente: val('acudiente'),
       afinidad: val('afinidad'),
       telefonos,

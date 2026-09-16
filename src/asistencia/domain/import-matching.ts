@@ -17,6 +17,7 @@
  * y las fusiones equivocadas de dos personas distintas.
  */
 
+import type { CampoFicha } from './import-parse';
 import type { DocType, Student } from './types';
 
 /** Fila ya mapeada del archivo de Master2000 (el mapeo de columnas es configurable). */
@@ -27,11 +28,21 @@ export interface IncomingRow {
   docHash: string;
   /** Número en claro, solo para persistirlo. No se usa para emparejar. */
   docNumber: string;
-  docType: DocType;
+  /** `null` = la celda venia vacia o el archivo no trae la columna: no se escribe. */
+  docType: DocType | null;
   grado: string;
   acudiente: string;
   parentesco: string;
   telefonos: string[];
+  // Campos del listado ampliado (2026-09-16). Opcionales: un archivo viejo no los trae.
+  primerNombre?: string;
+  primerApellido?: string;
+  matricula?: string;
+  sexo?: 'F' | 'M' | 'otro' | null;
+  fechaNacimiento?: string;
+  direccion?: string;
+  barrio?: string;
+  correoAcudiente?: string;
 }
 
 export type MatchDecision =
@@ -146,3 +157,64 @@ export function summarizePlan(plan: MatchPlan): {
   };
 }
 
+
+/**
+ * Qué se escribe en una ficha EXISTENTE al reimportar. Es la regla que protege los
+ * datos del colegio, y tiene dos mitades, las dos obligatorias:
+ *
+ *  1. **Lo que el archivo no trae, no se toca.** Solo se consideran los campos que
+ *     `presentes` declara. El listado para Guardianes no trae acudiente ni teléfonos a
+ *     propósito — ya están en la aplicación —, y antes de esta función la reimportación
+ *     los sobrescribía SIEMPRE: importar ese archivo habría dejado a todo el colegio sin
+ *     acudiente y sin teléfono.
+ *
+ *  2. **Una celda vacía no borra.** Aunque la columna venga, un vacío en el Máster es
+ *     casi siempre un dato que nadie digitó, no una decisión de borrar. Se vio con la
+ *     columna de teléfono del familiar: venía entera en blanco.
+ *
+ * Nunca incluye `docHash` ni `qrToken`: la identidad no se reescribe.
+ */
+export function actualizacionDeFicha(
+  row: IncomingRow,
+  presentes: readonly CampoFicha[],
+): Partial<Student> {
+  const cambios: Record<string, unknown> = {};
+  const si = (campo: CampoFicha, destino: string, valor: unknown) => {
+    if (!presentes.includes(campo)) return;
+    if (valor === null || valor === undefined) return;
+    if (typeof valor === 'string' && valor.trim() === '') return;
+    if (Array.isArray(valor) && valor.length === 0) return;
+    cambios[destino] = typeof valor === 'string' ? valor.trim() : valor;
+  };
+
+  si('nombres', 'nombres', row.nombres);
+  si('apellidos', 'apellidos', row.apellidos);
+  si('primerNombre', 'primerNombre', row.primerNombre);
+  si('primerApellido', 'primerApellido', row.primerApellido);
+  // `otro` sí se escribe: es un tipo real distinto. Lo que no se escribe es la AUSENCIA.
+  si('docType', 'docType', row.docType);
+  si('matricula', 'matricula', row.matricula);
+  si('sexo', 'sexo', row.sexo);
+  si('fechaNacimiento', 'fechaNacimiento', row.fechaNacimiento);
+  si('direccion', 'direccion', row.direccion);
+  si('barrio', 'barrio', row.barrio);
+  si('acudiente', 'acudiente', row.acudiente);
+  si('parentesco', 'parentesco', row.parentesco);
+  si('telefonos', 'telefonos', row.telefonos?.filter(Boolean));
+  si('correoAcudiente', 'correoAcudiente', row.correoAcudiente?.toLowerCase());
+
+  // El número del documento siempre viaja (es la llave del emparejamiento) y se
+  // reescribe a propósito: es el único camino para rellenar fichas importadas antes de
+  // que el campo existiera. No mezcla personas: la fila llegó aquí por su hash.
+  if (row.docNumber) cambios.docNumber = row.docNumber;
+
+  return cambios as Partial<Student>;
+}
+
+/**
+ * Versión del contrato entre la pantalla y la Cloud Function. La pantalla se niega a
+ * importar si el servidor no la declara: una pantalla nueva contra una función vieja
+ * mandaría acudientes vacíos que la función vieja escribiría sin mirar. Se sube cuando
+ * cambia lo que la función hace con los campos.
+ */
+export const VERSION_IMPORTACION = 2;

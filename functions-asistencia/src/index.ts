@@ -21,7 +21,14 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { defineSecret } from 'firebase-functions/params';
 
-import { planImport, summarizePlan, type IncomingRow } from '../../src/asistencia/domain/import-matching';
+import {
+  actualizacionDeFicha,
+  planImport,
+  summarizePlan,
+  VERSION_IMPORTACION,
+  type IncomingRow,
+} from '../../src/asistencia/domain/import-matching';
+import { normalizarSexo, normalizarTipoDocumento, type CampoFicha } from '../../src/asistencia/domain/import-parse';
 import { enrollmentId } from '../../src/asistencia/domain/ids';
 import { construirCensoDeSesion } from '../../src/asistencia/domain/evasion';
 import type { DocType, Session, Student } from '../../src/asistencia/domain/types';
@@ -118,6 +125,8 @@ function opsNuevaFicha(
     telefonos: string[];
     grado: string;
     sede: Student['sede'];
+    /** Del listado ampliado. Solo llegan aqui los que traen valor (`sinVacios`). */
+    extra?: Partial<Student>;
   },
   anio: number,
   fechaHoy: string,
@@ -125,6 +134,8 @@ function opsNuevaFicha(
   const studentId = db.collection('asistenciaStudents').doc().id;
   const token = newQrToken();
   const estudiante: Student = {
+    // Primero los opcionales, para que ninguno pueda pisar un campo de identidad.
+    ...(input.extra ?? {}),
     studentId,
     nombres: input.nombres,
     apellidos: input.apellidos,
@@ -181,14 +192,44 @@ interface ImportPayload {
     nombres: string;
     apellidos: string;
     docNumber: string;
-    docType: string;
+    docType: string | null;
     grado: string;
     acudiente: string;
     parentesco: string;
     telefonos: string[];
+    primerNombre?: string;
+    primerApellido?: string;
+    matricula?: string;
+    sexo?: string | null;
+    fechaNacimiento?: string;
+    direccion?: string;
+    barrio?: string;
+    correoAcudiente?: string;
   }[];
+  /**
+   * Los campos que el archivo trae. Lo que no esta aqui NO se escribe en las fichas
+   * existentes. Una pantalla anterior al 2026-09-16 no lo manda: en ese caso se asume el
+   * juego de campos que esa pantalla siempre enviaba, que es lo que hacia la funcion
+   * antes — con la diferencia de que ya no se escribe ningun valor vacio.
+   */
+  camposPresentes?: CampoFicha[];
   dryRun: boolean;
   fileName: string;
+}
+
+const CAMPOS_PANTALLA_ANTERIOR: CampoFicha[] = [
+  'nombres', 'apellidos', 'docType', 'acudiente', 'parentesco', 'telefonos',
+];
+
+/** Quita vacios: el Admin SDK rechaza `undefined`, y un '' no debe llegar a una ficha nueva. */
+function sinVacios(o: Record<string, unknown>): Partial<Student> {
+  const r: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(o)) {
+    if (v === undefined || v === null) continue;
+    if (typeof v === 'string' && v.trim() === '') continue;
+    r[k] = typeof v === 'string' ? v.trim() : v;
+  }
+  return r as Partial<Student>;
 }
 
 export const importStudents = onCall(
@@ -215,6 +256,9 @@ export const importStudents = onCall(
     }
 
     const secret = DOC_HASH_KEY.value();
+    const presentes: CampoFicha[] = Array.isArray(payload.camposPresentes)
+      ? payload.camposPresentes
+      : CAMPOS_PANTALLA_ANTERIOR;
     const incoming: IncomingRow[] = payload.rows.map((r) => ({
       nombres: (r.nombres ?? '').trim(),
       apellidos: (r.apellidos ?? '').trim(),
@@ -222,12 +266,25 @@ export const importStudents = onCall(
       // Se normaliza igual que antes de hashear, para que el numero guardado y el hash
       // provengan exactamente del mismo string y no discrepen por un punto o un guion.
       docNumber: (r.docNumber ?? '').replace(/\D+/g, ''),
-      docType: (['RC', 'TI', 'CC', 'PPT'].includes(r.docType) ? r.docType : 'otro') as DocType,
+      // Se vuelve a normalizar aqui aunque la pantalla ya lo haga: el servidor no confia
+      // en que el cliente mande "RC" y no "R.C.".
+      docType: normalizarTipoDocumento(r.docType ?? ''),
       // El grado se conserva LITERAL: la 'º' distingue la jornada.
       grado: (r.grado ?? '').trim(),
       acudiente: (r.acudiente ?? '').trim(),
       parentesco: (r.parentesco ?? '').trim(),
       telefonos: (r.telefonos ?? []).filter(Boolean),
+      primerNombre: r.primerNombre,
+      primerApellido: r.primerApellido,
+      matricula: r.matricula,
+      sexo: normalizarSexo(r.sexo ?? ''),
+      // Solo ISO completo: la pantalla ya convirtio el dd/mm/aaaa del Master.
+      fechaNacimiento: /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(r.fechaNacimiento ?? '')
+        ? r.fechaNacimiento
+        : undefined,
+      direccion: r.direccion,
+      barrio: r.barrio,
+      correoAcudiente: r.correoAcudiente,
     }));
 
     const existentes = (await db.collection('asistenciaStudents').get()).docs.map(
@@ -239,6 +296,7 @@ export const importStudents = onCall(
     if (payload.dryRun) {
       return {
         dryRun: true,
+        version: VERSION_IMPORTACION,
         resumen,
         revisiones: plan.reviews.map((r) => ({
           nombres: r.row.nombres,
@@ -255,7 +313,22 @@ export const importStudents = onCall(
     for (const c of plan.creates) {
       // La importacion es hoy solo de sede central (alcance v1, bachillerato).
       const { ops: nuevos } = opsNuevaFicha(
-        { ...c.row, sede: 'central' },
+        {
+          ...c.row,
+          // Una ficha nueva si necesita un tipo: sin dato, 'otro' y no un 'TI' supuesto.
+          docType: c.row.docType ?? 'otro',
+          sede: 'central',
+          extra: sinVacios({
+            primerNombre: c.row.primerNombre,
+            primerApellido: c.row.primerApellido,
+            matricula: c.row.matricula,
+            sexo: c.row.sexo,
+            fechaNacimiento: c.row.fechaNacimiento,
+            direccion: c.row.direccion,
+            barrio: c.row.barrio,
+            correoAcudiente: c.row.correoAcudiente?.toLowerCase(),
+          }),
+        },
         payload.anio,
         fechaHoy,
       );
@@ -263,23 +336,15 @@ export const importStudents = onCall(
     }
 
     for (const u of plan.updates) {
-      // La reimportacion actualiza contacto, NUNCA el docHash ni el qrToken.
+      // Lo que el archivo no trae no se toca, y un vacio no borra. Toda la regla vive en
+      // `actualizacionDeFicha`, probada en tests/import-matching.test.ts. NUNCA el
+      // docHash ni el qrToken.
       //
-      // `docNumber` si se reescribe, y es a proposito: es el unico camino para rellenar
-      // las fichas importadas antes de que el campo existiera. No hay riesgo de mezclar
-      // personas porque la fila llego aqui por coincidencia de docHash, y ese hash sale
-      // de este mismo numero.
-      ops.push((b) =>
-        b.update(db.doc(`asistenciaStudents/${u.studentId}`), {
-          nombres: u.row.nombres,
-          apellidos: u.row.apellidos,
-          acudiente: u.row.acudiente,
-          parentesco: u.row.parentesco,
-          telefonos: u.row.telefonos,
-          docNumber: u.row.docNumber,
-          docType: u.row.docType,
-        }),
-      );
+      // Hasta el 2026-09-16 aqui se escribian acudiente y telefonos SIEMPRE: importar el
+      // listado para Guardianes, que no los trae, habria vaciado todas las fichas.
+      const cambios = actualizacionDeFicha(u.row, presentes);
+      if (Object.keys(cambios).length === 0) continue;
+      ops.push((b) => b.update(db.doc(`asistenciaStudents/${u.studentId}`), cambios));
     }
 
     for (const r of plan.reviews) {
@@ -294,7 +359,7 @@ export const importStudents = onCall(
 
     await commitInChunks(ops);
     await audit({ action: 'importStudents', executedBy: email, fileName: payload.fileName ?? null, anio: payload.anio, resumen, status: 'ok' });
-    return { dryRun: false, resumen };
+    return { dryRun: false, version: VERSION_IMPORTACION, resumen };
   },
 );
 

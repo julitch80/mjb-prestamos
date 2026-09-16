@@ -10,7 +10,8 @@
  * depende del grado, así que entrarán sin tocar este archivo.
  */
 
-import type { ContactResult, FamilyContact } from './types';
+import { censoEsFiable } from './evasion';
+import type { CensoDia, ContactResult, FamilyContact, Sede } from './types';
 
 // ---------------------------------------------------------------------------
 //  3.1 Resultado del contacto — catálogo FIJO
@@ -31,6 +32,9 @@ export const RESULTADO_ETIQUETA: Record<ResultadoContacto, string> = {
   buzon: 'Buzón / no recibe llamadas',
   pendiente: 'Pendiente por llamar',
 };
+
+/** Resultados que prueban que al menos una línea existe: timbró o entró a buzón. */
+const RESULTADOS_DE_LINEA_VIVA: ResultadoContacto[] = ['contesto', 'no_contesto', 'buzon'];
 
 /** Resultados que significan "el teléfono de la ficha ya no sirve". */
 const RESULTADOS_DE_FICHA_MALA: ResultadoContacto[] = [
@@ -128,12 +132,20 @@ export const MOTIVOS_SEMILLA: MotivoFamilia[] = [
  */
 export interface PermanenciaConfig {
   motivos: MotivoFamilia[];
-  /** Días de inasistencia acumulados en el periodo que abren un caso. */
+  /** Días de inasistencia dentro de la ventana que abren un caso. */
   diasParaAbrirCaso: number;
+  /**
+   * Tamaño de la ventana, en DÍAS CON CENSO del grupo — no en días de calendario. El
+   * patrón real del colegio son faltas dispersas, no seguidas: «5 en 15 días hábiles».
+   * Contar en días con censo evita que una semana de vacaciones cuente como asistencia.
+   */
+  ventanaDiasHabiles: number;
   /** Días consecutivos que lo abren aunque no se llegue al acumulado. */
   diasConsecutivosParaAbrirCaso: number;
   /** Intentos de contacto sin éxito tras los cuales el caso escala igual. */
   intentosSinExitoParaEscalar: number;
+  /** Días desde el último contacto efectivo, con las faltas siguiendo, para escalar. */
+  diasSinContactoParaEscalar: number;
   /** Sello de autoría que exige `asisAuthorStamp()`. Los nombres son los del resto
    *  del módulo; cambiarlos haría que la regla rechace toda escritura. */
   ultimaEscrituraPor?: string;
@@ -143,8 +155,10 @@ export interface PermanenciaConfig {
 export const PERMANENCIA_CONFIG_POR_DEFECTO: PermanenciaConfig = {
   motivos: MOTIVOS_SEMILLA,
   diasParaAbrirCaso: 5,
+  ventanaDiasHabiles: 15,
   diasConsecutivosParaAbrirCaso: 3,
   intentosSinExitoParaEscalar: 3,
+  diasSinContactoParaEscalar: 10,
 };
 
 // ---------------------------------------------------------------------------
@@ -234,8 +248,13 @@ export interface ResumenContactos {
   /** Fecha del último contacto efectivo, o `null` si nunca se habló con nadie. */
   ultimoEfectivo: string | null;
   /**
-   * El teléfono de la ficha no sirve. Antes de escalar a nadie hay que conseguir otro:
+   * Ningún teléfono de la ficha sirve. Antes de escalar a nadie hay que conseguir otro:
    * reportar a la Policía a una familia a la que nunca se pudo llamar sería indefendible.
+   *
+   * Un número equivocado NO basta para declararla desactualizada: si otra llamada timbró
+   * —contestaran o no, o entrara a buzón— esa línea existe, y la ficha tiene al menos un
+   * teléfono que sirve. Lo detectó una prueba de la etapa 3 (2026-09-16): la versión
+   * anterior dejaba en «alerta» a una familia que simplemente no contesta.
    */
   fichaDesactualizada: boolean;
 }
@@ -249,9 +268,8 @@ export function resumirContactos(contactos: FamilyContact[]): ResumenContactos {
     efectivos: efectivos.length,
     ultimoEfectivo: ordenados.length ? ordenados[ordenados.length - 1].fecha : null,
     fichaDesactualizada:
-      r.length > 0 &&
       r.some((x) => RESULTADOS_DE_FICHA_MALA.includes(x)) &&
-      !r.includes('contesto'),
+      !r.some((x) => RESULTADOS_DE_LINEA_VIVA.includes(x)),
   };
 }
 
@@ -267,10 +285,124 @@ export function gestionesParaInforme(gestiones: Gestion[]): string[] {
 }
 
 // ---------------------------------------------------------------------------
-//  La decisión: ¿esto escala?
+//  Etapa 3 — de dónde salen los días de inasistencia
 // ---------------------------------------------------------------------------
 
-export type NivelPermanencia = 'ninguno' | 'seguimiento' | 'reportable';
+export interface InasistenciaEstudiante {
+  /** Fechas en las que no vino, dentro de la ventana. */
+  fechasEnVentana: string[];
+  /** Días seguidos sin venir, contando hacia atrás desde el censo más reciente. */
+  rachaActual: number;
+  ultimaInasistencia: string | null;
+  /**
+   * Cuántos censos fiables hay del grupo en la ventana. CERO no significa que vino todos
+   * los días: significa que nadie pasó lista. La pantalla tiene que decir «sin datos»,
+   * nunca «sin inasistencias».
+   */
+  diasConCenso: number;
+}
+
+/**
+ * Los días sin venir de cada estudiante, desde el censo de la tercera hora.
+ *
+ * El censo es la fuente correcta y no las planillas: es el que dice quién NO VINO AL
+ * COLEGIO, no quién faltó a una clase. Y es legible por cualquier cuenta activa porque no
+ * lleva motivos ni observaciones.
+ *
+ * Dos límites que conviene conocer:
+ *  - `noVinieron` junta la falta y la falta con excusa de la planilla. Es correcto para
+ *    este conteo —el estudiante no asistió— y lo que evita que una excusa escale es el
+ *    MOTIVO que registra quien llama, no la marca.
+ *  - Un censo sin marcas (nadie pasó lista) se descarta con `censoEsFiable`. Contarlo
+ *    haría asistir a todo un grupo que nadie verificó.
+ *
+ * `autorizados` no cuenta como inasistencia: decisión de Julián (2026-09-09), la ausencia
+ * con autorización no se reporta en ninguna situación.
+ */
+export function inasistenciasDesdeCensos(
+  censos: CensoDia[],
+  estudiantes: { studentId: string; gradoActual: string }[],
+  ventanaDiasHabiles: number,
+): Map<string, InasistenciaEstudiante> {
+  const porGrado = new Map<string, CensoDia[]>();
+  for (const c of censos) {
+    if (!censoEsFiable(c)) continue;
+    const lista = porGrado.get(c.grado) ?? [];
+    lista.push(c);
+    porGrado.set(c.grado, lista);
+  }
+  // Más reciente primero. Si el mismo día llegaron dos censos del grupo (no debería), se
+  // queda el primero: el id es `${fecha}_${grado}`, así que en la base no pueden coexistir.
+  for (const [g, lista] of porGrado) {
+    const vistos = new Set<string>();
+    porGrado.set(
+      g,
+      lista
+        .sort((a, b) => b.fecha.localeCompare(a.fecha))
+        .filter((c) => (vistos.has(c.fecha) ? false : (vistos.add(c.fecha), true)))
+        .slice(0, ventanaDiasHabiles),
+    );
+  }
+
+  const r = new Map<string, InasistenciaEstudiante>();
+  for (const e of estudiantes) {
+    const ventana = porGrado.get(e.gradoActual) ?? [];
+    const noVino = (c: CensoDia) => c.noVinieron.includes(e.studentId) && !c.autorizados.includes(e.studentId);
+
+    let racha = 0;
+    for (const c of ventana) {
+      if (!noVino(c)) break;
+      racha += 1;
+    }
+    const fechas = ventana.filter(noVino).map((c) => c.fecha);
+    r.set(e.studentId, {
+      fechasEnVentana: [...fechas].sort(),
+      rachaActual: racha,
+      ultimaInasistencia: fechas[0] ?? null,
+      diasConCenso: ventana.length,
+    });
+  }
+  return r;
+}
+
+/**
+ * El motivo que cuenta es el MÁS RECIENTE registrado desde el comienzo de las faltas de
+ * la ventana. Una incapacidad de marzo no explica las faltas de septiembre, y sin este
+ * corte bastaría una excusa vieja para callar un caso nuevo para siempre.
+ */
+export function motivoVigente(contactos: FamilyContact[], desde: string | null): string | null {
+  if (!desde) return null;
+  const conMotivo = contactos
+    .filter((c) => c.motivoFamilia && c.fecha >= desde)
+    .sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.llamadoEn ?? 0) - (a.llamadoEn ?? 0));
+  return conMotivo[0]?.motivoFamilia ?? null;
+}
+
+function diasEntre(desde: string, hasta: string): number {
+  const a = Date.UTC(+desde.slice(0, 4), +desde.slice(5, 7) - 1, +desde.slice(8, 10));
+  const b = Date.UTC(+hasta.slice(0, 4), +hasta.slice(5, 7) - 1, +hasta.slice(8, 10));
+  return Math.round((b - a) / 86_400_000);
+}
+
+// ---------------------------------------------------------------------------
+//  La decisión: ¿en qué nivel está este estudiante?
+// ---------------------------------------------------------------------------
+
+/**
+ * Tres niveles además de «ninguno», para que el reporte no se infle (§4.2 del diseño):
+ *  - `seguimiento`: faltas bajo el umbral. Lo mira el director; no sale en ningún reporte.
+ *  - `alerta`: cruzó un umbral. Coordinación tiene que gestionar: llamar, citar.
+ *  - `candidato`: se agotó la gestión interna y el riesgo persiste, o hay un factor de
+ *    riesgo. Es el que aparece propuesto al generar el reporte a Guardianes.
+ */
+export type NivelPermanencia = 'ninguno' | 'seguimiento' | 'alerta' | 'candidato';
+
+export const NIVEL_ETIQUETA: Record<NivelPermanencia, string> = {
+  ninguno: 'Sin novedad',
+  seguimiento: 'Seguimiento',
+  alerta: 'Alerta',
+  candidato: 'Candidato a reporte',
+};
 
 export interface DecisionEscalamiento {
   nivel: NivelPermanencia;
@@ -279,15 +411,20 @@ export interface DecisionEscalamiento {
 }
 
 /**
- * Regla de negocio completa, en un solo lugar. El orden de las preguntas NO es
+ * La regla de negocio completa, en un solo lugar. El orden de las preguntas NO es
  * arbitrario y es lo que hay que leer:
  *
- *  1. Un factor de riesgo escala de inmediato, aunque falte un solo día. Esperar a un
- *     umbral de días cuando la familia ya dijo "está trabajando" es perder justamente
- *     el tiempo que importa.
+ *  1. Un factor de riesgo es candidato de inmediato, aunque falte un solo día. Esperar
+ *     un umbral cuando la familia ya dijo «está trabajando» es perder justo el tiempo que
+ *     importa.
  *  2. Un motivo que justifica no escala nunca, por muchos días que sean.
- *  3. Si el teléfono de la ficha no sirve, el caso NO se reporta: se corrige la ficha.
- *  4. Solo entonces cuentan los umbrales.
+ *  3. Sin faltas no hay nada. Bajo el umbral, seguimiento.
+ *  4. Con el umbral cruzado y el teléfono de la ficha malo: alerta, y NUNCA candidato.
+ *     Reportar a la Policía a una familia a la que nunca se pudo llamar sería indefendible;
+ *     lo que toca es conseguir otro número.
+ *  5. Candidato si la gestión se agotó: N intentos sin lograr hablar, o la familia dejó de
+ *     responder hace días y las faltas siguieron.
+ *  6. Lo demás con el umbral cruzado: alerta.
  */
 export function decidirEscalamiento(input: {
   motivoId: string | null;
@@ -295,6 +432,8 @@ export function decidirEscalamiento(input: {
   diasAcumulados: number;
   diasConsecutivos: number;
   contactos: FamilyContact[];
+  ultimaInasistencia?: string | null;
+  hoy?: string;
 }): DecisionEscalamiento {
   const { config, diasAcumulados, diasConsecutivos } = input;
   const motivo = input.motivoId
@@ -303,44 +442,181 @@ export function decidirEscalamiento(input: {
 
   if (motivo?.factorDeRiesgo) {
     return {
-      nivel: 'reportable',
+      nivel: 'candidato',
       razon: `La familia reportó «${motivo.etiqueta}»: es un factor de riesgo y escala de inmediato.`,
     };
   }
   if (motivo?.justifica) {
     return { nivel: 'ninguno', razon: `La inasistencia está explicada: «${motivo.etiqueta}».` };
   }
+  if (diasAcumulados === 0 && diasConsecutivos === 0) {
+    return { nivel: 'ninguno', razon: 'Sin inasistencias en la ventana.' };
+  }
+
+  const porRacha = diasConsecutivos >= config.diasConsecutivosParaAbrirCaso;
+  const porAcumulado = diasAcumulados >= config.diasParaAbrirCaso;
+  if (!porRacha && !porAcumulado) {
+    return {
+      nivel: 'seguimiento',
+      razon: `${diasAcumulados} día(s) de inasistencia, todavía bajo el umbral.`,
+    };
+  }
+  const umbral = porRacha
+    ? `${diasConsecutivos} días seguidos sin asistir`
+    : `${diasAcumulados} días de inasistencia en los últimos ${config.ventanaDiasHabiles} días de clase`;
 
   const resumen = resumirContactos(input.contactos);
   if (resumen.fichaDesactualizada) {
     return {
-      nivel: 'seguimiento',
-      razon: 'El teléfono de la ficha no sirve. Hay que conseguir otro antes de escalar.',
+      nivel: 'alerta',
+      razon: `${umbral}. El teléfono de la ficha no sirve: hay que conseguir otro antes de escalar.`,
     };
   }
 
-  if (diasConsecutivos >= config.diasConsecutivosParaAbrirCaso) {
-    return { nivel: 'reportable', razon: `${diasConsecutivos} días seguidos sin asistir.` };
-  }
-  if (diasAcumulados >= config.diasParaAbrirCaso) {
-    return {
-      nivel: 'reportable',
-      razon: `${diasAcumulados} días de inasistencia acumulados en el periodo.`,
-    };
-  }
   if (resumen.intentos >= config.intentosSinExitoParaEscalar && resumen.efectivos === 0) {
     return {
-      nivel: 'reportable',
-      razon: `${resumen.intentos} intentos de contacto sin lograr hablar con la familia.`,
+      nivel: 'candidato',
+      razon: `${umbral}, y ${resumen.intentos} intentos de contacto sin lograr hablar con la familia.`,
     };
   }
-  if (diasAcumulados > 0) {
+
+  if (
+    resumen.ultimoEfectivo &&
+    input.hoy &&
+    input.ultimaInasistencia &&
+    input.ultimaInasistencia > resumen.ultimoEfectivo &&
+    diasEntre(resumen.ultimoEfectivo, input.hoy) >= config.diasSinContactoParaEscalar
+  ) {
     return {
-      nivel: 'seguimiento',
-      razon: `${diasAcumulados} días de inasistencia, todavía bajo el umbral.`,
+      nivel: 'candidato',
+      razon: `${umbral}. La familia no ha vuelto a responder desde el ${resumen.ultimoEfectivo} y las faltas siguieron.`,
     };
   }
-  return { nivel: 'ninguno', razon: 'Sin inasistencias en el periodo.' };
+
+  return {
+    nivel: 'alerta',
+    razon: resumen.efectivos > 0 ? `${umbral}. Hay contacto con la familia: seguir gestionando.` : `${umbral}. Todavía sin contacto con la familia.`,
+  };
+}
+
+export interface EvaluacionPermanencia extends DecisionEscalamiento {
+  studentId: string;
+  inasistencia: InasistenciaEstudiante;
+  motivoId: string | null;
+}
+
+/** Evalúa un estudiante con todo lo que la pantalla ya cargó. */
+export function evaluarEstudiante(input: {
+  studentId: string;
+  inasistencia: InasistenciaEstudiante;
+  contactos: FamilyContact[];
+  config: PermanenciaConfig;
+  hoy: string;
+}): EvaluacionPermanencia {
+  const { inasistencia: ina } = input;
+  const motivoId = motivoVigente(input.contactos, ina.fechasEnVentana[0] ?? null);
+  return {
+    studentId: input.studentId,
+    inasistencia: ina,
+    motivoId,
+    ...decidirEscalamiento({
+      motivoId,
+      config: input.config,
+      diasAcumulados: ina.fechasEnVentana.length,
+      diasConsecutivos: ina.rachaActual,
+      contactos: input.contactos,
+      ultimaInasistencia: ina.ultimaInasistencia,
+      hoy: input.hoy,
+    }),
+  };
+}
+
+/** Candidatos primero, después alertas; entre iguales, el que más ha faltado. */
+export function ordenarPorGravedad<T extends EvaluacionPermanencia>(lista: T[]): T[] {
+  const peso: Record<NivelPermanencia, number> = { candidato: 0, alerta: 1, seguimiento: 2, ninguno: 3 };
+  return [...lista].sort(
+    (a, b) =>
+      peso[a.nivel] - peso[b.nivel] ||
+      b.inasistencia.rachaActual - a.inasistencia.rachaActual ||
+      b.inasistencia.fechasEnVentana.length - a.inasistencia.fechasEnVentana.length,
+  );
+}
+
+// ---------------------------------------------------------------------------
+//  El caso: lo que SÍ se guarda
+// ---------------------------------------------------------------------------
+
+export type EstadoCaso =
+  | 'abierto'
+  | 'en_gestion'
+  | 'reportado'
+  | 'cerrado_reintegro'
+  | 'cerrado_traslado'
+  | 'cerrado_retiro';
+
+export const ESTADOS_ABIERTOS: EstadoCaso[] = ['abierto', 'en_gestion', 'reportado'];
+
+export const ESTADO_CASO_ETIQUETA: Record<EstadoCaso, string> = {
+  abierto: 'Abierto',
+  en_gestion: 'En gestión',
+  reportado: 'Reportado',
+  cerrado_reintegro: 'Cerrado: se reintegró',
+  cerrado_traslado: 'Cerrado: trasladado',
+  cerrado_retiro: 'Cerrado: retirado',
+};
+
+/**
+ * `asistenciaCasosPermanencia/{casoId}`. Las alertas NO se guardan —se calculan, y así
+ * siempre dicen la verdad de hoy—; el caso sí, porque es el expediente de la gestión
+ * humana. Ver §5 del diseño.
+ */
+export interface CasoPermanencia {
+  casoId: string;
+  studentId: string;
+  grado: string;
+  sede: Sede;
+  anio: number;
+  /** AAAA-MM-DD. Forma parte del id. */
+  fechaApertura: string;
+  /** La razón que dio el sistema al abrirlo, congelada: explica por qué existe el caso. */
+  criterioQueLoAbrio: string;
+  nivel: NivelPermanencia;
+  estado: EstadoCaso;
+  motivoFamilia: string | null;
+  factorDeRiesgo: string | null;
+  descripcion: string;
+  gestiones: Gestion[];
+  abiertoPor: string;
+  ultimaEscrituraPor: string;
+  ultimaEscrituraEn: number;
+  cerradoPor?: string | null;
+  cerradoEn?: string | null;
+  motivoCierre?: string | null;
+}
+
+/**
+ * Determinista a propósito: si dos coordinadores abren la pantalla el mismo día, los dos
+ * intentan crear EL MISMO documento, y la transacción deja pasar solo al primero. Un id
+ * aleatorio abriría dos casos para el mismo estudiante.
+ */
+export function casoId(studentId: string, fechaApertura: string): string {
+  return `${studentId}_${fechaApertura}`;
+}
+
+/**
+ * Qué casos hay que abrir hoy: alerta o candidato, y SIN un caso abierto. Un estudiante
+ * con un caso en gestión no recibe otro — recibe seguimiento en el que ya tiene.
+ */
+export function casosPorAbrir(
+  evaluaciones: EvaluacionPermanencia[],
+  casosExistentes: Pick<CasoPermanencia, 'studentId' | 'estado'>[],
+): EvaluacionPermanencia[] {
+  const conCasoAbierto = new Set(
+    casosExistentes.filter((c) => ESTADOS_ABIERTOS.includes(c.estado)).map((c) => c.studentId),
+  );
+  return evaluaciones.filter(
+    (e) => (e.nivel === 'alerta' || e.nivel === 'candidato') && !conCasoAbierto.has(e.studentId),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -451,4 +727,23 @@ export function resumirContactabilidad(
   total.porcentajeMovil = pct(total);
 
   return { porGrado: filas, total };
+}
+
+// ---------------------------------------------------------------------------
+//  Edad — la pide la ficha de identificación del reporte
+// ---------------------------------------------------------------------------
+
+/**
+ * Edad cumplida en una fecha, ambas ISO `AAAA-MM-DD`. Se compara como texto de mes y
+ * día, no con milisegundos: restar fechas en JavaScript mete la zona horaria y el día
+ * del cumpleaños puede salir con un año menos según la hora del servidor.
+ * `null` si la fecha de nacimiento no existe o no es válida.
+ */
+export function edadEn(fechaNacimiento: string | undefined, hoy: string): number | null {
+  const n = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fechaNacimiento ?? '');
+  const h = /^(\d{4})-(\d{2})-(\d{2})$/.exec(hoy);
+  if (!n || !h) return null;
+  let edad = Number(h[1]) - Number(n[1]);
+  if (`${h[2]}-${h[3]}` < `${n[2]}-${n[3]}`) edad -= 1;
+  return edad >= 0 ? edad : null;
 }

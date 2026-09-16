@@ -665,6 +665,18 @@ service cloud.firestore {
     }
 
     // ---------- Contactos con la familia (llamadas y avisos, un solo historial) ----------
+    // Los resultados validos de una llamada. UNA sola lista para crear y para corregir.
+    //
+    // Ampliada el 2026-09-16 con los tres que distinguen una FICHA DESACTUALIZADA de una
+    // familia que no atiende (ver domain/permanencia.ts). La etapa 2 se desplego con la
+    // pantalla ofreciendo seis resultados y esta regla aceptando tres: registrar «Numero
+    // equivocado» daba permission-denied. Si se agrega un resultado en
+    // `ContactResult` (domain/types.ts), va AQUI tambien, o la pantalla ofrece un boton que el
+    // servidor rechaza. Las pruebas de reglas recorren la lista completa para atraparlo.
+    function asisResultadoContactoValido(r) {
+      return r in ['contesto', 'no_contesto', 'numero_equivocado', 'numero_fuera_servicio', 'buzon', 'pendiente'];
+    }
+
     match /asistenciaFamilyContacts/{contactId} {
 
       // Las observaciones de las llamadas son solo para coordinacion y direccion de grupo.
@@ -675,12 +687,12 @@ service cloud.firestore {
       allow create: if !esSuplantacion() && ((asisCoordinaSede(request.resource.data.sede) || asisIsDirectorOf(request.resource.data.grado))
         && request.resource.data.llamadoPor == callerEmail()
         && request.resource.data.llamadoEn == request.time
-        && request.resource.data.resultado in ['contesto', 'no_contesto', 'pendiente']);
+        && asisResultadoContactoValido(request.resource.data.resultado));
 
       allow update: if !esSuplantacion() && ((asisCoordinaSede(resource.data.sede) || asisIsDirectorOf(resource.data.grado))
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['resultado', 'observacion'])
-        && request.resource.data.resultado in ['contesto', 'no_contesto', 'pendiente']);
+        && asisResultadoContactoValido(request.resource.data.resultado));
 
       allow delete: if !esSuplantacion() && (false);
     }
@@ -759,6 +771,45 @@ service cloud.firestore {
         && request.resource.data.fuente in ['app', 'master2000']
         && request.resource.data.fijadoPor == callerEmail());
       allow delete: if !esSuplantacion() && (false);
+    }
+
+    // ---------- Casos de permanencia (Guardianes de la Permanencia) ----------
+    //
+    // El EXPEDIENTE de un estudiante en riesgo de desercion. Las alertas no se guardan —se
+    // calculan desde el censo cada vez—; el caso si, porque es donde queda la gestion humana.
+    // Ver docs/reporte-guardianes-permanencia.md §5.
+    //
+    // Lectura: coordinacion de la sede y la rectora. NO el director de grupo, a proposito:
+    // el caso lleva el factor de riesgo (consumo, trabajo infantil, seguridad en el barrio),
+    // que es informacion mas delicada que la de la planilla. Si se decide abrirselo, es una
+    // decision de Julian, no un olvido.
+    //
+    // Escritura: solo coordinacion de la sede. La rectora LEE los casos pero no los gestiona;
+    // su unica escritura en el modulo sigue siendo `asistenciaConfig/permanencia`.
+    match /asistenciaCasosPermanencia/{casoId} {
+      allow read: if asisCoordinaSede(resource.data.sede) || asisIsRectora();
+
+      // El id es `${studentId}_${fechaApertura}` y la regla lo EXIGE: es lo que impide que dos
+      // coordinadores que abren la pantalla el mismo dia creen dos casos para el mismo
+      // estudiante. Con un id libre, la transaccion del cliente no protegeria nada.
+      allow create: if !esSuplantacion() && (asisCoordinaSede(request.resource.data.sede)
+        && asisAuthorStamp()
+        && request.resource.data.abiertoPor == callerEmail()
+        && request.resource.data.estado == 'abierto'
+        && casoId == request.resource.data.studentId + '_' + request.resource.data.fechaApertura);
+
+      // Se gestiona, no se reescribe su origen: quien, cuando y por que se abrio quedan fijos.
+      // Si el criterio que lo abrio se pudiera editar, el expediente dejaria de explicar por
+      // que existe — y es lo primero que se pregunta cuando un caso llega a la Policia.
+      allow update: if !esSuplantacion() && (asisCoordinaSede(resource.data.sede)
+        && asisAuthorStamp()
+        && request.resource.data.studentId == resource.data.studentId
+        && request.resource.data.sede == resource.data.sede
+        && request.resource.data.fechaApertura == resource.data.fechaApertura
+        && request.resource.data.criterioQueLoAbrio == resource.data.criterioQueLoAbrio
+        && request.resource.data.abiertoPor == resource.data.abiertoPor);
+
+      allow delete: if !esSuplantacion() && (false);   // un expediente no se borra
     }
 
     // Umbrales de alerta. Cada docente puede ajustar el suyo de retrasos; el resto de la

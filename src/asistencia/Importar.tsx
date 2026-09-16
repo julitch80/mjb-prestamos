@@ -4,13 +4,16 @@ import { httpsCallable } from 'firebase/functions';
 import {
   aplicarMapeo,
   ArchivoNoReconocido,
+  camposPresentes,
   leerArchivo,
   sugerirMapeo,
   type ArchivoLeido,
   type AvisoFila,
   type CampoDestino,
+  type CampoFicha,
   type FilaCruda,
 } from './domain/import-parse';
+import { VERSION_IMPORTACION } from './domain/import-matching';
 import { parseGrupoMaster2000 } from './domain/grados';
 import { functions } from '../lib/firebase';
 
@@ -30,10 +33,20 @@ import { functions } from '../lib/firebase';
 
 const ETIQUETA: Record<CampoDestino, string> = {
   docNumber: 'Documento',
-  apellidos: 'Apellidos',
-  nombres: 'Nombres',
+  tipoDocumento: 'Tipo de documento',
+  apellidos: 'Apellidos (completos)',
+  nombres: 'Nombres (completos)',
+  apellido1: 'Primer apellido',
+  apellido2: 'Segundo apellido',
+  nombre1: 'Primer nombre',
+  nombre2: 'Segundo nombre',
   grado: 'Grado',
   grupo: 'Grupo',
+  matricula: 'Código de matrícula',
+  sexo: 'Sexo',
+  fechaNacimiento: 'Fecha de nacimiento',
+  direccion: 'Dirección',
+  barrio: 'Barrio',
   acudiente: 'Acudiente',
   afinidad: 'Afinidad',
   telefono1: 'Teléfono 1',
@@ -41,6 +54,26 @@ const ETIQUETA: Record<CampoDestino, string> = {
   email: 'Correo del acudiente',
   ignorar: '— no importar —',
 };
+
+/** Lo que la ficha puede recibir, dicho como lo lee una persona. */
+const ETIQUETA_FICHA: Record<CampoFicha, string> = {
+  nombres: 'nombres',
+  apellidos: 'apellidos',
+  primerNombre: 'primer nombre',
+  primerApellido: 'primer apellido',
+  docType: 'tipo de documento',
+  matricula: 'código de matrícula',
+  sexo: 'sexo',
+  fechaNacimiento: 'fecha de nacimiento',
+  direccion: 'dirección',
+  barrio: 'barrio',
+  acudiente: 'acudiente',
+  parentesco: 'parentesco',
+  telefonos: 'teléfonos',
+  correoAcudiente: 'correo del acudiente',
+};
+
+const TODOS_LOS_CAMPOS = Object.keys(ETIQUETA_FICHA) as CampoFicha[];
 
 interface Resumen {
   created: number;
@@ -150,6 +183,8 @@ export default function Importar() {
   const filasExcluidas = filas.filter((f) => gradoDeFila(f).error).length;
   const filasAImportar = filas.length - filasExcluidas;
   const gruposDelArchivo = [...new Set(filas.map((f) => f.grupo).filter(Boolean))].sort();
+  const presentes = camposPresentes(mapeo);
+  const ausentes = TODOS_LOS_CAMPOS.filter((c) => !presentes.includes(c));
 
   async function enviar(dryRun: boolean) {
     if (!functions) {
@@ -164,20 +199,45 @@ export default function Importar() {
         anio: new Date().getFullYear(),
         fileName: nombreArchivo,
         dryRun,
+        camposPresentes: presentes,
         rows: filas
           .filter((f) => !gradoDeFila(f).error)
           .map((f) => ({
             nombres: f.nombres,
             apellidos: f.apellidos,
             docNumber: f.docNumber,
-            docType: 'TI',
+            // Antes se mandaba 'TI' fijo para todos. Si el archivo no trae la columna,
+            // viaja null y la ficha existente conserva el que tenía.
+            docType: f.docType,
             grado: gradoDeFila(f).grado,
             acudiente: f.acudiente,
             parentesco: f.afinidad,
             telefonos: f.telefonos,
+            primerNombre: f.primerNombre,
+            primerApellido: f.primerApellido,
+            matricula: f.matricula,
+            sexo: f.sexo,
+            fechaNacimiento: f.fechaNacimiento,
+            direccion: f.direccion,
+            barrio: f.barrio,
+            correoAcudiente: f.email,
           })),
       });
-      const resumen = (res.data as { resumen: Resumen }).resumen;
+      const datos = res.data as { resumen: Resumen; version?: number };
+      // El freno que protege los acudientes. Una función desplegada antes del
+      // 2026-09-16 no sabe de `camposPresentes` y sobrescribiría acudiente y teléfonos
+      // con los vacíos de un archivo que no los trae. La previsualización no escribe, así
+      // que se detecta aquí, antes de que exista el botón de confirmar.
+      if ((datos.version ?? 1) < VERSION_IMPORTACION) {
+        setPrevia(null);
+        setError(
+          'El servidor todavía tiene la versión anterior de la importación, que borraría ' +
+            'los datos que este archivo no trae (acudientes, teléfonos). No se importó nada. ' +
+            'Hay que desplegar primero la función: firebase deploy --only functions:asistencia',
+        );
+        return;
+      }
+      const resumen = datos.resumen;
       if (dryRun) setPrevia(resumen);
       else {
         setHecho(resumen);
@@ -280,6 +340,24 @@ export default function Importar() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div className="rounded-xl border border-line bg-card p-3 text-sm">
+            <p className="text-strong">
+              <b>Qué se actualiza en las fichas que ya existen:</b>{' '}
+              {presentes.length > 0
+                ? presentes.map((c) => ETIQUETA_FICHA[c]).join(', ')
+                : 'nada más que el documento'}
+              .
+            </p>
+            {ausentes.length > 0 && (
+              <p className="mt-1 text-xs text-muted">
+                <b>No se toca</b>, porque el archivo no lo trae:{' '}
+                {ausentes.map((c) => ETIQUETA_FICHA[c]).join(', ')}. Tampoco se borra
+                nada que venga vacío en una celda: un vacío en el Máster suele ser un dato
+                que nadie digitó, no una orden de borrarlo.
+              </p>
+            )}
           </div>
 
           {gradosNoTraducibles.length > 0 && (

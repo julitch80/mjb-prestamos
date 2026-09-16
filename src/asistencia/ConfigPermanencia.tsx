@@ -106,9 +106,14 @@ export default function ConfigPermanencia({ sede }: { sede: Sede }) {
         </p>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <Umbral
-            etiqueta="Días acumulados en el periodo"
+            etiqueta="Días sin venir en la ventana"
             valor={config.diasParaAbrirCaso}
             onGuardar={(v) => guardar({ diasParaAbrirCaso: v }, 'Umbral guardado.')}
+          />
+          <Umbral
+            etiqueta="Tamaño de la ventana (días de clase)"
+            valor={config.ventanaDiasHabiles}
+            onGuardar={(v) => guardar({ ventanaDiasHabiles: v }, 'Umbral guardado.')}
           />
           <Umbral
             etiqueta="Días seguidos sin asistir"
@@ -119,6 +124,11 @@ export default function ConfigPermanencia({ sede }: { sede: Sede }) {
             etiqueta="Intentos de contacto sin respuesta"
             valor={config.intentosSinExitoParaEscalar}
             onGuardar={(v) => guardar({ intentosSinExitoParaEscalar: v }, 'Umbral guardado.')}
+          />
+          <Umbral
+            etiqueta="Días sin respuesta de la familia"
+            valor={config.diasSinContactoParaEscalar}
+            onGuardar={(v) => guardar({ diasSinContactoParaEscalar: v }, 'Umbral guardado.')}
           />
         </div>
       </div>
