@@ -34,6 +34,14 @@ export default function AgendaProyeccion({ grupo, semana, tareasDelDia, onCerrar
       <div className="mx-auto max-w-4xl px-8 py-10 space-y-8">
         <h1 className="text-4xl font-bold text-center">Agenda de {grupo}</h1>
 
+        {/* Sin esto, una semana sin tareas dejaba la pantalla negra con solo el
+            título, y parecía que la proyección no funcionaba (16-09-2026). */}
+        {semana.every(f => tareasDelDia(f).length === 0) && (
+          <p className="text-2xl text-center text-white/70 pt-10">
+            Esta semana {grupo} no tiene tareas programadas. 🎉
+          </p>
+        )}
+
         {semana.map(f => {
           const items = tareasDelDia(f);
           if (items.length === 0) return null;
