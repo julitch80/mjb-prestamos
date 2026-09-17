@@ -348,6 +348,21 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
             </div>
           )}
 
+          {plan.manualesQueNoExisten.length > 0 && (
+            <div className="rounded-lg border border-warning-soft bg-warning-soft p-2 text-sm text-warning-soft-fg">
+              <b>{plan.manualesQueNoExisten.length} correo(s) escritos a mano no existen en Workspace.</b> Puede
+              ser una errata al teclearlos, o una cuenta que aún no se ha creado. La importación no los toca
+              —lo manual está blindado—, así que hay que corregirlos en la ficha.
+              <ul className="mt-1 space-y-0.5 text-xs">
+                {plan.manualesQueNoExisten.map((f) => (
+                  <li key={f.studentId}>
+                    <b>{f.nombre}</b> ({f.grado}): {f.correoActual?.split('@')[0]}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {plan.conservadosConDuda.length > 0 && (
             <p className="rounded-lg border border-line bg-elevated p-2 text-xs text-soft">
               <b>{plan.conservadosConDuda.length}</b> correo(s) aplicados antes se conservan aunque haya duda: la

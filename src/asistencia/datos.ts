@@ -41,7 +41,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 
 import { db, esperarAuth, functions } from '../lib/firebase';
-import { sessionId as construirSessionId } from './domain/ids';
+import { sessionId as construirSessionId, toDateKey } from './domain/ids';
 import { compararEstudiantes } from './domain/nombres';
 import { avisoEvasionId, censoDiaId } from './domain/evasion';
 import {
@@ -784,6 +784,31 @@ export async function leerEstudiante(studentId: string): Promise<Student | null>
  * escritura fallaria entera justo para quien mas usa este boton (el director). Cerrar la
  * matricula, si algun dia hace falta, es tarea de otra pantalla con otra autoridad.
  */
+/**
+ * Escribe (o borra) a mano el correo institucional de un estudiante. Lo hace el director del
+ * grupo o coordinación: las reglas de `asistenciaStudents` ya les dejan editar la ficha.
+ *
+ * Queda marcado `correoOrigen: 'manual'`, y eso lo BLINDA frente a la importación de
+ * Workspace, que nunca pisa lo manual. Es lo que permite repartir el trabajo —cada director
+ * arregla los tres o cuatro suyos— sin que la siguiente pasada del archivo lo deshaga.
+ *
+ * La contrapartida de ese blindaje es que un error de tecleo se quedaría fijo, porque le
+ * quitamos a la importación el permiso para corregirlo. Por eso la pantalla de importación
+ * avisa de los correos manuales que no existen en Workspace.
+ *
+ * `correoCuentaActiva` se borra a propósito: era lo que decía el archivo de la cuenta
+ * ANTERIOR, y sobre la nueva no sabemos nada hasta la próxima importación.
+ */
+export async function guardarCorreoManual(studentId: string, correo: string | null): Promise<void> {
+  await exigirAutor();
+  await updateDoc(doc(baseDatos(), 'asistenciaStudents', studentId), {
+    correoInstitucional: correo,
+    correoOrigen: correo ? 'manual' : null,
+    correoVerificadoEn: correo ? toDateKey(new Date()) : null,
+    correoCuentaActiva: deleteField(),
+  });
+}
+
 export async function actualizarFicha(
   studentId: string,
   cambios: {

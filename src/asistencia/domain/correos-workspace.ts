@@ -266,6 +266,8 @@ export interface FilaPlanCorreo {
    * retira, porque no hay riesgo de que sea de otro estudiante.
    */
   correoActualEsSuyo: boolean;
+  /** El correo que tiene la ficha no existe entre las cuentas del archivo. */
+  correoActualNoExiste: boolean;
   /** Información para quien revisa, aunque el caso sea automático («tiene otra cuenta»). */
   nota: string | null;
 }
@@ -291,6 +293,12 @@ export interface PlanCorreos {
    * cuentas usa, no si el correo es suyo.
    */
   conservadosConDuda: FilaPlanCorreo[];
+  /**
+   * Correos escritos A MANO que no existen en Workspace. Son la contrapartida del blindaje:
+   * lo manual no se pisa nunca, así que una errata al teclear no se corrige sola. Aquí sale a
+   * la luz, que es lo único que hace falta para arreglarla.
+   */
+  manualesQueNoExisten: FilaPlanCorreo[];
 }
 
 /** Palabras de un nombre, normalizadas: "Londoño-López" -> ["LONDONO", "LOPEZ"]. */
@@ -654,6 +662,7 @@ export function planCorreos(
       sinCambios: Boolean(aplicable && correo && e.correoInstitucional === correo),
       correoActual: e.correoInstitucional ?? null,
       origenActual: e.correoOrigen ?? null,
+      correoActualNoExiste: Boolean(e.correoInstitucional && !porCorreo.has(e.correoInstitucional)),
       correoActualEsSuyo: Boolean(
         e.correoInstitucional &&
           porCorreo.has(e.correoInstitucional) &&
@@ -682,6 +691,7 @@ export function planCorreos(
     // Se retira solo lo que PODRÍA SER DE OTRA PERSONA. Un correo con el nombre completo
     // exacto de la ficha es suyo, aunque no sea la cuenta que usa: se conserva.
     retiros: filas.filter((f) => deImportacion(f) && !aplicable(f) && !f.correoActualEsSuyo),
+    manualesQueNoExisten: filas.filter((f) => f.protegidoManual && f.correoActualNoExiste),
     conservadosConDuda: filas.filter((f) => deImportacion(f) && !aplicable(f) && f.correoActualEsSuyo),
     reemplazos: filas.filter((f) => deImportacion(f) && aplicable(f) && f.correo !== f.correoActual),
   };

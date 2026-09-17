@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import {
   abrirDireccionGrupo,
   actualizarFicha,
+  guardarCorreoManual,
   guardarColumnas,
   guardarGuiaDeColor,
   leerAutoridadSede,
@@ -28,6 +29,7 @@ import { colorPorId, COLORES_GRUPO, estiloEtiqueta } from './domain/colores';
 import { subirFoto, urlDeFoto } from './fotos';
 import { iniciales, nombreCompleto } from './domain/nombres';
 import { toDateKey } from './domain/ids';
+import { DOMINIO_INSTITUCIONAL } from './domain/correos-workspace';
 import {
   edadEn,
   MOTIVOS_SEMILLA,
@@ -389,18 +391,28 @@ export default function Ficha({
                   />
                 </>
               )}
-              {est.correoInstitucional && (
+              {(est.correoInstitucional || puedeEditar) && (
                 <Dato
                   termino="Correo"
                   valor={
-                    <span>
-                      {est.correoInstitucional}
-                      <span className="block text-xs text-muted">
-                        {est.correoOrigen === 'manual' ? 'Puesto a mano' : 'Desde Workspace'}
-                        {est.correoVerificadoEn ? ` · verificado el ${est.correoVerificadoEn}` : ''}
-                        {est.correoCuentaActiva === false ? ' · la cuenta estaba suspendida' : ''}
-                      </span>
-                    </span>
+                    <CorreoDelEstudiante
+                      est={est}
+                      puedeEditar={puedeEditar}
+                      onGuardar={async (correo) => {
+                        await guardarCorreoManual(studentId, correo);
+                        setEst((p) =>
+                          p
+                            ? {
+                                ...p,
+                                correoInstitucional: correo ?? undefined,
+                                correoOrigen: correo ? 'manual' : undefined,
+                                correoVerificadoEn: correo ? toDateKey(new Date()) : undefined,
+                                correoCuentaActiva: undefined,
+                              }
+                            : p,
+                        );
+                      }}
+                    />
                   }
                 />
               )}
@@ -691,6 +703,113 @@ export default function Ficha({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * El correo institucional: se ve, se escribe a mano y se quita. Lo edita quien puede editar la
+ * ficha — el director del grupo y coordinación—, que es lo que reparte el trabajo de completar
+ * los que la importación no pudo resolver sola.
+ *
+ * Se escribe solo la parte de antes de la arroba y el dominio se pone aquí: es la fuente de
+ * error más tonta y más frecuente, y así no existe.
+ */
+function CorreoDelEstudiante({
+  est,
+  puedeEditar,
+  onGuardar,
+}: {
+  est: Student;
+  puedeEditar: boolean;
+  onGuardar: (correo: string | null) => Promise<void>;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  async function guardar(correo: string | null) {
+    setOcupado(true);
+    setError(null);
+    try {
+      await onGuardar(correo);
+      setEditando(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  if (!editando) {
+    return (
+      <span>
+        {est.correoInstitucional ?? <span className="text-muted">sin correo</span>}
+        {puedeEditar && (
+          <button
+            onClick={() => {
+              setTexto(est.correoInstitucional?.split('@')[0] ?? '');
+              setEditando(true);
+            }}
+            className="ml-2 text-xs text-accent underline"
+          >
+            {est.correoInstitucional ? 'Cambiar' : 'Poner correo'}
+          </button>
+        )}
+        {est.correoInstitucional && (
+          <span className="block text-xs text-muted">
+            {est.correoOrigen === 'manual' ? 'Puesto a mano' : 'Desde Workspace'}
+            {est.correoVerificadoEn ? ` · ${est.correoVerificadoEn}` : ''}
+            {est.correoCuentaActiva === false ? ' · la cuenta estaba suspendida' : ''}
+          </span>
+        )}
+      </span>
+    );
+  }
+
+  const local = texto.trim().toLowerCase().split('@')[0];
+  const valido = /^[a-z0-9]+([._-][a-z0-9]+)*$/.test(local);
+
+  return (
+    <span className="block">
+      <span className="flex flex-wrap items-center gap-1">
+        <input
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder="nombre.apellido"
+          autoFocus
+          className="min-w-0 flex-1 rounded-lg border border-line bg-elevated px-2 py-1 text-sm"
+        />
+        <span className="text-xs text-muted">@{DOMINIO_INSTITUCIONAL}</span>
+      </span>
+      <span className="mt-1 flex flex-wrap gap-2">
+        <button
+          onClick={() => void guardar(`${local}@${DOMINIO_INSTITUCIONAL}`)}
+          disabled={!valido || ocupado}
+          className="rounded-lg bg-accent px-3 py-1 text-xs text-on-accent disabled:opacity-50"
+        >
+          Guardar
+        </button>
+        <button onClick={() => setEditando(false)} className="text-xs text-soft underline">
+          Cancelar
+        </button>
+        {est.correoInstitucional && (
+          <button
+            onClick={() => void guardar(null)}
+            disabled={ocupado}
+            className="text-xs text-danger-soft-fg underline disabled:opacity-50"
+          >
+            Quitar el correo
+          </button>
+        )}
+      </span>
+      {texto.trim() && !valido && (
+        <span className="mt-1 block text-xs text-warning-soft-fg">
+          Solo letras, números, puntos y guiones: escribe lo que va antes de la arroba.
+        </span>
+      )}
+      {error && <span className="mt-1 block text-xs text-danger-soft-fg">{error}</span>}
+    </span>
   );
 }
 
