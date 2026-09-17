@@ -406,6 +406,21 @@ function laQueUsa(cuentas: CuentaWorkspace[], hoy: Date): CuentaWorkspace | null
   return recientes.length === 1 ? recientes[0].c : null;
 }
 
+/** La parte del correo antes de la arroba. */
+const localDe = (correo: string) => correo.split('@')[0];
+
+/**
+ * ¿La dirección sigue el patrón del colegio para esta persona? Su llave tal cual
+ * (`mileidy.restrepo`), la llave con algo detrás separado por punto
+ * (`valentina.arredondo.gonzalez`) o con un número pegado (`juan.perez2`).
+ */
+export function sigueElPatron(correo: string, llaves: string[]): boolean {
+  const local = localDe(correo);
+  return llaves.some(
+    (l) => local === l || local.startsWith(`${l}.`) || (local.startsWith(l) && /^\d+$/.test(local.slice(l.length))),
+  );
+}
+
 export function planCorreos(
   estudiantes: EstudianteParaCorreo[],
   cuentas: CuentaWorkspace[],
@@ -416,7 +431,6 @@ export function planCorreos(
   const activos = estudiantes.filter((e) => e.activo);
   const llaves = new Map(activos.map((e) => [e.studentId, llavesDe(e)]));
   const nombreDe = (c: CuentaWorkspace) => `${c.nombre} ${c.apellido}`.trim();
-  const localDe = (correo: string) => correo.split('@')[0];
 
   /** La llave y sus variantes numeradas que existen en el archivo. */
   const variantesDe = (llave: string): CuentaWorkspace[] => {
@@ -525,12 +539,19 @@ export function planCorreos(
     // La regla 5 NO relaja las reglas anteriores: un homónimo dentro del colegio o un
     // apellido compuesto nunca se aplican solos, aunque la cuenta tenga su nombre exacto.
     const puedeSerAutomatico = rivales.length === 0 && !compuesto;
-    const sigueLaLlave = (c: string) =>
-      ls.some((l) => {
-        const local = localDe(c);
-        return local === l || local.startsWith(`${l}.`) || (local.startsWith(l) && /^\d+$/.test(local.slice(l.length)));
-      });
+    const sigueLaLlave = (c: string) => sigueElPatron(c, ls);
     const describirAcceso = (c: CuentaWorkspace) => `${localDe(c.correo)}: ${c.ultimoAcceso || 'sin dato de acceso'}`;
+    // Todas las cuentas que podrían ser suyas (traen sus dos apellidos), y cuál de ellas usa.
+    const suyas = candidatas.filter((c) => esDeLaPersona(concordanciaNombre(c, e)));
+    const laUsada = laQueUsa(suyas, hoy);
+    /**
+     * Para aplicar una cuenta sola hace falta una prueba de que es suya y no de un homónimo de
+     * fuera de la aplicación. Vale cualquiera de las dos: que la dirección siga el patrón del
+     * colegio, o que sea la única de sus cuentas usada en el último año. Antes se exigía el
+     * patrón siempre, y eso dejaba en espera a gente como RESTREPO GIRALDO MILEIDY, cuya cuenta
+     * (`mileidy.giraldo`) lleva el segundo apellido en lugar del primero (2026-09-17).
+     */
+    const hayPrueba = (c: CuentaWorkspace) => sigueLaLlave(c.correo) || laUsada === c;
 
     if (unicoEnColegio && exactas.length >= 2) {
       // Varias cuentas con su nombre exacto. En un colegio casi siempre es LA MISMA persona
@@ -538,10 +559,10 @@ export function planCorreos(
       // otra con tildes, de otra tanda). Desempata el uso: si SOLO UNA se usó en el último
       // año, es la suya. Si se usaron varias, o ninguna, o no se entiende la fecha, no se
       // escoge.
-      const elegida = laQueUsa(exactas, hoy);
+      const elegida = laUsada && exactas.includes(laUsada) ? laUsada : null;
       const otras = exactas.filter((c) => c !== elegida).map((c) => localDe(c.correo)).join(', ');
 
-      if (elegida && sigueLaLlave(elegida.correo) && puedeSerAutomatico) {
+      if (elegida && puedeSerAutomatico) {
         estado = elegida.activa ? 'automatico' : 'cuenta_inactiva';
         correo = elegida.correo;
         via = 'nombre_completo';
@@ -562,7 +583,7 @@ export function planCorreos(
       }
     } else if (unicoEnColegio && exactas.length === 1) {
       const exacta = exactas[0];
-      const empiezaPorLlave = sigueLaLlave(exacta.correo);
+      const empiezaPorLlave = hayPrueba(exacta);
       const yaEsLaMisma = correo === exacta.correo && (estado === 'automatico' || estado === 'cuenta_inactiva');
       if (!yaEsLaMisma) {
         if (empiezaPorLlave && !puedeSerAutomatico) {
@@ -583,7 +604,7 @@ export function planCorreos(
           via = 'nombre_completo';
           motivo = `Hay una cuenta con su nombre completo exacto («${nombreDe(exacta)}»), pero el correo (${localDe(
             exacta.correo,
-          )}) no sigue su patrón.`;
+          )}) no sigue su patrón y no consta que la use (${describirAcceso(exacta)}).`;
         } else {
           // La llave da una cuenta y el nombre completo exacto da otra: las dos podrían ser
           // suyas. El caso real es Héctor Fabio (2026-09-17): hector.naranjo, creada en 2021 y
@@ -591,9 +612,9 @@ export function planCorreos(
           // su nombre entero, la usó hace seis días. Desempata el uso, igual que con las
           // duplicadas; si no se puede, lo confirma una persona.
           const porLlave = porCorreo.get(correo!)!;
-          const elegida = laQueUsa([porLlave, exacta], hoy);
+          const elegida = laUsada === porLlave || laUsada === exacta ? laUsada : null;
           const otra = elegida === exacta ? porLlave : exacta;
-          if (elegida && puedeSerAutomatico && (elegida === exacta || sigueLaLlave(elegida.correo))) {
+          if (elegida && puedeSerAutomatico) {
             estado = elegida.activa ? 'automatico' : 'cuenta_inactiva';
             correo = elegida.correo;
             via = elegida === exacta ? 'nombre_completo' : 'llave';

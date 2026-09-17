@@ -22,6 +22,7 @@ import {
   leerExportWorkspace,
   planCorreos,
   retirosDelPlan,
+  sigueElPatron,
   type CuentaWorkspace,
   type EstadoCorreo,
   type PlanCorreos,
@@ -196,6 +197,9 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
   const completos = aAplicar.filter((f) => f.concordancia === 'completo').length;
   const parciales = aAplicar.filter((f) => f.concordancia === 'compatible');
   const porNombreCompleto = aAplicar.filter((f) => f.via === 'nombre_completo').length;
+  // Los que se aplican sin que su correo siga el patrón: el permiso lo da el nombre del
+  // titular más el uso. Son los que conviene mirar antes de aplicar.
+  const sinPatron = aAplicar.filter((f) => f.correo && !sigueElPatron(f.correo, f.llavesProbadas));
   const encontrados =
     plan && busqueda.trim().length >= 3
       ? plan.filas.filter((f) => normalizar(f.nombre).includes(normalizar(busqueda))).slice(0, 10)
@@ -364,6 +368,24 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
                 ))}
               </ul>
             </div>
+          )}
+
+          {sinPatron.length > 0 && (
+            <details className="rounded-lg border border-line p-2 text-xs">
+              <summary className="cursor-pointer text-soft">
+                <b>{sinPatron.length}</b> se aplican sin seguir el patrón del correo: el nombre del titular es
+                idéntico al de la ficha y es la única de sus cuentas usada en el último año
+              </summary>
+              <ul className="mt-2 space-y-1">
+                {sinPatron.map((f) => (
+                  <li key={f.studentId}>
+                    <b className="text-strong">{f.nombre}</b> <span className="text-muted">({f.grado})</span> →{' '}
+                    {f.correo?.split('@')[0]} («{f.nombreCuentaPropuesta}»)
+                    {f.correoActual && f.correoActual !== f.correo ? ` · hoy tiene ${f.correoActual.split('@')[0]}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
 
           {porNombreCompleto > 0 && (
