@@ -263,21 +263,43 @@ function palabras(s: string): string[] {
     .filter(Boolean);
 }
 
-export type ConcordanciaNombre = 'completo' | 'compatible' | 'contradice' | 'sin_datos';
+export type ConcordanciaNombre = 'completo' | 'compatible' | 'falta_apellido' | 'contradice' | 'sin_datos';
+
+/** Cuántas veces aparece cada palabra. «PÉREZ PÉREZ» son DOS, no una. */
+function contar(ps: string[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const p of ps) m.set(p, (m.get(p) ?? 0) + 1);
+  return m;
+}
+
+/** ¿`b` trae cada palabra de `a` al menos tantas veces como `a`? */
+function cubre(b: Map<string, number>, a: Map<string, number>): boolean {
+  return [...a].every(([p, n]) => (b.get(p) ?? 0) >= n);
+}
 
 /**
  * ¿El nombre con que se creó la cuenta es el de este estudiante?
  *
- *  - `contradice`: la cuenta tiene una palabra que la ficha no tiene. «Juan Pérez Ruiz»
- *    contra una ficha «PÉREZ GÓMEZ, JUAN»: es otra persona, aunque la llave coincida.
- *  - `completo`: la cuenta trae todas las palabras de la ficha (los dos nombres y los dos
- *    apellidos). Es lo único que distingue a dos homónimos.
- *  - `compatible`: la cuenta trae menos, pero nada que contradiga («Juan» «Pérez»).
- *  - `sin_datos`: el archivo no trae nombre para la cuenta. No se puede comprobar.
+ *  - `contradice`: la cuenta tiene una palabra que la ficha no tiene, O LA TIENE MÁS VECES.
+ *    «Juan Pérez Ruiz» contra «PÉREZ GÓMEZ, JUAN» es otra persona. Y «Esteban Pérez Pérez»
+ *    contra «PÉREZ CONTRERAS, ESTEBAN» también: su segundo apellido es Pérez.
+ *  - `completo`: la cuenta trae todas las palabras de la ficha, con sus repeticiones. Es lo
+ *    único que distingue a dos homónimos.
+ *  - `falta_apellido`: no contradice, pero le falta un apellido («Samuel Monroy» para
+ *    «MONROY GÓMEZ, SAMUEL»). NO se aplica solo: no descarta a otro Samuel Monroy que no
+ *    esté en la aplicación.
+ *  - `compatible`: trae los dos apellidos y le falta solo algún nombre de pila («Lorena
+ *    López Aguilar» para «LÓPEZ AGUILAR, LORENA MARÍA»). Los apellidos son lo que separa
+ *    a una persona de otra con el mismo nombre; el segundo nombre no.
+ *  - `sin_datos`: el archivo no trae nombre para la cuenta.
+ *
+ * Por qué se cuentan repeticiones (2026-09-16): la primera versión comparaba CONJUNTOS de
+ * palabras. Para un conjunto, «PÉREZ PÉREZ» es solo «PÉREZ», y la cuenta de Esteban Pérez
+ * Pérez pasó como de Esteban Pérez Contreras. Lo vio Julián mirando la lista de parciales.
  *
  * Una diferencia de escritura («Kamila» y «Camila») cuenta como contradicción. Es
- * conservador a propósito: manda el caso a una persona, que es lo peor que puede pasar;
- * lo contrario es mandarle el correo a otro menor.
+ * conservador a propósito: lo peor que pasa es que una persona lo confirme; lo contrario
+ * es mandarle el correo a otro menor.
  */
 export function concordanciaNombre(
   cuenta: Pick<CuentaWorkspace, 'nombre' | 'apellido'>,
@@ -285,10 +307,12 @@ export function concordanciaNombre(
 ): ConcordanciaNombre {
   const deCuenta = palabras(`${cuenta.nombre} ${cuenta.apellido}`);
   if (deCuenta.length === 0) return 'sin_datos';
-  const deFicha = new Set(palabras(`${nombresDePila(e.apellidos, e.nombres)} ${e.apellidos}`));
-  if (deCuenta.some((p) => !deFicha.has(p))) return 'contradice';
-  const enCuenta = new Set(deCuenta);
-  return [...deFicha].every((p) => enCuenta.has(p)) ? 'completo' : 'compatible';
+  const enCuenta = contar(deCuenta);
+  const enFicha = contar(palabras(`${nombresDePila(e.apellidos, e.nombres)} ${e.apellidos}`));
+
+  if (!cubre(enFicha, enCuenta)) return 'contradice';
+  if (cubre(enCuenta, enFicha)) return 'completo';
+  return cubre(enCuenta, contar(palabras(e.apellidos))) ? 'compatible' : 'falta_apellido';
 }
 
 function escaparRegex(s: string): string {
@@ -389,6 +413,9 @@ export function planCorreos(
       } else if (concordancia === 'contradice') {
         estado = 'confirmar';
         motivo = `El nombre de la cuenta («${nombreDe(cuenta)}») no coincide con la ficha.`;
+      } else if (concordancia === 'falta_apellido') {
+        estado = 'confirmar';
+        motivo = `La cuenta no trae los dos apellidos («${nombreDe(cuenta)}»): puede ser de otra persona con el mismo nombre y el mismo primer apellido.`;
       } else if (concordancia === 'sin_datos') {
         estado = 'confirmar';
         motivo = 'El archivo no trae el nombre de la cuenta: no se puede comprobar de quién es.';

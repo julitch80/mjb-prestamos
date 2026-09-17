@@ -227,9 +227,9 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
                 nombre completo de la cuenta y <b>{parciales.length}</b> solo en parte.
               </p>
               <p className="mt-1 text-xs text-muted">
-                «En parte» quiere decir que la cuenta tiene menos palabras que la ficha, sin ninguna que
-                contradiga — por ejemplo, creada solo como «Juan Pérez». No descarta que sea de otro Juan
-                Pérez que no está en la aplicación. Si son pocos, conviene mirarlos uno por uno.
+                «En parte» quiere decir que a la cuenta le falta algún nombre de pila, pero trae los dos
+                apellidos — por ejemplo, «Lorena López Aguilar» para LÓPEZ AGUILAR, LORENA MARÍA. Una
+                cuenta a la que le falta un APELLIDO no se aplica: queda por confirmar.
               </p>
               {parciales.length > 0 && (
                 <details className="mt-2">
