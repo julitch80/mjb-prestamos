@@ -18,6 +18,14 @@
  *  2. Solo se usan direcciones que existen en el archivo. Nunca una calculada: un correo
  *     inventado se pierde, o le llega a otra persona.
  *  3. Nada se aplica sin previsualización.
+ *  4. **La cuenta tiene que ser de ESTE estudiante, no solo tener su llave.** Agregada el
+ *     2026-09-16, al ver 2.443 cuentas sin dueño en el export real: la regla 1 solo ve a
+ *     los estudiantes que están en la aplicación (bachillerato de la central), pero
+ *     Workspace tiene también a los de las otras sedes, primaria y exalumnos. Un Juan
+ *     Pérez único en nuestra lista puede tener su llave ocupada por OTRO Juan Pérez. Por
+ *     eso, antes de llamar algo automático, se exige que el nombre con que se creó la
+ *     cuenta no contradiga la ficha, y que no existan variantes numeradas de la llave
+ *     (`juan.perez2`), que delatan un homónimo en Workspace.
  *
  * Y lo que la máquina no decide, no lo escribe: `confirmar` y `colision` quedan para que
  * los resuelva el director de grupo, que sabe cuál Juan Pérez es el suyo.
@@ -222,14 +230,60 @@ export interface FilaPlanCorreo {
   sinCambios: boolean;
   /** El correo lo puso a mano un director. La importación no lo pisa. */
   protegidoManual: boolean;
+  /** Por qué no es automático, dicho para una persona. Solo en `confirmar` y `colision`. */
+  motivo: string | null;
+  /** Cuentas del archivo que podrían ser suyas: la llave y sus variantes numeradas, con
+   *  el nombre con que se crearon. Es lo que necesita quien resuelve. */
+  candidatas: { correo: string; nombreCuenta: string }[];
 }
 
 export interface PlanCorreos {
   filas: FilaPlanCorreo[];
-  /** Cuentas del archivo que no quedaron asignadas a nadie. Ahí cae la cuenta desviada
-   *  de un homónimo, y también los docentes: es lo esperado. */
+  /** Cuentas del archivo que no quedaron asignadas a nadie: estudiantes de otras sedes y
+   *  de primaria, exalumnos, docentes y cuentas administrativas. Ahí cae también la cuenta
+   *  desviada de un homónimo. */
   cuentasSinDueno: CuentaWorkspace[];
   conteo: Record<EstadoCorreo, number>;
+}
+
+/** Palabras de un nombre, normalizadas: "Londoño-López" -> ["LONDONO", "LOPEZ"]. */
+function palabras(s: string): string[] {
+  return normalizar(s)
+    .replace(/[^A-Z\s-]/g, '')
+    .split(/[\s-]+/)
+    .filter(Boolean);
+}
+
+export type ConcordanciaNombre = 'completo' | 'compatible' | 'contradice' | 'sin_datos';
+
+/**
+ * ¿El nombre con que se creó la cuenta es el de este estudiante?
+ *
+ *  - `contradice`: la cuenta tiene una palabra que la ficha no tiene. «Juan Pérez Ruiz»
+ *    contra una ficha «PÉREZ GÓMEZ, JUAN»: es otra persona, aunque la llave coincida.
+ *  - `completo`: la cuenta trae todas las palabras de la ficha (los dos nombres y los dos
+ *    apellidos). Es lo único que distingue a dos homónimos.
+ *  - `compatible`: la cuenta trae menos, pero nada que contradiga («Juan» «Pérez»).
+ *  - `sin_datos`: el archivo no trae nombre para la cuenta. No se puede comprobar.
+ *
+ * Una diferencia de escritura («Kamila» y «Camila») cuenta como contradicción. Es
+ * conservador a propósito: manda el caso a una persona, que es lo peor que puede pasar;
+ * lo contrario es mandarle el correo a otro menor.
+ */
+export function concordanciaNombre(
+  cuenta: Pick<CuentaWorkspace, 'nombre' | 'apellido'>,
+  e: Pick<EstudianteParaCorreo, 'nombres' | 'apellidos'>,
+): ConcordanciaNombre {
+  const deCuenta = palabras(`${cuenta.nombre} ${cuenta.apellido}`);
+  if (deCuenta.length === 0) return 'sin_datos';
+  const deFicha = new Set(palabras(`${nombresDePila(e.apellidos, e.nombres)} ${e.apellidos}`));
+  if (deCuenta.some((p) => !deFicha.has(p))) return 'contradice';
+  const enCuenta = new Set(deCuenta);
+  return [...deFicha].every((p) => enCuenta.has(p)) ? 'completo' : 'compatible';
+}
+
+function escaparRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function planCorreos(
@@ -241,8 +295,15 @@ export function planCorreos(
   const activos = estudiantes.filter((e) => e.activo);
   const llaves = new Map(activos.map((e) => [e.studentId, llavesDe(e)]));
 
-  // Regla 1: quién reclama cada llave, EN NUESTRA LISTA. Una llave reclamada por dos
-  // estudiantes no se le da a ninguno.
+  /** La llave y sus variantes numeradas que existen en el archivo: `juan.perez`,
+   *  `juan.perez2`, `juan.perez.3`. Más de una delata un homónimo en Workspace. */
+  const variantesDe = (llave: string): CuentaWorkspace[] => {
+    const re = new RegExp(`^${escaparRegex(llave)}(?:[._-]?\\d+)?@${escaparRegex(dominio)}$`);
+    return cuentas.filter((c) => re.test(c.correo)).sort((a, b) => a.correo.localeCompare(b.correo));
+  };
+  const nombreDe = (c: CuentaWorkspace) => `${c.nombre} ${c.apellido}`.trim();
+
+  // Regla 1: quién reclama cada llave, EN NUESTRA LISTA.
   const reclamantes = new Map<string, Set<string>>();
   for (const [id, { llaves: ls }] of llaves) {
     for (const l of ls) {
@@ -251,12 +312,14 @@ export function planCorreos(
       reclamantes.set(l, set);
     }
   }
+  const porId = new Map(activos.map((e) => [e.studentId, e]));
 
   const filas: FilaPlanCorreo[] = [];
   const asignadas = new Set<string>();
 
   for (const e of activos) {
     const { llaves: ls, compuesto } = llaves.get(e.studentId)!;
+    const candidatas = ls.flatMap(variantesDe);
     const base = {
       studentId: e.studentId,
       nombre: `${e.apellidos} ${nombresDePila(e.apellidos, e.nombres)}`.trim(),
@@ -264,27 +327,64 @@ export function planCorreos(
       llavesProbadas: ls,
       compuesto,
       protegidoManual: e.correoOrigen === 'manual',
+      candidatas: candidatas.map((c) => ({ correo: c.correo, nombreCuenta: nombreDe(c) })),
     };
-
-    // Regla 2: solo direcciones que existen en el archivo.
-    const existentes = ls.map((l) => `${l}@${dominio}`).filter((c) => porCorreo.has(c));
-    const disputada = ls.some((l) => (reclamantes.get(l)?.size ?? 0) > 1);
 
     let estado: EstadoCorreo;
     let correo: string | null = null;
+    let motivo: string | null = null;
 
-    if (disputada) {
-      estado = 'colision';
+    const existentes = ls.map((l) => `${l}@${dominio}`).filter((c) => porCorreo.has(c));
+    const rivales = [...new Set(ls.flatMap((l) => [...(reclamantes.get(l) ?? [])]))].filter(
+      (id) => id !== e.studentId,
+    );
+
+    if (rivales.length > 0) {
+      // Homónimo en NUESTRA lista. Nunca automático. Pero si entre la llave y sus
+      // variantes hay EXACTAMENTE UNA cuenta cuyo nombre completo es el de este
+      // estudiante —y no el de ninguno de sus homónimos—, se sugiere para confirmar.
+      const suyas = candidatas.filter(
+        (c) =>
+          concordanciaNombre(c, e) === 'completo' &&
+          rivales.every((r) => concordanciaNombre(c, porId.get(r)!) !== 'completo'),
+      );
+      if (suyas.length === 1) {
+        estado = 'confirmar';
+        correo = suyas[0].correo;
+        motivo = `Homónimo en el colegio. Se sugiere por el nombre completo de la cuenta («${nombreDe(suyas[0])}»).`;
+      } else {
+        estado = 'colision';
+        motivo = `Otro estudiante del colegio produce la misma llave (${ls.join(', ')}).`;
+      }
     } else if (existentes.length === 0) {
       estado = 'sin_cuenta';
     } else if (existentes.length > 1) {
-      // Dos de las candidatas de un apellido compuesto existen: no se escoge.
       estado = 'colision';
+      motivo = 'Existen varias de las cuentas posibles de su apellido compuesto.';
     } else {
       correo = existentes[0];
       const cuenta = porCorreo.get(correo)!;
-      if (compuesto) estado = 'confirmar';
-      else estado = cuenta.activa ? 'automatico' : 'cuenta_inactiva';
+      const concordancia = concordanciaNombre(cuenta, e);
+      const variantes = ls.flatMap(variantesDe);
+
+      if (compuesto) {
+        estado = 'confirmar';
+        motivo = 'Apellido compuesto: una sola de las formas posibles existe.';
+      } else if (variantes.length > 1) {
+        // Regla 4, segunda mitad: `juan.perez` y `juan.perez2` a la vez.
+        estado = 'confirmar';
+        motivo = `Hay ${variantes.length} cuentas con esa llave en Workspace (${variantes
+          .map((v) => v.correo.split('@')[0])
+          .join(', ')}): puede ser de otro estudiante con el mismo nombre.`;
+      } else if (concordancia === 'contradice') {
+        estado = 'confirmar';
+        motivo = `El nombre de la cuenta («${nombreDe(cuenta)}») no coincide con la ficha.`;
+      } else if (concordancia === 'sin_datos') {
+        estado = 'confirmar';
+        motivo = 'El archivo no trae el nombre de la cuenta: no se puede comprobar de quién es.';
+      } else {
+        estado = cuenta.activa ? 'automatico' : 'cuenta_inactiva';
+      }
     }
 
     if (correo) asignadas.add(correo);
@@ -292,6 +392,7 @@ export function planCorreos(
       ...base,
       estado,
       correo,
+      motivo,
       sinCambios: Boolean(correo && e.correoInstitucional === correo),
     });
   }

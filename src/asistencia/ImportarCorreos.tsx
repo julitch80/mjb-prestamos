@@ -31,7 +31,8 @@ import type { Sede } from './domain/types';
 const ESTADO: Record<EstadoCorreo, { nombre: string; explica: string }> = {
   automatico: {
     nombre: 'Automático',
-    explica: 'Llave única en el colegio y la cuenta existe. Se aplica.',
+    explica:
+      'Llave única, la cuenta existe, el nombre de la cuenta coincide con la ficha y no hay otra cuenta con la misma llave. Se aplica.',
   },
   cuenta_inactiva: {
     nombre: 'Cuenta suspendida',
@@ -39,7 +40,8 @@ const ESTADO: Record<EstadoCorreo, { nombre: string; explica: string }> = {
   },
   confirmar: {
     nombre: 'Por confirmar',
-    explica: 'Apellido compuesto con una sola candidata. No se aplica: lo aprueba una persona.',
+    explica:
+      'Hay una cuenta probable, pero algo no cuadra: el nombre de la cuenta es distinto, hay otra cuenta con la misma llave en Workspace, o es un homónimo. No se aplica: lo aprueba una persona.',
   },
   colision: {
     nombre: 'Colisión',
@@ -107,16 +109,32 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
       // la hoja sale hacia quien administra Workspace, y para crear una cuenta basta el
       // nombre, el grado y la dirección.
       const sinCuenta = wb.addWorksheet('Sin cuenta');
-      sinCuenta.addRow(['Estudiante', 'Grado', 'Correo que le correspondería']);
+      // «Cuentas parecidas»: si la llave no existe pero sí `juan.perez2`, puede que el
+      // estudiante YA tenga cuenta con otra numeración. Crearle otra sería un duplicado.
+      sinCuenta.addRow(['Estudiante', 'Grado', 'Correo que le correspondería', 'Cuentas parecidas: revisar antes de crear']);
       for (const f of plan.filas.filter((x) => x.estado === 'sin_cuenta')) {
-        sinCuenta.addRow([f.nombre, f.grado, correoSugerido(f) || 'Revisar: apellido compuesto']);
+        sinCuenta.addRow([
+          f.nombre,
+          f.grado,
+          correoSugerido(f) || 'Revisar: apellido compuesto',
+          f.candidatas.map((c) => `${c.correo} — ${c.nombreCuenta || 'sin nombre'}`).join('\n'),
+        ]);
       }
 
       // Hoja 2: lo que necesita a una persona.
+      // Lleva el nombre con que se creó cada cuenta posible: sin eso, quien resuelve no tiene
+      // cómo distinguir a dos Juan Pérez. Es información interna del colegio.
       const revisar = wb.addWorksheet('Por revisar');
-      revisar.addRow(['Estudiante', 'Grado', 'Estado', 'Correo propuesto', 'Llaves probadas']);
+      revisar.addRow(['Estudiante', 'Grado', 'Estado', 'Por qué', 'Correo sugerido', 'Cuentas posibles (nombre de la cuenta)']);
       for (const f of plan.filas.filter((x) => x.estado === 'colision' || x.estado === 'confirmar')) {
-        revisar.addRow([f.nombre, f.grado, ESTADO[f.estado].nombre, f.correo ?? '', f.llavesProbadas.join(' / ')]);
+        revisar.addRow([
+          f.nombre,
+          f.grado,
+          ESTADO[f.estado].nombre,
+          f.motivo ?? '',
+          f.correo ?? '',
+          f.candidatas.map((c) => `${c.correo} — ${c.nombreCuenta || 'sin nombre'}`).join('\n'),
+        ]);
       }
 
       const blob = new Blob([await wb.xlsx.writeBuffer()], {
@@ -146,6 +164,9 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
   ).length;
 
   const compuestos = plan ? plan.filas.filter((f) => f.compuesto) : [];
+  const porResolver = plan
+    ? plan.filas.filter((f) => f.estado === 'confirmar' || f.estado === 'colision')
+    : [];
 
   return (
     <section className="space-y-3 rounded-xl border border-line bg-card p-3">
@@ -187,10 +208,33 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
           </div>
 
           <p className="text-xs text-muted">
-            {plan.cuentasSinDueno.length} cuentas del archivo no corresponden a ningún estudiante:
-            son, sobre todo, docentes y cuentas administrativas. Ahí también cae la cuenta de un
-            homónimo, y es donde se busca al resolver una colisión.
+            {plan.cuentasSinDueno.length} cuentas del archivo no quedaron asignadas: estudiantes de
+            otras sedes y de primaria, exalumnos, docentes y cuentas administrativas. Por eso no basta
+            con que la llave exista: una cuenta con el patrón de un estudiante puede ser de otro con
+            el mismo nombre que no está en la aplicación.
           </p>
+
+          {porResolver.length > 0 && (
+            <details className="rounded-lg border border-line p-2">
+              <summary className="cursor-pointer text-sm text-strong">
+                {porResolver.length} por resolver — por qué no son automáticos
+              </summary>
+              <ul className="mt-2 space-y-2 text-xs">
+                {porResolver.map((f) => (
+                  <li key={f.studentId} className="border-t border-line pt-1">
+                    <b className="text-strong">{f.nombre}</b> <span className="text-muted">({f.grado})</span>
+                    <p className="text-soft">{f.motivo}</p>
+                    {f.candidatas.length > 0 && (
+                      <p className="text-muted">
+                        Cuentas posibles:{' '}
+                        {f.candidatas.map((c) => `${c.correo.split('@')[0]} («${c.nombreCuenta || 'sin nombre'}»)`).join(' · ')}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
 
           {nuncaUsadas > 0 && (
             <p className="rounded-lg border border-line bg-elevated p-2 text-xs text-strong">
