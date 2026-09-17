@@ -6,7 +6,7 @@
   ],
   "functions": [
     { "source": "functions", "codebase": "default" },
-    { "source": "functions-asistencia", "codebase": "asistencia" }
+    { "source": "functions-asistencia", "codebase": "asistencia", "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"] }
   ],
   "emulators": { "firestore": { "port": 8080 }, "singleProjectMode": true }
 }
