@@ -261,11 +261,11 @@ export interface FilaPlanCorreo {
   correoActual: string | null;
   origenActual: 'workspace' | 'manual' | null;
   /**
-   * El correo que la ficha tiene hoy es de una cuenta con su nombre completo EXACTO: es de
-   * la misma persona. Si el plan ya no lo propone, a lo sumo es su cuenta vieja — no se
+   * El correo que la ficha tiene hoy es de una cuenta que trae SUS DOS APELLIDOS y nada que
+   * contradiga: es de la misma persona, aunque a la cuenta le falte un nombre de pila. Si el plan ya no lo propone, a lo sumo es su cuenta vieja — no se
    * retira, porque no hay riesgo de que sea de otro estudiante.
    */
-  correoActualCompleto: boolean;
+  correoActualEsSuyo: boolean;
   /** Información para quien revisa, aunque el caso sea automático («tiene otra cuenta»). */
   nota: string | null;
 }
@@ -384,6 +384,27 @@ export function fechaDeAcceso(raw: string): Date | 'nunca' | null {
 }
 
 const UN_ANIO_MS = 365 * 86_400_000;
+
+/**
+ * ¿Esta cuenta es de esta persona? `completo` es su nombre entero; `compatible` trae sus dos
+ * apellidos y le falta algún nombre de pila («HECTOR NARANJO ORTIZ» para Héctor Fabio). Lo
+ * segundo no alcanza para aplicar la cuenta sola —podría ser otro Héctor Naranjo Ortiz que no
+ * está en la aplicación—, pero sí para no borrar un correo que ya estaba escrito.
+ */
+function esDeLaPersona(c: ConcordanciaNombre): boolean {
+  return c === 'completo' || c === 'compatible';
+}
+
+/**
+ * Entre varias cuentas de la misma persona, la que usa. Solo decide si EXACTAMENTE UNA se usó
+ * en el último año y de todas se entiende la fecha; si no, devuelve `null` y alguien confirma.
+ */
+function laQueUsa(cuentas: CuentaWorkspace[], hoy: Date): CuentaWorkspace | null {
+  const accesos = cuentas.map((c) => ({ c, f: fechaDeAcceso(c.ultimoAcceso) }));
+  if (accesos.some((a) => a.f === null)) return null;
+  const recientes = accesos.filter((a) => a.f instanceof Date && hoy.getTime() - a.f.getTime() <= UN_ANIO_MS);
+  return recientes.length === 1 ? recientes[0].c : null;
+}
 
 export function planCorreos(
   estudiantes: EstudianteParaCorreo[],
@@ -517,10 +538,7 @@ export function planCorreos(
       // otra con tildes, de otra tanda). Desempata el uso: si SOLO UNA se usó en el último
       // año, es la suya. Si se usaron varias, o ninguna, o no se entiende la fecha, no se
       // escoge.
-      const accesos = exactas.map((c) => ({ c, f: fechaDeAcceso(c.ultimoAcceso) }));
-      const hayDesconocidas = accesos.some((a) => a.f === null);
-      const recientes = accesos.filter((a) => a.f instanceof Date && hoy.getTime() - a.f.getTime() <= UN_ANIO_MS);
-      const elegida = !hayDesconocidas && recientes.length === 1 ? recientes[0].c : null;
+      const elegida = laQueUsa(exactas, hoy);
       const otras = exactas.filter((c) => c !== elegida).map((c) => localDe(c.correo)).join(', ');
 
       if (elegida && sigueLaLlave(elegida.correo) && puedeSerAutomatico) {
@@ -567,14 +585,31 @@ export function planCorreos(
             exacta.correo,
           )}) no sigue su patrón.`;
         } else {
-          // La llave ya daba un automático con OTRA cuenta, y existe una con su nombre
-          // exacto que no sigue el patrón. Dos cuentas que podrían ser suyas: no se escoge.
-          estado = 'confirmar';
-          motivo = `La cuenta ${localDe(correo!)} coincide por la llave, pero existe otra con su nombre completo exacto (${localDe(
-            exacta.correo,
-          )}). Puede tener dos cuentas.`;
-          correo = null;
-          via = null;
+          // La llave da una cuenta y el nombre completo exacto da otra: las dos podrían ser
+          // suyas. El caso real es Héctor Fabio (2026-09-17): hector.naranjo, creada en 2021 y
+          // NUNCA usada, se llama «HECTOR NARANJO ORTIZ» —sin el «Fabio»—, y hector.ortiz, con
+          // su nombre entero, la usó hace seis días. Desempata el uso, igual que con las
+          // duplicadas; si no se puede, lo confirma una persona.
+          const porLlave = porCorreo.get(correo!)!;
+          const elegida = laQueUsa([porLlave, exacta], hoy);
+          const otra = elegida === exacta ? porLlave : exacta;
+          if (elegida && puedeSerAutomatico && (elegida === exacta || sigueLaLlave(elegida.correo))) {
+            estado = elegida.activa ? 'automatico' : 'cuenta_inactiva';
+            correo = elegida.correo;
+            via = elegida === exacta ? 'nombre_completo' : 'llave';
+            motivo = null;
+            nota = `Tiene otra cuenta que también podría ser suya, sin uso en el último año (${localDe(
+              otra.correo,
+            )}). Se toma la que usa.`;
+          } else {
+            estado = 'confirmar';
+            motivo = `La cuenta ${localDe(correo!)} coincide por la llave, pero existe otra con su nombre completo exacto (${localDe(
+              exacta.correo,
+            )}). Puede tener dos cuentas (${[porLlave, exacta].map(describirAcceso).join(' · ')}).`;
+            // No se escoge ninguna de las dos: se deja ver el caso, sin proponer correo.
+            correo = null;
+            via = null;
+          }
         }
       }
     }
@@ -598,10 +633,10 @@ export function planCorreos(
       sinCambios: Boolean(aplicable && correo && e.correoInstitucional === correo),
       correoActual: e.correoInstitucional ?? null,
       origenActual: e.correoOrigen ?? null,
-      correoActualCompleto: Boolean(
+      correoActualEsSuyo: Boolean(
         e.correoInstitucional &&
           porCorreo.has(e.correoInstitucional) &&
-          concordanciaNombre(porCorreo.get(e.correoInstitucional)!, e) === 'completo',
+          esDeLaPersona(concordanciaNombre(porCorreo.get(e.correoInstitucional)!, e)),
       ),
       nota,
     });
@@ -625,8 +660,8 @@ export function planCorreos(
     conteo,
     // Se retira solo lo que PODRÍA SER DE OTRA PERSONA. Un correo con el nombre completo
     // exacto de la ficha es suyo, aunque no sea la cuenta que usa: se conserva.
-    retiros: filas.filter((f) => deImportacion(f) && !aplicable(f) && !f.correoActualCompleto),
-    conservadosConDuda: filas.filter((f) => deImportacion(f) && !aplicable(f) && f.correoActualCompleto),
+    retiros: filas.filter((f) => deImportacion(f) && !aplicable(f) && !f.correoActualEsSuyo),
+    conservadosConDuda: filas.filter((f) => deImportacion(f) && !aplicable(f) && f.correoActualEsSuyo),
     reemplazos: filas.filter((f) => deImportacion(f) && aplicable(f) && f.correo !== f.correoActual),
   };
 }
