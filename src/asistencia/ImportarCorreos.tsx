@@ -167,6 +167,12 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
   const porResolver = plan
     ? plan.filas.filter((f) => f.estado === 'confirmar' || f.estado === 'colision')
     : [];
+  // Los que se aplicarían, según qué tan bien coincide el nombre de la cuenta.
+  const aAplicar = plan
+    ? plan.filas.filter((f) => f.estado === 'automatico' || f.estado === 'cuenta_inactiva')
+    : [];
+  const completos = aAplicar.filter((f) => f.concordancia === 'completo').length;
+  const parciales = aAplicar.filter((f) => f.concordancia === 'compatible');
 
   return (
     <section className="space-y-3 rounded-xl border border-line bg-card p-3">
@@ -213,6 +219,33 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
             con que la llave exista: una cuenta con el patrón de un estudiante puede ser de otro con
             el mismo nombre que no está en la aplicación.
           </p>
+
+          {aAplicar.length > 0 && (
+            <div className="rounded-lg border border-line bg-elevated p-2 text-sm">
+              <p className="text-strong">
+                De los <b>{aAplicar.length}</b> que se aplicarían: <b>{completos}</b> coinciden con el
+                nombre completo de la cuenta y <b>{parciales.length}</b> solo en parte.
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                «En parte» quiere decir que la cuenta tiene menos palabras que la ficha, sin ninguna que
+                contradiga — por ejemplo, creada solo como «Juan Pérez». No descarta que sea de otro Juan
+                Pérez que no está en la aplicación. Si son pocos, conviene mirarlos uno por uno.
+              </p>
+              {parciales.length > 0 && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-strong">Ver los {parciales.length} en parte</summary>
+                  <ul className="mt-1 space-y-0.5 text-xs text-soft">
+                    {parciales.map((f) => (
+                      <li key={f.studentId}>
+                        <b className="text-strong">{f.nombre}</b> ({f.grado}) → {f.correo?.split('@')[0]} («
+                        {f.nombreCuentaPropuesta || 'sin nombre'}»)
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
 
           {porResolver.length > 0 && (
             <details className="rounded-lg border border-line p-2">

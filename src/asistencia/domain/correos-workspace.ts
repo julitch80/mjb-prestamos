@@ -235,6 +235,15 @@ export interface FilaPlanCorreo {
   /** Cuentas del archivo que podrían ser suyas: la llave y sus variantes numeradas, con
    *  el nombre con que se crearon. Es lo que necesita quien resuelve. */
   candidatas: { correo: string; nombreCuenta: string }[];
+  /**
+   * Qué tan bien coincide el nombre de la cuenta propuesta con la ficha. Se guarda para
+   * poder CONTAR cuántos automáticos coinciden solo en parte: una cuenta creada solo con
+   * «Juan Pérez» no descarta a otro Juan Pérez que no esté en la aplicación. `null` si no
+   * hay cuenta propuesta.
+   */
+  concordancia: ConcordanciaNombre | null;
+  /** El nombre con que se creó la cuenta propuesta, para mostrarlo al revisar. */
+  nombreCuentaPropuesta: string | null;
 }
 
 export interface PlanCorreos {
@@ -333,6 +342,7 @@ export function planCorreos(
     let estado: EstadoCorreo;
     let correo: string | null = null;
     let motivo: string | null = null;
+    let concordanciaPropuesta: ConcordanciaNombre | null = null;
 
     const existentes = ls.map((l) => `${l}@${dominio}`).filter((c) => porCorreo.has(c));
     const rivales = [...new Set(ls.flatMap((l) => [...(reclamantes.get(l) ?? [])]))].filter(
@@ -385,6 +395,11 @@ export function planCorreos(
       } else {
         estado = cuenta.activa ? 'automatico' : 'cuenta_inactiva';
       }
+      concordanciaPropuesta = concordancia;
+    }
+
+    if (correo && concordanciaPropuesta === null) {
+      concordanciaPropuesta = concordanciaNombre(porCorreo.get(correo)!, e);
     }
 
     if (correo) asignadas.add(correo);
@@ -393,6 +408,8 @@ export function planCorreos(
       estado,
       correo,
       motivo,
+      concordancia: concordanciaPropuesta,
+      nombreCuentaPropuesta: correo ? nombreDe(porCorreo.get(correo)!) : null,
       sinCambios: Boolean(correo && e.correoInstitucional === correo),
     });
   }
