@@ -21,11 +21,13 @@ import {
   leerCsv,
   leerExportWorkspace,
   planCorreos,
+  retirosDelPlan,
   type CuentaWorkspace,
   type EstadoCorreo,
   type PlanCorreos,
 } from './domain/correos-workspace';
 import { toDateKey } from './domain/ids';
+import { normalizar } from './domain/nombres';
 import type { Sede } from './domain/types';
 
 const ESTADO: Record<EstadoCorreo, { nombre: string; explica: string }> = {
@@ -62,6 +64,8 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aplicados, setAplicados] = useState<number | null>(null);
+  const [retirados, setRetirados] = useState<number | null>(null);
+  const [busqueda, setBusqueda] = useState('');
 
   async function elegir(ev: React.ChangeEvent<HTMLInputElement>) {
     const f = ev.target.files?.[0];
@@ -70,6 +74,7 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
     setOcupado(true);
     setError(null);
     setAplicados(null);
+    setRetirados(null);
     try {
       const cs = leerExportWorkspace(leerCsv(await f.text()));
       const estudiantes = await leerEstudiantesDeSede(sede);
@@ -94,6 +99,23 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
       setAplicados(await aplicarCorreosInstitucionales(escriturasDelPlan(plan, toDateKey(new Date()))));
     } catch (e) {
       setError(`No se aplicó: ${(e as Error).message}`);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  /**
+   * Retira los correos aplicados antes que ya no se sostienen. Botón aparte del de aplicar a
+   * propósito: retirar es deshacer algo que ya estaba escrito, y tiene que verse por separado.
+   */
+  async function retirar() {
+    if (!plan) return;
+    setOcupado(true);
+    setError(null);
+    try {
+      setRetirados(await aplicarCorreosInstitucionales(retirosDelPlan(plan, toDateKey(new Date()))));
+    } catch (e) {
+      setError(`No se retiró: ${(e as Error).message}`);
     } finally {
       setOcupado(false);
     }
@@ -173,6 +195,11 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
     : [];
   const completos = aAplicar.filter((f) => f.concordancia === 'completo').length;
   const parciales = aAplicar.filter((f) => f.concordancia === 'compatible');
+  const porNombreCompleto = aAplicar.filter((f) => f.via === 'nombre_completo').length;
+  const encontrados =
+    plan && busqueda.trim().length >= 3
+      ? plan.filas.filter((f) => normalizar(f.nombre).includes(normalizar(busqueda))).slice(0, 10)
+      : [];
 
   return (
     <section className="space-y-3 rounded-xl border border-line bg-card p-3">
@@ -291,6 +318,83 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
               </ul>
             </details>
           )}
+
+          {plan.retiros.length > 0 && (
+            <div className="rounded-lg border border-danger-soft bg-danger-soft p-2 text-sm text-danger-soft-fg">
+              <p>
+                <b>{plan.retiros.length} correo(s) aplicados antes ya no se sostienen</b> con las reglas
+                actuales y no tienen un reemplazo seguro. Conviene retirarlos: un correo dudoso escrito
+                en la ficha es peor que ninguno.
+              </p>
+              <ul className="mt-1 space-y-1 text-xs">
+                {plan.retiros.map((f) => (
+                  <li key={f.studentId}>
+                    <b>{f.nombre}</b> ({f.grado}) — tiene {f.correoActual?.split('@')[0]}. {f.motivo}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => void retirar()}
+                disabled={ocupado || retirados !== null}
+                className="mt-2 rounded-lg border border-line bg-card px-3 py-1.5 text-sm text-strong disabled:opacity-50"
+              >
+                Retirar {plan.retiros.length} correo(s)
+              </button>
+              {retirados !== null && <p className="mt-1 text-xs">Listo: se retiraron {retirados}.</p>}
+            </div>
+          )}
+
+          {plan.reemplazos.length > 0 && (
+            <div className="rounded-lg border border-warning-soft bg-warning-soft p-2 text-sm text-warning-soft-fg">
+              <b>Al aplicar, {plan.reemplazos.length} correo(s) aplicados antes se reemplazan por otro:</b>
+              <ul className="mt-1 space-y-0.5 text-xs">
+                {plan.reemplazos.map((f) => (
+                  <li key={f.studentId}>
+                    <b>{f.nombre}</b> ({f.grado}): {f.correoActual?.split('@')[0]} → {f.correo?.split('@')[0]} («
+                    {f.nombreCuentaPropuesta}»)
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {porNombreCompleto > 0 && (
+            <p className="text-xs text-muted">
+              De los que se aplicarían, <b>{porNombreCompleto}</b> se encontraron por el nombre completo exacto
+              de la cuenta, porque su correo no sigue la llave (por ejemplo, con el segundo apellido agregado).
+            </p>
+          )}
+
+          <div className="rounded-lg border border-line p-2">
+            <label className="block text-xs text-muted">Buscar un estudiante para revisar qué pasa con su correo</label>
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Al menos 3 letras del nombre o apellido"
+              className="mt-1 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm"
+            />
+            {encontrados.map((f) => (
+              <div key={f.studentId} className="mt-2 border-t border-line pt-1 text-xs">
+                <b className="text-strong">{f.nombre}</b> <span className="text-muted">({f.grado})</span> —{' '}
+                <b>{ESTADO[f.estado].nombre}</b>
+                <p className="text-soft">
+                  Propuesto: {f.correo ?? 'ninguno'}
+                  {f.nombreCuentaPropuesta ? ` («${f.nombreCuentaPropuesta}»)` : ''}
+                  {f.via === 'nombre_completo' ? ' · por nombre completo' : ''}
+                </p>
+                <p className="text-soft">
+                  Hoy en la ficha: {f.correoActual ?? 'sin correo'}
+                  {f.origenActual ? ` (${f.origenActual === 'manual' ? 'puesto a mano' : 'de la importación'})` : ''}
+                </p>
+                {f.motivo && <p className="text-muted">{f.motivo}</p>}
+                {f.candidatas.length > 0 && (
+                  <p className="text-muted">
+                    Cuentas posibles: {f.candidatas.map((c) => `${c.correo.split('@')[0]} («${c.nombreCuenta || 'sin nombre'}»)`).join(' · ')}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
 
           <div className="flex flex-wrap gap-2 border-t border-line pt-3">
             <button

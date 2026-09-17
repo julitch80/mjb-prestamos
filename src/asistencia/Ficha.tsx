@@ -389,6 +389,21 @@ export default function Ficha({
                   />
                 </>
               )}
+              {est.correoInstitucional && (
+                <Dato
+                  termino="Correo"
+                  valor={
+                    <span>
+                      {est.correoInstitucional}
+                      <span className="block text-xs text-muted">
+                        {est.correoOrigen === 'manual' ? 'Puesto a mano' : 'Desde Workspace'}
+                        {est.correoVerificadoEn ? ` · verificado el ${est.correoVerificadoEn}` : ''}
+                        {est.correoCuentaActiva === false ? ' · la cuenta estaba suspendida' : ''}
+                      </span>
+                    </span>
+                  }
+                />
+              )}
             </dl>
 
             {/*

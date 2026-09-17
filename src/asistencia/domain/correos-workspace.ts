@@ -26,6 +26,17 @@
  *     eso, antes de llamar algo automático, se exige que el nombre con que se creó la
  *     cuenta no contradiga la ficha, y que no existan variantes numeradas de la llave
  *     (`juan.perez2`), que delatan un homónimo en Workspace.
+ *  5. **Si existe una cuenta con el nombre completo EXACTO, esa manda.** Agregada el mismo
+ *     día por un caso real que planteó Julián: a una homónima el colegio no le puso un
+ *     número, le agregó el segundo apellido (`valentina.arredondo.gonzalez`). La llave
+ *     construida nunca la encontraría. Se busca en TODAS las cuentas la que tenga los dos
+ *     nombres y los dos apellidos de la ficha, cuente como cuente el correo, con tres
+ *     seguros: única en Workspace, única en el colegio, y el correo debe empezar por la
+ *     llave del estudiante. Y si hay DOS cuentas con su nombre exacto, nada es automático:
+ *     puede tener dos cuentas, o haber otra persona con su mismo nombre completo.
+ *  6. **Lo aplicado antes se revisa en cada pasada.** Un correo escrito por una versión
+ *     anterior que ya no se sostiene se RETIRA, y si hay uno mejor se REEMPLAZA. Sin esto,
+ *     un error de una versión vieja quedaría escrito para siempre.
  *
  * Y lo que la máquina no decide, no lo escribe: `confirmar` y `colision` quedan para que
  * los resuelva el director de grupo, que sabe cuál Juan Pérez es el suyo.
@@ -244,6 +255,11 @@ export interface FilaPlanCorreo {
   concordancia: ConcordanciaNombre | null;
   /** El nombre con que se creó la cuenta propuesta, para mostrarlo al revisar. */
   nombreCuentaPropuesta: string | null;
+  /** Por dónde se llegó al correo propuesto. */
+  via: 'llave' | 'nombre_completo' | null;
+  /** Lo que la ficha tiene HOY, antes de aplicar nada. */
+  correoActual: string | null;
+  origenActual: 'workspace' | 'manual' | null;
 }
 
 export interface PlanCorreos {
@@ -253,6 +269,14 @@ export interface PlanCorreos {
    *  desviada de un homónimo. */
   cuentasSinDueno: CuentaWorkspace[];
   conteo: Record<EstadoCorreo, number>;
+  /**
+   * Correos escritos antes por la importación que HOY ya no se sostienen: la ficha tiene uno
+   * y el plan no lo propone como automático. Se retiran (o se reemplazan, si hay uno mejor
+   * automático: esos están en `reemplazos`). Nunca incluye correos puestos a mano.
+   */
+  retiros: FilaPlanCorreo[];
+  /** Automáticos que cambian un correo aplicado antes por otro. */
+  reemplazos: FilaPlanCorreo[];
 }
 
 /** Palabras de un nombre, normalizadas: "Londoño-López" -> ["LONDONO", "LOPEZ"]. */
@@ -319,6 +343,12 @@ function escaparRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Llave de un nombre completo que no depende del orden: «Valentina Arredondo González» y
+ *  «ARREDONDO GONZALEZ VALENTINA» dan la misma. Respeta las repeticiones. */
+function claveDeNombre(texto: string): string {
+  return palabras(texto).sort().join(' ');
+}
+
 export function planCorreos(
   estudiantes: EstudianteParaCorreo[],
   cuentas: CuentaWorkspace[],
@@ -327,14 +357,27 @@ export function planCorreos(
   const porCorreo = new Map(cuentas.map((c) => [c.correo, c]));
   const activos = estudiantes.filter((e) => e.activo);
   const llaves = new Map(activos.map((e) => [e.studentId, llavesDe(e)]));
+  const nombreDe = (c: CuentaWorkspace) => `${c.nombre} ${c.apellido}`.trim();
+  const localDe = (correo: string) => correo.split('@')[0];
 
-  /** La llave y sus variantes numeradas que existen en el archivo: `juan.perez`,
-   *  `juan.perez2`, `juan.perez.3`. Más de una delata un homónimo en Workspace. */
+  /** La llave y sus variantes numeradas que existen en el archivo. */
   const variantesDe = (llave: string): CuentaWorkspace[] => {
     const re = new RegExp(`^${escaparRegex(llave)}(?:[._-]?\\d+)?@${escaparRegex(dominio)}$`);
     return cuentas.filter((c) => re.test(c.correo)).sort((a, b) => a.correo.localeCompare(b.correo));
   };
-  const nombreDe = (c: CuentaWorkspace) => `${c.nombre} ${c.apellido}`.trim();
+
+  // Regla 5: índices por nombre completo exacto, en Workspace y en el colegio.
+  const claveFicha = (e: EstudianteParaCorreo) => claveDeNombre(`${nombresDePila(e.apellidos, e.nombres)} ${e.apellidos}`);
+  const cuentasPorNombre = new Map<string, CuentaWorkspace[]>();
+  for (const c of cuentas) {
+    const k = claveDeNombre(nombreDe(c));
+    if (!k) continue;
+    const l = cuentasPorNombre.get(k) ?? [];
+    l.push(c);
+    cuentasPorNombre.set(k, l);
+  }
+  const estudiantesPorNombre = new Map<string, number>();
+  for (const e of activos) estudiantesPorNombre.set(claveFicha(e), (estudiantesPorNombre.get(claveFicha(e)) ?? 0) + 1);
 
   // Regla 1: quién reclama cada llave, EN NUESTRA LISTA.
   const reclamantes = new Map<string, Set<string>>();
@@ -352,32 +395,28 @@ export function planCorreos(
 
   for (const e of activos) {
     const { llaves: ls, compuesto } = llaves.get(e.studentId)!;
-    const candidatas = ls.flatMap(variantesDe);
-    const base = {
-      studentId: e.studentId,
-      nombre: `${e.apellidos} ${nombresDePila(e.apellidos, e.nombres)}`.trim(),
-      grado: e.gradoActual,
-      llavesProbadas: ls,
-      compuesto,
-      protegidoManual: e.correoOrigen === 'manual',
-      candidatas: candidatas.map((c) => ({ correo: c.correo, nombreCuenta: nombreDe(c) })),
-    };
+    const exactas = (cuentasPorNombre.get(claveFicha(e)) ?? []).sort((a, b) => a.correo.localeCompare(b.correo));
+    const unicoEnColegio = estudiantesPorNombre.get(claveFicha(e)) === 1;
+
+    // Candidatas: la llave, sus variantes numeradas y las cuentas con su nombre exacto.
+    const vistas = new Set<string>();
+    const candidatas = [...ls.flatMap(variantesDe), ...exactas].filter((c) =>
+      vistas.has(c.correo) ? false : (vistas.add(c.correo), true),
+    );
 
     let estado: EstadoCorreo;
     let correo: string | null = null;
     let motivo: string | null = null;
-    let concordanciaPropuesta: ConcordanciaNombre | null = null;
+    let via: FilaPlanCorreo['via'] = null;
 
+    // ---- Primero, la llave (reglas 1 a 4) ----
     const existentes = ls.map((l) => `${l}@${dominio}`).filter((c) => porCorreo.has(c));
     const rivales = [...new Set(ls.flatMap((l) => [...(reclamantes.get(l) ?? [])]))].filter(
       (id) => id !== e.studentId,
     );
 
     if (rivales.length > 0) {
-      // Homónimo en NUESTRA lista. Nunca automático. Pero si entre la llave y sus
-      // variantes hay EXACTAMENTE UNA cuenta cuyo nombre completo es el de este
-      // estudiante —y no el de ninguno de sus homónimos—, se sugiere para confirmar.
-      const suyas = candidatas.filter(
+      const suyas = ls.flatMap(variantesDe).filter(
         (c) =>
           concordanciaNombre(c, e) === 'completo' &&
           rivales.every((r) => concordanciaNombre(c, porId.get(r)!) !== 'completo'),
@@ -400,15 +439,13 @@ export function planCorreos(
       const cuenta = porCorreo.get(correo)!;
       const concordancia = concordanciaNombre(cuenta, e);
       const variantes = ls.flatMap(variantesDe);
-
       if (compuesto) {
         estado = 'confirmar';
         motivo = 'Apellido compuesto: una sola de las formas posibles existe.';
       } else if (variantes.length > 1) {
-        // Regla 4, segunda mitad: `juan.perez` y `juan.perez2` a la vez.
         estado = 'confirmar';
         motivo = `Hay ${variantes.length} cuentas con esa llave en Workspace (${variantes
-          .map((v) => v.correo.split('@')[0])
+          .map((v) => localDe(v.correo))
           .join(', ')}): puede ser de otro estudiante con el mismo nombre.`;
       } else if (concordancia === 'contradice') {
         estado = 'confirmar';
@@ -422,22 +459,81 @@ export function planCorreos(
       } else {
         estado = cuenta.activa ? 'automatico' : 'cuenta_inactiva';
       }
-      concordanciaPropuesta = concordancia;
+      via = 'llave';
     }
 
-    if (correo && concordanciaPropuesta === null) {
-      concordanciaPropuesta = concordanciaNombre(porCorreo.get(correo)!, e);
+    // ---- Después, el nombre completo exacto (regla 5), que manda sobre la llave ----
+    if (unicoEnColegio && exactas.length >= 2) {
+      // Dos cuentas con su nombre exacto. No se escoge ninguna, ni siquiera la de la llave.
+      estado = 'confirmar';
+      correo = null;
+      via = null;
+      motivo = `Hay ${exactas.length} cuentas con su nombre completo exacto (${exactas
+        .map((c) => localDe(c.correo))
+        .join(', ')}): puede tener dos cuentas, o haber otra persona con el mismo nombre completo.`;
+    } else if (unicoEnColegio && exactas.length === 1) {
+      const exacta = exactas[0];
+      const empiezaPorLlave = ls.some((l) => {
+        const local = localDe(exacta.correo);
+        return local === l || local.startsWith(`${l}.`) || (local.startsWith(l) && /^\d+$/.test(local.slice(l.length)));
+      });
+      const yaEsLaMisma = correo === exacta.correo && (estado === 'automatico' || estado === 'cuenta_inactiva');
+      // La regla 5 NO relaja las reglas anteriores: un homónimo dentro del colegio o un
+      // apellido compuesto nunca se aplican solos, aunque la cuenta tenga su nombre exacto.
+      // Se sugiere la cuenta, y la confirma una persona.
+      const puedeSerAutomatico = rivales.length === 0 && !compuesto;
+      if (!yaEsLaMisma) {
+        if (empiezaPorLlave && !puedeSerAutomatico) {
+          estado = 'confirmar';
+          correo = exacta.correo;
+          via = 'nombre_completo';
+          motivo = rivales.length > 0
+            ? `Homónimo en el colegio. Se sugiere la cuenta con su nombre completo exacto («${nombreDe(exacta)}»).`
+            : `Apellido compuesto. Se sugiere la cuenta con su nombre completo exacto («${nombreDe(exacta)}»).`;
+        } else if (empiezaPorLlave) {
+          estado = exacta.activa ? 'automatico' : 'cuenta_inactiva';
+          correo = exacta.correo;
+          via = 'nombre_completo';
+          motivo = null;
+        } else if (estado !== 'automatico' && estado !== 'cuenta_inactiva') {
+          estado = 'confirmar';
+          correo = exacta.correo;
+          via = 'nombre_completo';
+          motivo = `Hay una cuenta con su nombre completo exacto («${nombreDe(exacta)}»), pero el correo (${localDe(
+            exacta.correo,
+          )}) no sigue su patrón.`;
+        } else {
+          // La llave ya daba un automático con OTRA cuenta, y existe una con su nombre
+          // exacto que no sigue el patrón. Dos cuentas que podrían ser suyas: no se escoge.
+          estado = 'confirmar';
+          motivo = `La cuenta ${localDe(correo!)} coincide por la llave, pero existe otra con su nombre completo exacto (${localDe(
+            exacta.correo,
+          )}). Puede tener dos cuentas.`;
+          correo = null;
+          via = null;
+        }
+      }
     }
 
     if (correo) asignadas.add(correo);
+    const aplicable = estado === 'automatico' || estado === 'cuenta_inactiva';
     filas.push({
-      ...base,
+      studentId: e.studentId,
+      nombre: `${e.apellidos} ${nombresDePila(e.apellidos, e.nombres)}`.trim(),
+      grado: e.gradoActual,
+      llavesProbadas: ls,
+      compuesto,
+      protegidoManual: e.correoOrigen === 'manual',
+      candidatas: candidatas.map((c) => ({ correo: c.correo, nombreCuenta: nombreDe(c) })),
       estado,
       correo,
       motivo,
-      concordancia: concordanciaPropuesta,
+      via: correo ? via : null,
+      concordancia: correo ? concordanciaNombre(porCorreo.get(correo)!, e) : null,
       nombreCuentaPropuesta: correo ? nombreDe(porCorreo.get(correo)!) : null,
-      sinCambios: Boolean(correo && e.correoInstitucional === correo),
+      sinCambios: Boolean(aplicable && correo && e.correoInstitucional === correo),
+      correoActual: e.correoInstitucional ?? null,
+      origenActual: e.correoOrigen ?? null,
     });
   }
 
@@ -450,10 +546,15 @@ export function planCorreos(
   };
   for (const f of filas) conteo[f.estado] += 1;
 
+  const deImportacion = (f: FilaPlanCorreo) => Boolean(f.correoActual) && f.origenActual === 'workspace';
+  const aplicable = (f: FilaPlanCorreo) => f.estado === 'automatico' || f.estado === 'cuenta_inactiva';
+
   return {
     filas,
     cuentasSinDueno: cuentas.filter((c) => !asignadas.has(c.correo)),
     conteo,
+    retiros: filas.filter((f) => deImportacion(f) && !aplicable(f)),
+    reemplazos: filas.filter((f) => deImportacion(f) && aplicable(f) && f.correo !== f.correoActual),
   };
 }
 
@@ -477,6 +578,28 @@ export function escriturasDelPlan(
         correoVerificadoEn: fecha,
         correoOrigen: 'workspace',
         correoCuentaActiva: f.estado === 'automatico',
+      },
+    }));
+}
+
+/**
+ * Lo que hay que escribir para RETIRAR un correo aplicado antes que ya no se sostiene. Se
+ * deja constancia de cuándo se retiró en `correoVerificadoEn`. Nunca toca uno puesto a
+ * mano: `retiros` ya los excluye, y aquí se vuelve a comprobar.
+ */
+export function retirosDelPlan(
+  plan: PlanCorreos,
+  fecha: string,
+): { studentId: string; cambios: Record<string, unknown> }[] {
+  return plan.retiros
+    .filter((f) => f.origenActual === 'workspace')
+    .map((f) => ({
+      studentId: f.studentId,
+      cambios: {
+        correoInstitucional: null,
+        correoOrigen: null,
+        correoCuentaActiva: null,
+        correoVerificadoEn: fecha,
       },
     }));
 }
