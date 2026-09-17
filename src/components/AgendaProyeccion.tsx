@@ -188,10 +188,11 @@ function Ejemplo({ anclas }: { anclas: Ancla[] }) {
         {/* El celular del estudiante */}
         <div className="mx-auto w-full max-w-sm rounded-[2.5rem] border-4 border-white/20 bg-[#141a2a] p-5 space-y-4">
           <div className="rounded-2xl bg-white/5 border border-white/10 p-4 space-y-1">
-            <p className="text-sm uppercase tracking-wider text-white/50">Lunes</p>
             <p className="text-2xl font-bold">Ciencias</p>
             <p className="text-lg text-white/80">Dibujar las partes de la planta</p>
             <p className="text-base text-white/50">1 momento · 25 min</p>
+            <p className="text-lg pt-1"><span className="text-sky-300 font-semibold">🛠️ Hacerla: lunes</span></p>
+            <p className="text-lg"><span className="text-rose-300 font-semibold">📬 Entregarla: miércoles</span></p>
           </div>
           <p className="text-xl font-semibold">¿Cuándo la vas a hacer?</p>
           <div className="space-y-2">
@@ -211,9 +212,13 @@ function Ejemplo({ anclas }: { anclas: Ancla[] }) {
         {/* La historia */}
         <div className="space-y-6 text-2xl leading-snug">
           <p>
-            <b className="text-amber-300">Sara</b> ve que el lunes tiene una tarea de Ciencias que dura{' '}
-            <b>25 minutos</b>.
+            <b className="text-amber-300">Sara</b> tiene una tarea de Ciencias de <b>25 minutos</b>. La agenda le
+            dice dos cosas distintas:
           </p>
+          <ul className="space-y-2 pl-2">
+            <li><b className="text-sky-300">🛠️ Hacerla el lunes:</b> es el día que el sistema le propone para trabajar en ella.</li>
+            <li><b className="text-rose-300">📬 Entregarla el miércoles:</b> es el día que la lleva al colegio.</li>
+          </ul>
           {elegida && (
             <p>
               Piensa en su tarde y toca <b className="text-amber-300">«{elegida.label}»</b>, porque a esa hora
@@ -221,7 +226,8 @@ function Ejemplo({ anclas }: { anclas: Ancla[] }) {
             </p>
           )}
           <p>
-            El lunes, a esa hora, se sienta 25 minutos y la hace. Cuando termina, la <b>tacha</b> en su celular.
+            El lunes, a esa hora, se sienta 25 minutos y la hace. El miércoles la entrega. Cuando termina, la{' '}
+            <b>tacha</b> en su celular.
           </p>
           <p className="text-xl text-white/60">
             Si ninguna opción le sirve, puede escribir la suya en <b>«Otro»</b>. Lo que elige lo ve solo ella.
@@ -245,6 +251,12 @@ function SusTareas({ grupo, dias, tareasDelDia, hayTareas, qr }: {
     <div className="grid gap-8 lg:grid-cols-[1fr_auto] items-start">
       <div className="space-y-6">
         <h2 className="text-5xl font-bold">Las tareas de {grupo}</h2>
+        {hayTareas && (
+          <p className="text-xl text-white/80 leading-snug">
+            Cada tarea aparece en el día <b className="text-sky-300">🛠️ para hacerla</b>, que propone el sistema.
+            Al lado verás el día <b className="text-rose-300">📬 para entregarla</b>.
+          </p>
+        )}
 
         {!hayTareas && (
           <p className="text-3xl text-white/70 pt-6">
@@ -263,14 +275,16 @@ function SusTareas({ grupo, dias, tareasDelDia, hayTareas, qr }: {
           return (
             <div key={f} className="space-y-2">
               {titulo && <p className="text-base font-semibold uppercase tracking-widest text-amber-300 pt-2">{titulo}</p>}
-              <h3 className="text-2xl font-bold border-b border-white/20 pb-1">{diaLargo(f)}</h3>
+              <h3 className="text-2xl font-bold border-b border-white/20 pb-1">
+                <span className="text-sky-300">🛠️ Para hacer el</span> {diaLargo(f)}
+              </h3>
               {items.map(({ b, t }, j) => (
                 <div key={j} className="flex flex-wrap items-baseline justify-between gap-x-4 text-2xl leading-snug">
                   <span>
                     <b>{getAsignatura(t.asignaturaId)?.nombre ?? t.asignaturaId}</b> — {t.titulo}
                     <span className="text-white/60 text-xl"> ({b.momentos * 25} min)</span>
                   </span>
-                  <span className="text-lg text-amber-300/90">🕓 ¿Cuándo la vas a hacer?</span>
+                  <span className="text-xl font-semibold text-rose-300 whitespace-nowrap">📬 Se entrega el {diaLargo(t.fechaEntrega)}</span>
                 </div>
               ))}
             </div>
@@ -284,7 +298,7 @@ function SusTareas({ grupo, dias, tareasDelDia, hayTareas, qr }: {
         <ol className="space-y-2 text-lg leading-snug list-decimal pl-6">
           <li>Escanea este código.</li>
           <li>Toca cada tarea.</li>
-          <li>Elige <b>cuándo la vas a hacer</b>.</li>
+          <li>Elige <b>a qué hora del día</b> la vas a hacer.</li>
         </ol>
         {qr && <img src={qr} alt={`Código QR de la agenda de ${grupo}`} className="w-full rounded-xl" />}
         <p className="text-sm text-[#0b1220]/60">Si no tienes celular, anótalo en tu cuaderno.</p>
