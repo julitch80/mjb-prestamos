@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Check, Lock, Paperclip, Printer, QrCode as QrIcon, Tv } from 'lucide-react';
+import { Check, Lock, Paperclip, Printer, QrCode as QrIcon, Tv } from 'lucide-react';
 import QRCode from 'qrcode';
 import { colorGrado, DIRECTORES_MANANA, DIRECTORES_TARDE, USUARIOS } from '../data/maestros';
 import { getAsignatura } from '../data/asignacionAcademica';
@@ -13,6 +13,7 @@ import {
 } from '../data/tareas/habitos';
 import AgendaImprimible from './AgendaImprimible';
 import AgendaProyeccion from './AgendaProyeccion';
+import PildoraEstudio from './PildoraEstudio';
 import { cn } from '@/lib/utils';
 
 const DIAS_LABEL = ['lun', 'mar', 'mié', 'jue', 'vie'];
@@ -340,10 +341,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
               );
             })
           )}
-          <div className="rounded-xl bg-warning-soft border border-warning px-3 py-2 flex justify-between items-center">
-            <span className="text-xs text-warning-soft-fg flex items-center gap-1.5"><BookOpen size={13} /> Estudio personal</span>
-            <span className="text-[11px] text-warning-soft-fg">{config.estudioMin} min · todos los días</span>
-          </div>
+          <PildoraEstudio grupo={grupo} minutos={config.estudioMin} />
           <p className="text-[10px] text-muted flex items-center gap-1 justify-center pt-1">
             <Lock size={10} /> Lo que marcas aquí se guarda solo en este teléfono. Nadie más lo ve.
           </p>
@@ -409,10 +407,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
               </div>
             );
           })}
-          <div className="rounded-xl bg-warning-soft border border-warning px-3 py-1.5 flex justify-between items-center">
-            <span className="text-[11px] text-warning-soft-fg flex items-center gap-1.5"><BookOpen size={12} /> Estudio personal</span>
-            <span className="text-[10px] text-warning-soft-fg">{config.estudioMin} min · todos los días</span>
-          </div>
+          <PildoraEstudio grupo={grupo} minutos={config.estudioMin} compacto />
           <p className="text-[10px] text-muted flex items-center gap-1 justify-center pt-1">
             <Lock size={10} /> Lo que marcas aquí se guarda solo en este teléfono. Nadie más lo ve.
           </p>
