@@ -466,7 +466,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
         <AgendaImprimible grupo={grupo} semana={semana} tareasDelDia={tareasDelDia} onCerrar={() => setMostrarImprimible(false)} />
       )}
       {mostrarProyeccion && (
-        <AgendaProyeccion grupo={grupo} dias={diasProyeccion} tareasDelDia={tareasDelDia} onCerrar={() => setMostrarProyeccion(false)} />
+        <AgendaProyeccion grupo={grupo} dias={diasProyeccion} tareasDelDia={tareasDelDia} anclas={anclasDeGrupo(grupo, anclasPorGrupo)} urlAgenda={urlAgendaPublica(grupo)} onCerrar={() => setMostrarProyeccion(false)} />
       )}
     </div>
   );
