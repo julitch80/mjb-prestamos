@@ -245,7 +245,7 @@ export interface FilaPlanCorreo {
   motivo: string | null;
   /** Cuentas del archivo que podrían ser suyas: la llave y sus variantes numeradas, con
    *  el nombre con que se crearon. Es lo que necesita quien resuelve. */
-  candidatas: { correo: string; nombreCuenta: string }[];
+  candidatas: { correo: string; nombreCuenta: string; ultimoAcceso: string }[];
   /**
    * Qué tan bien coincide el nombre de la cuenta propuesta con la ficha. Se guarda para
    * poder CONTAR cuántos automáticos coinciden solo en parte: una cuenta creada solo con
@@ -260,6 +260,14 @@ export interface FilaPlanCorreo {
   /** Lo que la ficha tiene HOY, antes de aplicar nada. */
   correoActual: string | null;
   origenActual: 'workspace' | 'manual' | null;
+  /**
+   * El correo que la ficha tiene hoy es de una cuenta con su nombre completo EXACTO: es de
+   * la misma persona. Si el plan ya no lo propone, a lo sumo es su cuenta vieja — no se
+   * retira, porque no hay riesgo de que sea de otro estudiante.
+   */
+  correoActualCompleto: boolean;
+  /** Información para quien revisa, aunque el caso sea automático («tiene otra cuenta»). */
+  nota: string | null;
 }
 
 export interface PlanCorreos {
@@ -277,6 +285,12 @@ export interface PlanCorreos {
   retiros: FilaPlanCorreo[];
   /** Automáticos que cambian un correo aplicado antes por otro. */
   reemplazos: FilaPlanCorreo[];
+  /**
+   * Correos aplicados antes que el plan ya no propone, pero que son de la MISMA persona
+   * (cuenta con su nombre completo exacto). Se conservan: lo que falta decidir es cuál de sus
+   * cuentas usa, no si el correo es suyo.
+   */
+  conservadosConDuda: FilaPlanCorreo[];
 }
 
 /** Palabras de un nombre, normalizadas: "Londoño-López" -> ["LONDONO", "LOPEZ"]. */
@@ -349,10 +363,33 @@ function claveDeNombre(texto: string): string {
   return palabras(texto).sort().join(' ');
 }
 
+/**
+ * El «Last Sign In» del export de Google. Devuelve `'nunca'` para «Never logged in», la fecha
+ * si se entiende, y `null` si no se entiende. `null` NO es lo mismo que «nunca»: un formato
+ * que no se reconoce no puede desempatar nada, y el caso queda por confirmar.
+ */
+export function fechaDeAcceso(raw: string): Date | 'nunca' | null {
+  const t = (raw ?? '').trim();
+  if (!t) return null;
+  if (/never/i.test(t) || /nunca/i.test(t)) return 'nunca';
+  // `2026/09/14 10:22:11` → `2026-09-14T10:22:11`, que todos los navegadores entienden igual.
+  const ymd = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(t);
+  if (ymd) {
+    const [, a, m, d, h = '0', mi = '0', s = '0'] = ymd;
+    const f = new Date(Date.UTC(+a, +m - 1, +d, +h, +mi, +s));
+    return Number.isNaN(f.getTime()) ? null : f;
+  }
+  const f = new Date(t);
+  return Number.isNaN(f.getTime()) ? null : f;
+}
+
+const UN_ANIO_MS = 365 * 86_400_000;
+
 export function planCorreos(
   estudiantes: EstudianteParaCorreo[],
   cuentas: CuentaWorkspace[],
   dominio = DOMINIO_INSTITUCIONAL,
+  hoy: Date = new Date(),
 ): PlanCorreos {
   const porCorreo = new Map(cuentas.map((c) => [c.correo, c]));
   const activos = estudiantes.filter((e) => e.activo);
@@ -408,6 +445,7 @@ export function planCorreos(
     let correo: string | null = null;
     let motivo: string | null = null;
     let via: FilaPlanCorreo['via'] = null;
+    let nota: string | null = null;
 
     // ---- Primero, la llave (reglas 1 a 4) ----
     const existentes = ls.map((l) => `${l}@${dominio}`).filter((c) => porCorreo.has(c));
@@ -463,25 +501,51 @@ export function planCorreos(
     }
 
     // ---- Después, el nombre completo exacto (regla 5), que manda sobre la llave ----
-    if (unicoEnColegio && exactas.length >= 2) {
-      // Dos cuentas con su nombre exacto. No se escoge ninguna, ni siquiera la de la llave.
-      estado = 'confirmar';
-      correo = null;
-      via = null;
-      motivo = `Hay ${exactas.length} cuentas con su nombre completo exacto (${exactas
-        .map((c) => localDe(c.correo))
-        .join(', ')}): puede tener dos cuentas, o haber otra persona con el mismo nombre completo.`;
-    } else if (unicoEnColegio && exactas.length === 1) {
-      const exacta = exactas[0];
-      const empiezaPorLlave = ls.some((l) => {
-        const local = localDe(exacta.correo);
+    // La regla 5 NO relaja las reglas anteriores: un homónimo dentro del colegio o un
+    // apellido compuesto nunca se aplican solos, aunque la cuenta tenga su nombre exacto.
+    const puedeSerAutomatico = rivales.length === 0 && !compuesto;
+    const sigueLaLlave = (c: string) =>
+      ls.some((l) => {
+        const local = localDe(c);
         return local === l || local.startsWith(`${l}.`) || (local.startsWith(l) && /^\d+$/.test(local.slice(l.length)));
       });
+    const describirAcceso = (c: CuentaWorkspace) => `${localDe(c.correo)}: ${c.ultimoAcceso || 'sin dato de acceso'}`;
+
+    if (unicoEnColegio && exactas.length >= 2) {
+      // Varias cuentas con su nombre exacto. En un colegio casi siempre es LA MISMA persona
+      // con una cuenta vieja y una nueva (el caso de Valentina: una creada en MAYÚSCULAS y
+      // otra con tildes, de otra tanda). Desempata el uso: si SOLO UNA se usó en el último
+      // año, es la suya. Si se usaron varias, o ninguna, o no se entiende la fecha, no se
+      // escoge.
+      const accesos = exactas.map((c) => ({ c, f: fechaDeAcceso(c.ultimoAcceso) }));
+      const hayDesconocidas = accesos.some((a) => a.f === null);
+      const recientes = accesos.filter((a) => a.f instanceof Date && hoy.getTime() - a.f.getTime() <= UN_ANIO_MS);
+      const elegida = !hayDesconocidas && recientes.length === 1 ? recientes[0].c : null;
+      const otras = exactas.filter((c) => c !== elegida).map((c) => localDe(c.correo)).join(', ');
+
+      if (elegida && sigueLaLlave(elegida.correo) && puedeSerAutomatico) {
+        estado = elegida.activa ? 'automatico' : 'cuenta_inactiva';
+        correo = elegida.correo;
+        via = 'nombre_completo';
+        motivo = null;
+        nota = `Tiene otra cuenta con su mismo nombre, sin uso en el último año (${otras}). Se toma la que usa.`;
+      } else if (elegida) {
+        estado = 'confirmar';
+        correo = elegida.correo;
+        via = 'nombre_completo';
+        motivo = `Hay ${exactas.length} cuentas con su nombre completo exacto. Se sugiere la única usada en el último año (${describirAcceso(elegida)}).`;
+      } else {
+        estado = 'confirmar';
+        correo = null;
+        via = null;
+        motivo = `Hay ${exactas.length} cuentas con su nombre completo exacto y el uso no permite escoger (${exactas
+          .map(describirAcceso)
+          .join(' · ')}).`;
+      }
+    } else if (unicoEnColegio && exactas.length === 1) {
+      const exacta = exactas[0];
+      const empiezaPorLlave = sigueLaLlave(exacta.correo);
       const yaEsLaMisma = correo === exacta.correo && (estado === 'automatico' || estado === 'cuenta_inactiva');
-      // La regla 5 NO relaja las reglas anteriores: un homónimo dentro del colegio o un
-      // apellido compuesto nunca se aplican solos, aunque la cuenta tenga su nombre exacto.
-      // Se sugiere la cuenta, y la confirma una persona.
-      const puedeSerAutomatico = rivales.length === 0 && !compuesto;
       if (!yaEsLaMisma) {
         if (empiezaPorLlave && !puedeSerAutomatico) {
           estado = 'confirmar';
@@ -524,7 +588,7 @@ export function planCorreos(
       llavesProbadas: ls,
       compuesto,
       protegidoManual: e.correoOrigen === 'manual',
-      candidatas: candidatas.map((c) => ({ correo: c.correo, nombreCuenta: nombreDe(c) })),
+      candidatas: candidatas.map((c) => ({ correo: c.correo, nombreCuenta: nombreDe(c), ultimoAcceso: c.ultimoAcceso })),
       estado,
       correo,
       motivo,
@@ -534,6 +598,12 @@ export function planCorreos(
       sinCambios: Boolean(aplicable && correo && e.correoInstitucional === correo),
       correoActual: e.correoInstitucional ?? null,
       origenActual: e.correoOrigen ?? null,
+      correoActualCompleto: Boolean(
+        e.correoInstitucional &&
+          porCorreo.has(e.correoInstitucional) &&
+          concordanciaNombre(porCorreo.get(e.correoInstitucional)!, e) === 'completo',
+      ),
+      nota,
     });
   }
 
@@ -553,7 +623,10 @@ export function planCorreos(
     filas,
     cuentasSinDueno: cuentas.filter((c) => !asignadas.has(c.correo)),
     conteo,
-    retiros: filas.filter((f) => deImportacion(f) && !aplicable(f)),
+    // Se retira solo lo que PODRÍA SER DE OTRA PERSONA. Un correo con el nombre completo
+    // exacto de la ficha es suyo, aunque no sea la cuenta que usa: se conserva.
+    retiros: filas.filter((f) => deImportacion(f) && !aplicable(f) && !f.correoActualCompleto),
+    conservadosConDuda: filas.filter((f) => deImportacion(f) && !aplicable(f) && f.correoActualCompleto),
     reemplazos: filas.filter((f) => deImportacion(f) && aplicable(f) && f.correo !== f.correoActual),
   };
 }

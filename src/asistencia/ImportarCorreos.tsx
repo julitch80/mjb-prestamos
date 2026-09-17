@@ -344,6 +344,14 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
             </div>
           )}
 
+          {plan.conservadosConDuda.length > 0 && (
+            <p className="rounded-lg border border-line bg-elevated p-2 text-xs text-soft">
+              <b>{plan.conservadosConDuda.length}</b> correo(s) aplicados antes se conservan aunque haya duda: la
+              cuenta tiene el nombre completo exacto de la ficha, así que es del mismo estudiante. Lo que falta
+              saber es cuál de sus cuentas usa. Están en «por resolver».
+            </p>
+          )}
+
           {plan.reemplazos.length > 0 && (
             <div className="rounded-lg border border-warning-soft bg-warning-soft p-2 text-sm text-warning-soft-fg">
               <b>Al aplicar, {plan.reemplazos.length} correo(s) aplicados antes se reemplazan por otro:</b>
@@ -387,9 +395,13 @@ export default function ImportarCorreos({ sede }: { sede: Sede }) {
                   {f.origenActual ? ` (${f.origenActual === 'manual' ? 'puesto a mano' : 'de la importación'})` : ''}
                 </p>
                 {f.motivo && <p className="text-muted">{f.motivo}</p>}
+                {f.nota && <p className="text-muted">{f.nota}</p>}
                 {f.candidatas.length > 0 && (
                   <p className="text-muted">
-                    Cuentas posibles: {f.candidatas.map((c) => `${c.correo.split('@')[0]} («${c.nombreCuenta || 'sin nombre'}»)`).join(' · ')}
+                    Cuentas posibles:{' '}
+                    {f.candidatas
+                      .map((c) => `${c.correo.split('@')[0]} («${c.nombreCuenta || 'sin nombre'}», último acceso: ${c.ultimoAcceso || 'sin dato'})`)
+                      .join(' · ')}
                   </p>
                 )}
               </div>
