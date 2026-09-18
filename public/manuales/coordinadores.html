@@ -791,6 +791,7 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
     <a href="#a-tercera">Reporte de tercera hora</a>
     <a href="#a-tarde">Llegadas tarde</a>
     <a href="#a-evasiones">Evasiones</a>
+    <a href="#a-permanencia">Casos de permanencia</a>
     <a href="#a-ficha">La ficha del estudiante</a>
     <a href="#a-centros">Centros de interés</a>
     <a href="#a-restaurante">Restaurante</a>
@@ -815,9 +816,9 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
             <div class="campo" style="position:relative">Mañana (bloque 3: 08:10–09:05)<span class="n tr">1</span></div>
             <span class="lbl">No ingresaron al colegio</span>
             <div class="cd" style="position:relative"><span class="n tl">2</span>
-              <span class="h">Cardona, Sara · 10.2</span>
-              <span class="d">Acudiente: 300 000 0000</span>
-              <div class="fila" style="justify-content:flex-end"><span class="b">No contestó</span><span class="b pri">Contestó</span></div>
+              <span class="h">Cardona, Sara · 10.2 <span class="b" style="font-size:10px;padding:1px 6px;background:var(--a-warn-soft);color:var(--a-warn-ink);border-color:transparent">Llamar primero</span></span>
+              <span class="d">Tiene un caso de permanencia en gestión. Acudiente: 300 000 0000</span>
+              <div class="fila" style="justify-content:flex-end"><span class="b pri">Registrar llamada</span></div>
             </div>
             <span class="lbl">Ingresaron pero no están en clase</span>
             <div class="cd"><span class="h">Duque, Mateo · 11.2</span></div>
@@ -831,9 +832,11 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
       <p style="color:var(--ink-2);margin-bottom:16px">En la 3.ª hora ya entraron los que llegan tarde, así que ahí se sabe quién no vino al colegio. El reporte sale de las listas que pasaron los profesores en esa hora.</p>
       <ol class="pasos">
         <li><div><span class="t">Elige la fecha y la jornada</span><p>Si quieres, escribe los grados que esperas ver, separados por coma.</p></div></li>
-        <li><div><span class="t">Llama a los acudientes de «No ingresaron al colegio»</span><p>Registra <span class="bt">Contestó</span> o <span class="bt">No contestó</span>, con una observación si hace falta. La llamada queda en la ficha del estudiante.</p></div></li>
+        <li><div><span class="t">Empieza por los que dicen «Llamar primero»</span><p>Es un orden, no un filtro: siguen saliendo todos los demás debajo. La etiqueta trae la razón escrita al lado — caso de permanencia abierto, un factor de riesgo que informó la familia, varios días seguidos sin venir, o que el acudiente no tiene otro medio de contacto (sin celular, o el teléfono de la ficha ya falló).</p></div></li>
+        <li><div><span class="t"><span class="bt">Registrar llamada</span> con lo que de verdad pasó</span><p>Mismo formulario que en la ficha del estudiante: el <b>resultado</b> (Contestó, No contestó, Buzón, Número equivocado, Número fuera de servicio o Pendiente), y si contestaron, <b>quién</b> atendió y <b>qué informó la familia</b>, del catálogo de motivos. Un compromiso es opcional. La llamada queda en la ficha del estudiante y, si tiene caso abierto, en su línea de tiempo.</p></div></li>
       </ol>
       <p class="sabias" style="margin-top:16px">Si un estudiante que faltó no aparece en el reporte, no es un error: ya tenía la falta <b>justificada</b> o <b>con autorización</b>, y el colegio ya sabía por qué.</p>
+      <p class="sabias">Un <b>número equivocado</b> o <b>fuera de servicio</b> no cuenta como intento de contacto: es la ficha la que está desactualizada. Consigue otro número y corrígela desde ahí.</p>
       <p class="sabias ojo">Este reporte es también la lista con la que la aplicación detecta <a href="#a-evasiones">posibles evasiones</a> desde la 4.ª hora. Si un grupo no pasa lista en la 3.ª hora, ese día no hay con qué comparar.</p>
     </div>
   </div>
@@ -899,12 +902,41 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
     </div>
   </div>
 
+  <div class="bloque" id="a-permanencia">
+    <div>
+      <div class="pantalla" role="img" aria-label="Detalle de un caso de permanencia">
+        <div class="scr">
+          <div class="hd"><div class="tit">Cardona, Sara · Caso de permanencia</div></div>
+          <div class="pad">
+            <div class="cd" style="border-color:var(--a-danger, #e11)"><span class="d">Vencido: el seguimiento programado para el 12 de sep. no se hizo.</span></div>
+            <span class="lbl">Lo que se ha hecho</span>
+            <div class="cd"><span class="h">04-sep · Visita domiciliaria</span><span class="d">Dirección visitada, se encontró al estudiante</span></div>
+            <div class="fila" style="position:relative"><span class="b">Remitir al director de grupo</span><span class="b pri">+ Agregar seguimiento<span class="n tr">1</span></span></div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Casos de permanencia</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">Es la pestaña de casos que exigen seguimiento —al modo de Gestión del Riesgo, pero para desescolarización—, dentro de Asistencia. Coordinación no los crea: el sistema los abre solo al cruzar el censo de tercera hora con las llamadas y el catálogo de motivos, cuando un estudiante cruza los umbrales que fija la institución (en <b>Criterios</b>, al pie de la pantalla).</p>
+      <ol class="pasos">
+        <li><div><span class="t">Revisa «Casos abiertos» y «Estudiantes en riesgo»</span><p>Los casos van primero, con los <b>vencidos</b> arriba y en rojo. Debajo, los estudiantes que hoy cruzan un umbral pero todavía no tienen caso: al entrar a la pantalla, el sistema los abre solos.</p></div></li>
+        <li><div><span class="t"><span class="bt">+ Agregar seguimiento</span> con el tipo que corresponda</span><p>Cinco tipos, cada uno con sus propios campos del formato de Guardianes de la Permanencia: <b>Visita domiciliaria</b> (dirección, si se encontró al estudiante, quién recibió), <b>Diálogo con el estudiante</b> (lugar, qué manifestó), <b>Articulación interinstitucional</b> (entidades, acciones, otras estrategias), <b>Mesa de permanencia</b> (recomendaciones, estrategias definidas) y <b>Observación o recomendación</b>, libre.</p></div></li>
+        <li><div><span class="t">Termina con una decisión: «¿Y ahora qué?»</span><p><b>Programar</b> el próximo seguimiento (fecha y a cargo de quién: coordinación, rectoría, director de grupo u orientación), <b>No se ha ubicado</b> —programa igual, pero deja constancia de que el estudiante no aparece— o <b>Cerrar el caso</b>, con el estado final.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px">Un caso sale <b>vencido</b> si pasa la fecha del seguimiento programado sin que se haga, o si lleva varios días sin ninguna actuación. Cuentan como actuación un seguimiento, una llamada registrada al estudiante o las gestiones que ya tenía el caso de antes de este cambio.</p>
+      <p class="sabias"><span class="bt">Remitir al director de grupo</span> le comparte el caso —incluida la causa que dio la familia— para que también agregue lo que haga, normalmente hablar con el estudiante. El director <b>no decide el rumbo</b> del caso: no cierra, no programa, no corrige lo de otros; solo aporta. Sin remitirlo, el director no ve nada de esto.</p>
+      <p class="sabias ojo">Nada se borra. <span class="bt">Corregir</span> en un seguimiento agrega una versión nueva que reemplaza a la anterior en pantalla, pero la original queda en el historial con quién la escribió. Un expediente que puede terminar en una Comisaría de Familia tiene que poder explicarse completo.</p>
+    </div>
+  </div>
+
   <div class="bloque solo" id="a-ficha">
     <h3 class="sub">La ficha del estudiante</h3>
-    <p style="color:var(--ink-2);max-width:64ch">Los profesores la ven; tú puedes cambiarla, para cualquier estudiante de tu sede.</p>
+    <p style="color:var(--ink-2);max-width:64ch">Los profesores la ven; tú puedes cambiarla, para cualquier estudiante de tu sede. La foto va redonda y centrada arriba, y debajo el acudiente, los teléfonos y el correo — lo primero que hace falta para llamar. El documento, la fecha de nacimiento y el resto quedan en <b>Más datos del estudiante</b>, desplegable.</p>
     <div class="grid-si">
       <div class="si"><span class="quien">Editar</span><h3>Contacto y foto</h3><p><span class="bt">Editar contacto</span> para el acudiente y los teléfonos. Desde la pestaña <b>Fotos</b> de un grupo subes las fotos de los estudiantes.</p></div>
-      <div class="si"><span class="quien">Llamadas</span><h3>Registrar una llamada</h3><p>Queda en la ficha, con la fecha y quién llamó. Las del reporte de tercera hora se guardan igual.</p></div>
+      <div class="si"><span class="quien">Llamadas</span><h3>Registrar una llamada</h3><p>Queda en la ficha, con la fecha y quién llamó. Las del reporte de tercera hora se guardan igual — ver <a href="#a-permanencia">Casos de permanencia</a>.</p></div>
       <div class="si"><span class="quien">Retiro</span><h3>Marcar como retirado</h3><p>Está en la parte de abajo de la ficha. <b>Retirar no borra nada</b>: el estudiante deja de aparecer en planillas y conteos y su historial se conserva. Si vuelve, <span class="bt">Reintegrar</span>.</p></div>
     </div>
   </div>
