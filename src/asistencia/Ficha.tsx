@@ -227,25 +227,25 @@ export default function Ficha({
       </button>
 
       <div className="rounded-xl border border-line bg-card p-3">
-        <div className="flex flex-wrap items-start gap-4">
+        {/*
+          Foto redonda arriba y centrada, como en la toma de asistencia, con el nombre
+          debajo (Julian, 2026-09-17: "me gusta mas el estilo que tiene la toma de
+          asistencia"). Antes era una foto rectangular a la izquierda con todo el texto al
+          lado, que en el celular dejaba los datos en una columna estrecha.
+        */}
+        <div className="flex flex-col items-center gap-3">
           <div className="text-center">
             {foto ? (
               <img
                 src={foto}
                 alt={`${est.nombres} ${est.apellidos}`}
-                className="h-28 w-21 rounded-lg object-cover"
+                className="h-28 w-28 rounded-full object-cover"
                 /* El anillo va por `boxShadow` y no por `border`, igual que en
-                   `estiloAnillo`: un borde cambiaria el tamaño de la foto y desalinearia
-                   la fila entera. */
-                style={{
-                  width: '5.25rem',
-                  ...(tonoClasificacion
-                    ? { boxShadow: `0 0 0 3px ${tonoClasificacion.hex}` }
-                    : {}),
-                }}
+                   `estiloAnillo`: un borde cambiaria el tamaño de la foto. */
+                style={tonoClasificacion ? { boxShadow: `0 0 0 3px ${tonoClasificacion.hex}` } : {}}
               />
             ) : (
-              <div className="grid h-28 w-[5.25rem] place-items-center rounded-lg border border-dashed border-line-strong bg-elevated text-lg font-bold text-muted">
+              <div className="grid h-28 w-28 place-items-center rounded-full border border-dashed border-line-strong bg-elevated text-2xl font-bold text-muted">
                 {letras}
               </div>
             )}
@@ -298,14 +298,19 @@ export default function Ficha({
             )}
           </div>
 
-          <div className="min-w-[12rem] grow">
-            <h2 className="text-base font-semibold text-strong">{nombreCompleto(est)}</h2>
-            <p className="text-xs text-muted">
+          <div className="w-full">
+            <h2 className="text-center text-lg font-semibold text-strong">{nombreCompleto(est)}</h2>
+            <p className="text-center text-xs text-muted">
               {est.gradoActual} · {est.sede.replace('_', ' ')}
               {!est.activo && ' · retirado'}
             </p>
 
-            <dl className="mt-2 space-y-1 text-sm">
+            {/*
+              PRIMERA ETAPA: con quien se habla. Acudiente, telefonos y correo, que es a lo
+              que se entra a la ficha el 90% de las veces. Todo lo demas queda detras del
+              desplegable de abajo, sobre todo pensando en el celular.
+            */}
+            <dl className="mt-3 space-y-1 text-sm">
               {/*
                 El parentesco va pegado al nombre, no en su propia fila: quien llama a
                 una familia necesita saber "a quien" y "que es del estudiante" de un
@@ -341,6 +346,42 @@ export default function Ficha({
                   )
                 }
               />
+              {(est.correoInstitucional || puedeEditar) && (
+                <Dato
+                  termino="Correo"
+                  valor={
+                    <CorreoDelEstudiante
+                      est={est}
+                      puedeEditar={puedeEditar}
+                      onGuardar={async (correo) => {
+                        await guardarCorreoManual(studentId, correo);
+                        setEst((p) =>
+                          p
+                            ? {
+                                ...p,
+                                correoInstitucional: correo ?? undefined,
+                                correoOrigen: correo ? 'manual' : undefined,
+                                correoVerificadoEn: correo ? toDateKey(new Date()) : undefined,
+                                correoCuentaActiva: undefined,
+                              }
+                            : p,
+                        );
+                      }}
+                    />
+                  }
+                />
+              )}
+            </dl>
+
+            {/*
+              SEGUNDA ETAPA: lo que no se necesita para llamar. El documento vive aqui
+              aunque su caso de uso sea urgente (dictarlo al 123 o a la EPS): abrir un
+              desplegable es un toque, y tenerlo siempre a la vista costaba que los
+              telefonos quedaran fuera de pantalla en el celular.
+            */}
+            <details className="mt-3 rounded-lg border border-line bg-elevated p-2">
+              <summary className="cursor-pointer text-sm text-accent">Más datos del estudiante</summary>
+              <dl className="mt-2 space-y-1 text-sm">
               {/*
                 El caso de uso es una urgencia: el estudiante se lastimo y en la llamada
                 al 123 o a la EPS piden el documento. Por eso va en cifra grande y
@@ -392,32 +433,8 @@ export default function Ficha({
                   />
                 </>
               )}
-              {(est.correoInstitucional || puedeEditar) && (
-                <Dato
-                  termino="Correo"
-                  valor={
-                    <CorreoDelEstudiante
-                      est={est}
-                      puedeEditar={puedeEditar}
-                      onGuardar={async (correo) => {
-                        await guardarCorreoManual(studentId, correo);
-                        setEst((p) =>
-                          p
-                            ? {
-                                ...p,
-                                correoInstitucional: correo ?? undefined,
-                                correoOrigen: correo ? 'manual' : undefined,
-                                correoVerificadoEn: correo ? toDateKey(new Date()) : undefined,
-                                correoCuentaActiva: undefined,
-                              }
-                            : p,
-                        );
-                      }}
-                    />
-                  }
-                />
-              )}
-            </dl>
+              </dl>
+            </details>
 
             {/*
               Aviso discreto tras pulsar "Llamar": NADA se registra solo. El sistema no
