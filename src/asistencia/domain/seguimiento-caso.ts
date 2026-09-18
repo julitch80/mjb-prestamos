@@ -268,12 +268,16 @@ export interface AlertaSeguimiento {
  *  2. Lleva `diasSinSeguimientoParaAlerta` días sin ninguna actuación.
  *
  * Cuenta como actuación cualquier seguimiento original —las correcciones no, que corregir un
- * texto no es atender el caso— y cualquier llamada a la familia registrada desde la apertura:
- * una llamada también es seguimiento, y no se le debe pedir a coordinación que la escriba dos
- * veces.
+ * texto no es atender el caso—, cualquier llamada a la familia registrada desde la apertura
+ * —una llamada también es seguimiento, y no se le debe pedir a coordinación que la escriba dos
+ * veces— y las gestiones del modelo anterior, que vivían en un arreglo dentro del caso. Sin
+ * estas últimas, un caso abierto antes del 2026-09-17 cuya última actuación fue una gestión
+ * aparecería vencido sin estarlo (lo advirtió la otra pestaña al publicar).
  */
 export function alertaDeSeguimiento(input: {
-  caso: Pick<CasoPermanencia, 'estado' | 'fechaApertura' | 'proximoSeguimiento' | 'responsableSeguimiento'>;
+  caso: Pick<CasoPermanencia, 'estado' | 'fechaApertura' | 'proximoSeguimiento' | 'responsableSeguimiento'> & {
+    gestiones?: CasoPermanencia['gestiones'];
+  };
   seguimientos: SeguimientoCaso[];
   contactos: FamilyContact[];
   config: Pick<PermanenciaConfig, 'diasSinSeguimientoParaAlerta'>;
@@ -284,6 +288,7 @@ export function alertaDeSeguimiento(input: {
     caso.fechaApertura,
     ...input.seguimientos.filter((s) => !s.corrigeA).map((s) => s.fecha),
     ...input.contactos.filter((c) => c.fecha >= caso.fechaApertura).map((c) => c.fecha),
+    ...(caso.gestiones ?? []).map((g) => g.fecha),
   ];
   const ultimaActuacion = fechas.reduce((a, b) => (b > a ? b : a));
   const diasSinSeguimiento = Math.max(0, diasEntre(ultimaActuacion, hoy));
