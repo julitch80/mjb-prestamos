@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="../mjb_icon.png">
+</head>
+<body>
+<title>Manual de rectoría MJB</title>
+<meta name="description" content="Guía básica de MJB Préstamos para la rectoría de la I.E. Manuel J. Betancur">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* ── Tokens del MANUAL (lo que rodea a las pantallas) ─────────────────────── */
+:root{
+  --paper:#F2F5F3; --sheet:#FFFFFF; --ink:#15201C; --ink-2:#3B4843; --muted:#5E6C66;
+  --rule:#D5DDD8; --pen:#C4222F; --pen-fg:#FFFFFF; --pen-soft:#FBE8EA; --pen-ink:#8E1621;
+  --green:#127E48; --green-soft:#E1F0E7; --green-ink:#0B5230;
+  --shadow:0 1px 2px rgb(21 32 28 / .06), 0 8px 24px -12px rgb(21 32 28 / .18);
+
+  /* Tokens de la APLICACIÓN, copiados de src/index.css: las pantallas dibujadas
+     se ven como la app real, en claro y en oscuro. */
+  --a-app:#f7f8fa; --a-card:#ffffff; --a-elev:#eef1f6; --a-strong:#0e1525; --a-soft:#374151;
+  --a-muted:#5b6678; --a-line:#d8dde6; --a-line-2:#b3bac8;
+  --a-accent:#2563eb; --a-accent-fg:#ffffff; --a-accent-soft:#dbeafe; --a-accent-ink:#1e3a8a;
+  --a-ok:#15803d; --a-ok-soft:#dcfce7; --a-ok-ink:#14532d;
+  --a-warn:#b45309; --a-warn-soft:#fef3c7; --a-warn-ink:#78350f;
+  --a-bad:#b91c1c; --a-bad-soft:#fee2e2; --a-bad-ink:#7f1d1d;
+  --a-info-soft:#dbeafe; --a-info-ink:#1e3a8a;
+  --a-pur-soft:#ede9fe; --a-pur-ink:#4c1d95;
+  --a-teal-soft:#ccfbf1; --a-teal-ink:#134e4a;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0D1311; --sheet:#151D1A; --ink:#E7EEEA; --ink-2:#C2CCC7; --muted:#93A29B;
+    --rule:#27322E; --pen:#EE5B66; --pen-fg:#1A0A0C; --pen-soft:#3A1519; --pen-ink:#FFB3B9;
+    --green:#4FC28A; --green-soft:#14291E; --green-ink:#9FE3C0;
+    --shadow:0 1px 2px rgb(0 0 0 / .3), 0 8px 24px -12px rgb(0 0 0 / .6);
+    --a-app:#0a0e1a; --a-card:#141a2a; --a-elev:#1e2538; --a-strong:#f5f7fb; --a-soft:#cfd5e3;
+    --a-muted:#94a0b6; --a-line:#252b3d; --a-line-2:#3a425a;
+    --a-accent:#3b82f6; --a-accent-fg:#ffffff; --a-accent-soft:#1e3a8a66; --a-accent-ink:#93c5fd;
+    --a-ok:#22c55e; --a-ok-soft:#14532d66; --a-ok-ink:#86efac;
+    --a-warn:#f59e0b; --a-warn-soft:#78350f66; --a-warn-ink:#fcd34d;
+    --a-bad:#ef4444; --a-bad-soft:#7f1d1d66; --a-bad-ink:#fca5a5;
+    --a-info-soft:#1e3a8a66; --a-info-ink:#93c5fd;
+    --a-pur-soft:#4c1d9566; --a-pur-ink:#c4b5fd;
+    --a-teal-soft:#134e4a66; --a-teal-ink:#5eead4;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0D1311; --sheet:#151D1A; --ink:#E7EEEA; --ink-2:#C2CCC7; --muted:#93A29B;
+  --rule:#27322E; --pen:#EE5B66; --pen-fg:#1A0A0C; --pen-soft:#3A1519; --pen-ink:#FFB3B9;
+  --green:#4FC28A; --green-soft:#14291E; --green-ink:#9FE3C0;
+  --shadow:0 1px 2px rgb(0 0 0 / .3), 0 8px 24px -12px rgb(0 0 0 / .6);
+  --a-app:#0a0e1a; --a-card:#141a2a; --a-elev:#1e2538; --a-strong:#f5f7fb; --a-soft:#cfd5e3;
+  --a-muted:#94a0b6; --a-line:#252b3d; --a-line-2:#3a425a;
+  --a-accent:#3b82f6; --a-accent-fg:#ffffff; --a-accent-soft:#1e3a8a66; --a-accent-ink:#93c5fd;
+  --a-ok:#22c55e; --a-ok-soft:#14532d66; --a-ok-ink:#86efac;
+  --a-warn:#f59e0b; --a-warn-soft:#78350f66; --a-warn-ink:#fcd34d;
+  --a-bad:#ef4444; --a-bad-soft:#7f1d1d66; --a-bad-ink:#fca5a5;
+  --a-info-soft:#1e3a8a66; --a-info-ink:#93c5fd;
+  --a-pur-soft:#4c1d9566; --a-pur-ink:#c4b5fd;
+  --a-teal-soft:#134e4a66; --a-teal-ink:#5eead4;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:"Bricolage Grotesque","Atkinson Hyperlegible",system-ui,sans-serif;
+  font-weight:700;letter-spacing:-.01em;text-wrap:balance;margin:0;color:var(--ink)}
+p{margin:0}
+b,strong{font-weight:700}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--pen);outline-offset:3px;border-radius:4px}
+
+/* ── Cabecera y navegación ────────────────────────────────────────────────── */
+.cab{max-width:1080px;margin:0 auto;padding:40px 20px 24px;display:grid;gap:18px}
+.sello{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted)}
+.sello i{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-style:normal;
+  background:linear-gradient(135deg,#127E48,#2A9E8C 68%,#3684B5);box-shadow:inset 0 0 0 3px var(--pen);
+  color:#fff;font-size:17px}
+.cab h1{font-size:clamp(34px,6vw,54px);line-height:1.02}
+.cab h1 span{color:var(--pen)}
+.cab .lead{font-size:19px;color:var(--ink-2);max-width:60ch}
+.etiquetas{display:flex;gap:8px;flex-wrap:wrap}
+.et{font-size:13px;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:999px;
+  border:1px solid var(--rule);color:var(--muted);background:var(--sheet)}
+.et.nivel{background:var(--green-soft);color:var(--green-ink);border-color:transparent;font-weight:700}
+
+.nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--sheet) 94%,transparent);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);
+  box-shadow:0 6px 18px -14px rgb(21 32 28 / .5)}
+.nav-in{max-width:1080px;margin:0 auto;padding:8px 20px;display:flex;align-items:center;gap:10px;min-height:56px}
+.nav-ini{text-decoration:none;font-weight:700;color:var(--green);white-space:nowrap;font-size:15px}
+.nav-sep{color:var(--rule)}
+.nav-aqui{flex:1;min-width:0;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:17px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-menu{position:relative}
+.nav-menu summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  background:var(--pen);color:var(--pen-fg);font-weight:700;font-size:15px;padding:8px 14px;border-radius:999px;min-height:40px}
+.nav-menu summary::-webkit-details-marker{display:none}
+.nav-menu[open] summary span{display:inline-block;transform:rotate(180deg)}
+.nav-menu ol{position:absolute;right:0;top:calc(100% + 8px);list-style:none;margin:0;padding:6px;width:min(290px,86vw);
+  max-height:70vh;overflow-y:auto;background:var(--sheet);border:1px solid var(--rule);border-radius:14px;box-shadow:var(--shadow)}
+.nav-menu li a{display:block;text-decoration:none;padding:10px 12px;border-radius:9px;color:var(--ink-2);font-size:16px}
+.nav-menu li a:hover{background:var(--paper);color:var(--ink)}
+.nav-menu li a[aria-current="true"]{background:var(--green-soft);color:var(--green-ink);font-weight:700}
+
+/* Índice visible */
+.contenido{background:var(--sheet);border-radius:18px;box-shadow:var(--shadow);padding:clamp(20px,4vw,36px);display:grid;gap:18px}
+.cont-cab h2{font-size:clamp(24px,3.6vw,32px)}
+.cont-cab p{color:var(--ink-2);margin-top:4px}
+.ix{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.ix a{position:relative;display:grid;gap:3px;align-content:start;height:100%;text-decoration:none;padding:14px 16px;border-radius:12px;
+  border:1px solid var(--rule);background:var(--paper);transition:border-color .15s,transform .15s}
+.ix a:hover{border-color:var(--green);transform:translateY(-1px)}
+@media (prefers-reduced-motion: reduce){.ix a{transition:none}.ix a:hover{transform:none}}
+.ix-t{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:700;font-size:18px;color:var(--ink);padding-right:22px}
+.ix-t::after{content:"→";position:absolute;right:14px;top:14px;color:var(--green);font-family:"Atkinson Hyperlegible",sans-serif}
+.ix-d{font-size:14.5px;color:var(--muted);line-height:1.4}
+.ix-b{justify-self:start;margin-top:6px;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;
+  padding:2px 8px;border-radius:999px;background:var(--pen-soft);color:var(--pen-ink)}
+
+/* Anterior / siguiente */
+.pasa{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid var(--rule);padding-top:18px}
+.pasa a{display:grid;gap:1px;align-content:start;text-decoration:none;padding:12px 14px;border-radius:12px;border:1px solid var(--rule);
+  color:var(--ink);font-weight:700;font-size:16px}
+.pasa a:hover{border-color:var(--green);background:var(--paper)}
+.pasa small{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.ps-next{text-align:right}
+
+/* ── Módulos ──────────────────────────────────────────────────────────────── */
+main{max-width:1080px;margin:0 auto;padding:12px 20px 80px;display:grid;gap:28px}
+.mod{background:var(--sheet);border-radius:18px;box-shadow:var(--shadow);padding:clamp(20px,4vw,40px);
+  display:grid;gap:26px}
+.mod-cab{display:grid;gap:8px;max-width:64ch}
+.mod-cab .menu{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--green);font-weight:700}
+.mod-cab h2{font-size:clamp(28px,4.2vw,38px);line-height:1.08}
+.mod-cab .para{font-size:19px;color:var(--ink-2)}
+
+.bloque{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:clamp(20px,4vw,44px);align-items:start}
+.bloque.solo{grid-template-columns:1fr}
+@media (max-width:760px){.bloque{grid-template-columns:1fr}}
+.bloque + .bloque{padding-top:26px;border-top:1px dashed var(--rule)}
+.sub{font-size:22px;margin-bottom:12px}
+
+.pasos{list-style:none;margin:0;padding:0;display:grid;gap:16px;counter-reset:p}
+.pasos li{display:grid;grid-template-columns:30px 1fr;gap:12px;align-items:start}
+.pasos li::before{counter-increment:p;content:counter(p);width:30px;height:30px;border-radius:50%;
+  background:var(--pen);color:var(--pen-fg);font-weight:700;font-size:15px;display:grid;place-items:center;
+  margin-top:1px;font-variant-numeric:tabular-nums}
+.pasos b{color:var(--ink)}
+.pasos p{color:var(--ink-2)}
+.pasos .t{display:block;font-weight:700;color:var(--ink);font-size:18px;line-height:1.35;margin-bottom:2px}
+
+/* Texto de un botón tal como aparece en la pantalla */
+.bt{font-family:Inter,system-ui,sans-serif;font-size:.86em;font-weight:600;white-space:nowrap;
+  padding:1px 7px;border-radius:6px;background:var(--a-elev);color:var(--a-strong);border:1px solid var(--a-line)}
+
+.sabias{display:grid;grid-template-columns:auto 1fr;gap:12px;background:var(--green-soft);color:var(--green-ink);
+  border-radius:12px;padding:14px 16px;font-size:16px;line-height:1.55}
+.sabias::before{content:"Sabías que";font-size:12px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;
+  writing-mode:vertical-rl;transform:rotate(180deg);border-left:2px solid currentColor;padding-left:8px;opacity:.9}
+.sabias b{color:inherit}
+.ojo{background:var(--pen-soft);color:var(--pen-ink)}
+.ojo::before{content:"Importante"}
+
+.si{border:1px solid var(--rule);border-radius:14px;padding:18px 20px;display:grid;gap:12px}
+.si .quien{justify-self:start;font-size:13px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;
+  color:var(--pen-ink);background:var(--pen-soft);padding:3px 10px;border-radius:999px}
+.si h3{font-size:20px}
+.si p{color:var(--ink-2)}
+.grid-si{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+
+.tabla-w{overflow-x:auto;border:1px solid var(--rule);border-radius:12px}
+table.t{border-collapse:collapse;width:100%;font-size:15.5px;min-width:560px}
+table.t th{text-align:left;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);
+  font-weight:700;padding:10px 14px;border-bottom:1px solid var(--rule);background:var(--paper)}
+table.t td{padding:11px 14px;border-bottom:1px solid var(--rule);vertical-align:top;color:var(--ink-2)}
+table.t tr:last-child td{border-bottom:0}
+table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
+.si-no{font-weight:700}
+
+/* ── PANTALLAS DIBUJADAS (usan los tokens de la app) ──────────────────────── */
+.pantalla{position:relative;background:var(--a-app);border:1px solid var(--rule);border-radius:26px;
+  padding:10px;box-shadow:var(--shadow);font-family:Inter,system-ui,sans-serif;color:var(--a-strong);
+  font-size:13px;line-height:1.4;max-width:340px;width:100%}
+.pantalla .scr{background:var(--a-app);border-radius:18px;overflow:hidden;position:relative}
+.pie-pantalla{font-size:13px;color:var(--muted);margin-top:10px;text-align:center}
+.hd{background:var(--a-card);border-bottom:1px solid var(--a-line);padding:10px 12px;display:flex;align-items:center;gap:8px}
+.hd .tit{font-weight:600;font-size:14px;flex:1;min-width:0}
+.hd .sub2{font-size:11px;color:var(--a-muted);font-weight:400}
+.pad{padding:12px;display:grid;gap:10px}
+.fila{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.b{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:500;border:1px solid var(--a-line);
+  border-radius:8px;padding:5px 9px;background:var(--a-card);color:var(--a-soft);position:relative;white-space:nowrap}
+.b.pri{background:var(--a-accent);border-color:transparent;color:var(--a-accent-fg);font-weight:600}
+.tabs{display:flex;flex-wrap:wrap;gap:2px;background:var(--a-elev);border-radius:9px;padding:3px}
+.tabs span{flex:1 1 auto;text-align:center;font-size:11px;padding:5px 4px;border-radius:7px;color:var(--a-muted);white-space:nowrap}
+.tabs span.on{background:var(--a-card);color:var(--a-strong);font-weight:600;box-shadow:0 1px 2px rgb(0 0 0 / .08)}
+.cd{background:var(--a-card);border:1px solid var(--a-line);border-radius:12px;padding:10px 11px;display:grid;gap:4px;position:relative}
+.cd .h{font-weight:600;font-size:12.5px}
+.cd .d{font-size:11.5px;color:var(--a-muted)}
+.lbl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--a-muted);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.campo{border:1px solid var(--a-line);border-radius:8px;padding:6px 9px;background:var(--a-card);font-size:12px;color:var(--a-soft)}
+.campo.vacio{color:var(--a-muted)}
+
+/* planilla */
+.pl{width:100%;border-collapse:collapse;font-size:12px;background:var(--a-card)}
+.pl th{font-weight:400;color:var(--a-muted);font-size:10.5px;padding:6px 3px;border-bottom:1px solid var(--a-line);text-align:center;line-height:1.25}
+.pl th.nm,.pl td.nm{text-align:left;padding-left:10px}
+.pl td{padding:6px 3px;border-bottom:1px solid var(--a-line);text-align:center}
+.pl td.nm{color:var(--a-strong);font-size:11.5px;white-space:nowrap}
+.av{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--a-elev);border:2px solid var(--a-line-2);
+  vertical-align:middle;margin-right:6px}
+.c{display:inline-flex;width:26px;height:26px;border-radius:7px;align-items:center;justify-content:center;font-size:15px;font-weight:600}
+.c.ok{background:var(--a-ok-soft);color:var(--a-ok-ink)}
+.c.no{background:var(--a-bad-soft);color:var(--a-bad-ink)}
+.c.vac{border:1.5px dashed var(--a-line-2)}
+.c.txt{font-size:10.5px;letter-spacing:-.02em}
+.c.w{background:var(--a-warn-soft);color:var(--a-warn-ink)}
+.c.i{background:var(--a-info-soft);color:var(--a-info-ink)}
+.c.p{background:var(--a-pur-soft);color:var(--a-pur-ink)}
+
+/* hoja emergente dentro de la pantalla */
+.velo{position:absolute;inset:0;background:rgb(0 0 0 / .42);display:flex;align-items:flex-end}
+.hoja{background:var(--a-card);width:100%;border-radius:16px 16px 0 0;padding:14px;display:grid;gap:9px;position:relative}
+.hoja .h{font-weight:600;font-size:14px}
+.hoja .d{font-size:12px;color:var(--a-soft);line-height:1.5}
+
+/* horario y reservas */
+.hr{width:100%;border-collapse:separate;border-spacing:3px;font-size:10px}
+.hr th{font-weight:500;color:var(--a-muted);font-size:10px;padding:2px}
+.hr td{height:30px;border-radius:6px;text-align:center;line-height:1.15;padding:2px;font-size:9.5px}
+.hr td.lib{background:var(--a-ok-soft);color:var(--a-ok-ink)}
+.hr td.cla{background:var(--a-elev);color:var(--a-muted)}
+.hr td.ocu{background:var(--a-bad-soft);color:var(--a-bad-ink)}
+.hr td.tuy{background:var(--a-info-soft);color:var(--a-info-ink)}
+.hr td.rec{background:var(--a-warn-soft);color:var(--a-warn-ink)}
+.hr td.cls{background:var(--a-accent-soft);color:var(--a-accent-ink);font-weight:500}
+.hr td.nada{background:transparent}
+.hr td.bl{color:var(--a-muted);font-weight:500;background:transparent}
+.ley{display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--a-muted)}
+.ley i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+
+/* chat */
+.msg{max-width:78%;padding:7px 10px;border-radius:12px;font-size:12px;line-height:1.4}
+.msg.el{background:var(--a-card);border:1px solid var(--a-line);justify-self:start}
+.msg.yo{background:var(--a-accent);color:var(--a-accent-fg);justify-self:end}
+.msg .quien2{display:block;font-size:10.5px;font-weight:600;color:var(--a-accent-ink);margin-bottom:2px}
+.leido{justify-self:end;font-size:10px;color:var(--a-muted);margin-top:-6px}
+.cita{border-left:3px solid var(--a-accent-fg);padding-left:6px;margin-bottom:4px;font-size:10.5px;opacity:.85}
+
+/* número de la flecha: el bolígrafo rojo del manual sobre la pantalla */
+.n{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--pen);color:var(--pen-fg);
+  font-family:"Atkinson Hyperlegible",sans-serif;font-size:12.5px;font-weight:700;display:grid;place-items:center;
+  box-shadow:0 0 0 3px var(--a-app);z-index:3;font-variant-numeric:tabular-nums}
+.n.tr{top:-10px;right:-10px}
+.n.tl{top:-10px;left:-10px}
+.n.r{top:50%;right:-12px;transform:translateY(-50%)}
+
+.grid-si{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+
+/* ── Pie ──────────────────────────────────────────────────────────────────── */
+.pie{max-width:1080px;margin:0 auto;padding:0 20px 56px;color:var(--muted);font-size:14.5px;display:grid;gap:6px}
+.pie b{color:var(--ink-2)}
+
+@media print{
+  body{background:#fff;font-size:12pt}
+  .nav,.pasa,.contenido{display:none}
+  .mod{box-shadow:none;border:1px solid #ccc;break-inside:avoid-page}
+  .bloque{break-inside:avoid}
+  .pantalla{box-shadow:none}
+}
+</style>
+
+<header class="cab">
+  <div class="sello"><i aria-hidden="true">⚜</i> I.E. Manuel J. Betancur · MJB Préstamos</div>
+  <h1>Manual de <span>rectoría</span></h1>
+  <p class="lead">Su cuenta consulta casi todo el colegio y solo escribe en dos sitios: la asignación directa de espacios y los casos de permanencia. Cada pantalla está dibujada con los mismos botones de la aplicación; los números rojos señalan qué tocar, en orden.</p>
+  <div class="etiquetas">
+    <span class="et nivel">Nivel básico</span>
+    <span class="et">Rol: rectora</span>
+    <span class="et">Septiembre 2026</span>
+  </div>
+</header>
+
+<nav class="nav" aria-label="Secciones del manual">
+  <div class="nav-in">
+    <a class="nav-ini" href="#contenido" title="Volver al índice">⚜ Manual</a>
+    <span class="nav-sep" aria-hidden="true">/</span>
+    <span class="nav-aqui" id="nav-aqui">Índice</span>
+    <details class="nav-menu" id="nav-menu">
+      <summary>Secciones <span aria-hidden="true">▾</span></summary>
+      <ol><li><a href="#rol">Su rol</a></li><li><a href="#inicio">Inicio</a></li><li><a href="#rectora">Asignación</a></li><li><a href="#agenda">Agenda</a></li><li><a href="#horario">Horario</a></li><li><a href="#asistencia">Asistencia</a></li><li><a href="#tareas">Tareas</a></li><li><a href="#asistentes">Chatbot</a></li><li><a href="#riesgo">Gestión del Riesgo</a></li><li><a href="#historial">Mis reservas</a></li><li><a href="#asignacion">Asignación 2026</a></li><li><a href="#chat">Chat</a></li><li><a href="#no-hace">Lo que no hace la rectora</a></li></ol>
+    </details>
+  </div>
+</nav>
+
+<main>
+
+<section class="contenido" id="contenido" aria-labelledby="contenido-t">
+  <div class="cont-cab"><h2 id="contenido-t">¿Qué quiere aprender?</h2><p>Toque una sección para ir directo a ella. Están en el mismo orden del menú de la aplicación.</p></div>
+  <ol class="ix"><li><a href="#rol"><span class="ix-t">Su rol</span><span class="ix-d">Qué consulta y dónde escribe</span></a></li><li><a href="#inicio"><span class="ix-t">Inicio</span><span class="ix-d">Su resumen del día</span></a></li><li><a href="#rectora"><span class="ix-t">Asignación</span><span class="ix-d">Asignar un espacio directamente</span><span class="ix-b">Su herramienta principal</span></a></li><li><a href="#agenda"><span class="ix-t">Agenda</span><span class="ix-d">Actividades de la semana</span></a></li><li><a href="#horario"><span class="ix-t">Horario</span><span class="ix-d">Mañana y tarde, por aulas, docente o grupo</span></a></li><li><a href="#asistencia"><span class="ix-t">Asistencia</span><span class="ix-d">Consulta de lo que pasa lista cada docente</span></a></li><li><a href="#tareas"><span class="ix-t">Tareas</span><span class="ix-d">Momentos de tarea por grupo</span></a></li><li><a href="#asistentes"><span class="ix-t">Chatbot</span><span class="ix-d">Convivencia y sistema de evaluación</span></a></li><li><a href="#riesgo"><span class="ix-t">Gestión del Riesgo</span><span class="ix-d">Emergencia escolar, brigadas y números</span></a></li><li><a href="#historial"><span class="ix-t">Mis reservas</span><span class="ix-d">Lo que usted misma ha asignado</span></a></li><li><a href="#asignacion"><span class="ix-t">Asignación 2026</span><span class="ix-d">Docentes y materias del año</span></a></li><li><a href="#chat"><span class="ix-t">Chat</span><span class="ix-d">Mensajería interna del colegio</span></a></li><li><a href="#no-hace"><span class="ix-t">Lo que no hace la rectora</span><span class="ix-d">Para no buscar un botón que no existe</span></a></li></ol>
+</section>
+
+<!-- ═══════════════ SU ROL ═══════════════ -->
+<section class="mod" id="rol">
+  <div class="mod-cab">
+    <p class="menu">Antes de empezar</p>
+    <h2>Su rol: ve todo el colegio, escribe en dos sitios</h2>
+    <p class="para">Su cuenta ve las dos jornadas y casi toda la aplicación, pero en modo <b>consulta</b>: no pasa lista, no aprueba reservas y no tiene la pestaña «Pendientes» ni «Hoy» que sí tienen los coordinadores. Hay exactamente dos lugares donde su cuenta escribe: <b>Asignación</b> (espacios directamente) y <b>Casos de permanencia</b>, dentro de Asistencia.</p>
+  </div>
+  <div class="bloque solo">
+    <div class="tabla-w">
+      <table class="t">
+        <thead><tr><th>Sección</th><th>Lo que consulta</th><th>Lo que cambia</th></tr></thead>
+        <tbody>
+          <tr><td>Asignación</td><td>—</td><td>Asigna un espacio a quien decida, sin pedir aprobación de nadie</td></tr>
+          <tr><td>Horario</td><td>Mañana y tarde, por aulas, docente o grupo</td><td>Nada: es de solo lectura para su cuenta</td></tr>
+          <tr><td>Asistencia</td><td>Planillas, eventos, restaurante de todo el colegio</td><td>Solo los <b>casos de permanencia</b>: catálogo de motivos y contactabilidad</td></tr>
+          <tr><td>Gestión del Riesgo</td><td>Los casos que le compartan</td><td>Nada: puede entrar a un caso compartido, pero no lo crea ni lo marca</td></tr>
+          <tr><td>Tareas / Asignación 2026</td><td>Todo el colegio</td><td>Nada</td></tr>
+          <tr><td>Chat</td><td>Todos los canales</td><td>Escribir mensajes y <b>fijar</b> uno en los canales generales, igual que coordinación</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sabias">Entra igual que los profesores: <span class="bt">Continuar con Google</span> con su correo del colegio.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#contenido"><small>Volver</small>← Índice</a><a class="ps-next" href="#inicio"><small>Siguiente</small>Inicio →</a></nav>
+</section>
+
+<!-- ═══════════════ INICIO ═══════════════ -->
+<section class="mod" id="inicio">
+  <div class="mod-cab">
+    <p class="menu">Menú · Inicio</p>
+    <h2>Inicio</h2>
+    <p class="para">Su resumen del día al entrar a la aplicación: los avisos y la agenda institucional, igual que ve cualquier otra cuenta.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#rol"><small>Anterior</small>← Su rol</a><a class="ps-next" href="#rectora"><small>Siguiente</small>Asignación →</a></nav>
+</section>
+
+<!-- ═══════════════ ASIGNACIÓN DIRECTA ═══════════════ -->
+<section class="mod" id="rectora">
+  <div class="mod-cab">
+    <p class="menu">Menú · Asignación</p>
+    <h2>Asignación directa de espacios</h2>
+    <p class="para">Esta es su herramienta propia: asignar un aula o un recurso a quien usted decida, <b>sin pasar por la aprobación de coordinación</b>. Se puede abrir de dos formas: con el botón <span class="bt">+ Asignación directa</span> de este panel, o tocando cualquier casilla del horario de disponibilidad — <b>incluida una ya ocupada o con clase regular</b>, algo que ningún otro rol puede hacer.</p>
+  </div>
+
+  <div class="bloque">
+    <div>
+      <div class="pantalla" role="img" aria-label="Ventana de asignación directa de rectoría">
+        <div class="scr">
+          <div class="hd"><div class="tit">👑 Asignación directa</div></div>
+          <div class="pad">
+            <span class="lbl">Espacio</span>
+            <div class="campo">Aula 4<span class="n r">1</span></div>
+            <div class="fila">
+              <div style="flex:1"><span class="lbl">Fecha</span><div class="campo">2026-09-21</div></div>
+              <div style="flex:1"><span class="lbl">Bloque</span><div class="campo">Bloque 3<span class="n r">2</span></div></div>
+            </div>
+            <span class="lbl">Motivo</span>
+            <div class="campo">Visita externa<span class="n r">3</span></div>
+            <div class="fila" style="margin-top:4px">
+              <span class="b">Cancelar</span>
+              <span class="b pri">Asignar<span class="n tr">4</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+    </div>
+    <div>
+      <h3 class="sub">Asignar un espacio</h3>
+      <ol class="pasos">
+        <li><div><span class="t">Elija el espacio</span><p>La lista trae todas las aulas y recursos del colegio, estén libres u ocupados.</p></div></li>
+        <li><div><span class="t">Ponga la fecha y el bloque</span><p>Si abrió la ventana tocando una casilla del horario de disponibilidad, los tres campos ya llegan puestos.</p></div></li>
+        <li><div><span class="t">Elija el motivo</span><p>Una lista fija: <b>Necesidad institucional, Visita externa, Reunión administrativa, Evento cultural, Requerimiento Secretaría de Educación</b> u <b>Otro</b>, que abre un campo de texto libre.</p></div></li>
+        <li><div><span class="t">Toque <span class="bt">Asignar</span></span><p>Queda asignada de inmediato, ya aprobada — no hay paso de revisión.</p></div></li>
+      </ol>
+      <p class="sabias" style="margin-top:16px">Si el espacio ya tenía una clase o una reserva a esa hora, la asignación de rectoría <b>la desplaza</b>: no hace falta liberarlo primero a mano.</p>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#inicio"><small>Anterior</small>← Inicio</a><a class="ps-next" href="#agenda"><small>Siguiente</small>Agenda →</a></nav>
+</section>
+
+<!-- ═══════════════ AGENDA ═══════════════ -->
+<section class="mod" id="agenda">
+  <div class="mod-cab">
+    <p class="menu">Menú · Agenda</p>
+    <h2>Agenda</h2>
+    <p class="para">La agenda semanal institucional, en consulta: lo que hay programado para el colegio, igual que la ven los profesores.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#rectora"><small>Anterior</small>← Asignación</a><a class="ps-next" href="#horario"><small>Siguiente</small>Horario →</a></nav>
+</section>
+
+<!-- ═══════════════ HORARIO ═══════════════ -->
+<section class="mod" id="horario">
+  <div class="mod-cab">
+    <p class="menu">Menú · Horario</p>
+    <h2>Horario</h2>
+    <p class="para">Consulta el horario de <b>las dos jornadas</b>, en los tres modos: por aulas, por docente y por grupo. No tiene los botones de editar el día ni de ausencia: esos son de coordinación.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#agenda"><small>Anterior</small>← Agenda</a><a class="ps-next" href="#asistencia"><small>Siguiente</small>Asistencia →</a></nav>
+</section>
+
+<!-- ═══════════════ ASISTENCIA ═══════════════ -->
+<section class="mod" id="asistencia">
+  <div class="mod-cab">
+    <p class="menu">Menú · Asistencia</p>
+    <h2>Asistencia</h2>
+    <p class="para">Consulta las planillas, eventos y el restaurante de todo el colegio, de las dos jornadas. No pasa lista ni marca nada — con <b>una sola excepción</b>.</p>
+  </div>
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">Consulta</span><h3>Planillas, eventos y restaurante</h3><p>Puede abrir cualquier planilla y ver quién pasó lista, y abrir la ficha de cualquier estudiante. No aparecen los botones de marcar asistencia ni de registrar en el restaurante.</p></div>
+      <div class="si"><span class="quien">La única excepción: escribe</span><h3>Casos de permanencia</h3><p>Dentro de Asistencia, en la pestaña de permanencia, su cuenta sí puede trabajar los casos igual que coordinación: son los que deciden si un estudiante termina reportado a la Policía, y esa es una decisión tanto de rectoría como de coordinación. Ahí puede ver el catálogo de motivos y la contactabilidad, además del seguimiento de cada caso.</p></div>
+    </div>
+    <p class="sabias">Si dirige un grupo de director —no es su caso habitualmente—, la ficha de un estudiante también muestra su correo institucional y el botón para escribirle. Ver el manual del profesor, sección Correos.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#horario"><small>Anterior</small>← Horario</a><a class="ps-next" href="#tareas"><small>Siguiente</small>Tareas →</a></nav>
+</section>
+
+<!-- ═══════════════ TAREAS ═══════════════ -->
+<section class="mod" id="tareas">
+  <div class="mod-cab">
+    <p class="menu">Menú · Tareas</p>
+    <h2>Tareas</h2>
+    <p class="para">Consulta las tareas y momentos publicados por los docentes, de todo el colegio.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#asistencia"><small>Anterior</small>← Asistencia</a><a class="ps-next" href="#asistentes"><small>Siguiente</small>Chatbot →</a></nav>
+</section>
+
+<!-- ═══════════════ CHATBOT ═══════════════ -->
+<section class="mod" id="asistentes">
+  <div class="mod-cab">
+    <p class="menu">Menú · Chatbot</p>
+    <h2>Chatbot</h2>
+    <p class="para">Los chatbots de convivencia y del sistema de evaluación, los mismos que usan docentes y coordinación.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#tareas"><small>Anterior</small>← Tareas</a><a class="ps-next" href="#riesgo"><small>Siguiente</small>Gestión del Riesgo →</a></nav>
+</section>
+
+<!-- ═══════════════ GESTIÓN DEL RIESGO ═══════════════ -->
+<section class="mod" id="riesgo">
+  <div class="mod-cab">
+    <p class="menu">Menú · Gestión del Riesgo</p>
+    <h2>Gestión del Riesgo</h2>
+    <p class="para">Primeros auxilios, contención emocional, brigadas y números de emergencia. Puede entrar a un caso que le compartan y consultarlo, pero no crea casos nuevos ni los marca.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#asistentes"><small>Anterior</small>← Chatbot</a><a class="ps-next" href="#historial"><small>Siguiente</small>Mis reservas →</a></nav>
+</section>
+
+<!-- ═══════════════ MIS RESERVAS ═══════════════ -->
+<section class="mod" id="historial">
+  <div class="mod-cab">
+    <p class="menu">Menú · Mis reservas</p>
+    <h2>Mis reservas</h2>
+    <p class="para">El historial de lo que usted misma ha asignado desde <a href="#rectora">Asignación</a>: espacio, fecha, bloque, propósito y motivo de cada una.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#riesgo"><small>Anterior</small>← Gestión del Riesgo</a><a class="ps-next" href="#asignacion"><small>Siguiente</small>Asignación 2026 →</a></nav>
+</section>
+
+<!-- ═══════════════ ASIGNACIÓN 2026 ═══════════════ -->
+<section class="mod" id="asignacion">
+  <div class="mod-cab">
+    <p class="menu">Menú · Asignación 2026</p>
+    <h2>Asignación 2026</h2>
+    <p class="para">Consulta qué docente dicta qué materia y en qué grupo, para todo el colegio.</p>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#historial"><small>Anterior</small>← Mis reservas</a><a class="ps-next" href="#chat"><small>Siguiente</small>Chat →</a></nav>
+</section>
+
+<!-- ═══════════════ CHAT ═══════════════ -->
+<section class="mod" id="chat">
+  <div class="mod-cab">
+    <p class="menu">Menú · Chat</p>
+    <h2>Chat</h2>
+    <p class="para">Mensajería interna del colegio: los mismos canales que ven docentes y coordinación.</p>
+  </div>
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">Puede</span><h3>Fijar un mensaje</h3><p>En los canales generales, solo coordinación y rectoría pueden <b>fijar</b> un mensaje arriba de todo. Fijar uno nuevo reemplaza al anterior, y la aplicación pide confirmación.</p></div>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#asignacion"><small>Anterior</small>← Asignación 2026</a><a class="ps-next" href="#no-hace"><small>Siguiente</small>Lo que no hace la rectora →</a></nav>
+</section>
+
+<!-- ═══════════════ LO QUE NO HACE LA RECTORA ═══════════════ -->
+<section class="mod" id="no-hace">
+  <div class="mod-cab">
+    <p class="menu">Para tener claro los límites</p>
+    <h2>Lo que no hace la rectora</h2>
+    <p class="para">Para no buscar un botón que la aplicación no le muestra a propósito. Lo que sigue es de coordinación, no de rectoría.</p>
+  </div>
+  <div class="bloque solo">
+    <div class="grid-si">
+      <div class="si"><span class="quien">No aparece</span><h3>Panel de pendientes</h3><p>La rectora no ve la pestaña «Pendientes»: aprobar o rechazar una reserva de un docente es autoridad exclusiva de coordinación.</p></div>
+      <div class="si"><span class="quien">No aparece</span><h3>Pestaña «Hoy»</h3><p>El resumen del día a día de reservas y sesiones tampoco está en su panel.</p></div>
+      <div class="si"><span class="quien">No puede</span><h3>Pasar lista ni marcar asistencia</h3><p>Su cuenta es de consulta en Asistencia. La única excepción es Casos de permanencia (ver <a href="#asistencia">Asistencia</a>).</p></div>
+      <div class="si"><span class="quien">No puede</span><h3>Editar el horario ni declarar una ausencia</h3><p>Editar el día, acortar la jornada o abrir el asistente de ausencia son botones que solo ve coordinación, en su propia jornada.</p></div>
+      <div class="si"><span class="quien">No tiene</span><h3>Pantalla de Reservas</h3><p>No solicita espacios como un docente: los asigna directamente desde <a href="#rectora">Asignación</a>, sin pedir aprobación.</p></div>
+      <div class="si"><span class="quien">No puede</span><h3>Crear ni cerrar un caso de Gestión del Riesgo</h3><p>Puede entrar a uno que le compartan y consultarlo, pero no lo crea ni lo marca.</p></div>
+    </div>
+  </div>
+  <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#chat"><small>Anterior</small>← Chat</a><a class="ps-next" href="#contenido"><small>Fin</small>Volver al índice ↑</a></nav>
+</section>
+
+</main>
+
+<footer class="pie">
+  <p><b>Manual de rectoría · nivel básico.</b> Se escribió a partir de la aplicación tal como funciona el 17 de septiembre de 2026. Si una pantalla ya no coincide, el manual se quedó atrás: avísele a Julián Medina.</p>
+  <p>Todos los nombres, grupos, teléfonos y datos de las pantallas son de ejemplo. Ningún dibujo muestra a un estudiante real.</p>
+  <p>MJB Préstamos · © 2025-2026 Julián David Medina Tamayo. Todos los derechos reservados.</p>
+</footer>
+<script>
+(function () {
+  var aqui = document.getElementById('nav-aqui'), menu = document.getElementById('nav-menu');
+  if (!aqui || !menu) return;
+  var enlaces = [].slice.call(menu.querySelectorAll('a'));
+  var nombres = { contenido: 'Índice' };
+  enlaces.forEach(function (a) { nombres[a.getAttribute('href').slice(1)] = a.textContent; });
+  menu.addEventListener('click', function (e) { if (e.target.closest('a')) menu.removeAttribute('open'); });
+  document.addEventListener('click', function (e) { if (!menu.contains(e.target)) menu.removeAttribute('open'); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') menu.removeAttribute('open'); });
+  var secciones = [].slice.call(document.querySelectorAll('#contenido, main > section.mod'));
+  function marcar() {
+    var y = window.innerHeight * 0.3, actual = 'contenido';
+    secciones.forEach(function (s) { if (s.getBoundingClientRect().top <= y) actual = s.id; });
+    aqui.textContent = nombres[actual] || 'Índice';
+    enlaces.forEach(function (a) { a.setAttribute('aria-current', a.getAttribute('href') === '#' + actual ? 'true' : 'false'); });
+  }
+  var pend = false;
+  window.addEventListener('scroll', function () {
+    if (!pend) { pend = true; requestAnimationFrame(function () { pend = false; marcar(); }); }
+  }, { passive: true });
+  marcar();
+})();
+</script>
+
+
+</body>
+</html>

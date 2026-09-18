@@ -296,10 +296,10 @@ export default function App() {
             )}
 
             {/* Manual de uso: archivos estáticos en public/manuales/. Se abren en otra
-                pestaña para no perder lo que se estaba haciendo. El docente ve el suyo;
-                los directivos, el del coordinador (que remite al del profesor). */}
+                pestaña para no perder lo que se estaba haciendo. Cada rol abre el suyo;
+                el superusuario, el del coordinador (el más completo). */}
             <a
-              href={`/mjb-prestamos/manuales/${rol === 'docente' ? 'profesores' : 'coordinadores'}.html`}
+              href={`/mjb-prestamos/manuales/${rol === 'docente' ? 'profesores' : rol === 'rectora' ? 'rectoria' : 'coordinadores'}.html`}
               target="_blank"
               rel="noopener"
               className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-muted hover:text-strong hover:bg-elevated transition text-xs font-medium"
