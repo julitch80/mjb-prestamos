@@ -310,7 +310,7 @@ export default function Ficha({
               que se entra a la ficha el 90% de las veces. Todo lo demas queda detras del
               desplegable de abajo, sobre todo pensando en el celular.
             */}
-            <dl className="mt-3 space-y-1 text-sm">
+            <dl className="mt-3 text-sm">
               {/*
                 El parentesco va pegado al nombre, no en su propia fila: quien llama a
                 una familia necesita saber "a quien" y "que es del estudiante" de un
@@ -381,7 +381,7 @@ export default function Ficha({
             */}
             <details className="mt-3 rounded-lg border border-line bg-elevated p-2">
               <summary className="cursor-pointer text-sm text-accent">Más datos del estudiante</summary>
-              <dl className="mt-2 space-y-1 text-sm">
+              <dl className="mt-2 text-sm">
               {/*
                 El caso de uso es una urgencia: el estudiante se lastimo y en la llamada
                 al 123 o a la EPS piden el documento. Por eso va en cifra grande y
@@ -769,7 +769,7 @@ function CorreoDelEstudiante({
             target="_blank"
             rel="noreferrer"
             title="Abre Gmail con su dirección puesta"
-            className="text-accent underline"
+            className="break-all text-accent underline"
           >
             {est.correoInstitucional}
           </a>
@@ -848,11 +848,20 @@ function CorreoDelEstudiante({
   );
 }
 
+/**
+ * Un renglón de la ficha. En el celular la etiqueta va ARRIBA y el valor debajo, a todo el
+ * ancho; desde pantallas medianas, en dos columnas. Antes eran siempre dos columnas con la
+ * etiqueta en 6rem fijos, y en el celular un correo largo
+ * (`valentina.arredondo.gonzalez@…`) quedaba apretado en media pantalla y se desordenaba con
+ * el resto (Julián, 2026-09-17).
+ */
 function Dato({ termino, valor }: { termino: string; valor: React.ReactNode }) {
   return (
-    <div className="flex gap-2">
-      <dt className="w-24 shrink-0 text-xs text-muted">{termino}</dt>
-      <dd className="text-sm text-soft">{valor || <span className="text-muted">sin registrar</span>}</dd>
+    <div className="flex flex-col gap-0.5 border-b border-line py-1.5 last:border-b-0 sm:flex-row sm:gap-2 sm:border-b-0 sm:py-0.5">
+      <dt className="text-xs text-muted sm:w-24 sm:shrink-0 sm:pt-0.5">{termino}</dt>
+      <dd className="min-w-0 break-words text-sm text-soft">
+        {valor || <span className="text-muted">sin registrar</span>}
+      </dd>
     </div>
   );
 }
