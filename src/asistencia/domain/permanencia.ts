@@ -25,6 +25,15 @@ import type { CensoDia, ContactResult, FamilyContact, Sede } from './types';
  */
 export type ResultadoContacto = ContactResult;
 
+export type PersonaContactada = NonNullable<FamilyContact['personaContactada']>;
+
+export const PERSONA_CONTACTADA_ETIQUETA: Record<PersonaContactada, string> = {
+  acudiente: 'El acudiente',
+  otro_familiar: 'Otro familiar',
+  estudiante: 'El estudiante',
+  otra_persona: 'Otra persona',
+};
+
 export const RESULTADO_ETIQUETA: Record<ResultadoContacto, string> = {
   contesto: 'Contestó',
   no_contesto: 'No contestó',
@@ -147,6 +156,11 @@ export interface PermanenciaConfig {
   intentosSinExitoParaEscalar: number;
   /** Días desde el último contacto efectivo, con las faltas siguiendo, para escalar. */
   diasSinContactoParaEscalar: number;
+  /**
+   * Días sin ningún seguimiento tras los cuales un caso abierto se marca como vencido.
+   * Ocho por defecto, como en la gestión del riesgo de MJB; lo ajusta la institución.
+   */
+  diasSinSeguimientoParaAlerta: number;
   /** Sello de autoría que exige `asisAuthorStamp()`. Los nombres son los del resto
    *  del módulo; cambiarlos haría que la regla rechace toda escritura. */
   ultimaEscrituraPor?: string;
@@ -160,6 +174,7 @@ export const PERMANENCIA_CONFIG_POR_DEFECTO: PermanenciaConfig = {
   diasConsecutivosParaAbrirCaso: 3,
   intentosSinExitoParaEscalar: 3,
   diasSinContactoParaEscalar: 10,
+  diasSinSeguimientoParaAlerta: 8,
 };
 
 // ---------------------------------------------------------------------------
@@ -551,19 +566,44 @@ export type EstadoCaso =
   | 'abierto'
   | 'en_gestion'
   | 'reportado'
+  /** Sigue abierto: a pesar de las visitas no se ha localizado. Estado propio del Distrito. */
+  | 'no_ubicado'
   | 'cerrado_reintegro'
   | 'cerrado_traslado'
-  | 'cerrado_retiro';
+  | 'cerrado_retiro'
+  | 'cerrado_otro';
 
-export const ESTADOS_ABIERTOS: EstadoCaso[] = ['abierto', 'en_gestion', 'reportado'];
+export const ESTADOS_ABIERTOS: EstadoCaso[] = ['abierto', 'en_gestion', 'reportado', 'no_ubicado'];
+
+/** Los estados con que se CIERRA un caso. */
+export type EstadoCierre = 'cerrado_reintegro' | 'cerrado_traslado' | 'cerrado_retiro' | 'cerrado_otro';
+export const ESTADOS_CIERRE: EstadoCierre[] = ['cerrado_reintegro', 'cerrado_retiro', 'cerrado_traslado', 'cerrado_otro'];
+
+/**
+ * Cómo se llama cada estado en el reporte de Guardianes de la Permanencia (§9 del formato).
+ * El Distrito no distingue «abierto», «en gestión» ni «reportado»: para él los tres son un
+ * estudiante ubicado con acciones en curso.
+ */
+export const ESTADO_DISTRITO: Record<EstadoCaso, string> = {
+  abierto: 'Ubicado en proceso',
+  en_gestion: 'Ubicado en proceso',
+  reportado: 'Ubicado en proceso',
+  no_ubicado: 'No ubicado',
+  cerrado_reintegro: 'Ubicado y reintegrado',
+  cerrado_retiro: 'Retiro formal',
+  cerrado_traslado: 'Otro: trasladado a otra institución',
+  cerrado_otro: 'Otro',
+};
 
 export const ESTADO_CASO_ETIQUETA: Record<EstadoCaso, string> = {
   abierto: 'Abierto',
   en_gestion: 'En gestión',
   reportado: 'Reportado',
+  no_ubicado: 'No ubicado',
   cerrado_reintegro: 'Cerrado: se reintegró',
   cerrado_traslado: 'Cerrado: trasladado',
-  cerrado_retiro: 'Cerrado: retirado',
+  cerrado_retiro: 'Cerrado: retiro formal',
+  cerrado_otro: 'Cerrado: otro',
 };
 
 /**
@@ -593,6 +633,18 @@ export interface CasoPermanencia {
   cerradoPor?: string | null;
   cerradoEn?: string | null;
   motivoCierre?: string | null;
+  /** AAAA-MM-DD. El próximo seguimiento programado; si se pasa sin hacerse, hay alerta. */
+  proximoSeguimiento?: string | null;
+  /** A quién le toca ese seguimiento. Ver `RESPONSABLE_ETIQUETA` en seguimiento-caso.ts. */
+  responsableSeguimiento?: string | null;
+  /**
+   * Coordinación le pidió al director del grupo que participe. SOLO así el director ve el
+   * caso: por su cuenta no entra (Julián, 2026-09-17). Las reglas lo leen tal cual.
+   */
+  remitidoDirector?: boolean;
+  remitidoPor?: string | null;
+  remitidoEn?: string | null;
+  remisionNota?: string | null;
 }
 
 /**

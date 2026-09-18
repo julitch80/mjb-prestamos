@@ -1,7 +1,24 @@
 import { useState } from 'react';
 
-import { motivosVigentes, RESULTADO_ETIQUETA, type MotivoFamilia } from './domain/permanencia';
+import {
+  motivosVigentes,
+  PERSONA_CONTACTADA_ETIQUETA,
+  RESULTADO_ETIQUETA,
+  type MotivoFamilia,
+  type PersonaContactada,
+} from './domain/permanencia';
 import type { ContactReason, ContactResult } from './domain/types';
+
+/** Lo que devuelve la ventana. Un objeto y no una lista de argumentos: al agregar un campo,
+ *  las pantallas que la usan no se pueden quedar pasando los valores en otro orden. */
+export interface LlamadaRegistrada {
+  motivoContacto: ContactReason;
+  resultado: ContactResult;
+  motivoFamilia: string | null;
+  personaContactada: PersonaContactada | null;
+  compromiso: string | null;
+  observacion: string;
+}
 
 /**
  * Registrar una llamada a la familia. Una sola ventana para toda la aplicación: la usan la
@@ -48,16 +65,13 @@ export function ModalRegistrarLlamada({
   numero: string;
   onCerrar: () => void;
   motivosFamilia: MotivoFamilia[];
-  onGuardar: (
-    motivoContacto: ContactReason,
-    resultado: ContactResult,
-    motivoFamilia: string | null,
-    observacion: string,
-  ) => Promise<void>;
+  onGuardar: (llamada: LlamadaRegistrada) => Promise<void>;
 }) {
   const [motivo, setMotivo] = useState<ContactReason>('inasistencia_dia');
   const [resultado, setResultado] = useState<ContactResult>('contesto');
   const [motivoFamilia, setMotivoFamilia] = useState<string>('');
+  const [persona, setPersona] = useState<PersonaContactada>('acudiente');
+  const [compromiso, setCompromiso] = useState('');
   const [observacion, setObservacion] = useState('');
 
   // Que dijo la familia solo tiene sentido si la familia hablo. Preguntarlo cuando
@@ -99,6 +113,21 @@ export function ModalRegistrarLlamada({
 
       {contesto && (
         <>
+          <label className="block text-xs text-muted">Quién contestó</label>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {(Object.entries(PERSONA_CONTACTADA_ETIQUETA) as [PersonaContactada, string][]).map(([valor, etiqueta]) => (
+              <button
+                key={valor}
+                onClick={() => setPersona(valor)}
+                className={`min-h-9 rounded-lg border px-3 py-1.5 text-sm ${
+                  persona === valor ? 'border-accent bg-accent text-accent-fg' : 'border-line text-strong'
+                }`}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </div>
+
           <label className="block text-xs text-muted">Qué informó la familia</label>
           <select
             value={motivoFamilia}
@@ -112,6 +141,18 @@ export function ModalRegistrarLlamada({
               </option>
             ))}
           </select>
+        </>
+      )}
+
+      {contesto && (
+        <>
+          <label className="block text-xs text-muted">Compromiso (opcional)</label>
+          <input
+            value={compromiso}
+            onChange={(e) => setCompromiso(e.target.value)}
+            placeholder="Ej.: el acudiente lo trae mañana y pasa por coordinación"
+            className="mb-2 w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm"
+          />
         </>
       )}
 
@@ -140,7 +181,15 @@ export function ModalRegistrarLlamada({
       <div className="mt-3 flex gap-2">
         <button
           onClick={() =>
-            void onGuardar(motivo, resultado, contesto ? motivoFamilia || null : null, observacion.trim())
+            void onGuardar({
+              motivoContacto: motivo,
+              resultado,
+              // Nada de lo que dijo alguien si nadie contestó: ver el comentario de `contesto`.
+              motivoFamilia: contesto ? motivoFamilia || null : null,
+              personaContactada: contesto ? persona : null,
+              compromiso: contesto ? compromiso.trim() || null : null,
+              observacion: observacion.trim(),
+            })
           }
           className="rounded-lg bg-accent px-3 py-1.5 text-sm text-accent-fg"
         >

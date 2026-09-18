@@ -787,7 +787,12 @@ service cloud.firestore {
     // Escritura: solo coordinacion de la sede. La rectora LEE los casos pero no los gestiona;
     // su unica escritura en el modulo sigue siendo `asistenciaConfig/permanencia`.
     match /asistenciaCasosPermanencia/{casoId} {
-      allow read: if asisCoordinaSede(resource.data.sede) || asisIsRectora();
+      // El director de grupo lo ve SOLO si coordinacion se lo remitio (Julian, 2026-09-17):
+      // por su cuenta no entra, porque un caso junta consumo, violencia o trabajo infantil de
+      // un menor. La consulta del director tiene que filtrar por `grado` y `remitidoDirector`,
+      // o esta regla no la puede probar y la rechaza entera.
+      allow read: if asisCoordinaSede(resource.data.sede) || asisIsRectora()
+        || (asisIsDirectorOf(resource.data.grado) && resource.data.get('remitidoDirector', false) == true);
 
       // El id es `${studentId}_${fechaApertura}` y la regla lo EXIGE: es lo que impide que dos
       // coordinadores que abren la pantalla el mismo dia creen dos casos para el mismo
@@ -801,7 +806,10 @@ service cloud.firestore {
       // Se gestiona, no se reescribe su origen: quien, cuando y por que se abrio quedan fijos.
       // Si el criterio que lo abrio se pudiera editar, el expediente dejaria de explicar por
       // que existe — y es lo primero que se pregunta cuando un caso llega a la Policia.
-      allow update: if !esSuplantacion() && (asisCoordinaSede(resource.data.sede)
+      // La rectora tambien gestiona: puede corregir o ajustar lo que le presentan antes de
+      // firmarlo (Julian, 2026-09-17). El director de grupo NO: participa agregando
+      // seguimientos (abajo), pero el rumbo del caso lo decide coordinacion.
+      allow update: if !esSuplantacion() && ((asisCoordinaSede(resource.data.sede) || asisIsRectora())
         && asisAuthorStamp()
         && request.resource.data.studentId == resource.data.studentId
         && request.resource.data.sede == resource.data.sede
@@ -810,6 +818,36 @@ service cloud.firestore {
         && request.resource.data.abiertoPor == resource.data.abiertoPor);
 
       allow delete: if !esSuplantacion() && (false);   // un expediente no se borra
+
+      // ---------- Seguimientos del caso ----------
+      // Cada uno es un documento aparte y NO se edita ni se borra: el expediente puede
+      // terminar en una Comisaria de Familia, y lo que alli se lea tiene que ser lo que se
+      // escribio. Corregir es AGREGAR una correccion (`corrigeA`) que la pantalla muestra en
+      // lugar del original; el original queda. Antes las gestiones vivian en un arreglo
+      // dentro del caso que se reescribia entero, y quien podia agregar podia tambien borrar.
+      match /seguimientos/{seguimientoId} {
+        function asisCaso() {
+          return get(/databases/$(database)/documents/asistenciaCasosPermanencia/$(casoId)).data;
+        }
+        function asisDirectorRemitido() {
+          return asisIsDirectorOf(asisCaso().grado) && asisCaso().get('remitidoDirector', false) == true;
+        }
+
+        allow read: if asisCoordinaSede(asisCaso().sede) || asisIsRectora() || asisDirectorRemitido();
+
+        allow create: if !esSuplantacion()
+          && request.resource.data.autor == callerEmail()
+          && request.resource.data.creadoEn == request.time
+          && request.resource.data.casoId == casoId
+          && request.resource.data.seguimientoId == seguimientoId
+          && (asisCoordinaSede(asisCaso().sede) || asisIsRectora()
+              // El director aporta, no decide ni corrige lo de otros.
+              || (asisDirectorRemitido()
+                  && request.resource.data.decision == 'ninguna'
+                  && request.resource.data.get('corrigeA', null) == null));
+
+        allow update, delete: if false;
+      }
     }
 
     // Umbrales de alerta. Cada docente puede ajustar el suyo de retrasos; el resto de la

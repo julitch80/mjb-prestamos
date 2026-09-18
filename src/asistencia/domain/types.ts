@@ -254,6 +254,13 @@ export interface FamilyContact {
    * la coordinacion corrige la redaccion de una opcion, los registros viejos la siguen.
    */
   motivoFamilia?: string | null;
+  /**
+   * Quién contestó y qué se acordó (2026-09-17). Los pide el formato de Guardianes de la
+   * Permanencia (§6, estrategia 1: «persona contactada», «compromisos adquiridos»).
+   * Opcionales: la llamada tiene que seguir siendo de treinta segundos.
+   */
+  personaContactada?: 'acudiente' | 'otro_familiar' | 'estudiante' | 'otra_persona' | null;
+  compromiso?: string | null;
   observacion: string;
   llamadoPor: string;
   llamadoEn: number;

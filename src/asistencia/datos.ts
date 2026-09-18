@@ -46,13 +46,20 @@ import { compararEstudiantes } from './domain/nombres';
 import { avisoEvasionId, censoDiaId } from './domain/evasion';
 import {
   casoId,
+  ESTADOS_ABIERTOS,
   MOTIVOS_SEMILLA,
   PERMANENCIA_CONFIG_POR_DEFECTO,
   type CasoPermanencia,
   type EvaluacionPermanencia,
-  type Gestion,
   type PermanenciaConfig,
 } from './domain/permanencia';
+import {
+  CAMPOS_CORREGIBLES,
+  efectoEnCaso,
+  type BorradorSeguimiento,
+  type CamposSeguimiento,
+  type SeguimientoCaso,
+} from './domain/seguimiento-caso';
 import type { MarkCode } from './domain/marks';
 import type {
   AlertConfig,
@@ -432,6 +439,8 @@ export async function registrarContacto(input: {
   resultado: ContactResult;
   /** Del catálogo `asistenciaConfig/permanencia`. Solo cuando la familia contestó. */
   motivoFamilia?: string | null;
+  personaContactada?: FamilyContact['personaContactada'];
+  compromiso?: string | null;
   observacion: string;
 }): Promise<void> {
   const autor = await exigirAutor();
@@ -442,6 +451,8 @@ export async function registrarContacto(input: {
     // Nunca `undefined`: Firestore lo rechaza y tumbaría el registro entero de la
     // llamada por un campo que es opcional a propósito.
     motivoFamilia: input.motivoFamilia ?? null,
+    personaContactada: input.personaContactada ?? null,
+    compromiso: input.compromiso?.trim() || null,
     llamadoPor: autor,
     llamadoEn: serverTimestamp(),
   });
@@ -2890,6 +2901,23 @@ export async function leerContactosDeSede(sede: string): Promise<FamilyContact[]
   return aLista<FamilyContact>(snap);
 }
 
+/**
+ * Las llamadas a la familia de UN estudiante, para el director de su grupo. Filtra por
+ * `grado` porque es lo que lee la regla del director (`asisIsDirectorOf(grado)`): sin ese
+ * filtro la consulta no se puede probar y se rechaza entera.
+ */
+export async function leerContactosDeEstudiante(grado: string, studentId: string): Promise<FamilyContact[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(
+      collection(baseDatos(), 'asistenciaFamilyContacts'),
+      where('grado', '==', grado),
+      where('studentId', '==', studentId),
+    ),
+  );
+  return aLista<FamilyContact>(snap);
+}
+
 export async function leerCasosDeSede(sede: string): Promise<CasoPermanencia[]> {
   if (!(await listo())) return [];
   const snap = await getDocs(
@@ -2946,50 +2974,6 @@ export async function abrirCasosPermanencia(
 }
 
 /**
- * Agrega una gestion al caso A NOMBRE DE QUIEN LA REGISTRA, tomado de la sesion y no de
- * lo que mande la pantalla (`exigirAutor`, igual que todo el modulo: en modo «Ver como»
- * el store dice otra persona). Es lo que despues demuestra quien actuo y cuando.
- * Un caso recien abierto pasa a «en gestion» con la primera.
- */
-export async function registrarGestionCaso(
-  caso: Pick<CasoPermanencia, 'casoId' | 'estado' | 'gestiones'>,
-  gestion: { tipo: Gestion['tipo']; fecha: string; nota?: string },
-): Promise<void> {
-  const autor = await exigirAutor();
-  const nueva: Gestion = {
-    tipo: gestion.tipo,
-    fecha: gestion.fecha,
-    realizadaPor: autor,
-    ...(gestion.nota?.trim() ? { nota: gestion.nota.trim() } : {}),
-  };
-  await updateDoc(doc(baseDatos(), 'asistenciaCasosPermanencia', caso.casoId), {
-    gestiones: [...caso.gestiones, nueva],
-    estado: caso.estado === 'abierto' ? 'en_gestion' : caso.estado,
-    ultimaEscrituraPor: autor,
-    ultimaEscrituraEn: serverTimestamp(),
-  });
-}
-
-/** Cierra el caso. El motivo es obligatorio: un caso cerrado sin explicacion no le sirve a nadie. */
-export async function cerrarCaso(
-  id: string,
-  estado: 'cerrado_reintegro' | 'cerrado_traslado' | 'cerrado_retiro',
-  motivoCierre: string,
-  fecha: string,
-): Promise<void> {
-  if (!motivoCierre.trim()) throw new Error('Hay que escribir por qué se cierra el caso.');
-  const autor = await exigirAutor();
-  await updateDoc(doc(baseDatos(), 'asistenciaCasosPermanencia', id), {
-    estado,
-    motivoCierre: motivoCierre.trim(),
-    cerradoEn: fecha,
-    cerradoPor: autor,
-    ultimaEscrituraPor: autor,
-    ultimaEscrituraEn: serverTimestamp(),
-  });
-}
-
-/**
  * TODAS las fichas, retirados incluidos, para el respaldo previo a una importacion. No
  * usar para pintar listas: para eso esta `leerEstudiantesDeSede`, que filtra. Un
  * respaldo que dejara fuera a los retirados no permitiria deshacer una importacion que
@@ -2998,4 +2982,122 @@ export async function cerrarCaso(
 export async function leerTodasLasFichas(): Promise<Student[]> {
   if (!(await listo())) return [];
   return aLista<Student>(await getDocs(collection(baseDatos(), 'asistenciaStudents')));
+}
+
+// ---------------------------------------------------------------------------
+//  Seguimiento de casos de permanencia (2026-09-17). Ver domain/seguimiento-caso.ts.
+// ---------------------------------------------------------------------------
+
+/** `creadoEn` llega como Timestamp de Firestore; el dominio lo quiere en milisegundos. */
+function comoSeguimiento(d: Record<string, unknown>): SeguimientoCaso {
+  const creado = d.creadoEn as { toMillis?: () => number } | number | null | undefined;
+  return {
+    ...(d as unknown as SeguimientoCaso),
+    creadoEn: typeof creado === 'number' ? creado : (creado?.toMillis?.() ?? 0),
+  };
+}
+
+export async function leerSeguimientos(casoId: string): Promise<SeguimientoCaso[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(collection(baseDatos(), 'asistenciaCasosPermanencia', casoId, 'seguimientos'));
+  return snap.docs.map((d) => comoSeguimiento(d.data()));
+}
+
+/** Los campos de un borrador que de verdad se escribieron: Firestore no acepta `undefined`. */
+function sinVacios<T extends object>(o: T): Partial<T> {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
+/**
+ * Registra un seguimiento y, si decide algo, se lo aplica al caso EN LA MISMA escritura: no
+ * puede quedar un seguimiento que dice «cerrar» con el caso abierto, ni al revés.
+ *
+ * El director de grupo (remitido) escribe solo el seguimiento, con decisión `ninguna`: las
+ * reglas no le dejan tocar el caso.
+ */
+export async function crearSeguimiento(
+  caso: Pick<CasoPermanencia, 'casoId' | 'estado'>,
+  borrador: BorradorSeguimiento,
+): Promise<void> {
+  const autor = await exigirAutor();
+  const hoy = toDateKey(new Date());
+  const ref = doc(collection(baseDatos(), 'asistenciaCasosPermanencia', caso.casoId, 'seguimientos'));
+  const lote = writeBatch(baseDatos());
+  lote.set(ref, {
+    ...sinVacios(borrador),
+    seguimientoId: ref.id,
+    casoId: caso.casoId,
+    corrigeA: null,
+    autor,
+    creadoEn: serverTimestamp(),
+  });
+  const efecto = efectoEnCaso(caso, borrador, autor, hoy);
+  if (efecto) {
+    lote.update(doc(baseDatos(), 'asistenciaCasosPermanencia', caso.casoId), {
+      ...efecto,
+      ultimaEscrituraPor: autor,
+      ultimaEscrituraEn: serverTimestamp(),
+    });
+  }
+  await lote.commit();
+}
+
+/**
+ * Corrige un seguimiento AGREGANDO otro que lo reemplaza en pantalla. El original no se toca
+ * —las reglas no lo permiten— y queda en el historial. Solo cambian los campos de texto: la
+ * decisión que se tomó no se corrige, porque ya produjo su efecto en el caso.
+ */
+export async function corregirSeguimiento(
+  original: SeguimientoCaso,
+  campos: Partial<CamposSeguimiento>,
+): Promise<void> {
+  const autor = await exigirAutor();
+  const ref = doc(collection(baseDatos(), 'asistenciaCasosPermanencia', original.casoId, 'seguimientos'));
+  const soloCorregibles = Object.fromEntries(
+    CAMPOS_CORREGIBLES.filter((k) => k in campos).map((k) => [k, campos[k]]),
+  );
+  await setDoc(ref, {
+    ...sinVacios(soloCorregibles),
+    tipo: original.tipo,
+    fecha: original.fecha,
+    decision: 'ninguna',
+    seguimientoId: ref.id,
+    casoId: original.casoId,
+    corrigeA: original.corrigeA ?? original.seguimientoId,
+    autor,
+    creadoEn: serverTimestamp(),
+  });
+}
+
+/**
+ * Coordinación le pide al director del grupo que participe. Es lo único que le abre el caso:
+ * por su cuenta no lo ve (Julián, 2026-09-17). Retirar la remisión se lo vuelve a cerrar.
+ */
+export async function remitirAlDirector(casoId: string, remitir: boolean, nota: string | null): Promise<void> {
+  const autor = await exigirAutor();
+  await updateDoc(doc(baseDatos(), 'asistenciaCasosPermanencia', casoId), {
+    remitidoDirector: remitir,
+    remitidoPor: remitir ? autor : null,
+    remitidoEn: remitir ? toDateKey(new Date()) : null,
+    remisionNota: remitir ? nota?.trim() || null : null,
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  });
+}
+
+/**
+ * Los casos que coordinación le remitió al director de un grupo. La consulta TIENE que
+ * filtrar por los dos campos que lee la regla (`grado` y `remitidoDirector`): sin eso la
+ * regla no puede probar que el director tenga permiso y rechaza la consulta entera.
+ */
+export async function leerCasosRemitidos(grado: string): Promise<CasoPermanencia[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(
+      collection(baseDatos(), 'asistenciaCasosPermanencia'),
+      where('grado', '==', grado),
+      where('remitidoDirector', '==', true),
+    ),
+  );
+  return aLista<CasoPermanencia>(snap).filter((c) => ESTADOS_ABIERTOS.includes(c.estado));
 }

@@ -20,9 +20,9 @@ import {
   type PermanenciaConfig,
   type PrioridadLlamada,
 } from './domain/permanencia';
-import type { CensoDia, ContactReason, ContactResult, FamilyContact, Jornada } from './domain/types';
+import type { CensoDia, ContactResult, FamilyContact, Jornada } from './domain/types';
 import TelefonoAcudiente from './TelefonoAcudiente';
-import { ModalRegistrarLlamada } from './RegistrarLlamada';
+import { ModalRegistrarLlamada, type LlamadaRegistrada } from './RegistrarLlamada';
 
 /** Lo que hace falta para decir a quién hay que llamar primero. Se lee aparte del reporte. */
 interface DatosPermanencia {
@@ -190,28 +190,19 @@ export default function TerceraHora({ sede }: { sede: string }) {
   }, [reporte, prioridades]);
   const cuantosLlamarPrimero = noIngresaronOrdenados.filter((f) => prioridades.get(f.studentId)?.llamar).length;
 
-  async function registrar(
-    f: FilaLlamada,
-    motivoContacto: ContactReason,
-    resultado: ContactResult,
-    motivoFamilia: string | null,
-    observacion: string,
-  ) {
+  async function registrar(f: FilaLlamada, llamada: LlamadaRegistrada) {
     try {
       await registrarContacto({
         studentId: f.studentId,
         grado: f.grado,
         sede,
         fecha,
-        motivoContacto,
         // El numero sobre el que realmente se pulso Llamar; si se registra sin haber
         // pulsado ninguno, se conserva el primero como comportamiento por defecto.
         telefonoUsado: telefonoPulsado[f.studentId] ?? f.telefonos[0] ?? '',
-        resultado,
-        motivoFamilia,
-        observacion,
+        ...llamada,
       });
-      setLlamados((p) => ({ ...p, [f.studentId]: resultado }));
+      setLlamados((p) => ({ ...p, [f.studentId]: llamada.resultado }));
       setRegistrando(null);
     } catch (e) {
       setError(`No fue posible registrar la llamada: ${(e as Error).message}`);
@@ -292,9 +283,7 @@ export default function TerceraHora({ sede }: { sede: string }) {
           numero={telefonoPulsado[registrando.studentId] ?? registrando.telefonos[0] ?? 'sin número'}
           motivosFamilia={permanencia?.config.motivos ?? MOTIVOS_SEMILLA}
           onCerrar={() => setRegistrando(null)}
-          onGuardar={(motivoContacto, resultado, motivoFamilia, observacion) =>
-            registrar(registrando, motivoContacto, resultado, motivoFamilia, observacion)
-          }
+          onGuardar={(llamada) => registrar(registrando, llamada)}
         />
       )}
 

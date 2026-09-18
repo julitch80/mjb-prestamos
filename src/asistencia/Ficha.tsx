@@ -8,7 +8,9 @@ import {
   guardarGuiaDeColor,
   leerAutoridadSede,
   leerDireccionGrupo,
+  leerCasosRemitidos,
   leerConfigPermanencia,
+  leerContactosDeEstudiante,
   leerEstudiante,
   leerMiCuenta,
   marcarCelda,
@@ -34,13 +36,17 @@ import { escribirAUno } from './domain/escribir-correo';
 import {
   edadEn,
   MOTIVOS_SEMILLA,
+  type CasoPermanencia,
   type MotivoFamilia,
+  type PermanenciaConfig,
 } from './domain/permanencia';
 import type {
   DireccionGrupo,
+  FamilyContact,
   OpcionColumna,
   Student,
 } from './domain/types';
+import DetalleCaso from './DetalleCaso';
 import TelefonoAcudiente from './TelefonoAcudiente';
 import { ModalRegistrarLlamada } from './RegistrarLlamada';
 import { Check, Copy, UserCheck, UserX } from 'lucide-react';
@@ -143,6 +149,46 @@ export default function Ficha({
       vivo = false;
     };
   }, [grado, dirigeEsteGrupo, anio]);
+
+  /**
+   * El caso de permanencia que coordinación le REMITIÓ al director de este grupo. Solo se
+   * pide si quien mira dirige el grupo, y solo existe si coordinación lo remitió: por su
+   * cuenta el director no ve casos (Julián, 2026-09-17). Pedirlo a los demás sería un
+   * permission-denied seguro en la consola.
+   */
+  const [remitido, setRemitido] = useState<{
+    caso: CasoPermanencia;
+    contactos: FamilyContact[];
+    config: PermanenciaConfig;
+  } | null>(null);
+  const [recargaRemitido, setRecargaRemitido] = useState(0);
+  useEffect(() => {
+    if (!grado || !dirigeEsteGrupo) {
+      setRemitido(null);
+      return;
+    }
+    let vivo = true;
+    void (async () => {
+      try {
+        const caso = (await leerCasosRemitidos(grado)).find((c) => c.studentId === studentId);
+        if (!caso) {
+          if (vivo) setRemitido(null);
+          return;
+        }
+        const [contactos, config] = await Promise.all([
+          leerContactosDeEstudiante(grado, studentId),
+          leerConfigPermanencia(),
+        ]);
+        if (vivo) setRemitido({ caso, contactos, config });
+      } catch {
+        // Sin remisión, o sin permiso todavía: la ficha sigue funcionando igual.
+        if (vivo) setRemitido(null);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [grado, dirigeEsteGrupo, studentId, recargaRemitido]);
 
   const colorClasificacion = colorDeEstudiante(direccion, studentId);
   const tonoClasificacion = colorPorId(colorClasificacion?.colorId);
@@ -424,6 +470,22 @@ export default function Ficha({
               </dl>
             </details>
 
+            {remitido && (
+              <details open className="mt-3 rounded-lg border border-info-soft bg-info-soft p-2">
+                <summary className="cursor-pointer text-sm font-semibold text-info-soft-fg">
+                  Coordinación le remitió el caso de permanencia de este estudiante
+                </summary>
+                <DetalleCaso
+                  caso={remitido.caso}
+                  estudiante={est}
+                  contactos={remitido.contactos}
+                  config={remitido.config}
+                  modo="aporte"
+                  onCambio={async () => setRecargaRemitido((n) => n + 1)}
+                />
+              </details>
+            )}
+
             {/*
               Aviso discreto tras pulsar "Llamar": NADA se registra solo. El sistema no
               sabe si la llamada de verdad ocurrio, solo que se toco el boton — por eso
@@ -613,7 +675,7 @@ export default function Ficha({
           numero={numeroLlamado}
           motivosFamilia={motivosFamilia}
           onCerrar={() => setRegistrandoLlamada(false)}
-          onGuardar={async (motivoContacto, resultado, motivoFamilia, observacion) => {
+          onGuardar={async (llamada) => {
             setError(null);
             try {
               await registrarContacto({
@@ -621,11 +683,8 @@ export default function Ficha({
                 grado: est.gradoActual,
                 sede: est.sede,
                 fecha: toDateKey(new Date()),
-                motivoContacto,
                 telefonoUsado: numeroLlamado,
-                resultado,
-                motivoFamilia,
-                observacion,
+                ...llamada,
               });
               setRegistrandoLlamada(false);
               setNumeroLlamado(null);

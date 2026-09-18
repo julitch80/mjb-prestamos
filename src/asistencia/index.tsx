@@ -25,6 +25,7 @@ const Importar = lazy(() => import('./Importar'));
  */
 const DireccionGrupo = lazy(() => import('./DireccionGrupo'));
 import EscribirAlGrupo from './EscribirAlGrupo';
+import CasosRemitidos from './CasosRemitidos';
 /**
  * Centros de interes. Va con lazy() como Importar y DireccionGrupo: por dentro arrastra
  * la carga desde Excel, y con ella exceljs, que no tiene por que pesar en el arranque de
@@ -1046,6 +1047,10 @@ export default function Asistencia() {
 
             {cruce && (esDirector || rol === 'coordinador' || rol === 'superusuario') && (
               <EscribirAlGrupo estudiantes={estudiantes} etiqueta={cruce.grado} />
+            )}
+
+            {cruce && esDirector && (
+              <CasosRemitidos grado={cruce.grado} estudiantes={estudiantes} onAbrirFicha={setFichaAbierta} />
             )}
 
             {/* El director ve el cuaderno paralelo Y la carga de fotos, en los demas

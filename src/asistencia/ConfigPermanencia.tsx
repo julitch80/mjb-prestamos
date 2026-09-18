@@ -130,6 +130,11 @@ export default function ConfigPermanencia({ sede }: { sede: Sede }) {
             valor={config.diasSinContactoParaEscalar}
             onGuardar={(v) => guardar({ diasSinContactoParaEscalar: v }, 'Umbral guardado.')}
           />
+          <Umbral
+            etiqueta="Días sin seguimiento para marcar un caso vencido"
+            valor={config.diasSinSeguimientoParaAlerta}
+            onGuardar={(v) => guardar({ diasSinSeguimientoParaAlerta: v }, 'Umbral guardado.')}
+          />
         </div>
       </div>
 
