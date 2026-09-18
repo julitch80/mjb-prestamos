@@ -1,9 +1,45 @@
-import { useCallback, useEffect, useState } from 'react';
-import { leerInsumosTerceraHora, registrarContacto } from './datos';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  leerCasosDeSede,
+  leerCensosDesde,
+  leerConfigPermanencia,
+  leerContactosDeSede,
+  leerInsumosTerceraHora,
+  registrarContacto,
+} from './datos';
 import { advertenciaCobertura, construirReporteTerceraHora, type ReporteTerceraHora } from './domain/reports';
 import { toDateKey } from './domain/ids';
-import type { Jornada } from './domain/types';
+import {
+  ESTADOS_ABIERTOS,
+  evaluarEstudiante,
+  inasistenciasDesdeCensos,
+  MOTIVOS_SEMILLA,
+  prioridadDeLlamada,
+  RESULTADO_ETIQUETA,
+  type CasoPermanencia,
+  type PermanenciaConfig,
+  type PrioridadLlamada,
+} from './domain/permanencia';
+import type { CensoDia, ContactReason, ContactResult, FamilyContact, Jornada } from './domain/types';
 import TelefonoAcudiente from './TelefonoAcudiente';
+import { ModalRegistrarLlamada } from './RegistrarLlamada';
+
+/** Lo que hace falta para decir a quién hay que llamar primero. Se lee aparte del reporte. */
+interface DatosPermanencia {
+  config: PermanenciaConfig;
+  censos: CensoDia[];
+  casos: CasoPermanencia[];
+  contactos: FamilyContact[];
+}
+
+type FilaLlamada = { studentId: string; grado: string; telefonos: string[] };
+
+/** Los mismos 60 días de calendario que lee la pantalla de Permanencia. */
+function haceDias(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return toDateKey(d);
+}
 
 /**
  * Reporte de tercera hora — la pantalla del coordinador.
@@ -17,6 +53,12 @@ import TelefonoAcudiente from './TelefonoAcudiente';
  * llame a una familia para decirle que su hijo no fue, cuando el muchacho esta en el
  * patio.
  *
+ * Dentro de «no ingresaron», los que HAY QUE LLAMAR van arriba con la razon a la vista
+ * (`prioridadDeLlamada`, 2026-09-17): caso abierto, factor de riesgo, alerta, varios dias
+ * seguidos, o ningun otro canal de aviso. Hoy se sigue llamando a todos; la marca dice por
+ * quien empezar. Cuando exista el aviso por correo, es la que decide a quien NO basta con
+ * escribirle.
+ *
  * El reporte se CALCULA, no se guarda. Lo unico que se persiste son las llamadas.
  */
 export default function TerceraHora({ sede }: { sede: string }) {
@@ -28,10 +70,13 @@ export default function TerceraHora({ sede }: { sede: string }) {
   const [reporte, setReporte] = useState<ReporteTerceraHora | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [llamados, setLlamados] = useState<Record<string, string>>({});
+  const [llamados, setLlamados] = useState<Record<string, ContactResult>>({});
   // Que numero se pulso "Llamar" por estudiante. Sin esto, telefonoUsado quedaba
   // siempre en el primer telefono aunque el coordinador hubiera llamado al segundo.
   const [telefonoPulsado, setTelefonoPulsado] = useState<Record<string, string>>({});
+  const [permanencia, setPermanencia] = useState<DatosPermanencia | null>(null);
+  const [avisoPermanencia, setAvisoPermanencia] = useState<string | null>(null);
+  const [registrando, setRegistrando] = useState<FilaLlamada | null>(null);
 
   const generar = useCallback(async () => {
     setCargando(true);
@@ -66,31 +111,108 @@ export default function TerceraHora({ sede }: { sede: string }) {
     void generar();
   }, [generar]);
 
-  async function registrar(
-    f: { studentId: string; grado: string; telefonos: string[] },
-    resultado: 'contesto' | 'no_contesto',
-  ) {
-    const observacion = window.prompt(
-      resultado === 'contesto'
-        ? '¿Qué informó la familia? (opcional)'
-        : 'Observación de la llamada sin respuesta (opcional)',
-      '',
+  // Lo necesario para la marca de «hay que llamar». Va APARTE del reporte y sin bloquearlo:
+  // si esto falla, la lista de quien no vino sale igual, solo que sin ordenar. Una lista sin
+  // prioridad es incomoda; una lista que no sale es un dia sin llamadas.
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const [config, censos, casos, contactos] = await Promise.all([
+          leerConfigPermanencia(),
+          leerCensosDesde(haceDias(60), sede),
+          leerCasosDeSede(sede),
+          leerContactosDeSede(sede),
+        ]);
+        if (vivo) setPermanencia({ config, censos, casos, contactos });
+      } catch (e) {
+        if (vivo) setAvisoPermanencia(`No se pudo calcular a quién llamar primero: ${(e as Error).message}`);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [sede]);
+
+  /** La prioridad de cada estudiante que no ingresó. */
+  const prioridades = useMemo(() => {
+    const m = new Map<string, PrioridadLlamada>();
+    if (!reporte) return m;
+    const filas = reporte.noIngresaron;
+    const contactosDe = new Map<string, FamilyContact[]>();
+    for (const c of permanencia?.contactos ?? []) {
+      const l = contactosDe.get(c.studentId) ?? [];
+      l.push(c);
+      contactosDe.set(c.studentId, l);
+    }
+    const ina = permanencia
+      ? inasistenciasDesdeCensos(
+          permanencia.censos,
+          filas.map((f) => ({ studentId: f.studentId, gradoActual: f.grado })),
+          permanencia.config.ventanaDiasHabiles,
+        )
+      : null;
+    for (const f of filas) {
+      const contactos = contactosDe.get(f.studentId) ?? [];
+      const inasistencia = ina?.get(f.studentId);
+      m.set(
+        f.studentId,
+        prioridadDeLlamada({
+          evaluacion:
+            permanencia && inasistencia
+              ? evaluarEstudiante({
+                  studentId: f.studentId,
+                  inasistencia,
+                  contactos,
+                  config: permanencia.config,
+                  hoy: fecha,
+                })
+              : null,
+          casoAbierto:
+            permanencia?.casos.find(
+              (c) => c.studentId === f.studentId && ESTADOS_ABIERTOS.includes(c.estado),
+            ) ?? null,
+          config: permanencia?.config ?? ({ motivos: MOTIVOS_SEMILLA } as PermanenciaConfig),
+          telefonos: f.telefonos,
+          contactos,
+        }),
+      );
+    }
+    return m;
+  }, [reporte, permanencia, fecha]);
+
+  /** Los que hay que llamar primero, arriba y del más grave al menos. */
+  const noIngresaronOrdenados = useMemo(() => {
+    if (!reporte) return [];
+    return [...reporte.noIngresaron].sort(
+      (a, b) => (prioridades.get(b.studentId)?.peso ?? 0) - (prioridades.get(a.studentId)?.peso ?? 0),
     );
-    if (observacion === null) return;
+  }, [reporte, prioridades]);
+  const cuantosLlamarPrimero = noIngresaronOrdenados.filter((f) => prioridades.get(f.studentId)?.llamar).length;
+
+  async function registrar(
+    f: FilaLlamada,
+    motivoContacto: ContactReason,
+    resultado: ContactResult,
+    motivoFamilia: string | null,
+    observacion: string,
+  ) {
     try {
       await registrarContacto({
         studentId: f.studentId,
         grado: f.grado,
         sede,
         fecha,
-        motivoContacto: 'inasistencia_dia',
+        motivoContacto,
         // El numero sobre el que realmente se pulso Llamar; si se registra sin haber
         // pulsado ninguno, se conserva el primero como comportamiento por defecto.
         telefonoUsado: telefonoPulsado[f.studentId] ?? f.telefonos[0] ?? '',
         resultado,
+        motivoFamilia,
         observacion,
       });
       setLlamados((p) => ({ ...p, [f.studentId]: resultado }));
+      setRegistrando(null);
     } catch (e) {
       setError(`No fue posible registrar la llamada: ${(e as Error).message}`);
     }
@@ -153,64 +275,91 @@ export default function TerceraHora({ sede }: { sede: string }) {
         </div>
       )}
 
+      {avisoPermanencia && (
+        <div className="rounded-xl border border-warning-soft bg-warning-soft p-3 text-sm text-warning-soft-fg">
+          {avisoPermanencia}. La lista sale completa, pero sin ordenar.
+        </div>
+      )}
+
       {aviso && (
         <div className="rounded-xl border border-warning-soft bg-warning-soft p-3 text-sm text-warning-soft-fg">
           {aviso}
         </div>
       )}
 
+      {registrando && (
+        <ModalRegistrarLlamada
+          numero={telefonoPulsado[registrando.studentId] ?? registrando.telefonos[0] ?? 'sin número'}
+          motivosFamilia={permanencia?.config.motivos ?? MOTIVOS_SEMILLA}
+          onCerrar={() => setRegistrando(null)}
+          onGuardar={(motivoContacto, resultado, motivoFamilia, observacion) =>
+            registrar(registrando, motivoContacto, resultado, motivoFamilia, observacion)
+          }
+        />
+      )}
+
       {reporte && (
         <>
           <Seccion
             titulo="No ingresaron al colegio"
-            explicacion="Ausentes en tercera hora y sin registro de llegada tarde. Aquí sí se llama a la familia."
+            explicacion={
+              cuantosLlamarPrimero > 0
+                ? `Ausentes en tercera hora y sin registro de llegada tarde. Aquí sí se llama a la familia. Arriba, los ${cuantosLlamarPrimero} que hay que llamar primero, con la razón.`
+                : 'Ausentes en tercera hora y sin registro de llegada tarde. Aquí sí se llama a la familia.'
+            }
             vacio="Nadie. Todos los ausentes del bloque 3 tienen registro de ingreso."
-            filas={reporte.noIngresaron}
+            filas={noIngresaronOrdenados}
             tono="danger"
-            render={(f) => (
-              <>
-                <span className="grow">
-                  <b className="text-strong">{f.nombreCompleto}</b>
-                  <span className="ml-2 text-xs text-muted">{f.grado}</span>
-                  <br />
-                  <span className="mt-1 flex flex-col gap-1 text-xs text-soft">
-                    {f.telefonos.length > 0 ? (
-                      f.telefonos.map((t, i) => (
-                        <TelefonoAcudiente
-                          key={`${t}-${i}`}
-                          numero={t}
-                          onLlamar={(numero) =>
-                            setTelefonoPulsado((p) => ({ ...p, [f.studentId]: numero }))
-                          }
-                        />
-                      ))
-                    ) : (
-                      'sin teléfono registrado'
+            render={(f) => {
+              const pr = prioridades.get(f.studentId);
+              return (
+                <>
+                  <span className="grow">
+                    <b className="text-strong">{f.nombreCompleto}</b>
+                    <span className="ml-2 text-xs text-muted">{f.grado}</span>
+                    {pr?.llamar && (
+                      <span className="ml-2 rounded-full bg-danger-soft px-2 py-0.5 text-xs font-semibold text-danger-soft-fg">
+                        Llamar primero
+                      </span>
                     )}
+                    {pr?.llamar && (
+                      <ul className="mt-1 list-disc pl-4 text-xs text-danger-soft-fg">
+                        {pr.motivos.map((m) => (
+                          <li key={m}>{m}</li>
+                        ))}
+                      </ul>
+                    )}
+                    <span className="mt-1 flex flex-col gap-1 text-xs text-soft">
+                      {f.telefonos.length > 0 ? (
+                        f.telefonos.map((t, i) => (
+                          <TelefonoAcudiente
+                            key={`${t}-${i}`}
+                            numero={t}
+                            onLlamar={(numero) =>
+                              setTelefonoPulsado((p) => ({ ...p, [f.studentId]: numero }))
+                            }
+                          />
+                        ))
+                      ) : (
+                        'sin teléfono registrado'
+                      )}
+                    </span>
                   </span>
-                </span>
-                {llamados[f.studentId] ? (
-                  <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs text-success-soft-fg">
-                    {llamados[f.studentId] === 'contesto' ? 'contestó' : 'no contestó'}
-                  </span>
-                ) : (
-                  <span className="flex gap-1">
+                  {llamados[f.studentId] ? (
+                    <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs text-success-soft-fg">
+                      {RESULTADO_ETIQUETA[llamados[f.studentId]]}
+                    </span>
+                  ) : (
                     <button
-                      onClick={() => void registrar(f, 'contesto')}
+                      onClick={() => setRegistrando(f)}
                       className="rounded-lg border border-line px-2 py-1 text-xs text-strong"
                     >
-                      Contestó
+                      Registrar llamada
                     </button>
-                    <button
-                      onClick={() => void registrar(f, 'no_contesto')}
-                      className="rounded-lg border border-line px-2 py-1 text-xs text-strong"
-                    >
-                      No contestó
-                    </button>
-                  </span>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              );
+            }}
           />
 
           <Seccion

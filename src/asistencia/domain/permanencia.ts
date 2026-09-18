@@ -11,6 +11,7 @@
  */
 
 import { censoEsFiable } from './evasion';
+import { tipoDeTelefono } from './telefonos';
 import type { CensoDia, ContactResult, FamilyContact, Sede } from './types';
 
 // ---------------------------------------------------------------------------
@@ -746,4 +747,86 @@ export function edadEn(fechaNacimiento: string | undefined, hoy: string): number
   let edad = Number(h[1]) - Number(n[1]);
   if (`${h[2]}-${h[3]}` < `${n[2]}-${n[3]}`) edad -= 1;
   return edad >= 0 ? edad : null;
+}
+
+// ─────────────────────────── «Hay que llamar» ───────────────────────────
+
+/**
+ * Cuántos días seguidos sin venir bastan para que la llamada no pueda esperar. Dos: el
+ * segundo día seguido ya no es un imprevisto. Está por debajo del umbral que ABRE un caso
+ * (`diasConsecutivosParaAbrirCaso`, 3 por defecto) a propósito: la llamada llega antes que el
+ * expediente.
+ */
+export const RACHA_PARA_LLAMAR = 2;
+
+export interface PrioridadLlamada {
+  /** Esta familia hay que llamarla sí o sí, aunque exista otro canal de aviso. */
+  llamar: boolean;
+  /** Por qué, en palabras para coordinación. Vacío si `llamar` es falso. */
+  motivos: string[];
+  /** Para ordenar la lista: más alto, más arriba. */
+  peso: number;
+}
+
+/**
+ * ¿Esta inasistencia exige una llamada, o puede esperar a otro canal? Criterios acordados con
+ * Julián (2026-09-17), del más grave al menos:
+ *
+ *  1. Tiene un caso de permanencia abierto.
+ *  2. La última causa que dio la familia es un factor de riesgo.
+ *  3. Está en alerta o es candidato a reporte.
+ *  4. Lleva `RACHA_PARA_LLAMAR` días seguidos o más sin venir.
+ *  5. No hay otro canal: el acudiente no tiene celular registrado (sin celular tampoco podrá
+ *     verificar una respuesta por mensaje de texto), o el teléfono de la ficha ya falló.
+ *
+ * Todavía NO incluye «no respondió al correo en el plazo»: ese canal no existe aún. Cuando
+ * exista, entra aquí como un criterio más.
+ *
+ * Esto ORDENA el trabajo; no quita a nadie de la lista. Hoy, sin canal de correo, a todas las
+ * familias de «no ingresaron» se las sigue llamando: la marca dice por quién empezar.
+ */
+export function prioridadDeLlamada(input: {
+  evaluacion: EvaluacionPermanencia | null;
+  casoAbierto: CasoPermanencia | null;
+  config: PermanenciaConfig;
+  telefonos: string[];
+  contactos: FamilyContact[];
+}): PrioridadLlamada {
+  const motivos: string[] = [];
+  let peso = 0;
+  const { evaluacion: ev, config } = input;
+
+  if (input.casoAbierto) {
+    motivos.push(`Tiene un caso de permanencia ${ESTADO_CASO_ETIQUETA[input.casoAbierto.estado].toLowerCase()}.`);
+    peso += 100;
+  }
+
+  const motivo = ev?.motivoId ? config.motivos.find((m) => m.id === ev.motivoId) : undefined;
+  if (motivo?.factorDeRiesgo) {
+    motivos.push(`La familia reportó «${motivo.etiqueta}», que es un factor de riesgo.`);
+    peso += 80;
+  } else if (ev && (ev.nivel === 'candidato' || ev.nivel === 'alerta')) {
+    motivos.push(`${NIVEL_ETIQUETA[ev.nivel]}: ${ev.razon}`);
+    peso += ev.nivel === 'candidato' ? 60 : 40;
+  }
+
+  const racha = ev?.inasistencia.rachaActual ?? 0;
+  if (racha >= RACHA_PARA_LLAMAR) {
+    motivos.push(`${racha} días seguidos sin venir.`);
+    peso += 20 + racha;
+  }
+
+  if (resumirContactos(input.contactos).fichaDesactualizada) {
+    motivos.push('El teléfono de la ficha ya falló: hay que conseguir otro número.');
+    peso += 10;
+  } else if (!input.telefonos.some((t) => tipoDeTelefono(t) === 'movil')) {
+    motivos.push(
+      input.telefonos.length > 0
+        ? 'El acudiente no tiene celular registrado, solo fijo: no hay otro canal de aviso.'
+        : 'El acudiente no tiene ningún teléfono registrado.',
+    );
+    peso += 10;
+  }
+
+  return { llamar: motivos.length > 0, motivos, peso };
 }
