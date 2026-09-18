@@ -30,6 +30,7 @@ import { subirFoto, urlDeFoto } from './fotos';
 import { iniciales, nombreCompleto } from './domain/nombres';
 import { toDateKey } from './domain/ids';
 import { DOMINIO_INSTITUCIONAL } from './domain/correos-workspace';
+import { escribirAUno } from './domain/escribir-correo';
 import {
   edadEn,
   MOTIVOS_SEMILLA,
@@ -742,9 +743,22 @@ function CorreoDelEstudiante({
   }
 
   if (!editando) {
+    const escribir = est.correoInstitucional ? escribirAUno(est.correoInstitucional) : null;
     return (
       <span>
-        {est.correoInstitucional ?? <span className="text-muted">sin correo</span>}
+        {escribir ? (
+          <a
+            href={escribir.gmail}
+            target="_blank"
+            rel="noreferrer"
+            title="Abre Gmail con su dirección puesta"
+            className="text-accent underline"
+          >
+            {est.correoInstitucional}
+          </a>
+        ) : (
+          <span className="text-muted">sin correo</span>
+        )}
         {puedeEditar && (
           <button
             onClick={() => {
@@ -756,8 +770,12 @@ function CorreoDelEstudiante({
             {est.correoInstitucional ? 'Cambiar' : 'Poner correo'}
           </button>
         )}
-        {est.correoInstitucional && (
+        {escribir && (
           <span className="block text-xs text-muted">
+            <a href={escribir.mailto} className="underline">
+              escribir con el programa de correo
+            </a>
+            {' · '}
             {est.correoOrigen === 'manual' ? 'Puesto a mano' : 'Desde Workspace'}
             {est.correoVerificadoEn ? ` · ${est.correoVerificadoEn}` : ''}
             {est.correoCuentaActiva === false ? ' · la cuenta estaba suspendida' : ''}

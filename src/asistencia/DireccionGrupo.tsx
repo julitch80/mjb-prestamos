@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import ExcelJS from 'exceljs';
-import { ChevronLeft, ChevronRight, Download, Ellipsis, Eye, EyeOff, Plus, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Ellipsis, Eye, EyeOff, Mail, Plus, X } from 'lucide-react';
 import Avatar from './Avatar';
 import Ayuda from './Ayuda';
 import { ICONO_COMPONENTE } from './IconosDireccion';
@@ -20,6 +20,7 @@ import { buildDireccionGrupoExport } from './domain/exports';
 import { colorPorId, COLORES_GRUPO, estiloAnillo, estiloEtiqueta } from './domain/colores';
 import { iconosPorGrupo, type IconoDisponible } from './domain/iconos-direccion';
 import { nombreCompleto, nombresDePila } from './domain/nombres';
+import { correosDe, destinatariosDe, escribirAVarios } from './domain/escribir-correo';
 import { llegadasQueAlertan } from './domain/alertas';
 import { computeStats } from './domain/stats';
 import type {
@@ -528,6 +529,8 @@ export default function DireccionGrupo({
           </table>
         </div>
       )}
+
+      <EscribirAlGrupo estudiantes={estudiantes} etiqueta={etiqueta} />
 
       {columnas.length > 0 && (
         <button
@@ -1049,6 +1052,64 @@ function SheetNuevaColumna({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Escribirle al grupo entero. Abre el redactor con las direcciones EN COPIA OCULTA: si fueran
+ * visibles, cada familia se llevaría los correos de los demás menores del salón.
+ *
+ * Dice a la cara a cuántos no les llega. Sin ese número, el día que alguien mande un aviso
+ * importante va a creer que llegó a todos.
+ */
+function EscribirAlGrupo({ estudiantes, etiqueta }: { estudiantes: Student[]; etiqueta: string }) {
+  const [copiado, setCopiado] = useState(false);
+  const { conCorreo, sinCorreo } = destinatariosDe(estudiantes);
+  const correos = correosDe(conCorreo);
+  if (correos.length === 0) return null;
+  const { gmail, mailto } = escribirAVarios(correos, `${etiqueta} — `);
+
+  return (
+    <div className="rounded-xl border border-line bg-card p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <a
+          href={gmail}
+          target="_blank"
+          rel="noreferrer"
+          className="flex min-h-[36px] items-center gap-2 rounded-xl border border-line bg-elevated px-3 text-sm font-medium text-accent"
+        >
+          <Mail size={16} aria-hidden />
+          Escribir a {correos.length} del grupo
+        </a>
+        <button
+          onClick={() => {
+            void navigator.clipboard.writeText(correos.join(', ')).then(() => setCopiado(true));
+          }}
+          className="min-h-[36px] rounded-xl border border-line px-3 text-sm text-soft"
+        >
+          {copiado ? 'Direcciones copiadas' : 'Copiar direcciones'}
+        </button>
+      </div>
+      <p className="mt-2 text-xs text-muted">
+        Se abre Gmail con las direcciones en <b>copia oculta</b>, para que nadie vea los correos de los demás.
+        {sinCorreo.length > 0 && (
+          <>
+            {' '}
+            <b className="text-warning-soft-fg">
+              No les llega a {sinCorreo.length}: {sinCorreo.map((e: Student) => nombreCompleto(e)).join(', ')}
+            </b>
+            , porque no tienen correo en la ficha.
+          </>
+        )}
+      </p>
+      <p className="mt-1 text-xs text-muted">
+        Si prefieres el programa de correo del computador,{' '}
+        <a href={mailto} className="underline">
+          ábrelo desde aquí
+        </a>
+        .
+      </p>
     </div>
   );
 }
