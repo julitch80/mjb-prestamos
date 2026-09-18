@@ -24,6 +24,7 @@ const Importar = lazy(() => import('./Importar'));
  * ese peso de forma estatica lo pagaria tambien el docente que solo pasa lista.
  */
 const DireccionGrupo = lazy(() => import('./DireccionGrupo'));
+import EscribirAlGrupo from './EscribirAlGrupo';
 /**
  * Centros de interes. Va con lazy() como Importar y DireccionGrupo: por dentro arrastra
  * la carga desde Excel, y con ella exceljs, que no tiene por que pesar en el arranque de
@@ -1042,6 +1043,10 @@ export default function Asistencia() {
             >
               ← Mis grupos
             </button>
+
+            {cruce && (esDirector || rol === 'coordinador' || rol === 'superusuario') && (
+              <EscribirAlGrupo estudiantes={estudiantes} etiqueta={cruce.grado} />
+            )}
 
             {/* El director ve el cuaderno paralelo Y la carga de fotos, en los demas
                 grupos que dicta no se ofrece ninguna de las dos. El coordinador solo ve
