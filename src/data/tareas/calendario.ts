@@ -97,6 +97,37 @@ export function claveSemana(f: FechaISO): string {
   return lunesDe(f);
 }
 
+/** Primer día hábil desde `hoy` (inclusive). En fin de semana o festivo, el siguiente lunes. */
+export function primerHabilDesde(hoy: FechaISO): FechaISO {
+  let f = hoy;
+  while (!esDiaHabil(f)) f = addDias(f, 1);
+  return f;
+}
+
+/**
+ * Offset de semana ('semana pasada'/-1, 'esta semana'/0, 'próxima'/1) con el
+ * que arranca el selector de la agenda, dado `hoy`.
+ *
+ * La base es SIEMPRE `lunesDe(referencia)` (referencia = primer día hábil
+ * desde hoy), nunca `lunesDe(hoy)`: en fin de semana, `lunesDe(hoy)` da el
+ * lunes de la semana que YA TERMINÓ, así que un domingo "esta semana" con esa
+ * base mostraba la semana pasada (7–11 sep en vez de 14–18). Con la
+ * referencia como base, "esta semana" siempre es la semana hábil que sigue,
+ * y solo saltamos a "próxima" cuando hoy es viernes o cuando en esa semana
+ * base no queda ningún día hábil desde la referencia (no debería pasar, pero
+ * cubre el caso de una semana toda festiva).
+ */
+export function semanaOffsetInicial(hoy: FechaISO): -1 | 0 | 1 {
+  const referencia = primerHabilDesde(hoy);
+  const lunesRef = lunesDe(referencia);
+  const diasRestantes = [0, 1, 2, 3, 4]
+    .map(i => addDias(lunesRef, i))
+    .filter(f => f >= referencia && esDiaHabil(f));
+  if (diasRestantes.length === 0) return 1;
+  if (diaSemana(hoy) === 'viernes') return 1;
+  return 0;
+}
+
 /**
  * Clave de quincena: el lunes de la primera semana del par.
  * Las semanas se emparejan por número de semana desde una época fija.

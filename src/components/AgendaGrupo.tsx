@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import { colorGrado, DIRECTORES_MANANA, DIRECTORES_TARDE, USUARIOS } from '../data/maestros';
 import { getAsignatura } from '../data/asignacionAcademica';
 import type { FechaISO, Tarea } from '../data/tareas/tipos';
-import { addDias, esDiaEjecutable, esDiaHabil, hoyISO, lunesDe } from '../data/tareas/calendario';
+import { addDias, esDiaEjecutable, esDiaHabil, hoyISO, lunesDe, semanaOffsetInicial } from '../data/tareas/calendario';
 import { CONFIG_NIVEL, nivelDeGrupo } from '../data/tareas/config';
 import { planificarAgenda, ocupacionPorDia, fechaLegible } from '../data/tareas/motor';
 import {
@@ -145,13 +145,63 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
     return f;
   }, [hoy]);
 
-  const [diaSel, setDiaSel] = useState<FechaISO>(referencia);
-  useEffect(() => { setDiaSel(referencia); }, [referencia]);
+  // ── Selector de semana: pasada / esta / próxima ────────────────────────────
+  // La base es el lunes de la REFERENCIA (primer día hábil desde hoy), no el
+  // lunes de hoy: en fin de semana `lunesDe(hoy)` da el lunes de la semana que
+  // YA TERMINÓ, y con eso "esta semana"/"semana pasada" quedaban corridas un
+  // salto (mostrando 7–11 sep en vez de 14–18 un domingo 20-sep). Con la
+  // referencia como base, "esta semana" siempre es la semana hábil que sigue.
+  const lunesRef = useMemo(() => lunesDe(referencia), [referencia]);
+  const semanaOffsetDefault = useMemo<-1 | 0 | 1>(() => semanaOffsetInicial(hoy), [hoy]);
+  const [semanaOffset, setSemanaOffset] = useState<-1 | 0 | 1>(semanaOffsetDefault);
+  const [mostrarRepasoAnteriores, setMostrarRepasoAnteriores] = useState(false);
 
-  const semana = useMemo(() => {
-    const lunes = lunesDe(referencia);
-    return [0, 1, 2, 3, 4].map(i => addDias(lunes, i));
-  }, [referencia]);
+  const lunesMostrada = useMemo(() => addDias(lunesRef, semanaOffset * 7), [lunesRef, semanaOffset]);
+  // Semana completa (lunes..viernes) de la semana seleccionada: se usa siempre
+  // para imprimir, y para mostrar completa en "próxima semana"/"semana pasada".
+  const semanaCompleta = useMemo(() => [0, 1, 2, 3, 4].map(i => addDias(lunesMostrada, i)), [lunesMostrada]);
+  // En "esta semana" solo mostramos desde hoy en adelante: los días ya
+  // pasados no tienen plan (se recalcula desde hoy) y verlos vacíos confunde.
+  const indicesMostrados = useMemo(
+    () => semanaOffset === 0
+      ? [0, 1, 2, 3, 4].filter(i => semanaCompleta[i] >= hoy)
+      : [0, 1, 2, 3, 4],
+    [semanaOffset, semanaCompleta, hoy],
+  );
+  const diasMostrados = useMemo(() => indicesMostrados.map(i => semanaCompleta[i]), [indicesMostrados, semanaCompleta]);
+  // Días de la semana base (referencia) anteriores a la referencia — para el
+  // enlace de repaso. Misma base que arriba, por la misma razón.
+  const diasAnterioresEstaSemana = useMemo(
+    () => [0, 1, 2, 3, 4].map(i => addDias(lunesRef, i)).filter(f => f < referencia),
+    [lunesRef, referencia],
+  );
+
+  const [diaSel, setDiaSel] = useState<FechaISO>(referencia);
+  useEffect(() => { setMostrarRepasoAnteriores(false); }, [semanaOffset]);
+  // Única fuente de verdad para diaSel: se recalcula cada vez que cambian los
+  // días mostrados (por cambio de semana, de referencia, o de filtro de "esta
+  // semana"), sin depender del orden entre varios efectos de semanaOffset —
+  // eso fue lo que dejaba diaSel apuntando a un día de la semana anterior al
+  // volver de "Semana pasada" a "Esta semana" (quedaba en un valor calculado
+  // por un efecto que ya no reflejaba diasMostrados actualizado). Preferimos
+  // `referencia` si sigue visible; si no, el primer día mostrado.
+  useEffect(() => {
+    if (diasMostrados.length === 0) return;
+    setDiaSel(diasMostrados.includes(referencia) ? referencia : diasMostrados[0]);
+  }, [diasMostrados, referencia]);
+
+  const repasoActivo = semanaOffset === -1 || mostrarRepasoAnteriores;
+  const lunesRepaso = mostrarRepasoAnteriores ? lunesRef : lunesMostrada;
+  const diasRepaso = mostrarRepasoAnteriores ? diasAnterioresEstaSemana : semanaCompleta;
+  const planRepaso = useMemo(
+    () => repasoActivo ? planificarAgenda(activas, grupo, addDias(lunesRepaso, -1)) : null,
+    [repasoActivo, activas, grupo, lunesRepaso],
+  );
+  function tareasRepasoDelDia(f: FechaISO) {
+    if (!planRepaso) return [];
+    return (planRepaso.porDia[f] ?? []).map(b => ({ b, t: activas.find(x => x.id === b.tareaId) }))
+      .filter((x): x is { b: typeof x.b; t: Tarea } => !!x.t);
+  }
 
   // Lo que se proyecta en el salón: desde hoy hasta el viernes de la PRÓXIMA
   // semana (Julián, 16-09-2026). El director suele proyectar el viernes para
@@ -252,9 +302,84 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
         </button>
       </div>
 
+      {/* Selector de semana */}
+      <div className="flex gap-1">
+        {([[-1, 'Semana pasada'], [0, 'Esta semana'], [1, 'Próxima semana']] as const).map(([v, label]) => (
+          <button
+            key={v}
+            onClick={() => setSemanaOffset(v)}
+            className={cn('flex-1 px-2 py-1.5 rounded-full text-[11px] font-medium border transition-all',
+              semanaOffset === v ? 'bg-hover text-strong border-line-strong' : 'text-muted border-line hover:bg-elevated')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {repasoActivo ? (
+        /* ── Repaso: lo que se proponía hacer (sin plan real, sin heat map) ── */
+        <div className="rounded-2xl border border-line bg-card p-4 space-y-3">
+          <div>
+            {mostrarRepasoAnteriores && (
+              <button onClick={() => setMostrarRepasoAnteriores(false)} className="text-[11px] text-muted hover:text-soft mb-1">
+                ‹ Volver a esta semana
+              </button>
+            )}
+            <p className="text-sm font-semibold text-strong">Repaso: lo que se proponía hacer</p>
+            <p className="text-[11px] text-muted">Así se veía la propuesta; si ya la hiciste, márcala.</p>
+          </div>
+          {diasRepaso.map(f => {
+            const items = tareasRepasoDelDia(f);
+            return (
+              <div key={f} className="border-b border-line last:border-0 pb-2 last:pb-0">
+                <div className={cn('text-xs font-semibold mb-1', f === hoy ? 'text-info' : 'text-strong')}>
+                  {diaLegibleLargo(f)}
+                </div>
+                {items.length === 0 ? (
+                  <p className="text-[11px] text-muted">Sin momentos propuestos.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {items.map(({ b, t }, i) => {
+                      const tachada = !!tachadas[t.id];
+                      const vencida = !tachada && t.fechaEntrega < hoy;
+                      const pendiente = !tachada && t.fechaEntrega >= hoy;
+                      return (
+                        <div key={i} className="flex items-start gap-1.5">
+                          <button
+                            onClick={() => alternarTachadaTarea(t.id)}
+                            aria-label={tachada ? 'Marcar como pendiente' : 'Marcar como hecha'}
+                            className={cn('flex-shrink-0 w-5 h-5 mt-0.5 rounded border flex items-center justify-center',
+                              tachada ? 'bg-accent border-accent' : 'border-line-strong')}
+                          >
+                            {tachada && <Check size={11} className="text-accent-fg" />}
+                          </button>
+                          <div className="text-xs min-w-0">
+                            <span className={cn('font-medium', tachada ? 'text-muted line-through' : 'text-soft')}>
+                              {getAsignatura(t.asignaturaId)?.nombre}
+                            </span>
+                            <span className={cn(tachada ? 'text-muted line-through' : 'text-muted')}> · {b.momentos}m · {t.titulo}</span>
+                            {pendiente && (
+                              <div className="text-[10px] text-accent">Pendiente — aún la puedes entregar el {fechaLegible(t.fechaEntrega)}</div>
+                            )}
+                            {vencida && (
+                              <div className="text-[10px] text-muted">Se venció el {fechaLegible(t.fechaEntrega)}</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+      <>
       {/* Mapa de calor semanal — selector de día */}
-      <div className="grid grid-cols-5 gap-2">
-        {semana.map((f, i) => {
+      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${diasMostrados.length}, minmax(0, 1fr))` }}>
+        {diasMostrados.map((f, idx) => {
+          const i = indicesMostrados[idx];
           const ejecutable = esDiaEjecutable(grupo, f);
           const n = ocupacion[f] ?? 0;
           const esHoy = f === hoy;
@@ -277,6 +402,11 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
           );
         })}
       </div>
+      {semanaOffset === 0 && diasAnterioresEstaSemana.length > 0 && (
+        <button onClick={() => setMostrarRepasoAnteriores(true)} className="text-[11px] text-accent hover:underline -mt-1">
+          Ver lo de días anteriores
+        </button>
+      )}
 
       {vista === 'dia' ? (
         /* ── Vista día ─────────────────────────────────── */
@@ -285,6 +415,9 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
             <span className="text-sm font-semibold text-strong">{diaLegibleLargo(diaSel)}</span>
             <span className="text-[11px] text-muted">{ocupacion[diaSel] ?? 0} de {config.topeDiario} momentos</span>
           </div>
+          {tareasDelDia(diaSel).length > 0 && tareasDelDia(diaSel).some(({ t }) => !etiquetaMomento(grupo, momentos[t.id], anclasPorGrupo)) && (
+            <p className="text-[11px] text-muted -mt-1">Toca "¿Cuándo la vas a hacer?" para escoger en qué momento del día la harás.</p>
+          )}
           {!esDiaEjecutable(grupo, diaSel) ? (
             <p className="text-xs text-muted py-2">
               Este día no se programan tareas{nivelDeGrupo(grupo) === 'mt' ? ' (festivo o contrajornada)' : ' (festivo)'}.
@@ -349,7 +482,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
       ) : (
         /* ── Vista semana ──────────────────────────────── */
         <div className="rounded-2xl border border-line bg-card p-3 space-y-2">
-          {semana.map(f => {
+          {diasMostrados.map(f => {
             const ejecutable = esDiaEjecutable(grupo, f);
             const items = tareasDelDia(f);
             return (
@@ -387,10 +520,10 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
                               <span className={cn(tachada ? 'text-muted line-through' : 'text-muted')}> · {b.momentos}m · {t.titulo}</span>
                               <button
                                 onClick={() => setTareaEligiendoMomento(t)}
-                                className={cn('ml-1.5 inline-block text-[10px] px-1.5 py-0.5 rounded-full border',
+                                className={cn('ml-1.5 inline-block text-[11px] px-1.5 py-0.5 rounded-full border min-h-[28px]',
                                   etiquetaMom ? 'border-line text-soft' : 'border-accent text-accent')}
                               >
-                                {etiquetaMom ? `🕓 ${etiquetaMom}` : '¿Cuándo?'}
+                                {etiquetaMom ? `🕓 ${etiquetaMom}` : '¿Cuándo la haces?'}
                               </button>
                             </div>
                           </div>
@@ -412,6 +545,8 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
             <Lock size={10} /> Lo que marcas aquí se guarda solo en este teléfono. Nadie más lo ve.
           </p>
         </div>
+      )}
+      </>
       )}
 
       {/* Próximas entregas */}
@@ -458,7 +593,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
         />
       )}
       {mostrarImprimible && (
-        <AgendaImprimible grupo={grupo} semana={semana} tareasDelDia={tareasDelDia} onCerrar={() => setMostrarImprimible(false)} />
+        <AgendaImprimible grupo={grupo} semana={semanaCompleta} tareasDelDia={tareasDelDia} onCerrar={() => setMostrarImprimible(false)} />
       )}
       {mostrarProyeccion && (
         <AgendaProyeccion grupo={grupo} dias={diasProyeccion} tareasDelDia={tareasDelDia} anclas={anclasDeGrupo(grupo, anclasPorGrupo)} urlAgenda={urlAgendaPublica(grupo)} onCerrar={() => setMostrarProyeccion(false)} />
