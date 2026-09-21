@@ -1650,6 +1650,209 @@ export const AGENDAS: AgendaSemanal[] = [
       },
     ],
   },
+  {
+    semana: 5,
+    periodo: 3,
+    desde: '2026-09-21',
+    hasta: '2026-09-25',
+    publicadaPor: 'Equipo Técnico Institucional',
+    dias: [
+      {
+        fecha: '2026-09-21',
+        dia: 'lunes',
+        actividades: [
+          {
+            hora: '6 am',
+            actividad:
+              'Reunión de docentes de la jornada AM: Socialización: muestras pedagógicas. Socialización y el inicio de herramienta de tareas escolares.',
+            asisten: 'Docentes de la jornada AM y PM',
+            lugar: 'Aula innovación sede ppal.',
+            responsables: 'Coordinadores',
+          },
+          {
+            hora: '9am',
+            actividad:
+              'Visita del Concejal a la IE para hacer control político de obras de infraestructura y estado actual.',
+            asisten: 'Concejal docente Uriel y Rectora',
+            lugar: 'Sede ppal.',
+            responsables: 'Rectora',
+          },
+          {
+            hora: '11am a 12:pm',
+            actividad: 'Reunión de equipo Directivo y profesionales',
+            asisten: 'Coordinadores y profesionales',
+            lugar: 'Rectoría',
+            responsables: 'Rectora',
+          },
+          {
+            hora: 'Por definir',
+            actividad: 'Salida pedagógica: Vamos al parque',
+            asisten: 'Grupo T°2',
+            lugar: 'Parque biblioteca',
+            responsables: 'Sandra García',
+          },
+          {
+            hora: 'Durante la jornada',
+            actividad: 'Hábitos de vida saludable: Nutrición',
+            asisten: 'Grupos sede finca',
+            lugar: 'Aulas de clase',
+            responsables: 'Frey Augusto (Nutricionista)',
+          },
+          {
+            hora: 'Segunda hora a cuarta hora',
+            actividad: 'Charla Prevención del suicidio',
+            asisten: 'Grupos 6°2, 6°3 y 8°2 y sus docentes acompañantes (por hora)',
+            lugar: 'Aulas de clase',
+            responsables: 'Natalia Rivas (PEP)',
+          },
+          {
+            hora: '5:15 pm a 6:15pm',
+            actividad:
+              'Reunión de docentes de la jornada PM: Socialización: muestras pedagógicas. Socialización y el inicio herramienta de tareas escolares.',
+            asisten: 'Docentes de la jornada AM sede ppal.',
+            lugar: 'Aula innovación',
+            responsables: 'Julián Medina',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-22',
+        dia: 'martes',
+        actividades: [
+          {
+            hora: '9am en adelante',
+            actividad: 'Construcción de MURAL por la convivencia en el J',
+            asisten: 'Líderes de grupos elegidos por su talento y participantes de la capacitación en liderazgo de PP',
+            lugar: 'Junto a la tienda',
+            responsables: 'Psicólogos de PP Y PEEP',
+          },
+          {
+            hora: 'Durante la jornada',
+            actividad: 'Hábitos de vida saludable: Nutrición',
+            asisten: 'Grupos sede GRI',
+            lugar: 'Aulas de clase',
+            responsables: 'Frey Augusto (Nutricionista)',
+          },
+          {
+            hora: 'Segunda hora y tercera hora',
+            actividad: 'Charla Prevención del suicidio',
+            asisten: 'Grupos 8°3, 8°1 y sus docentes acompañantes (por hora)',
+            lugar: 'Aulas de clase',
+            responsables: 'Natalia Rivas (PEP)',
+          },
+          {
+            hora: '6am a 4pm (habrán docentes encargados de la disciplina)',
+            actividad: 'Encuentro de prejubilados',
+            asisten: 'Juan Diego y Janneth Ocampo',
+            lugar: 'Recinto Quirama',
+            responsables: 'SED',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-23',
+        dia: 'miercoles',
+        actividades: [
+          {
+            hora: '8am a 4pm',
+            actividad: 'Encuentro de prejubilados',
+            asisten: 'Yanet Moscote',
+            lugar: 'Parque el salado',
+            responsables: 'SED',
+          },
+          {
+            hora: '10 am a 12:00 m',
+            actividad: 'Taller Literario',
+            asisten: 'Grupo 2°3 y su directora de grupo, Mary Luz Hoyos',
+            lugar: 'Aula de clase',
+            responsables: 'Parque Biblioteca',
+          },
+          {
+            hora: '11am',
+            actividad: 'Reunión de Consejo Directivo: adición presupuestal FI y PI',
+            asisten: 'Integrantes',
+            lugar: 'Biblioteca',
+            responsables: 'Rectora y tesorera',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-24',
+        dia: 'jueves',
+        actividades: [
+          {
+            hora: 'Durante la jornada',
+            actividad: 'Festival Socioeducativo Grupos 10°',
+            asisten: 'Estudiantes del grado 10° y docente de la hora.',
+            lugar: 'Aulas de clase',
+            responsables: 'Medellín Te quiere saludable y PEEP',
+          },
+          {
+            hora: '10am a 12m',
+            actividad: 'Reunión del Comité escolar de convivencia: casos',
+            asisten: 'Integrantes e invitados',
+            lugar: 'Biblioteca',
+            responsables: 'Rectora',
+          },
+          {
+            hora: '7:30 am a 12:30 pm',
+            actividad: 'II Encuentro de la red de seguridad y salud en el trabajo.',
+            asisten: 'Julián Medina',
+            lugar: 'Casa Barrientos-Comfenalco',
+            responsables: 'SED',
+          },
+          {
+            hora: 'Media jornada',
+            actividad: 'Participación en foro académico.',
+            asisten: 'Juan Carlos Blandón',
+            lugar: 'INEM',
+            responsables: 'Red de Maestros ambientales',
+          },
+          {
+            hora: '9.00 am',
+            actividad: 'Capacitación en Proceso de validación',
+            asisten: 'Escuela Carlos Betancur',
+            lugar: 'Núcleo educativo',
+            responsables: 'Coordinadora y auxiliar administrativo (Yaneth Hurtado)',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-25',
+        dia: 'viernes',
+        actividades: [
+          {
+            hora: '6am',
+            actividad: 'Inducción a familias nuevas del grado Transición año 2027',
+            asisten: 'Padres de familia',
+            lugar: 'Auditorio',
+            responsables: 'Rectora, coordinadora y Paola Vélez',
+          },
+          {
+            hora: '10:00 am a 12:00 am',
+            actividad: 'Formación a líderes de 9°, 10° y 11°',
+            asisten: 'Líderes estudiantiles de los grados 9°, 10° y 11°',
+            lugar: 'Auditorio',
+            responsables: 'Psicólogos de PP Y PEEP',
+          },
+          {
+            hora: 'Media jornada',
+            actividad: 'Participación en foro académico',
+            asisten: 'Juan Carlos Blandón',
+            lugar: 'IE Juan J Escobar',
+            responsables: 'Los Yoguis',
+          },
+          {
+            hora: '10am',
+            actividad: 'Sensibilización de grado 9° en elección de Media Técnica en 2027',
+            asisten: 'Estudiantes de grado 9° y docentes de la hora',
+            lugar: 'Auditorio',
+            responsables: 'IUPB y SENA',
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 
