@@ -8,7 +8,14 @@ export default function AgendaPublica({ grupo }: { grupo: string }) {
   const { data, dataUpdatedAt, isLoading } = useQuery({
     queryKey: ['agendaPublica', grupo],
     queryFn: () => getDatosTareas(grupo),
-    refetchInterval: 1000 * 60 * 5,
+    // Antes 5 min: con profesores + esta agenda pública por QR refrescando
+    // a la vez, ayudaba a saturar el límite de ejecuciones simultáneas de
+    // Apps Script (ver getDatosTareas cacheado en docs/backend-Code.gs).
+    // refetchIntervalInBackground: false (el default de react-query, mismo
+    // que ya evita refrescar con la pestaña oculta) se deja explícito para
+    // que quede documentado aquí.
+    refetchInterval: 1000 * 60 * 15,
+    refetchIntervalInBackground: false,
   });
 
   // "actualizado hace X min" con tic de refresco

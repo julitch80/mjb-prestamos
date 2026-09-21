@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertTriangle, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, FolderOpen, Gift, ListChecks, Paperclip, HandCoins, Loader2, QrCode, Settings2, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, FolderOpen, Gift, ListChecks, Paperclip, HandCoins, Loader2, QrCode, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
 import AgendaGrupo from './AgendaGrupo';
 import ModalReplicarTarea from './ModalReplicarTarea';
 import { subirAdjuntoTarea } from '../data/tareas/adjuntos';
@@ -1653,7 +1653,7 @@ export default function VistaTareas() {
   const { rol } = useAppStore();
   const esDirectivo = rol === 'coordinador' || rol === 'rectora';
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['datosTareas'],
     queryFn: () => getDatosTareas(),
     refetchInterval: 1000 * 60,
@@ -1665,8 +1665,20 @@ export default function VistaTareas() {
     </div>
   );
   if (isError || !data?.ok) return (
-    <div className="rounded-2xl border border-danger bg-danger-soft p-4 text-sm text-danger-soft-fg">
-      No se pudieron cargar las tareas. Verifica la conexión (o que el Apps Script tenga la versión con el módulo de tareas).
+    <div className="rounded-2xl border border-danger bg-danger-soft p-4 text-sm text-danger-soft-fg space-y-3">
+      <p>
+        No se pudieron cargar las tareas. El servidor puede estar ocupado un momento
+        (o el Apps Script no tiene la versión con el módulo de tareas) — intenta de nuevo.
+      </p>
+      <button
+        type="button"
+        onClick={() => refetch()}
+        disabled={isRefetching}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-danger px-3 py-1.5 text-xs font-medium hover:bg-danger-soft/60 disabled:opacity-50"
+      >
+        <RefreshCw size={12} className={isRefetching ? 'animate-spin' : ''} />
+        Reintentar
+      </button>
     </div>
   );
 

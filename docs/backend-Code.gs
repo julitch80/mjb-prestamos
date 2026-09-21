@@ -687,7 +687,111 @@ function servirAvisoPublico() {
 // Las reglas (topes, cupos, ventana) se validan en el frontend con el
 // motor de agenda; aquí solo se persiste y se listan los datos.
 
+// ── CACHÉ de getDatosTareas ──────────────────────────────────
+// El lunes en la mañana el módulo de Tareas dio "Error de red" un rato:
+// getDatosTareas tarda 3,5–11,7 s (abre varias hojas cada vez) y con
+// profesores + la agenda pública por QR (refresco cada varios minutos)
+// llamando a la vez, se satura el límite de ejecuciones simultáneas de
+// Apps Script. Se cachea la respuesta por 120 s con CacheService, con
+// clave por grupo ('todos' cuando p.grupo viene vacío).
+//
+// Límite de CacheService: 100 KB por valor. Si el JSON serializado supera
+// ~90 KB (margen de seguridad) no se cachea esa respuesta — se sigue
+// calculando y devolviendo normal, solo que no queda en caché.
+//
+// Invalidación: cualquier acción que escriba en Tareas, Cesiones,
+// SolicitudesCesion, CuposTareas o AnclasGrupo (las hojas que lee esta
+// función) debe llamar a invalidarCacheTareas() después de escribir. La
+// lista de funciones que ya lo hacen queda anotada al final de este
+// bloque — si se agrega una escritura nueva a cualquiera de esas hojas,
+// hay que invalidar ahí también.
+//
+// Si CacheService lanza una excepción (cuota, etc.) la función debe seguir
+// funcionando sin caché: nunca debe romper getDatosTareas.
+
+const CACHE_TTL_TAREAS = 120; // segundos
+const CACHE_CLAVE_GRUPOS = '_gruposCacheadosTareas'; // registro de claves usadas, para poder borrarlas todas
+
+function claveCacheTareas_(grupo) {
+  return 'datosTareas_' + (grupo ? String(grupo) : 'todos');
+}
+
+// Registra una clave de grupo usada, para que invalidarCacheTareas() la
+// pueda borrar después. Guarda la lista misma en caché (TTL largo, se
+// regenera sola si expira: en el peor caso queda una clave vieja sin
+// invalidar hasta que expire por su propio TTL de 120s).
+function registrarClaveCacheTareas_(cache, grupo) {
+  try {
+    if (!grupo) return; // 'todos' ya se borra siempre, no hace falta registrarla
+    const raw = cache.get(CACHE_CLAVE_GRUPOS);
+    var lista = [];
+    try { lista = raw ? JSON.parse(raw) : []; } catch (e2) { lista = []; }
+    if (lista.indexOf(String(grupo)) < 0) {
+      lista.push(String(grupo));
+      cache.put(CACHE_CLAVE_GRUPOS, JSON.stringify(lista), 21600); // 6h, solo para poder invalidar
+    }
+  } catch (e) {
+    // No pasa nada si falla el registro: peor caso, esa clave de grupo
+    // queda cacheada hasta que expire sola (120s).
+  }
+}
+
+// Borra la caché de getDatosTareas: 'todos' más todas las claves de grupo
+// conocidas. Llamar SIEMPRE después de escribir en Tareas, Cesiones,
+// SolicitudesCesion, CuposTareas o AnclasGrupo. Nunca debe lanzar: si
+// CacheService falla, se ignora (la próxima lectura simplemente pega otra
+// vez a las hojas, que es el comportamiento de antes de tener caché).
+function invalidarCacheTareas() {
+  try {
+    const cache = CacheService.getScriptCache();
+    var claves = [claveCacheTareas_('')];
+    try {
+      const raw = cache.get(CACHE_CLAVE_GRUPOS);
+      const lista = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(lista)) {
+        lista.forEach(function(g) { claves.push(claveCacheTareas_(g)); });
+      }
+    } catch (e2) { /* si el registro de grupos está corrupto, se ignora */ }
+    cache.removeAll(claves);
+    cache.remove(CACHE_CLAVE_GRUPOS);
+  } catch (e) {
+    // getDatosTareas debe seguir funcionando aunque la caché falle.
+  }
+}
+
 function getDatosTareas(p) {
+  var cache = null;
+  var claveCache = claveCacheTareas_(p.grupo);
+  try {
+    cache = CacheService.getScriptCache();
+    const cacheado = cache.get(claveCache);
+    if (cacheado) {
+      return JSON.parse(cacheado);
+    }
+  } catch (e) {
+    cache = null; // seguir sin caché
+  }
+
+  const resultado = getDatosTareas_(p);
+
+  if (cache) {
+    try {
+      const json = JSON.stringify(resultado);
+      // Margen de seguridad bajo el límite real de 100 KB por valor.
+      if (json.length <= 90 * 1024) {
+        cache.put(claveCache, json, CACHE_TTL_TAREAS);
+        registrarClaveCacheTareas_(cache, p.grupo);
+      }
+    } catch (e) {
+      // Si falla el guardado en caché, se devuelve igual el resultado ya calculado.
+    }
+  }
+
+  return resultado;
+}
+
+// Cálculo real de getDatosTareas, sin caché (lo llama getDatosTareas de arriba).
+function getDatosTareas_(p) {
   const tareas = hojaAObjetos(getSheet('Tareas', TAREAS_HEADERS))
     .filter(function(t) { return !p.grupo || String(t.grupo) === String(p.grupo); })
     .map(function(t) {
@@ -831,6 +935,7 @@ function guardarAnclasGrupo(p, correoAutenticado) {
       const headersReales = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
       forzarColumnaTexto_(sheet, headersReales, 'grupo', grupo);
     }
+    invalidarCacheTareas();
     return { ok: true, grupo: grupo, anclas: listaLimpia };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
@@ -846,6 +951,7 @@ function guardarCupos(p) {
   lista.forEach(function(c) {
     sheet.appendRow([String(c.nivel), String(c.asignaturaId), Number(c.momentos) || 0, ts]);
   });
+  invalidarCacheTareas();
   return { ok: true, n: lista.length };
 }
 
@@ -924,6 +1030,7 @@ function crearTarea(p) {
     p.descripcion || '', p.adjuntoUrl || '', p.adjuntoNombre || '',
   ]);
   fijarGrupoComoTexto(sheet, 2, p.grupo);
+  invalidarCacheTareas();
   return { ok: true, id: id };
 }
 
@@ -937,6 +1044,7 @@ function cancelarTarea(p) {
     return { ok: false, error: 'Solo el docente que asignó la tarea puede cancelarla' };
   }
   actualizarFila(sheet, 'id', p.id, { estado: 'cancelada' });
+  invalidarCacheTareas();
   return { ok: true };
 }
 
@@ -951,6 +1059,7 @@ function crearCesion(p) {
     p.docenteOrigenId || '', Number(p.momentos) || 1, new Date().toISOString(),
   ]);
   fijarGrupoComoTexto(sheet, 2, p.grupo);
+  invalidarCacheTareas();
   return { ok: true, id: id };
 }
 
@@ -969,6 +1078,7 @@ function crearSolicitudCesion(p) {
     'pendiente', new Date().toISOString(),
   ]);
   fijarGrupoComoTexto(sheet, 2, p.grupo);
+  invalidarCacheTareas();
   crearNotificacion(p.docenteCedenteId, 'intercambio',
     p.mensaje || 'Tienes una solicitud de cesión de momentos por responder.');
   return { ok: true, id: id };
@@ -991,10 +1101,12 @@ function responderSolicitudCesion(p) {
     ]);
     fijarGrupoComoTexto(ces, 2, sol.grupo);
     actualizarFila(sheet, 'id', p.id, { estado: 'aceptada' });
+    invalidarCacheTareas();
     crearNotificacion(String(sol.docenteSolicitanteId), 'intercambio',
       p.mensaje || 'Tu solicitud de cesión de momentos fue aceptada.');
   } else {
     actualizarFila(sheet, 'id', p.id, { estado: 'rechazada' });
+    invalidarCacheTareas();
     crearNotificacion(String(sol.docenteSolicitanteId), 'intercambio',
       p.mensaje || 'Tu solicitud de cesión de momentos fue rechazada.');
   }
@@ -1463,3 +1575,12 @@ function revisarCasosVencidos() {
     });
   });
 }
+
+// ── Resumen: invalidación de la caché de getDatosTareas ──────
+// invalidarCacheTareas() se llama, hasta hoy, desde: crearTarea,
+// cancelarTarea, crearCesion, crearSolicitudCesion, responderSolicitudCesion
+// (en sus dos ramas), guardarCupos y guardarAnclasGrupo — todas las
+// funciones que escriben en Tareas, Cesiones, SolicitudesCesion,
+// CuposTareas o AnclasGrupo, que son las hojas que lee getDatosTareas_.
+// Si se agrega una acción nueva que escriba en cualquiera de esas hojas,
+// hay que llamar invalidarCacheTareas() ahí también.

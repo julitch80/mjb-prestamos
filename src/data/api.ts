@@ -17,6 +17,27 @@ export async function conIdToken(params: Record<string, string>): Promise<Record
   }
 }
 
+// Una acción se considera de solo lectura (segura para reintentar sin
+// riesgo de duplicar un registro) si empieza por 'get' o 'listar' — las dos
+// convenciones de nombre que usa este backend para consultas. Cualquier
+// otra acción (crear*, actualizar*, guardar*, enviar*, marcar*, cancelar*,
+// responder*, publicar*, retirar*, borrar*, login, recuperarPin, cambiarPin)
+// escribe o tiene efecto de una sola vez y NUNCA se reintenta aquí.
+function esAccionDeLectura(action: string | undefined): boolean {
+  if (!action) return false;
+  return action.startsWith('get') || action.startsWith('listar');
+}
+
+function esperar(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Esperas entre reintentos de una lectura: ~2s tras el primer fallo, ~5s
+// tras el segundo. Solo se usan para acciones de solo lectura (ver
+// esAccionDeLectura) — nunca para escrituras, para no arriesgar duplicar
+// un registro por reenviar la misma petición.
+const ESPERAS_REINTENTO_LECTURA_MS = [2000, 5000];
+
 // Llamada al backend. Método principal: fetch() con CORS — el Apps Script
 // devuelve Access-Control-Allow-Origin: * en su respuesta, así que un GET
 // simple funciona sin preflight y de forma robusta en móviles. Si el fetch
@@ -24,16 +45,41 @@ export async function conIdToken(params: Record<string, string>): Promise<Record
 //
 // Antes se usaba solo JSONP (inyección de <script>), que en algunos Chrome de
 // Android fallaba al seguir la redirección de Google y dejaba la app sin datos.
+//
+// Reintentos (2026-09-21): el lunes en la mañana Apps Script tardó 3,5–11,7s
+// por llamada a getDatosTareas y algunas peticiones cayeron con "Error de
+// red" — probablemente saturación del límite de ejecuciones simultáneas
+// (profesores + la agenda pública por QR). Para acciones de solo lectura,
+// antes de caer al respaldo JSONP se reintenta hasta 2 veces con una
+// pequeña espera, por si el servidor solo estaba ocupado un momento.
+async function intentoFetch<T>(url: string): Promise<T> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const res = await fetch(url, { method: 'GET', signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // Si el cuerpo no es JSON válido (p. ej. una página de error HTML de
+    // Google), JSON.parse lanza y cae al mismo camino de reintento/JSONP.
+    const texto = await res.text();
+    return JSON.parse(texto) as T;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function callApi<T>(params: Record<string, string>): Promise<T> {
   const url = `${APPS_SCRIPT_URL}?${new URLSearchParams(params).toString()}`;
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 20000);
-    const res = await fetch(url, { method: 'GET', signal: ctrl.signal });
-    clearTimeout(t);
-    if (res.ok) return (await res.json()) as T;
-  } catch {
-    // Cae al respaldo JSONP
+  const reintentable = esAccionDeLectura(params.action);
+  const maxIntentos = reintentable ? 1 + ESPERAS_REINTENTO_LECTURA_MS.length : 1;
+
+  for (let intento = 0; intento < maxIntentos; intento++) {
+    try {
+      return await intentoFetch<T>(url);
+    } catch {
+      const esUltimoIntento = intento === maxIntentos - 1;
+      if (esUltimoIntento) break;
+      await esperar(ESPERAS_REINTENTO_LECTURA_MS[intento]);
+    }
   }
   return jsonpFallback<T>(params);
 }
@@ -83,7 +129,7 @@ function jsonpFallback<T>(params: Record<string, string>): Promise<T> {
       if (terminado) return;
       terminado = true;
       limpiar();
-      reject(new Error('El servidor tardó demasiado en responder. Revisa tu conexión.'));
+      reject(new Error('El servidor está ocupado o no respondió. Intenta de nuevo en un momento.'));
     }, 20000);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -98,7 +144,7 @@ function jsonpFallback<T>(params: Record<string, string>): Promise<T> {
       if (terminado) return;
       terminado = true;
       limpiar();
-      reject(new Error('Error de red al conectar con el servidor'));
+      reject(new Error('El servidor está ocupado o no respondió. Intenta de nuevo en un momento.'));
     };
 
     document.body.appendChild(script);
