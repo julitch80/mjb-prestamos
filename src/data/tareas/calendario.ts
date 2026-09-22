@@ -30,7 +30,7 @@ export const FESTIVOS_2026: FechaISO[] = [
 export const CONTRAJORNADAS_MT: Record<string, DiaSemana[]> = {
   '10.1': ['martes', 'jueves'],      // D. Software — Pascual Bravo
   '11.1': ['lunes', 'miercoles'],    // D. Software
-  '10.2': ['miercoles', 'viernes'],  // Audiovisuales — SENA
+  '10.2': ['lunes', 'miercoles'],     // Audiovisuales — SENA (corregido 21-sep-2026, reporte de estudiantes; 11.1 y 11.2 quedan por confirmar)
   '11.2': ['martes', 'viernes'],     // Audiovisuales
 };
 
