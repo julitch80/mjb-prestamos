@@ -28,10 +28,11 @@ export const FESTIVOS_2026: FechaISO[] = [
 // Días de contrajornada de media técnica por grupo (asignación 2026).
 // Esos días el grupo NO recibe momentos de ejecución.
 export const CONTRAJORNADAS_MT: Record<string, DiaSemana[]> = {
-  '10.1': ['martes', 'jueves'],      // D. Software — Pascual Bravo
-  '11.1': ['lunes', 'miercoles'],    // D. Software
-  '10.2': ['lunes', 'miercoles'],     // Audiovisuales — SENA (corregido 21-sep-2026, reporte de estudiantes; 11.1 y 11.2 quedan por confirmar)
-  '11.2': ['martes', 'viernes'],     // Audiovisuales
+  // Confirmado por Julián el 22-sep-2026 (antes eran supuestos sin verificar).
+  '10.1': ['martes', 'jueves'],      // Diseño de Software
+  '11.1': ['lunes', 'viernes'],      // Diseño de Software
+  '10.2': ['lunes', 'miercoles'],    // Audiovisuales
+  '11.2': ['martes', 'jueves'],      // Audiovisuales
 };
 
 // ── Utilidades de fecha (sin zona horaria: siempre local) ─────────────────────
