@@ -44,9 +44,11 @@ const CUPOS_BASICA: Record<string, number> = {
   etica: 2, religion: 2, sociales: 2, ed_fisica: 2, tecnologia: 2,
 };
 
+// Ética 1 y Sociales 2 desde el 23-sep-2026 (Julián). Es solo el valor por defecto:
+// el vigente es el que el coordinador guarda en «Asignación de momentos».
 const CUPOS_MEDIA: Record<string, number> = {
   matematicas: 1, biologia: 1, lengua: 2, ingles: 2, artistica: 2,
-  etica: 2, religion: 1, sociales: 1, ed_fisica: 2, tecnologia: 2,
+  etica: 1, religion: 1, sociales: 2, ed_fisica: 2, tecnologia: 2,
   fisica: 1, quimica: 1, filosofia: 2, economia: 2,
 };
 

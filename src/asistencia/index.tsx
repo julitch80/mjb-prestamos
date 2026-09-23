@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Planilla, { CLASE_MARCA, SiglaMarca } from './Planilla';
 import EscanerQr from './EscanerQr';
 import VerificacionFoto from './VerificacionFoto';
@@ -384,6 +384,14 @@ export default function Asistencia() {
     tipo: 'posible_evasion' | 'sin_censo';
   } | null>(null);
 
+  /**
+   * Planillas (sessionId) en las que ya se mostro «Sin lista de tercera hora». Ese aviso
+   * dice algo del GRUPO, no del estudiante: repetirlo con cada falta era cansón (Julián,
+   * 23-sep-2026). Sale una vez por planilla. El de POSIBLE EVASION no pasa por aqui: ese
+   * es de cada estudiante y sale siempre.
+   */
+  const sinCensoYaAvisado = useRef(new Set<string>());
+
   useEffect(() => {
     if (!cruce) {
       setCensoDelGrupo(undefined);
@@ -549,6 +557,10 @@ export default function Asistencia() {
       censo: censoDelGrupo,
     });
     if (veredicto.aviso === 'ninguno') return;
+    if (veredicto.aviso === 'sin_censo') {
+      if (sinCensoYaAvisado.current.has(sessionIdDoc)) return;
+      sinCensoYaAvisado.current.add(sessionIdDoc);
+    }
     setAvisoEvasion({
       studentId,
       nombre: nombreCompleto(alumno),
