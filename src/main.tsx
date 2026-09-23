@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { usarManifiestoDeAgenda } from './data/manifestAgenda'
 import './data/installPrompt'
 import * as Sentry from '@sentry/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -8,6 +9,8 @@ import App from './App.tsx'
 import { initAutoUpdate } from './autoUpdate'
 import { initAuthGoogle } from './data/authStore'
 
+// Antes de pintar nada: el manifiesto decide qué se instala (ver manifestAgenda.ts).
+usarManifiestoDeAgenda()
 initAutoUpdate()
 initAuthGoogle() // no-op en modo 'pin' (default) o sin Firebase configurado
 

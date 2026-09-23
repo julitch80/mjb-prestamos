@@ -189,6 +189,9 @@ export default function App() {
   // ── Ruta pública: agenda de tareas por grupo (sin login) ──────────
   const agendaMatch = hash.match(/^#\/agenda\/(.+)$/);
   if (agendaMatch) return <AgendaPublica grupo={decodeURIComponent(agendaMatch[1])} />;
+  // `#/agenda` sin grupo: es como arranca la «Agenda MJB» instalada en el celular del
+  // estudiante (public/agenda.webmanifest). Abre el último grupo visto en ese teléfono.
+  if (/^#\/agenda\/?$/.test(hash)) return <AgendaPublica grupo={null} />;
 
   if (!userId) return <LoginScreen />;
 
