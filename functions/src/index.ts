@@ -4,6 +4,12 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { beforeUserCreated, beforeUserSignedIn, HttpsError } from 'firebase-functions/v2/identity';
+import { setGlobalOptions } from 'firebase-functions/v2';
+
+// Techo de copias simultáneas por función (23-sep-2026). Si alguien las ataca con
+// muchas solicitudes, se frenan aquí en vez de multiplicarse y cobrar por uso. Con
+// 80 solicitudes por copia (2.ª generación), 10 copias atienden de sobra al colegio.
+setGlobalOptions({ maxInstances: 10 });
 
 // Función de prueba del checkpoint Fase 0. Se ampliará en etapas siguientes.
 export const ping = onCall({ region: 'us-central1', invoker: 'public' }, () => {
