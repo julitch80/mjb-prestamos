@@ -16,6 +16,11 @@
   "compartir" no la lleven consigo.
 
   Sin librerias externas, sin fuentes externas, sin rastreadores.
+
+  FOTO DEL SOPORTE (2026-09-23): solo en las causas que justifican, opcional y solo fotos.
+  Se vuelve a dibujar en el celular antes de enviarla (1600 px el lado mayor, JPEG). Eso la
+  deja en unos cientos de KB para quien tiene pocos datos, y de paso le QUITA los metadatos
+  de la camara, entre ellos la ubicacion GPS, que diria donde vive la familia.
 -->
 <html lang="es">
 <head>
@@ -63,6 +68,16 @@
     .ok { background: var(--ok-fondo); color: var(--ok-texto); border-radius: 10px; padding: 12px; }
     .mal { background: var(--mal-fondo); color: var(--mal-texto); border-radius: 10px; padding: 12px; }
     .nota { font-size: 14px; color: var(--suave); margin-top: 16px; }
+    .soporte { margin-top: 4px; padding: 12px; border: 1px dashed var(--linea); border-radius: 10px; }
+    .soporte p { font-size: 15px; }
+    .fila { display: flex; gap: 8px; flex-wrap: wrap; }
+    .boton2 {
+      display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 14px;
+      border: 1px solid var(--linea); border-radius: 10px; background: var(--tarjeta); color: var(--texto);
+      font: inherit; font-size: 15px; cursor: pointer; width: auto; margin: 0;
+    }
+    .soporte img { display: block; max-width: 100%; max-height: 220px; margin: 8px 0; border-radius: 8px; }
+    .oculto { display: none; }
   </style>
 </head>
 <body>
@@ -111,10 +126,37 @@
     vencido: 'Este enlace ya venció. Si necesita informar algo, comuníquese con coordinación.',
     ya_respondido: 'Este aviso ya fue respondido. Gracias.',
     motivo_invalido: 'Escoja una de las opciones de la lista.',
+    soporte_no_admitido: 'Para esta opción no se adjunta soporte. Quite la foto y envíe de nuevo.',
+    soporte_tipo: 'El archivo no es una foto. Adjunte una foto del soporte.',
+    soporte_grande: 'La foto es demasiado grande. Intente con otra.',
+    soporte_vacio: 'La foto llegó vacía. Intente de nuevo.',
+    soporte_mal_formado: 'No se pudo leer la foto. Intente de nuevo.',
   };
 
+  // La foto se vuelve a dibujar antes de enviarla: mas liviana y sin ubicacion GPS.
+  var LADO_MAX = 1600;
+  function reducirFoto(archivo) {
+    return new Promise(function (ok, mal) {
+      var url = URL.createObjectURL(archivo);
+      var img = new Image();
+      img.onload = function () {
+        var f = Math.min(1, LADO_MAX / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.naturalWidth * f));
+        c.height = Math.max(1, Math.round(img.naturalHeight * f));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        ok(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); mal(new Error('no_es_foto')); };
+      img.src = url;
+    });
+  }
+
   function formulario(r) {
+    var admite = {};
     var opciones = r.motivos.map(function (o) {
+      admite[o.id] = o.admiteSoporte === true;
       return '<label class="opcion"><input type="radio" name="motivo" value="' + texto(o.id) + '"> ' +
         '<span>' + texto(o.etiqueta) + '</span></label>';
     }).join('');
@@ -122,16 +164,61 @@
       '<p>El ' + texto(fechaLarga(r.fecha)) + ' no registramos el ingreso de <b>' + texto(r.primerNombre) +
       '</b> al colegio.</p>' +
       '<form id="f"><fieldset><legend>¿Cuál fue el motivo?</legend>' + opciones + '</fieldset>' +
+      '<div id="soporte" class="soporte oculto">' +
+        '<p><b>Si tiene el soporte, puede adjuntar una foto</b> (opcional). ' +
+        'Fotografíe solo el documento.</p>' +
+        '<div class="fila">' +
+          '<label class="boton2">Tomar foto<input id="camara" class="oculto" type="file" accept="image/*" capture="environment"></label>' +
+          '<label class="boton2">Escoger foto<input id="galeria" class="oculto" type="file" accept="image/*"></label>' +
+        '</div>' +
+        '<div id="vista" class="oculto"><img id="miniatura" alt="Foto del soporte adjunta">' +
+          '<button id="quitar" class="boton2" type="button">Quitar la foto</button></div>' +
+      '</div>' +
       '<div id="aviso"></div><button id="enviar" type="submit" disabled>Enviar</button></form>'
     );
     var f = document.getElementById('f');
     var boton = document.getElementById('enviar');
-    f.addEventListener('change', function () { boton.disabled = !f.motivo.value; });
+    var cajaSoporte = document.getElementById('soporte');
+    var vista = document.getElementById('vista');
+    var miniatura = document.getElementById('miniatura');
+    var foto = null; // "data:image/jpeg;base64,..." ya reducida, o null
+
+    function ponerFoto(datos) {
+      foto = datos;
+      miniatura.src = datos || '';
+      vista.classList.toggle('oculto', !datos);
+    }
+    function alEscoger(ev) {
+      var archivo = ev.target.files && ev.target.files[0];
+      ev.target.value = '';
+      if (!archivo) return;
+      document.getElementById('aviso').innerHTML = '';
+      reducirFoto(archivo).then(ponerFoto).catch(function () {
+        document.getElementById('aviso').innerHTML = '<p class="mal">' + texto(MENSAJES.soporte_tipo) + '</p>';
+      });
+    }
+    document.getElementById('camara').addEventListener('change', alEscoger);
+    document.getElementById('galeria').addEventListener('change', alEscoger);
+    document.getElementById('quitar').addEventListener('click', function () { ponerFoto(null); });
+
+    f.addEventListener('change', function (ev) {
+      if (ev.target.name !== 'motivo') return;
+      boton.disabled = !f.motivo.value;
+      var conSoporte = admite[f.motivo.value] === true;
+      cajaSoporte.classList.toggle('oculto', !conSoporte);
+      // Si cambia a una opcion que no admite soporte, la foto se descarta: no se manda
+      // un dato de salud que no se pidio.
+      if (!conSoporte) ponerFoto(null);
+    });
     f.addEventListener('submit', function (ev) {
       ev.preventDefault();
       boton.disabled = true;
       boton.textContent = 'Enviando…';
-      llamar('responderAviso', { avisoId: llave.avisoId, firma: llave.firma, motivoId: f.motivo.value })
+      var envio = { avisoId: llave.avisoId, firma: llave.firma, motivoId: f.motivo.value };
+      if (foto && admite[f.motivo.value]) {
+        envio.soporte = { tipo: 'image/jpeg', datosBase64: foto.slice(foto.indexOf(',') + 1) };
+      }
+      llamar('responderAviso', envio)
         .then(function () {
           mostrar('<div class="ok"><p><b>Gracias.</b> Quedó registrado.</p>' +
             (f.motivo.value === 'hablar_con_coordinacion'

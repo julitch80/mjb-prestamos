@@ -17,6 +17,7 @@
 import { randomBytes, createHmac } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { defineSecret } from 'firebase-functions/params';
@@ -46,10 +47,12 @@ import {
   ETIQUETA_HABLAR,
   primerCelular,
   primerNombreDe,
+  rutaSoporte,
   URL_BASE_AVISOS_POR_DEFECTO,
   validarRespuesta,
   vencimientoDesde,
   type AvisoInasistencia,
+  type SoporteAviso,
 } from '../../src/asistencia/domain/avisos';
 import { mensajeAvisoConEnlace } from '../../src/asistencia/domain/sms';
 import { nombreCompleto, nombresDePila } from '../../src/asistencia/domain/nombres';
@@ -57,6 +60,7 @@ import { jornadaDeGrado, sessionId } from '../../src/asistencia/domain/ids';
 import { findMark, isJustified } from '../../src/asistencia/domain/marks';
 import { MOTIVOS_SEMILLA, type MotivoFamilia } from '../../src/asistencia/domain/permanencia';
 import { claveDeAvisos, firmaValida, firmarAviso, nuevoIdDeAviso } from './firma-aviso';
+import { decodificarSoporte } from './soporte-aviso';
 
 // Techo de copias simultáneas por función (23-sep-2026). Si alguien las ataca con
 // muchas solicitudes, se frenan aquí en vez de multiplicarse y cobrar por uso. Con
@@ -816,13 +820,23 @@ export const onSesionBloque3 = onDocumentWritten(
  * existe»). Los identificadores no se pueden adivinar, pero no hay por que dar pistas.
  */
 async function exigirCoordinaJornada(email: string, sede: string, jornada: string): Promise<void> {
-  const autoridad = (await db.doc('asistenciaConfig/autoridadSede').get()).data() ?? {};
-  const correos = ((autoridad.mapa ?? {}) as Record<string, string[]>)[sede] ?? [];
-  if (!correos.includes(email)) throw new HttpsError('permission-denied', 'No coordina esa sede.');
+  const autoridad = await exigirCoordinaSede(email, sede);
   const otra = jornada === 'manana' ? 'tarde' : 'manana';
   const soloOtra =
     ((autoridad.soloJornada ?? {}) as Record<string, Record<string, string[]>>)[sede]?.[otra] ?? [];
   if (soloOtra.includes(email)) throw new HttpsError('permission-denied', 'No coordina esa jornada.');
+}
+
+/**
+ * Coordinador de la sede, sin mirar la jornada: la misma condicion que la regla de
+ * lectura de `asistenciaAvisos` (`asisCoordinaSede`). Para LEER; para actuar sobre un
+ * aviso se exige ademas la jornada (`exigirCoordinaJornada`).
+ */
+async function exigirCoordinaSede(email: string, sede: string): Promise<Record<string, unknown>> {
+  const autoridad = (await db.doc('asistenciaConfig/autoridadSede').get()).data() ?? {};
+  const correos = ((autoridad.mapa ?? {}) as Record<string, string[]>)[sede] ?? [];
+  if (!correos.includes(email)) throw new HttpsError('permission-denied', 'No coordina esa sede.');
+  return autoridad;
 }
 
 async function urlBaseDeAvisos(): Promise<string> {
@@ -832,7 +846,7 @@ async function urlBaseDeAvisos(): Promise<string> {
   return url.startsWith('https://') ? url : URL_BASE_AVISOS_POR_DEFECTO;
 }
 
-async function motivosDeFamilias(): Promise<{ id: string; etiqueta: string }[]> {
+async function motivosDeFamilias(): Promise<{ id: string; etiqueta: string; admiteSoporte: boolean }[]> {
   const cfg = (await db.doc('asistenciaConfig/permanencia').get()).data();
   const motivos = (cfg?.motivos as MotivoFamilia[] | undefined) ?? MOTIVOS_SEMILLA;
   return motivosParaFamilias(motivos);
@@ -1108,37 +1122,96 @@ export const consultarAviso = onCall(
     return {
       ...base,
       estado: 'abierto' as const,
-      motivos: [...motivos, { id: MOTIVO_HABLAR, etiqueta: ETIQUETA_HABLAR }],
+      motivos: [...motivos, { id: MOTIVO_HABLAR, etiqueta: ETIQUETA_HABLAR, admiteSoporte: false }],
     };
   },
 );
 
-/** La respuesta de la familia. Una sola por aviso; queda como evento sin autor humano. */
+/**
+ * La respuesta de la familia. Una sola por aviso; queda como evento sin autor humano.
+ *
+ * Puede traer la foto del soporte (`soporte: { tipo, datosBase64 }`), solo en las causas
+ * que la admiten. Orden: se valida todo lo que se puede ANTES de subir el archivo (para
+ * no guardar fotos de avisos vencidos o ya respondidos), se sube, y la transaccion vuelve
+ * a validar. Si en ese instante otra respuesta gano la carrera, la foto recien subida se
+ * borra: no puede quedar un dato de salud de un menor sin aviso que lo explique.
+ */
 export const responderAviso = onCall(
   { region: REGION, cors: true, invoker: 'public', secrets: [DOC_HASH_KEY] },
   async (request) => {
     frenarPorIp(request.rawRequest?.ip);
-    const { ref } = await avisoDesdeEnlace(request.data, DOC_HASH_KEY.value());
-    const bruto = (request.data as { motivoId?: unknown } | undefined)?.motivoId;
-    const motivoId = typeof bruto === 'string' ? bruto : '';
+    const { ref, aviso } = await avisoDesdeEnlace(request.data, DOC_HASH_KEY.value());
+    const datos = (request.data ?? {}) as { motivoId?: unknown; soporte?: unknown };
+    const motivoId = typeof datos.motivoId === 'string' ? datos.motivoId : '';
     const permitidos = await motivosDeFamilias();
+    const conSoporte = datos.soporte !== undefined && datos.soporte !== null;
     const ahora = Date.now();
+
+    const previo = validarRespuesta(aviso, motivoId, permitidos, ahora, conSoporte);
+    if (previo) throw new HttpsError('failed-precondition', previo);
+
+    let soporte: SoporteAviso | null = null;
+    if (conSoporte) {
+      const archivo = decodificarSoporte(datos.soporte);
+      if ('rechazo' in archivo) throw new HttpsError('invalid-argument', archivo.rechazo);
+      const ruta = rutaSoporte(aviso.fecha, aviso.avisoId, archivo.tipo);
+      await getStorage()
+        .bucket()
+        .file(ruta)
+        .save(archivo.buf, {
+          resumable: false,
+          contentType: archivo.tipo,
+          metadata: { cacheControl: 'private, no-store' },
+        });
+      soporte = { ruta, tipo: archivo.tipo, bytes: archivo.buf.length, enMs: ahora };
+    }
 
     const rechazo = await db.runTransaction(async (tx) => {
       const actual = (await tx.get(ref)).data() as AvisoInasistencia;
-      const r = validarRespuesta(actual, motivoId, permitidos, ahora);
+      const r = validarRespuesta(actual, motivoId, permitidos, ahora, conSoporte);
       if (r) return r;
-      tx.update(ref, { estado: 'respondido', respuesta: { motivoId, enMs: ahora } });
+      tx.update(ref, { estado: 'respondido', respuesta: { motivoId, enMs: ahora }, soporte });
       tx.create(ref.collection('eventos').doc(), {
         tipo: 'respuesta',
         por: null,
         motivoId,
+        conSoporte: soporte !== null,
         enMs: ahora,
         en: FieldValue.serverTimestamp(),
       });
       return null;
     });
-    if (rechazo) throw new HttpsError('failed-precondition', rechazo);
+    if (rechazo) {
+      if (soporte) await getStorage().bucket().file(soporte.ruta).delete({ ignoreNotFound: true });
+      throw new HttpsError('failed-precondition', rechazo);
+    }
     return { ok: true };
   },
 );
+
+/**
+ * El visor del soporte para coordinacion. El archivo NO tiene enlace publico ni regla de
+ * Storage que lo deje leer: sale solo por aqui, despues de comprobar que quien lo pide
+ * coordina la sede. Y cada vez que alguien lo abre queda un evento con su nombre: es un
+ * dato de salud de un menor, y tiene que saberse quien lo vio.
+ */
+export const verSoporteAviso = onCall({ region: REGION, cors: true, invoker: 'public' }, async (request) => {
+  const email = await requireRole(request.auth, ['coordinador']);
+  const avisoId = (request.data as { avisoId?: unknown } | undefined)?.avisoId;
+  if (typeof avisoId !== 'string') throw new HttpsError('invalid-argument', 'Datos incompletos.');
+  const ref = db.doc(`asistenciaAvisos/${avisoId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Ese aviso no existe.');
+  const aviso = snap.data() as AvisoInasistencia;
+  await exigirCoordinaSede(email, aviso.sede);
+  if (!aviso.soporte) throw new HttpsError('not-found', 'Este aviso no tiene soporte.');
+
+  const [contenido] = await getStorage().bucket().file(aviso.soporte.ruta).download();
+  await ref.collection('eventos').add({
+    tipo: 'soporte_visto',
+    por: email,
+    enMs: Date.now(),
+    en: FieldValue.serverTimestamp(),
+  });
+  return { tipo: aviso.soporte.tipo, datosBase64: contenido.toString('base64') };
+});

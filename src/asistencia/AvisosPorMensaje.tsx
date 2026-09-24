@@ -5,6 +5,7 @@ import {
   leerAvisosDelDia,
   marcarEnvioAviso,
   registrarContacto,
+  verSoporteAviso,
   type ResultadoAviso,
 } from './datos';
 import {
@@ -148,7 +149,9 @@ export default function AvisosPorMensaje({
         motivoFamilia: a.respuesta.motivoId,
         // No se sabe quien tenia el celular: se deja vacio antes que suponer.
         personaContactada: null,
-        observacion: 'Respondió el aviso por mensaje de texto (enlace).',
+        observacion: a.soporte
+          ? 'Respondió el aviso por mensaje de texto (enlace), con foto del soporte.'
+          : 'Respondió el aviso por mensaje de texto (enlace).',
         medio: 'mensaje',
         avisoId: a.avisoId,
       });
@@ -274,6 +277,7 @@ export default function AvisosPorMensaje({
                     <span className="grow" />
                     <ChipEstado estado={estado} aviso={a} motivos={motivos} />
                   </div>
+                  {a.soporte && <VerSoporte avisoId={a.avisoId} />}
                   {estado === 'respondido' && (
                     registrando?.avisoId === a.avisoId ? (
                       <ConfirmarRegistro
@@ -330,9 +334,19 @@ function ChipEstado({
     case 'enviado':
       return <span className={clase('neutro')}>Enviado {HORA(aviso.enviadoEnMs)} · sin respuesta</span>;
     case 'respondido':
-      return <span className={clase('aviso')}>Respondió: {motivo} (sin validar)</span>;
+      return (
+        <span className={clase('aviso')}>
+          Respondió: {motivo}
+          {aviso.soporte ? ' · con soporte' : ''} (sin validar)
+        </span>
+      );
     case 'registrado':
-      return <span className={clase('ok')}>Registrado: {motivo}</span>;
+      return (
+        <span className={clase('ok')}>
+          Registrado: {motivo}
+          {aviso.soporte ? ' · con soporte' : ''}
+        </span>
+      );
     case 'pide_llamada':
       return <span className={clase('peligro')}>Pidió hablar con coordinación: llamar</span>;
     case 'no_salio':
@@ -340,6 +354,48 @@ function ChipEstado({
     case 'vencido':
       return <span className={clase('peligro')}>Venció sin respuesta: llamar</span>;
   }
+}
+
+/**
+ * La foto del soporte, bajo demanda. No se carga sola al abrir la lista: es un dato de
+ * salud de un menor, cada apertura queda registrada con el nombre de quien la vio, y no
+ * tiene sentido dejar esa constancia por el solo hecho de pasar por la pantalla.
+ */
+function VerSoporte({ avisoId }: { avisoId: string }) {
+  const [imagen, setImagen] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [fallo, setFallo] = useState<string | null>(null);
+
+  async function abrir() {
+    setCargando(true);
+    setFallo(null);
+    try {
+      setImagen(await verSoporteAviso(avisoId));
+    } catch (e) {
+      setFallo(`No fue posible abrir el soporte: ${(e as Error).message}`);
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  if (imagen) {
+    return (
+      <div className="mt-2">
+        <img src={imagen} alt="Foto del soporte enviada por la familia" className="max-h-96 max-w-full rounded-lg border border-line" />
+        <button onClick={() => setImagen(null)} className="mt-1 text-xs text-muted underline">
+          Ocultar soporte
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-1">
+      <button onClick={() => void abrir()} disabled={cargando} className="text-xs text-strong underline disabled:opacity-50">
+        {cargando ? 'Abriendo…' : 'Ver soporte'}
+      </button>
+      {fallo && <p className="text-xs text-danger-soft-fg">{fallo}</p>}
+    </div>
+  );
 }
 
 /**

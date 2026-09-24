@@ -64,6 +64,36 @@ export const ETIQUETA_HABLAR = 'Prefiero hablarlo con coordinación';
 
 export type EstadoAviso = 'creado' | 'enviado' | 'no_salio' | 'respondido';
 
+/**
+ * Foto del soporte que la familia puede adjuntar (2026-09-23). Decision de Julián: solo
+ * en las causas que JUSTIFICAN la inasistencia, opcional, y solo fotos por ahora (un PDF
+ * de un desconocido es un riesgo que no se asume todavia).
+ *
+ * Es un dato de SALUD de un menor —sensible en la Ley 1581—: el archivo vive en una
+ * carpeta de Storage que ningun cliente puede leer (la cierra el catch-all de las reglas)
+ * y solo coordinacion lo abre, a traves del servidor, que deja constancia de cada vez.
+ * La carpeta va por fecha para que borrar por antiguedad sea simple el dia que se decida
+ * cuanto se conservan.
+ */
+export interface SoporteAviso {
+  ruta: string;
+  tipo: TipoSoporte;
+  bytes: number;
+  enMs: number;
+}
+
+export const TIPOS_SOPORTE = ['image/jpeg', 'image/png'] as const;
+export type TipoSoporte = (typeof TIPOS_SOPORTE)[number];
+/**
+ * Tope del archivo que llega al servidor. La pagina reduce la foto antes de enviarla
+ * (unos cientos de KB); el tope es para lo que no pase por ahi.
+ */
+export const SOPORTE_MAX_BYTES = 5 * 1024 * 1024;
+
+export function rutaSoporte(fecha: string, avisoId: string, tipo: TipoSoporte): string {
+  return `asistencia/soportes/${fecha}/${avisoId}.${tipo === 'image/png' ? 'png' : 'jpg'}`;
+}
+
 export interface AvisoInasistencia {
   avisoId: string;
   studentId: string;
@@ -87,11 +117,14 @@ export interface AvisoInasistencia {
   enviadoPor: string | null;
   enviadoEnMs: number | null;
   respuesta: { motivoId: string; enMs: number } | null;
+  /** Ausente en los avisos anteriores al 2026-09-23. */
+  soporte?: SoporteAviso | null;
 }
 
 /** Cada cosa que le pasa a un aviso. Solo se agregan, nunca se editan ni se borran. */
 export interface EventoAviso {
-  tipo: 'creado' | 'enviado' | 'no_salio' | 'respuesta';
+  /** `soporte_visto`: quien abrio la foto del soporte, y cuando. Es un dato de salud. */
+  tipo: 'creado' | 'enviado' | 'no_salio' | 'respuesta' | 'soporte_visto';
   /** Correo institucional de quien lo hizo; `null` en la respuesta de la familia. */
   por: string | null;
   enMs: number;
@@ -184,32 +217,50 @@ export function candidatosParaAviso(
  * Es un criterio por defecto: la taxonomia la define Julián, y cambiar que se ofrece es
  * cambiar esta funcion.
  */
-export function motivosParaFamilias(motivos: MotivoFamilia[]): { id: string; etiqueta: string }[] {
+export interface MotivoOfrecido {
+  id: string;
+  etiqueta: string;
+  /** Si en esta causa la familia puede adjuntar la foto del soporte: las que justifican. */
+  admiteSoporte: boolean;
+}
+
+export function motivosParaFamilias(motivos: MotivoFamilia[]): MotivoOfrecido[] {
   return motivos
     .filter((m) => m.activo && !m.factorDeRiesgo && m.id !== 'sin_informacion')
     .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, 'es'))
-    .map((m) => ({ id: m.id, etiqueta: m.etiqueta }));
+    .map((m) => ({ id: m.id, etiqueta: m.etiqueta, admiteSoporte: m.justifica }));
 }
 
-export type RechazoRespuesta = 'vencido' | 'ya_respondido' | 'motivo_invalido';
+export type RechazoRespuesta = 'vencido' | 'ya_respondido' | 'motivo_invalido' | 'soporte_no_admitido';
 
 export const MENSAJE_RECHAZO: Record<RechazoRespuesta, string> = {
   vencido: 'Este enlace ya venció. Si necesita informar algo, comuníquese con coordinación.',
   ya_respondido: 'Este aviso ya fue respondido. Gracias.',
   motivo_invalido: 'Escoja una de las opciones de la lista.',
+  soporte_no_admitido: 'Para esta opción no se adjunta soporte. Quite la foto y envíe de nuevo.',
 };
 
-/** Si la respuesta se puede aceptar. Una sola respuesta por aviso. */
+export function admiteSoporte(motivoId: string, permitidos: { id: string; admiteSoporte?: boolean }[]): boolean {
+  return permitidos.some((m) => m.id === motivoId && m.admiteSoporte === true);
+}
+
+/**
+ * Si la respuesta se puede aceptar. Una sola respuesta por aviso, y la foto solo en las
+ * causas que la admiten: el servidor no se fia de que la pagina haya escondido el boton.
+ */
 export function validarRespuesta(
   aviso: Pick<AvisoInasistencia, 'expiraEnMs' | 'respuesta'>,
   motivoId: string,
-  permitidos: { id: string }[],
+  permitidos: { id: string; admiteSoporte?: boolean }[],
   ahoraMs: number,
+  conSoporte = false,
 ): RechazoRespuesta | null {
   if (aviso.respuesta) return 'ya_respondido';
   if (avisoVencido(aviso, ahoraMs)) return 'vencido';
   const valido = motivoId === MOTIVO_HABLAR || permitidos.some((m) => m.id === motivoId);
-  return valido ? null : 'motivo_invalido';
+  if (!valido) return 'motivo_invalido';
+  if (conSoporte && !admiteSoporte(motivoId, permitidos)) return 'soporte_no_admitido';
+  return null;
 }
 
 /**

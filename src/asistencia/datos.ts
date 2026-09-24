@@ -530,6 +530,18 @@ export async function crearAvisosInasistencia(input: {
   return (r.data as { resultados: ResultadoAviso[] }).resultados;
 }
 
+/**
+ * La foto del soporte de un aviso, como `data:` lista para un <img>. No hay otra forma de
+ * leerla: el archivo no tiene enlace publico ni regla de Storage que lo abra. El servidor
+ * comprueba que quien la pide coordina la sede y deja constancia de cada vez que se abre.
+ */
+export async function verSoporteAviso(avisoId: string): Promise<string> {
+  if (!functions) throw new Error('Firebase no está configurado en esta instalación.');
+  const r = await httpsCallable(functions, 'verSoporteAviso')({ avisoId });
+  const { tipo, datosBase64 } = r.data as { tipo: string; datosBase64: string };
+  return `data:${tipo};base64,${datosBase64}`;
+}
+
 /** Lo que coordinacion declara al tocar enviar. Queda como evento, con su autor y hora. */
 export async function marcarEnvioAviso(avisoId: string, evento: 'enviado' | 'no_salio'): Promise<void> {
   if (!functions) throw new Error('Firebase no está configurado en esta instalación.');
