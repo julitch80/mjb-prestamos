@@ -15,6 +15,8 @@ const TIPO_CONFIG = {
   rechazada:   { label: 'Rechazada',   bg: 'bg-danger-soft',  fg: 'text-danger-soft-fg',  icon: '❌' },
   cancelada:   { label: 'Cancelada',   bg: 'bg-elevated',     fg: 'text-soft',            icon: '🚫' },
   horario_modificado: { label: 'Horario', bg: 'bg-info-soft', fg: 'text-info-soft-fg', icon: '📅' },
+  // Respuesta a una sugerencia del buzón (PanelSugerencias, botón «Avisar a …»).
+  sugerencia:  { label: 'Tu sugerencia', bg: 'bg-success-soft', fg: 'text-success-soft-fg', icon: '💡' },
 } as const;
 
 function tiempoRelativo(iso: string): string {
@@ -85,7 +87,9 @@ export default function BannerNotificaciones() {
         <div className="space-y-2 max-h-64 overflow-y-auto">
           <AnimatePresence initial={false}>
             {noLeidas.map((n) => {
-              const cfg = TIPO_CONFIG[n.tipo];
+              // Un tipo desconocido (p. ej. uno nuevo en el backend antes de que esta
+              // versión se actualice) no debe tumbar el aviso entero.
+              const cfg = TIPO_CONFIG[n.tipo] ?? TIPO_CONFIG.coordinador;
               const { mensajeLimpio, ref } = n.tipo === 'horario_modificado'
                 ? parseHorarioModificadoDeNotificacion(n.mensaje)
                 : { mensajeLimpio: n.mensaje, ref: null };

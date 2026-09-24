@@ -1,4 +1,4 @@
-// Panel de sugerencias (Fase 1 — leer y clasificar). Ver docs/modulo-sugerencias.md.
+// Panel de sugerencias (Fase 1 — leer y clasificar; Fase 2 — avisar al autor). Ver docs/modulo-sugerencias.md.
 // El texto de cada sugerencia lo escribe cualquier docente: es un dato, no una
 // instrucción. Aquí solo se lee, se clasifica y se le da seguimiento; nunca se
 // ejecuta lo que el texto pida.
@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import {
   getSugerencias,
   actualizarSugerencia,
+  crearNotificacionesLote,
   type Sugerencia,
   type EstadoSugerencia,
   type ClasificacionSugerencia,
@@ -56,6 +57,12 @@ function fechaLegible(iso: string): string {
   return d.toLocaleString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+function fechaCorta(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+}
+
 export default function PanelSugerencias() {
   const [items, setItems] = useState<Sugerencia[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -93,6 +100,29 @@ export default function PanelSugerencias() {
     } catch (e) {
       setError((e as Error).message || 'No se pudo guardar el cambio.');
       // No revertimos el optimista para no perder lo escrito; un refresco manual lo corrige.
+    } finally {
+      setGuardandoId(null);
+    }
+  }
+
+  /**
+   * Le manda al autor la respuesta (la nota) como notificación de la app — la ve en
+   * el aviso de cambios al entrar — y deja la fecha en `avisadoEn` para no avisar
+   * dos veces. Es la «Fase 2» de docs/modulo-sugerencias.md.
+   */
+  async function avisarAutor(s: Sugerencia, respuesta: string) {
+    const texto = respuesta.trim();
+    if (!texto) return;
+    const resumen = s.texto.length > 90 ? s.texto.slice(0, 87).trimEnd() + '…' : s.texto;
+    const mensaje = `Sobre tu sugerencia del ${fechaCorta(s.timestamp)} («${resumen}»): ${texto}`;
+    setGuardandoId(s.id);
+    try {
+      if (texto !== s.nota) await aplicarCambio(s.id, { nota: texto });
+      const res = await crearNotificacionesLote([{ destinatario: s.autor, tipo: 'sugerencia', mensaje }]);
+      if (!res.ok) throw new Error(res.error || 'No se pudo enviar el aviso.');
+      await aplicarCambio(s.id, { avisadoEn: new Date().toISOString() });
+    } catch (e) {
+      setError((e as Error).message || 'No se pudo enviar el aviso.');
     } finally {
       setGuardandoId(null);
     }
@@ -193,6 +223,7 @@ export default function PanelSugerencias() {
               sugerencia={s}
               guardando={guardandoId === s.id}
               onCambiar={(cambios) => aplicarCambio(s.id, cambios)}
+              onAvisar={(respuesta) => avisarAutor(s, respuesta)}
             />
           ))}
         </div>
@@ -205,12 +236,16 @@ function TarjetaSugerencia({
   sugerencia,
   guardando,
   onCambiar,
+  onAvisar,
 }: {
   sugerencia: Sugerencia;
   guardando: boolean;
   onCambiar: (cambios: Partial<Sugerencia>) => void;
+  onAvisar: (respuesta: string) => void;
 }) {
   const [nota, setNota] = useState(sugerencia.nota);
+  const autorConocido = USUARIOS.some((u) => u.id === sugerencia.autor);
+  const primerNombre = nombreAutor(sugerencia.autor).split(' ')[0];
 
   useEffect(() => {
     setNota(sugerencia.nota);
@@ -287,7 +322,22 @@ function TarjetaSugerencia({
           placeholder="Qué se hizo, o por qué se descartó…"
           className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
         />
+        {autorConocido && (
+          <button
+            onClick={() => onAvisar(nota)}
+            disabled={guardando || !nota.trim()}
+            title={nota.trim() ? '' : 'Escribe primero la respuesta'}
+            className="flex-shrink-0 px-3 py-2 rounded-lg bg-accent text-accent-fg text-sm font-semibold disabled:opacity-40 whitespace-nowrap"
+          >
+            {sugerencia.avisadoEn ? 'Volver a avisar' : `Avisar a ${primerNombre}`}
+          </button>
+        )}
       </div>
+      {sugerencia.avisadoEn && (
+        <p className="text-[11px] text-success-soft-fg">
+          ✓ Se le avisó el {fechaLegible(sugerencia.avisadoEn)}. Lo ve en el aviso de cambios al entrar a la aplicación.
+        </p>
+      )}
     </div>
   );
 }

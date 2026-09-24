@@ -231,7 +231,7 @@ export async function actualizarReserva(
 
 export interface Notificacion {
   id: string;
-  tipo: 'rectoria' | 'coordinador' | 'intercambio' | 'aprobada' | 'rechazada' | 'cancelada' | 'horario_modificado';
+  tipo: 'rectoria' | 'coordinador' | 'intercambio' | 'aprobada' | 'rechazada' | 'cancelada' | 'horario_modificado' | 'sugerencia';
   mensaje: string;
   leida: boolean;
   timestamp: string;
