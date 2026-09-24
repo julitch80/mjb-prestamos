@@ -22,6 +22,7 @@ import {
 } from './domain/permanencia';
 import type { CensoDia, ContactResult, FamilyContact, Jornada } from './domain/types';
 import TelefonoAcudiente from './TelefonoAcudiente';
+import { mensajeInasistencia } from './domain/sms';
 import { ModalRegistrarLlamada, type LlamadaRegistrada } from './RegistrarLlamada';
 
 /** Lo que hace falta para decir a quién hay que llamar primero. Se lee aparte del reporte. */
@@ -325,6 +326,12 @@ export default function TerceraHora({ sede }: { sede: string }) {
                             key={`${t}-${i}`}
                             numero={t}
                             onLlamar={(numero) =>
+                              setTelefonoPulsado((p) => ({ ...p, [f.studentId]: numero }))
+                            }
+                            // El mensaje sale escrito con el nombre del estudiante: en
+                            // la fila de llamadas no hay tiempo de redactar nada.
+                            mensaje={mensajeInasistencia(f.nombreCompleto)}
+                            onMensaje={(numero) =>
                               setTelefonoPulsado((p) => ({ ...p, [f.studentId]: numero }))
                             }
                           />

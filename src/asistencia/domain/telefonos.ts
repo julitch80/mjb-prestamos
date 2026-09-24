@@ -51,6 +51,19 @@ export function enlaceLlamada(raw: string): string | null {
   return null;
 }
 
+/**
+ * Enlace `sms:` con el texto ya escrito. `null` si el numero NO es movil: mandarle un
+ * mensaje de texto a un fijo no llega a ninguna parte.
+ *
+ * El `?body=` lo entienden Android e iOS actuales. El envio lo hace la persona desde su
+ * aplicacion de mensajes; aqui solo se redacta (ver `./sms`).
+ */
+export function enlaceSms(raw: string, texto?: string): string | null {
+  if (tipoDeTelefono(raw) !== 'movil') return null;
+  const d = numeroNacional(raw);
+  return `sms:+57${d}${texto ? `?body=${encodeURIComponent(texto)}` : ''}`;
+}
+
 /** Enlace de WhatsApp. `null` si el numero NO es movil. */
 export function enlaceWhatsApp(raw: string): string | null {
   if (tipoDeTelefono(raw) !== 'movil') return null;

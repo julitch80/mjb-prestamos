@@ -48,6 +48,7 @@ import type {
 } from './domain/types';
 import DetalleCaso from './DetalleCaso';
 import TelefonoAcudiente from './TelefonoAcudiente';
+import { mensajeConfirmarDatos } from './domain/sms';
 import { ModalRegistrarLlamada } from './RegistrarLlamada';
 import { Check, Copy, UserCheck, UserX } from 'lucide-react';
 
@@ -372,6 +373,11 @@ export default function Ficha({
                           // aceptar; a los demas el boton de llamar sigue funcionando,
                           // simplemente no aparece el aviso de despues.
                           onLlamar={puedeContactar ? setNumeroLlamado : undefined}
+                          // Desde la ficha, el mensaje sirve para confirmar que el
+                          // numero es del acudiente: es el dato del que depende todo lo
+                          // demas, y el que mas llega desactualizado de Master2000.
+                          mensaje={mensajeConfirmarDatos(nombreCompleto(est))}
+                          onMensaje={puedeContactar ? setNumeroLlamado : undefined}
                         />
                       ))}
                     </span>

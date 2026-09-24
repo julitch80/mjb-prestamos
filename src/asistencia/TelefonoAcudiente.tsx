@@ -1,11 +1,13 @@
-import { Phone } from 'lucide-react';
+import { MessageSquare, Phone } from 'lucide-react';
 import { BotonCopiar } from './Ficha';
 import {
   enlaceLlamada,
+  enlaceSms,
   enlaceWhatsApp,
   formatearTelefono,
   tipoDeTelefono,
 } from './domain/telefonos';
+import { mensajesQueOcupa } from './domain/sms';
 
 /**
  * Logo de WhatsApp, dibujado a mano.
@@ -35,15 +37,22 @@ function IconoWhatsApp() {
 export default function TelefonoAcudiente({
   numero,
   onLlamar,
+  mensaje,
+  onMensaje,
 }: {
   numero: string;
   /** Se dispara al pulsar Llamar, para que quien registre la gestion sepa a cual
    *  numero se llamo de verdad (ver defecto corregido en TerceraHora). */
   onLlamar?: (numero: string) => void;
+  /** Texto ya redactado del mensaje de texto. Sin esto no aparece el boton: un mensaje
+   *  en blanco obligaria a escribirlo de pie, que es justo lo que se quiere evitar. */
+  mensaje?: string;
+  onMensaje?: (numero: string) => void;
 }) {
   const tipo = tipoDeTelefono(numero);
   const llamada = enlaceLlamada(numero);
   const whatsapp = enlaceWhatsApp(numero);
+  const sms = mensaje ? enlaceSms(numero, mensaje) : null;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -88,6 +97,26 @@ export default function TelefonoAcudiente({
             className="grid min-h-9 min-w-9 place-items-center rounded-lg border border-line"
           >
             <IconoWhatsApp />
+          </a>
+        )}
+        {/*
+          Mensaje de texto: se envia desde la linea celular institucional, con los
+          mensajes que su plan ya incluye. La aplicacion solo abre el redactor con el
+          numero y el texto puestos; enviar lo envia la persona.
+        */}
+        {sms && (
+          <a
+            href={sms}
+            onClick={() => onMensaje?.(numero)}
+            aria-label={`Escribir un mensaje de texto al ${formatearTelefono(numero)}`}
+            title={
+              mensajesQueOcupa(mensaje ?? '') > 1
+                ? 'Mensaje de texto (ocupa mas de un mensaje)'
+                : 'Mensaje de texto'
+            }
+            className="grid min-h-9 min-w-9 place-items-center rounded-lg border border-line text-strong"
+          >
+            <MessageSquare size={16} aria-hidden />
           </a>
         )}
         <BotonCopiar valor={numero} soloIcono />
