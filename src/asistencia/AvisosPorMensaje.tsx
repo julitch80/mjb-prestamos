@@ -3,16 +3,20 @@ import { MessageSquare } from 'lucide-react';
 import {
   crearAvisosInasistencia,
   leerAvisosDelDia,
+  leerEstudiante,
   marcarEnvioAviso,
   registrarContacto,
   verSoporteAviso,
   type ResultadoAviso,
 } from './datos';
 import {
+  avisosPendientes,
   candidatosParaAviso,
+  DIAS_DE_PENDIENTES,
   ETIQUETA_EXCLUSION,
   ETIQUETA_HABLAR,
   estadoVisible,
+  fechasAnteriores,
   MOTIVO_HABLAR,
   VIGENCIA_AVISO_HORAS,
   type AvisoInasistencia,
@@ -21,7 +25,9 @@ import {
 import { etiquetaDeMotivo, type MotivoFamilia, type PrioridadLlamada } from './domain/permanencia';
 import type { FilaAusente } from './domain/reports';
 import { enlaceSms, formatearTelefono } from './domain/telefonos';
-import type { ContactResult, Jornada } from './domain/types';
+import { nombreCompleto } from './domain/nombres';
+import TelefonoAcudiente from './TelefonoAcudiente';
+import type { ContactResult, FamilyContact, Jornada } from './domain/types';
 
 /**
  * Avisos por mensaje de texto, dentro de la tercera hora (2026-09-23). Ver
@@ -48,7 +54,9 @@ export default function AvisosPorMensaje({
   avisosRegistrados,
   motivos,
   prioridades,
+  contactos,
   onContactoRegistrado,
+  onRegistrarLlamada,
 }: {
   sede: string;
   fecha: string;
@@ -61,7 +69,11 @@ export default function AvisosPorMensaje({
   avisosRegistrados: Set<string>;
   motivos: MotivoFamilia[];
   prioridades: Map<string, PrioridadLlamada>;
+  /** Los contactos con familias que ya leyo la pantalla: deciden que pendiente se resolvio. */
+  contactos: FamilyContact[];
   onContactoRegistrado: (studentId: string, resultado: ContactResult) => void;
+  /** Abre el registro de llamada de la tercera hora para un pendiente de otro dia. */
+  onRegistrarLlamada: (fila: { studentId: string; grado: string; telefonos: string[] }) => void;
 }) {
   const [avisos, setAvisos] = useState<AvisoInasistencia[]>([]);
   const [cola, setCola] = useState<Extract<ResultadoAviso, { avisoId: string }>[] | null>(null);
@@ -71,11 +83,18 @@ export default function AvisosPorMensaje({
   const [nota, setNota] = useState<string | null>(null);
   const [registrando, setRegistrando] = useState<AvisoInasistencia | null>(null);
   const [registradosAqui, setRegistradosAqui] = useState<Set<string>>(new Set());
+  const [anteriores, setAnteriores] = useState<AvisoInasistencia[]>([]);
+  const [nombresAnteriores, setNombresAnteriores] = useState<Map<string, string>>(new Map());
 
   const cargar = useCallback(async () => {
     try {
-      const todos = await leerAvisosDelDia(sede, fecha);
-      setAvisos(todos.filter((a) => a.jornada === jornada));
+      // Hoy y los dias anteriores, una consulta por dia: con igualdad en la fecha no hace
+      // falta indice compuesto (ver `leerAvisosDelDia`).
+      const [deHoy, ...previos] = await Promise.all(
+        [fecha, ...fechasAnteriores(fecha, DIAS_DE_PENDIENTES)].map((f) => leerAvisosDelDia(sede, f)),
+      );
+      setAvisos(deHoy.filter((a) => a.jornada === jornada));
+      setAnteriores(previos.flat().filter((a) => a.jornada === jornada));
     } catch (e) {
       setError(`No fue posible leer los avisos: ${(e as Error).message}`);
     }
@@ -92,6 +111,47 @@ export default function AvisosPorMensaje({
   );
   const sinCelular = excluidos.filter((x) => x.razon === 'sin_celular').length;
   const preparadosSinEnviar = avisos.filter((a) => a.estado === 'creado');
+
+  // Un pendiente deja de serlo cuando su respuesta se registro, o cuando la familia ya
+  // tiene un contacto registrado desde el dia del aviso: se la llamo, por esto o por otra
+  // cosa, y ya no hay nada que perseguir.
+  const pendientes = useMemo(
+    () =>
+      avisosPendientes(anteriores, {
+        hoy: fecha,
+        ahoraMs: Date.now(),
+        resuelto: (a) =>
+          avisosRegistrados.has(a.avisoId) ||
+          registradosAqui.has(a.avisoId) ||
+          conContactoHoy.has(a.studentId) ||
+          contactos.some((c) => c.studentId === a.studentId && c.fecha >= a.fecha),
+      }),
+    [anteriores, fecha, avisosRegistrados, registradosAqui, conContactoHoy, contactos],
+  );
+
+  // Los de otros dias no siempre estan en «no ingresaron» de hoy: su nombre se pide
+  // aparte, solo para los pendientes (unos pocos), no para toda la sede.
+  useEffect(() => {
+    const faltan = [...new Set(pendientes.map((p) => p.aviso.studentId))].filter(
+      (id) => !nombres.has(id) && !nombresAnteriores.has(id),
+    );
+    if (faltan.length === 0) return;
+    let vivo = true;
+    void Promise.all(faltan.map((id) => leerEstudiante(id).catch(() => null))).then((fichas) => {
+      if (!vivo) return;
+      setNombresAnteriores((m) => {
+        const n = new Map(m);
+        fichas.forEach((f, i) => f && n.set(faltan[i], nombreCompleto(f)));
+        return n;
+      });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [pendientes, nombres, nombresAnteriores]);
+
+  const nombreDe = (a: AvisoInasistencia) =>
+    nombres.get(a.studentId) ?? nombresAnteriores.get(a.studentId) ?? a.primerNombre;
 
   async function preparar(studentIds: string[]) {
     setPreparando(true);
@@ -265,41 +325,77 @@ export default function AvisosPorMensaje({
       {avisos.length > 0 && (
         <ul className="mt-3 space-y-1.5">
           {[...avisos]
-            .sort((a, b) => a.grado.localeCompare(b.grado) || (nombres.get(a.studentId) ?? '').localeCompare(nombres.get(b.studentId) ?? ''))
+            .sort((a, b) => a.grado.localeCompare(b.grado) || nombreDe(a).localeCompare(nombreDe(b)))
             .map((a) => {
               const registrado = avisosRegistrados.has(a.avisoId) || registradosAqui.has(a.avisoId);
-              const estado = estadoVisible(a, ahora, registrado);
-              return (
-                <li key={a.avisoId} className="rounded-lg border border-line p-2 text-sm">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <b className="text-strong">{nombres.get(a.studentId) ?? a.primerNombre}</b>
-                    <span className="text-xs text-muted">{a.grado}</span>
-                    <span className="grow" />
-                    <ChipEstado estado={estado} aviso={a} motivos={motivos} />
-                  </div>
-                  {a.soporte && <VerSoporte avisoId={a.avisoId} />}
-                  {estado === 'respondido' && (
-                    registrando?.avisoId === a.avisoId ? (
-                      <ConfirmarRegistro
-                        aviso={a}
-                        motivos={motivos}
-                        prioridad={prioridades.get(a.studentId)}
-                        onConfirmar={() => void registrar(a)}
-                        onCancelar={() => setRegistrando(null)}
-                      />
-                    ) : (
-                      <button onClick={() => setRegistrando(a)} className="mt-1 text-xs text-strong underline">
-                        Registrar como contacto
-                      </button>
-                    )
-                  )}
-                </li>
-              );
+              return renglon(a, estadoVisible(a, ahora, registrado), false);
             })}
         </ul>
       )}
+
+      {/* ---------- Pendientes de dias anteriores ---------- */}
+      {pendientes.length > 0 && (
+        <div className="mt-4">
+          <h4 className="text-sm font-semibold text-strong">
+            Pendientes de días anteriores ({pendientes.length})
+          </h4>
+          <p className="text-xs text-muted">
+            Avisos de los últimos {DIAS_DE_PENDIENTES} días que todavía piden algo: llamar, o
+            registrar lo que respondió la familia. Desaparecen cuando se registra la respuesta o
+            un contacto con la familia.
+          </p>
+          <ul className="mt-2 space-y-1.5">{pendientes.map((p) => renglon(p.aviso, p.estado, true))}</ul>
+        </div>
+      )}
     </section>
   );
+
+  /**
+   * Un aviso en la lista. Igual para los del dia y los pendientes; a los pendientes se les
+   * agrega la fecha del aviso y, si hay que llamar, el telefono y el registro de llamada.
+   */
+  function renglon(a: AvisoInasistencia, estado: EstadoVisible, esAnterior: boolean) {
+    const hayQueLlamar = estado === 'pide_llamada' || estado === 'vencido' || estado === 'no_salio';
+    return (
+      <li key={a.avisoId} className="rounded-lg border border-line p-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <b className="text-strong">{nombreDe(a)}</b>
+          <span className="text-xs text-muted">
+            {a.grado}
+            {esAnterior ? ` · aviso del ${a.fecha}` : ''}
+          </span>
+          <span className="grow" />
+          <ChipEstado estado={estado} aviso={a} motivos={motivos} />
+        </div>
+        {a.soporte && <VerSoporte avisoId={a.avisoId} />}
+        {estado === 'respondido' &&
+          (registrando?.avisoId === a.avisoId ? (
+            <ConfirmarRegistro
+              aviso={a}
+              motivos={motivos}
+              prioridad={prioridades.get(a.studentId)}
+              onConfirmar={() => void registrar(a)}
+              onCancelar={() => setRegistrando(null)}
+            />
+          ) : (
+            <button onClick={() => setRegistrando(a)} className="mt-1 text-xs text-strong underline">
+              Registrar como contacto
+            </button>
+          ))}
+        {esAnterior && hayQueLlamar && (
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <TelefonoAcudiente numero={a.telefono} />
+            <button
+              onClick={() => onRegistrarLlamada({ studentId: a.studentId, grado: a.grado, telefonos: [a.telefono] })}
+              className="rounded-lg border border-line px-2 py-1 text-xs text-strong"
+            >
+              Registrar llamada
+            </button>
+          </div>
+        )}
+      </li>
+    );
+  }
 }
 
 const HORA = (ms: number | null | undefined) =>

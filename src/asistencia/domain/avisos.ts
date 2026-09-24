@@ -25,6 +25,7 @@
  */
 
 import type { MotivoFamilia } from './permanencia';
+import { addDays } from './ids';
 import type { FilaAusente } from './reports';
 import { tipoDeTelefono } from './telefonos';
 import type { Jornada, Sede } from './types';
@@ -289,6 +290,60 @@ export function estadoVisible(
   if (aviso.estado === 'no_salio') return 'no_salio';
   if (avisoVencido(aviso, ahoraMs)) return 'vencido';
   return aviso.estado === 'creado' ? 'por_enviar' : 'enviado';
+}
+
+// ---------------------------------------------------------------------------
+//  Pendientes de dias anteriores (2026-09-24)
+// ---------------------------------------------------------------------------
+//
+// El aviso vive 48 horas, pero la tercera hora muestra solo los avisos DEL DIA. Sin esto,
+// la respuesta que llega al dia siguiente, o el aviso que vence sin respuesta, no los veia
+// nadie: habia que cambiar la fecha de la pantalla al dia del aviso para enterarse.
+
+/**
+ * Cuantos dias hacia atras se buscan pendientes. Siete cubren el fin de semana y un
+ * festivo: un aviso del viernes vence el domingo y se atiende el lunes o el martes.
+ * Pasado ese plazo, lo que no se atendio ya no es un aviso sino un caso de permanencia,
+ * y de eso se ocupa esa pantalla.
+ */
+export const DIAS_DE_PENDIENTES = 7;
+
+/** Los dias anteriores a `hoy`, del mas reciente al mas antiguo. `hoy` no se incluye. */
+export function fechasAnteriores(hoy: string, dias: number): string[] {
+  return Array.from({ length: dias }, (_, i) => addDays(hoy, -(i + 1)));
+}
+
+/** Los estados que piden algo a coordinacion. Enviado y vigente no pide nada: se espera. */
+export type EstadoPendiente = Extract<EstadoVisible, 'pide_llamada' | 'vencido' | 'no_salio' | 'respondido'>;
+const PIDEN_ALGO: EstadoPendiente[] = ['pide_llamada', 'vencido', 'no_salio', 'respondido'];
+
+/**
+ * Avisos de dias anteriores que todavia piden algo: llamar (la familia lo pidio, el
+ * mensaje no salio o el enlace vencio sin respuesta) o registrar la respuesta.
+ *
+ * `resuelto` decide cuando dejan de pedirlo: en la pantalla, cuando la respuesta ya se
+ * registro o cuando la familia ya tiene un contacto registrado desde el dia del aviso
+ * (se la llamo, por el aviso o por otra razon). Primero los de llamar, luego las
+ * respuestas; dentro de cada grupo, los mas antiguos arriba.
+ */
+export function avisosPendientes(
+  avisos: AvisoInasistencia[],
+  opciones: { hoy: string; ahoraMs: number; resuelto: (a: AvisoInasistencia) => boolean },
+): { aviso: AvisoInasistencia; estado: EstadoPendiente }[] {
+  const orden = (e: EstadoPendiente) => (e === 'respondido' ? 1 : 0);
+  return avisos
+    .filter((a) => a.fecha < opciones.hoy)
+    .map((a) => ({ aviso: a, estado: estadoVisible(a, opciones.ahoraMs, false) }))
+    .filter((x): x is { aviso: AvisoInasistencia; estado: EstadoPendiente } =>
+      (PIDEN_ALGO as EstadoVisible[]).includes(x.estado),
+    )
+    .filter((x) => !opciones.resuelto(x.aviso))
+    .sort(
+      (a, b) =>
+        orden(a.estado) - orden(b.estado) ||
+        a.aviso.fecha.localeCompare(b.aviso.fecha) ||
+        a.aviso.grado.localeCompare(b.aviso.grado),
+    );
 }
 
 /** Primer nombre de pila, con mayuscula inicial: "SAMANTHA SOFIA" -> "Samantha". */

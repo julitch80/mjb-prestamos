@@ -398,9 +398,13 @@ export default function TerceraHora({
             avisosRegistrados={avisosRegistrados}
             motivos={permanencia?.config.motivos ?? MOTIVOS_SEMILLA}
             prioridades={prioridades}
+            contactos={permanencia?.contactos ?? []}
             onContactoRegistrado={(studentId, resultado) =>
               setLlamados((p) => ({ ...p, [studentId]: resultado }))
             }
+            // La llamada por un pendiente de otro dia se registra con la fecha de HOY,
+            // que es cuando se hace: la misma ventana y el mismo registro de siempre.
+            onRegistrarLlamada={(f) => setRegistrando(f)}
           />
 
           <Seccion
