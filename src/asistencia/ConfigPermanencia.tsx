@@ -16,7 +16,9 @@ import { guardarConfigPermanencia, leerConfigPermanencia, leerEstudiantesDeSede 
 import { hojaContactabilidad } from './domain/exports';
 import { ordenarEstudiantes } from './domain/nombres';
 import { tipoDeTelefono } from './domain/telefonos';
-import type { Sede, Student } from './domain/types';
+import { filtroEfectivo, filtroInicial, gradoEnJornada, type FiltroJornada } from './domain/filtro-jornada';
+import type { Jornada, Sede, Student } from './domain/types';
+import SelectorJornada from './SelectorJornada';
 import {
   contactabilidadDe,
   desactivarMotivo,
@@ -27,7 +29,14 @@ import {
   type PermanenciaConfig,
 } from './domain/permanencia';
 
-export default function ConfigPermanencia({ sede }: { sede: Sede }) {
+export default function ConfigPermanencia({
+  sede,
+  jornadaLimitada = null,
+}: {
+  sede: Sede;
+  /** Solo acota el conteo de contactabilidad; los criterios son de toda la sede. */
+  jornadaLimitada?: Jornada | null;
+}) {
   const [config, setConfig] = useState<PermanenciaConfig>(PERMANENCIA_CONFIG_POR_DEFECTO);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -216,7 +225,7 @@ export default function ConfigPermanencia({ sede }: { sede: Sede }) {
         </div>
       </div>
 
-      <Contactabilidad sede={sede} />
+      <Contactabilidad sede={sede} jornadaLimitada={jornadaLimitada} />
 
       {config.ultimaEscrituraPor && (
         <p className="text-xs text-muted">
@@ -278,8 +287,13 @@ function Umbral({
  * Se carga bajo demanda —leer todas las fichas de la sede es caro— y por eso no se pide
  * al abrir la pantalla.
  */
-function Contactabilidad({ sede }: { sede: Sede }) {
-  const [estudiantes, setEstudiantes] = useState<Student[] | null>(null);
+function Contactabilidad({ sede, jornadaLimitada }: { sede: Sede; jornadaLimitada: Jornada | null }) {
+  const [todos, setEstudiantes] = useState<Student[] | null>(null);
+  // Separado por jornada como evasiones y permanencia (Julián, 2026-09-23): a cada
+  // coordinador le interesan las familias que le toca avisar a el.
+  const [elegida, setElegida] = useState<FiltroJornada>(filtroInicial(jornadaLimitada));
+  const filtro = filtroEfectivo(jornadaLimitada, elegida);
+  const estudiantes = todos ? todos.filter((e) => gradoEnJornada(e.gradoActual, filtro)) : null;
   const [cargando, setCargando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
 
@@ -327,7 +341,7 @@ function Contactabilidad({ sede }: { sede: Sede }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${hoja.nombre}-${sede}.xlsx`;
+      a.download = `${hoja.nombre}-${sede}${filtro === 'ambas' ? '' : `-${filtro}`}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -339,7 +353,11 @@ function Contactabilidad({ sede }: { sede: Sede }) {
 
   return (
     <div className="rounded-xl border border-line bg-card p-3">
-      <h3 className="text-sm font-semibold text-strong">Por dónde se puede avisar a las familias</h3>
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold text-strong">Por dónde se puede avisar a las familias</h3>
+        <span className="grow" />
+        <SelectorJornada limitada={jornadaLimitada} valor={elegida} onCambio={setElegida} />
+      </div>
       <p className="mt-1 text-xs text-muted">
         Un teléfono fijo no recibe mensajes de texto ni WhatsApp: a esas familias solo se les
         puede llamar. Este conteo dice cuántas llamadas se podrían evitar el día que se envíen

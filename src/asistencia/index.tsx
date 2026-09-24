@@ -862,7 +862,7 @@ export default function Asistencia() {
             Criterios, catálogo de motivos y contactabilidad
           </summary>
           <div className="mt-3">
-            <ConfigPermanencia sede={sede as Sede} />
+            <ConfigPermanencia sede={sede as Sede} jornadaLimitada={alcanceUsuario.jornadaLimitada} />
           </div>
         </details>
       </div>
