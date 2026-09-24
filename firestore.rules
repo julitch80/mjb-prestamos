@@ -697,6 +697,32 @@ service cloud.firestore {
       allow delete: if !esSuplantacion() && (false);
     }
 
+    // ---------- Avisos de inasistencia por mensaje de texto (2026-09-23) ----------
+    //
+    // Los ESCRIBE SOLO EL SERVIDOR (functions: crearAvisosInasistencia, marcarEnvioAviso,
+    // responderAviso), con autor y hora que salen del token de sesion y del reloj del
+    // servidor. Por eso aqui no hay ningun `allow write`: es lo que hace que el registro valga
+    // como soporte de que se informo a la familia. La respuesta de la familia llega por una
+    // funcion publica, sin sesion, y tampoco toca estas reglas.
+    //
+    // Leen los coordinadores de la sede, igual que las llamadas: la respuesta es una causa
+    // de inasistencia, del mismo tenor que las observaciones de las llamadas. La separacion
+    // por jornada es de VISTA (ver domain/filtro-jornada.ts), no de permiso.
+    //
+    // `asistenciaAvisosPorDia` (un indice para no duplicar avisos) no aparece aqui a
+    // proposito: el catch-all lo niega a todo cliente, que es lo correcto.
+    match /asistenciaAvisos/{avisoId} {
+      allow read: if asisCoordinaSede(resource.data.sede);
+      allow write: if false;
+
+      // El historial de cada aviso. Un `get()` al aviso para saber la sede: una lectura.
+      match /eventos/{eventoId} {
+        allow read: if asisCoordinaSede(
+          get(/databases/$(database)/documents/asistenciaAvisos/$(avisoId)).data.sede);
+        allow write: if false;
+      }
+    }
+
     // ---------- Fichas de estudiantes ----------
     match /asistenciaStudents/{studentId} {
       allow read: if isActiveUser();

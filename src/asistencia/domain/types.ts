@@ -262,6 +262,13 @@ export interface FamilyContact {
   personaContactada?: 'acudiente' | 'otro_familiar' | 'estudiante' | 'otra_persona' | null;
   compromiso?: string | null;
   observacion: string;
+  /**
+   * Por donde se hablo (2026-09-23). Ausente en los registros anteriores = llamada.
+   * `mensaje` = respuesta a un aviso por mensaje de texto, validada y registrada por
+   * coordinacion a su nombre; `avisoId` dice de cual, para no registrarla dos veces.
+   */
+  medio?: 'llamada' | 'mensaje';
+  avisoId?: string | null;
   llamadoPor: string;
   llamadoEn: number;
 }

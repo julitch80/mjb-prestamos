@@ -22,6 +22,7 @@ import {
 } from './domain/permanencia';
 import type { CensoDia, ContactResult, FamilyContact, Jornada } from './domain/types';
 import TelefonoAcudiente from './TelefonoAcudiente';
+import AvisosPorMensaje from './AvisosPorMensaje';
 import { ETIQUETA_JORNADA } from './domain/filtro-jornada';
 import { mensajeInasistencia } from './domain/sms';
 import { ModalRegistrarLlamada, type LlamadaRegistrada } from './RegistrarLlamada';
@@ -203,6 +204,18 @@ export default function TerceraHora({
   }, [reporte, prioridades]);
   const cuantosLlamarPrimero = noIngresaronOrdenados.filter((f) => prioridades.get(f.studentId)?.llamar).length;
 
+  // Para los avisos por mensaje: a quien ya se contacto hoy no se le manda aviso, y las
+  // respuestas que ya se convirtieron en contacto no se ofrecen otra vez.
+  const conContactoHoy = useMemo(() => {
+    const s = new Set(Object.keys(llamados));
+    for (const c of permanencia?.contactos ?? []) if (c.fecha === fecha) s.add(c.studentId);
+    return s;
+  }, [llamados, permanencia, fecha]);
+  const avisosRegistrados = useMemo(
+    () => new Set((permanencia?.contactos ?? []).map((c) => c.avisoId).filter((x): x is string => Boolean(x))),
+    [permanencia],
+  );
+
   async function registrar(f: FilaLlamada, llamada: LlamadaRegistrada) {
     try {
       await registrarContacto({
@@ -374,6 +387,20 @@ export default function TerceraHora({
                 </>
               );
             }}
+          />
+
+          <AvisosPorMensaje
+            sede={sede}
+            fecha={fecha}
+            jornada={jornada}
+            filas={reporte.noIngresaron}
+            conContactoHoy={conContactoHoy}
+            avisosRegistrados={avisosRegistrados}
+            motivos={permanencia?.config.motivos ?? MOTIVOS_SEMILLA}
+            prioridades={prioridades}
+            onContactoRegistrado={(studentId, resultado) =>
+              setLlamados((p) => ({ ...p, [studentId]: resultado }))
+            }
           />
 
           <Seccion

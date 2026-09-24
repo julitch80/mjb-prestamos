@@ -1,0 +1,168 @@
+<!doctype html>
+<!--
+  Pagina de respuesta al aviso de inasistencia (2026-09-23). Ver src/asistencia/domain/avisos.ts.
+
+  Es un archivo SUELTO a proposito: no carga la aplicacion de MJB ni su inicio de sesion. La
+  abre una familia desde un mensaje de texto, en cualquier celular, y solo tiene que dejarla
+  escoger el motivo. Se publica con Firebase Hosting (carpeta src/asistencia/publico).
+
+  No tiene sesion: habla solo con dos funciones publicas del servidor.
+   - consultarAviso: NO escribe ni gasta el enlace (los escaneres de enlaces lo abren antes
+     que la persona).
+   - responderAviso: la unica que registra algo, y solo una vez por aviso.
+
+  La llave va despues del # de la direccion: no viaja al servidor que entrega esta pagina.
+  Apenas se lee, se borra de la barra de direcciones, para que una captura de pantalla o un
+  "compartir" no la lleven consigo.
+
+  Sin librerias externas, sin fuentes externas, sin rastreadores.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Aviso de inasistencia</title>
+  <style>
+    :root {
+      --fondo: #f6f7f9; --tarjeta: #ffffff; --texto: #1c2430; --suave: #5b6675;
+      --linea: #d9dee5; --acento: #1f4e79; --sobre-acento: #ffffff;
+      --ok-fondo: #e7f4ec; --ok-texto: #1e6b3a; --mal-fondo: #fdecec; --mal-texto: #a32020;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fondo: #12161c; --tarjeta: #1b2129; --texto: #e7ebf0; --suave: #a3adba;
+        --linea: #2e3742; --acento: #7fb2e5; --sobre-acento: #0d1a26;
+        --ok-fondo: #173524; --ok-texto: #9fe0b5; --mal-fondo: #3a1a1a; --mal-texto: #f3a9a9;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--fondo); color: var(--texto);
+      font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 34rem; margin: 0 auto; padding: 20px 16px 40px; }
+    .inst { font-size: 14px; color: var(--suave); margin: 0 0 4px; }
+    h1 { font-size: 22px; margin: 0 0 16px; }
+    .tarjeta { background: var(--tarjeta); border: 1px solid var(--linea); border-radius: 14px; padding: 18px; }
+    p { margin: 0 0 12px; }
+    fieldset { border: 0; padding: 0; margin: 12px 0 0; }
+    legend { font-weight: 600; margin-bottom: 8px; }
+    label.opcion {
+      display: flex; gap: 12px; align-items: center; min-height: 48px; padding: 10px 12px;
+      border: 1px solid var(--linea); border-radius: 10px; margin-bottom: 8px; cursor: pointer;
+    }
+    label.opcion:has(input:checked) { border-color: var(--acento); outline: 2px solid var(--acento); }
+    input[type="radio"] { width: 22px; height: 22px; accent-color: var(--acento); flex: none; }
+    button {
+      width: 100%; min-height: 52px; margin-top: 12px; border: 0; border-radius: 12px;
+      background: var(--acento); color: var(--sobre-acento); font: inherit; font-weight: 600;
+    }
+    button:disabled { opacity: .5; }
+    .ok { background: var(--ok-fondo); color: var(--ok-texto); border-radius: 10px; padding: 12px; }
+    .mal { background: var(--mal-fondo); color: var(--mal-texto); border-radius: 10px; padding: 12px; }
+    .nota { font-size: 14px; color: var(--suave); margin-top: 16px; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="inst">Institución Educativa Manuel J. Betancur</p>
+  <h1>Aviso de inasistencia</h1>
+  <div class="tarjeta" id="contenido" aria-live="polite"><p>Cargando…</p></div>
+  <p class="nota">
+    Esta página solo registra el motivo de la inasistencia. Nunca le pediremos contraseñas,
+    números de documento ni pagos. Si tiene dudas, comuníquese con coordinación.
+  </p>
+</main>
+<script>
+  'use strict';
+  var FUNCIONES = 'https://us-central1-mjb-prestamos.cloudfunctions.net/';
+  var PATRON = /^#?([A-Za-z0-9_-]{10})\.([A-Za-z0-9_-]{12})$/;
+  var caja = document.getElementById('contenido');
+
+  var m = PATRON.exec(location.hash || '');
+  var llave = m ? { avisoId: m[1], firma: m[2] } : null;
+  // La llave ya esta en memoria: se quita de la barra de direcciones.
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+
+  function mostrar(html) { caja.innerHTML = html; }
+  function texto(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+  function fechaLarga(iso) {
+    var p = (iso || '').split('-');
+    if (p.length !== 3) return iso;
+    var meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    return Number(p[2]) + ' de ' + meses[Number(p[1]) - 1];
+  }
+
+  // Protocolo de las funciones "callable" de Firebase, sin cargar su libreria.
+  function llamar(nombre, datos) {
+    return fetch(FUNCIONES + nombre, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: datos }),
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.error) { var e = new Error(j.error.message || 'Error'); e.estado = j.error.status; throw e; }
+      return j.result;
+    });
+  }
+
+  var MENSAJES = {
+    vencido: 'Este enlace ya venció. Si necesita informar algo, comuníquese con coordinación.',
+    ya_respondido: 'Este aviso ya fue respondido. Gracias.',
+    motivo_invalido: 'Escoja una de las opciones de la lista.',
+  };
+
+  function formulario(r) {
+    var opciones = r.motivos.map(function (o) {
+      return '<label class="opcion"><input type="radio" name="motivo" value="' + texto(o.id) + '"> ' +
+        '<span>' + texto(o.etiqueta) + '</span></label>';
+    }).join('');
+    mostrar(
+      '<p>El ' + texto(fechaLarga(r.fecha)) + ' no registramos el ingreso de <b>' + texto(r.primerNombre) +
+      '</b> al colegio.</p>' +
+      '<form id="f"><fieldset><legend>¿Cuál fue el motivo?</legend>' + opciones + '</fieldset>' +
+      '<div id="aviso"></div><button id="enviar" type="submit" disabled>Enviar</button></form>'
+    );
+    var f = document.getElementById('f');
+    var boton = document.getElementById('enviar');
+    f.addEventListener('change', function () { boton.disabled = !f.motivo.value; });
+    f.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      boton.disabled = true;
+      boton.textContent = 'Enviando…';
+      llamar('responderAviso', { avisoId: llave.avisoId, firma: llave.firma, motivoId: f.motivo.value })
+        .then(function () {
+          mostrar('<div class="ok"><p><b>Gracias.</b> Quedó registrado.</p>' +
+            (f.motivo.value === 'hablar_con_coordinacion'
+              ? '<p>Coordinación se comunicará con usted.</p>' : '') + '</div>');
+        })
+        .catch(function (e) {
+          var msg = MENSAJES[e.message] || 'No fue posible enviar. Revise su conexión e intente de nuevo.';
+          document.getElementById('aviso').innerHTML = '<p class="mal">' + texto(msg) + '</p>';
+          boton.disabled = false;
+          boton.textContent = 'Enviar';
+        });
+    });
+  }
+
+  if (!llave) {
+    mostrar('<p class="mal">Este enlace no es válido. Ábralo tal como llegó en el mensaje.</p>');
+  } else {
+    llamar('consultarAviso', llave).then(function (r) {
+      if (r.estado === 'abierto') return formulario(r);
+      if (r.estado === 'respondido') return mostrar('<div class="ok"><p>Este aviso ya fue respondido. Gracias.</p></div>');
+      if (r.estado === 'ingreso_registrado') {
+        return mostrar('<div class="ok"><p>Ya registramos el ingreso de <b>' + texto(r.primerNombre) +
+          '</b> al colegio ese día. No tiene que hacer nada más.</p></div>');
+      }
+      mostrar('<p class="mal">' + texto(MENSAJES.vencido) + '</p>');
+    }).catch(function (e) {
+      mostrar('<p class="mal">' + texto(e.estado === 'NOT_FOUND'
+        ? 'Este enlace no es válido. Ábralo tal como llegó en el mensaje.'
+        : 'No fue posible cargar el aviso. Revise su conexión e intente de nuevo.') + '</p>');
+    });
+  }
+</script>
+</body>
+</html>

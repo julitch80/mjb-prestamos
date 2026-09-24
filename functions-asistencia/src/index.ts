@@ -35,6 +35,28 @@ import { enrollmentId } from '../../src/asistencia/domain/ids';
 import { construirCensoDeSesion } from '../../src/asistencia/domain/evasion';
 import type { DocType, Session, Student } from '../../src/asistencia/domain/types';
 import { setGlobalOptions } from 'firebase-functions/v2';
+import {
+  avisoVencido,
+  desenmascararFirma,
+  enlaceDeAviso,
+  enmascararFirma,
+  leerFragmento,
+  motivosParaFamilias,
+  MOTIVO_HABLAR,
+  ETIQUETA_HABLAR,
+  primerCelular,
+  primerNombreDe,
+  URL_BASE_AVISOS_POR_DEFECTO,
+  validarRespuesta,
+  vencimientoDesde,
+  type AvisoInasistencia,
+} from '../../src/asistencia/domain/avisos';
+import { mensajeAvisoConEnlace } from '../../src/asistencia/domain/sms';
+import { nombreCompleto, nombresDePila } from '../../src/asistencia/domain/nombres';
+import { jornadaDeGrado, sessionId } from '../../src/asistencia/domain/ids';
+import { findMark, isJustified } from '../../src/asistencia/domain/marks';
+import { MOTIVOS_SEMILLA, type MotivoFamilia } from '../../src/asistencia/domain/permanencia';
+import { claveDeAvisos, firmaValida, firmarAviso, nuevoIdDeAviso } from './firma-aviso';
 
 // Techo de copias simultáneas por función (23-sep-2026). Si alguien las ataca con
 // muchas solicitudes, se frenan aquí en vez de multiplicarse y cobrar por uso. Con
@@ -764,5 +786,358 @@ export const onSesionBloque3 = onDocumentWritten(
       .collection('asistenciaCensoDia')
       .doc(censo.censoId)
       .set({ ...censo, actualizadoEn: FieldValue.serverTimestamp() });
+  },
+);
+
+// ---------------------------------------------------------------------------
+//  Avisos de inasistencia por mensaje de texto (2026-09-23)
+// ---------------------------------------------------------------------------
+//
+// Ver `domain/avisos.ts` para las decisiones. Aqui, lo que no puede vivir en el cliente:
+//  - comprobar que de verdad corresponde avisar (ausente sin justificar en el bloque 3,
+//    sin llegada tarde, con celular), sin fiarse de la lista que manda la pantalla;
+//  - la firma del enlace, cuya clave no baja nunca al navegador;
+//  - la hora y el autor de cada paso, que salen del servidor y del token de sesion;
+//  - la pagina publica, que no tiene sesion: solo puede hablar con estas funciones.
+//
+// Nada de esto lo escribe el cliente: las reglas de `asistenciaAvisos` son de solo
+// lectura. El registro que vale como soporte es la subcoleccion `eventos`, a la que
+// solo se le AGREGAN documentos; los campos de resumen del aviso (`estado`,
+// `enviadoPor`, `respuesta`) son una comodidad para consultar y los deriva el servidor.
+
+/**
+ * Coordinador de la sede, y en central de esa jornada si esta acotado (la misma logica
+ * que `asisCoordinaJornada` en las reglas). El superusuario NO: sus acciones no son
+ * atribuibles a una persona, y avisar a una familia es una actuacion con autor.
+ */
+async function requireCoordinadorDeJornada(
+  auth: { token?: { email?: string } } | undefined,
+  sede: string,
+  jornada: string,
+): Promise<string> {
+  const email = await requireRole(auth, ['coordinador']);
+  const autoridad = (await db.doc('asistenciaConfig/autoridadSede').get()).data() ?? {};
+  const correos = ((autoridad.mapa ?? {}) as Record<string, string[]>)[sede] ?? [];
+  if (!correos.includes(email)) throw new HttpsError('permission-denied', 'No coordina esa sede.');
+  const otra = jornada === 'manana' ? 'tarde' : 'manana';
+  const soloOtra =
+    ((autoridad.soloJornada ?? {}) as Record<string, Record<string, string[]>>)[sede]?.[otra] ?? [];
+  if (soloOtra.includes(email)) throw new HttpsError('permission-denied', 'No coordina esa jornada.');
+  return email;
+}
+
+async function urlBaseDeAvisos(): Promise<string> {
+  const cfg = (await db.doc('asistenciaConfig/avisos').get()).data();
+  const url = typeof cfg?.urlBase === 'string' ? cfg.urlBase.trim() : '';
+  // Solo https: un enlace sin cifrar a una pagina de datos de menores no sale nunca.
+  return url.startsWith('https://') ? url : URL_BASE_AVISOS_POR_DEFECTO;
+}
+
+async function motivosDeFamilias(): Promise<{ id: string; etiqueta: string }[]> {
+  const cfg = (await db.doc('asistenciaConfig/permanencia').get()).data();
+  const motivos = (cfg?.motivos as MotivoFamilia[] | undefined) ?? MOTIVOS_SEMILLA;
+  return motivosParaFamilias(motivos);
+}
+
+/**
+ * Freno por direccion IP para las dos funciones publicas. Vive en la memoria de cada
+ * copia de la funcion, asi que no es exacto (con 10 copias como techo, alguien podria
+ * hacer hasta diez veces el limite), pero no hace falta que lo sea: la firma de 72 bits
+ * no se adivina a fuerza de intentos. Esto es para que nadie use la funcion de martillo.
+ */
+const LIMITE_POR_IP = 30;
+const VENTANA_IP_MS = 10 * 60_000;
+const intentosPorIp = new Map<string, { n: number; desde: number }>();
+function frenarPorIp(ip: string | undefined): void {
+  const clave = ip || 'sin_ip';
+  const ahora = Date.now();
+  const r = intentosPorIp.get(clave);
+  if (!r || ahora - r.desde > VENTANA_IP_MS) {
+    intentosPorIp.set(clave, { n: 1, desde: ahora });
+    return;
+  }
+  r.n += 1;
+  if (r.n > LIMITE_POR_IP) {
+    throw new HttpsError('resource-exhausted', 'Demasiados intentos. Intente más tarde.');
+  }
+}
+
+/**
+ * Un solo error para "enlace mal formado", "firma incorrecta" y "aviso inexistente". Si
+ * se distinguieran, la respuesta le diria a quien prueba enlaces al azar cuales ids
+ * existen.
+ */
+const enlaceNoValido = () => new HttpsError('not-found', 'Este enlace no es válido.');
+
+async function avisoDesdeEnlace(data: unknown, docHashKey: string) {
+  const d = (data ?? {}) as { avisoId?: unknown; firma?: unknown };
+  const partes =
+    typeof d.avisoId === 'string' && typeof d.firma === 'string'
+      ? leerFragmento(`${d.avisoId}.${d.firma}`)
+      : null;
+  if (!partes) throw enlaceNoValido();
+  if (!firmaValida(claveDeAvisos(docHashKey), partes.avisoId, partes.firma)) throw enlaceNoValido();
+  const ref = db.doc(`asistenciaAvisos/${partes.avisoId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw enlaceNoValido();
+  return { ref, aviso: snap.data() as AvisoInasistencia };
+}
+
+async function llegoTarde(studentId: string, fecha: string): Promise<boolean> {
+  const q = await db
+    .collection('asistenciaLateArrivals')
+    .where('studentId', '==', studentId)
+    .where('fecha', '==', fecha)
+    .limit(1)
+    .get();
+  return !q.empty;
+}
+
+type RechazoCreacion = 'ficha' | 'jornada' | 'sin_celular' | 'no_ausente' | 'llego_tarde';
+
+type ResultadoCreacion =
+  | { studentId: string; avisoId: string; telefono: string; texto: string; nuevo: boolean }
+  | { studentId: string; rechazo: RechazoCreacion };
+
+/** El texto completo de un aviso ya creado, con su firma recalculada. */
+function textoDeAviso(clave: Buffer, aviso: AvisoInasistencia): string {
+  return desenmascararFirma(aviso.textoRegistrado, aviso.avisoId, firmarAviso(clave, aviso.avisoId));
+}
+
+/**
+ * Prepara (o recupera) los avisos del dia y devuelve el texto de cada mensaje, ya con su
+ * enlace. Llamarla dos veces con los mismos estudiantes devuelve los MISMOS avisos: asi
+ * se reanuda la cola si coordinacion recarga la pagina a mitad de camino.
+ */
+export const crearAvisosInasistencia = onCall(
+  { region: REGION, cors: true, invoker: 'public', secrets: [DOC_HASH_KEY] },
+  async (request) => {
+    const d = (request.data ?? {}) as {
+      sede?: unknown;
+      fecha?: unknown;
+      jornada?: unknown;
+      studentIds?: unknown;
+    };
+    const sede = typeof d.sede === 'string' ? d.sede : '';
+    const fecha = typeof d.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.fecha) ? d.fecha : '';
+    const jornada = d.jornada === 'manana' || d.jornada === 'tarde' ? d.jornada : '';
+    const studentIds = Array.isArray(d.studentIds)
+      ? d.studentIds.filter((x): x is string => typeof x === 'string')
+      : [];
+    if (!sede || !fecha || !jornada) {
+      throw new HttpsError('invalid-argument', 'Faltan la sede, la fecha o la jornada.');
+    }
+    if (studentIds.length === 0 || studentIds.length > 120) {
+      throw new HttpsError('invalid-argument', 'Lista de estudiantes vacía o demasiado larga.');
+    }
+
+    const email = await requireCoordinadorDeJornada(request.auth, sede, jornada);
+    const clave = claveDeAvisos(DOC_HASH_KEY.value());
+    const urlBase = await urlBaseDeAvisos();
+    const resultados: ResultadoCreacion[] = [];
+
+    for (const studentId of [...new Set(studentIds)]) {
+      // Uno por estudiante y dia. El indice es un documento solo del servidor (las reglas
+      // lo niegan por el catch-all): su `create` falla si ya existe, y eso es lo que
+      // impide que dos coordinadores con la pantalla abierta dupliquen el aviso.
+      const indiceRef = db.doc(`asistenciaAvisosPorDia/${fecha}_${studentId}`);
+      const indice = await indiceRef.get();
+      if (indice.exists) {
+        const existente = (await db.doc(`asistenciaAvisos/${indice.data()!.avisoId}`).get()).data() as
+          | AvisoInasistencia
+          | undefined;
+        if (existente) {
+          resultados.push({
+            studentId,
+            avisoId: existente.avisoId,
+            telefono: existente.telefono,
+            texto: textoDeAviso(clave, existente),
+            nuevo: false,
+          });
+          continue;
+        }
+      }
+
+      const est = (await db.doc(`asistenciaStudents/${studentId}`).get()).data() as Student | undefined;
+      if (!est || est.activo === false || est.sede !== sede) {
+        resultados.push({ studentId, rechazo: 'ficha' });
+        continue;
+      }
+      const grado = est.gradoActual;
+      if (jornadaDeGrado(grado) !== jornada) {
+        resultados.push({ studentId, rechazo: 'jornada' });
+        continue;
+      }
+      const telefono = primerCelular(est.telefonos ?? []);
+      if (!telefono) {
+        resultados.push({ studentId, rechazo: 'sin_celular' });
+        continue;
+      }
+      // Ausente en el bloque 3 y sin justificar: la misma condicion del reporte de
+      // tercera hora (`construirReporteTerceraHora`), comprobada otra vez aqui.
+      const sesion = (await db.doc(`asistenciaSessions/${sessionId(sede, grado, fecha, 3)}`).get()).data() as
+        | Session
+        | undefined;
+      const marca = sesion?.estudiantes?.[studentId];
+      if (!marca || !findMark(marca.estado)?.isAbsence || isJustified(marca.estado)) {
+        resultados.push({ studentId, rechazo: 'no_ausente' });
+        continue;
+      }
+      if (await llegoTarde(studentId, fecha)) {
+        resultados.push({ studentId, rechazo: 'llego_tarde' });
+        continue;
+      }
+
+      const avisoId = nuevoIdDeAviso();
+      const firma = firmarAviso(clave, avisoId);
+      const texto = mensajeAvisoConEnlace(nombreCompleto(est), enlaceDeAviso(urlBase, avisoId, firma));
+      const ahora = Date.now();
+      const aviso: AvisoInasistencia = {
+        avisoId,
+        studentId,
+        grado,
+        sede: est.sede,
+        jornada,
+        fecha,
+        telefono,
+        primerNombre: primerNombreDe(nombresDePila(est.apellidos, est.nombres)),
+        textoRegistrado: enmascararFirma(texto, firma),
+        estado: 'creado',
+        creadoPor: email,
+        creadoEnMs: ahora,
+        expiraEnMs: vencimientoDesde(ahora),
+        enviadoPor: null,
+        enviadoEnMs: null,
+        respuesta: null,
+      };
+
+      try {
+        await db.runTransaction(async (tx) => {
+          tx.create(indiceRef, { avisoId, creadoEn: FieldValue.serverTimestamp() });
+          const ref = db.doc(`asistenciaAvisos/${avisoId}`);
+          tx.create(ref, { ...aviso, creadoEn: FieldValue.serverTimestamp() });
+          tx.create(ref.collection('eventos').doc(), {
+            tipo: 'creado',
+            por: email,
+            enMs: ahora,
+            en: FieldValue.serverTimestamp(),
+          });
+        });
+        resultados.push({ studentId, avisoId, telefono, texto, nuevo: true });
+      } catch {
+        // Otro coordinador lo creo en el mismo instante: se devuelve el suyo.
+        const otro = (await indiceRef.get()).data();
+        const existente = otro
+          ? ((await db.doc(`asistenciaAvisos/${otro.avisoId}`).get()).data() as AvisoInasistencia | undefined)
+          : undefined;
+        if (!existente) throw new HttpsError('aborted', 'No fue posible preparar el aviso. Intente de nuevo.');
+        resultados.push({
+          studentId,
+          avisoId: existente.avisoId,
+          telefono: existente.telefono,
+          texto: textoDeAviso(clave, existente),
+          nuevo: false,
+        });
+      }
+    }
+    return { resultados };
+  },
+);
+
+/**
+ * Lo que coordinacion declara al tocar enviar: "salio" o "no salio". La aplicacion no
+ * puede saber si el mensaje de verdad se envio (eso lo dice el celular), y por eso esto
+ * es la constancia declarada, con autor y hora del servidor.
+ */
+export const marcarEnvioAviso = onCall({ region: REGION, cors: true, invoker: 'public' }, async (request) => {
+  const d = (request.data ?? {}) as { avisoId?: unknown; evento?: unknown };
+  const evento = d.evento === 'enviado' || d.evento === 'no_salio' ? d.evento : null;
+  if (typeof d.avisoId !== 'string' || !evento) throw new HttpsError('invalid-argument', 'Datos incompletos.');
+  const ref = db.doc(`asistenciaAvisos/${d.avisoId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Ese aviso no existe.');
+  const aviso = snap.data() as AvisoInasistencia;
+  const email = await requireCoordinadorDeJornada(request.auth, aviso.sede, aviso.jornada);
+  const ahora = Date.now();
+
+  await db.runTransaction(async (tx) => {
+    const actual = (await tx.get(ref)).data() as AvisoInasistencia;
+    tx.create(ref.collection('eventos').doc(), {
+      tipo: evento,
+      por: email,
+      enMs: ahora,
+      en: FieldValue.serverTimestamp(),
+    });
+    // Si la familia ya respondio, el resumen no retrocede: el evento queda en el
+    // historial, pero el aviso sigue "respondido".
+    if (actual.estado === 'respondido') return;
+    if (evento === 'enviado') {
+      tx.update(ref, {
+        estado: 'enviado',
+        enviadoPor: actual.enviadoPor ?? email,
+        enviadoEnMs: actual.enviadoEnMs ?? ahora,
+      });
+    } else {
+      tx.update(ref, { estado: 'no_salio' });
+    }
+  });
+  return { ok: true };
+});
+
+/**
+ * La pagina publica abre el enlace. NO ESCRIBE NADA y no gasta el enlace: los
+ * programas de mensajeria y los antivirus abren los enlaces para revisarlos antes que la
+ * persona, y si abrir la pagina contara como uso, la familia encontraria un enlace ya
+ * usado sin haber hecho nada.
+ */
+export const consultarAviso = onCall(
+  { region: REGION, cors: true, invoker: 'public', secrets: [DOC_HASH_KEY] },
+  async (request) => {
+    frenarPorIp(request.rawRequest?.ip);
+    const { aviso } = await avisoDesdeEnlace(request.data, DOC_HASH_KEY.value());
+    const base = { primerNombre: aviso.primerNombre, fecha: aviso.fecha };
+    if (aviso.respuesta) return { ...base, estado: 'respondido' as const };
+    if (avisoVencido(aviso, Date.now())) return { ...base, estado: 'vencido' as const };
+    // Llego despues de que salio el aviso: se le dice a la familia, en vez de pedirle
+    // que explique una inasistencia que no fue.
+    if (await llegoTarde(aviso.studentId, aviso.fecha)) {
+      return { ...base, estado: 'ingreso_registrado' as const };
+    }
+    const motivos = await motivosDeFamilias();
+    return {
+      ...base,
+      estado: 'abierto' as const,
+      motivos: [...motivos, { id: MOTIVO_HABLAR, etiqueta: ETIQUETA_HABLAR }],
+    };
+  },
+);
+
+/** La respuesta de la familia. Una sola por aviso; queda como evento sin autor humano. */
+export const responderAviso = onCall(
+  { region: REGION, cors: true, invoker: 'public', secrets: [DOC_HASH_KEY] },
+  async (request) => {
+    frenarPorIp(request.rawRequest?.ip);
+    const { ref } = await avisoDesdeEnlace(request.data, DOC_HASH_KEY.value());
+    const bruto = (request.data as { motivoId?: unknown } | undefined)?.motivoId;
+    const motivoId = typeof bruto === 'string' ? bruto : '';
+    const permitidos = await motivosDeFamilias();
+    const ahora = Date.now();
+
+    const rechazo = await db.runTransaction(async (tx) => {
+      const actual = (await tx.get(ref)).data() as AvisoInasistencia;
+      const r = validarRespuesta(actual, motivoId, permitidos, ahora);
+      if (r) return r;
+      tx.update(ref, { estado: 'respondido', respuesta: { motivoId, enMs: ahora } });
+      tx.create(ref.collection('eventos').doc(), {
+        tipo: 'respuesta',
+        por: null,
+        motivoId,
+        enMs: ahora,
+        en: FieldValue.serverTimestamp(),
+      });
+      return null;
+    });
+    if (rechazo) throw new HttpsError('failed-precondition', rechazo);
+    return { ok: true };
   },
 );

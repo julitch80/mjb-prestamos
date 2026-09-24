@@ -108,6 +108,21 @@ export function mensajeConfirmarDatos(nombreCompleto: string): string {
 }
 
 /**
+ * El aviso de inasistencia con el enlace para responder (ver `./avisos`).
+ *
+ * El enlace se come casi la mitad del mensaje —con el subdominio del colegio son unos 68
+ * caracteres—, asi que el texto va al hueso: sin «al colegio» y con «Informe el motivo»
+ * en vez de una frase completa. Si aun asi no cabe, `armar` recorta el nombre, nunca el
+ * enlace: un enlace cortado no abre.
+ */
+export function mensajeAvisoConEnlace(nombreCompleto: string, enlace: string): string {
+  return armar(
+    (n) => `${REMITENTE}: hoy no registramos el ingreso de ${n}. Informe el motivo: ${enlace}`,
+    nombreCompleto,
+  );
+}
+
+/**
  * El codigo de verificacion del aviso por correo (apartado 3.5 del informe a los consejos).
  * El envio automatico todavia no existe; mientras tanto, el codigo sale de aqui y lo manda
  * coordinacion desde la linea institucional.

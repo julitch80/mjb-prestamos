@@ -41,6 +41,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 
 import { db, esperarAuth, functions } from '../lib/firebase';
+import type { AvisoInasistencia } from './domain/avisos';
 import { sessionId as construirSessionId, toDateKey } from './domain/ids';
 import { compararEstudiantes } from './domain/nombres';
 import { avisoEvasionId, censoDiaId } from './domain/evasion';
@@ -477,6 +478,14 @@ export async function registrarContacto(input: {
   personaContactada?: FamilyContact['personaContactada'];
   compromiso?: string | null;
   observacion: string;
+  /**
+   * Por donde se hablo (2026-09-23). Ausente = llamada, como todos los registros
+   * anteriores. `mensaje` = respuesta al aviso por mensaje de texto que coordinacion
+   * valido y registro a su nombre; va con el `avisoId` para no registrarla dos veces.
+   * La regla de creacion no restringe campos adicionales, asi que no hace falta tocarla.
+   */
+  medio?: 'llamada' | 'mensaje';
+  avisoId?: string | null;
 }): Promise<void> {
   const autor = await exigirAutor();
   const ref = doc(collection(baseDatos(), 'asistenciaFamilyContacts'));
@@ -488,9 +497,56 @@ export async function registrarContacto(input: {
     motivoFamilia: input.motivoFamilia ?? null,
     personaContactada: input.personaContactada ?? null,
     compromiso: input.compromiso?.trim() || null,
+    medio: input.medio ?? 'llamada',
+    avisoId: input.avisoId ?? null,
     llamadoPor: autor,
     llamadoEn: serverTimestamp(),
   });
+}
+
+// ---------- Avisos de inasistencia por mensaje de texto (2026-09-23) ----------
+//
+// Ver `domain/avisos.ts`. El cliente NO escribe avisos: los crea y los marca el servidor,
+// que pone el autor y la hora. Aqui solo se leen y se piden.
+
+export type ResultadoAviso =
+  | { studentId: string; avisoId: string; telefono: string; texto: string; nuevo: boolean }
+  | { studentId: string; rechazo: 'ficha' | 'jornada' | 'sin_celular' | 'no_ausente' | 'llego_tarde' };
+
+/**
+ * Prepara los avisos (o recupera los ya preparados, con el mismo texto) y devuelve el
+ * mensaje de cada uno. El servidor vuelve a comprobar que a cada estudiante le
+ * corresponde: la lista que manda la pantalla es una propuesta, no una orden.
+ */
+export async function crearAvisosInasistencia(input: {
+  sede: string;
+  fecha: string;
+  jornada: 'manana' | 'tarde';
+  studentIds: string[];
+}): Promise<ResultadoAviso[]> {
+  if (!functions) throw new Error('Firebase no está configurado en esta instalación.');
+  const llamar = httpsCallable(functions, 'crearAvisosInasistencia');
+  const r = await llamar(input);
+  return (r.data as { resultados: ResultadoAviso[] }).resultados;
+}
+
+/** Lo que coordinacion declara al tocar enviar. Queda como evento, con su autor y hora. */
+export async function marcarEnvioAviso(avisoId: string, evento: 'enviado' | 'no_salio'): Promise<void> {
+  if (!functions) throw new Error('Firebase no está configurado en esta instalación.');
+  await httpsCallable(functions, 'marcarEnvioAviso')({ avisoId, evento });
+}
+
+/**
+ * Avisos de un dia. Filtrado por `sede` porque es el campo que lee la regla
+ * (`asisCoordinaSede(resource.data.sede)`): sin el, Firestore rechaza la consulta entera.
+ * Solo igualdades, asi que no pide indice compuesto.
+ */
+export async function leerAvisosDelDia(sede: string, fecha: string): Promise<AvisoInasistencia[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(collection(baseDatos(), 'asistenciaAvisos'), where('sede', '==', sede), where('fecha', '==', fecha)),
+  );
+  return aLista<AvisoInasistencia>(snap);
 }
 
 /**
