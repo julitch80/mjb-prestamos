@@ -24,7 +24,8 @@ export type VistaActual =
   | 'riesgo'
   | 'asistentes'
   | 'sugerencias'
-  | 'asistencia';
+  | 'asistencia'
+  | 'notificaciones';
 
 interface AppState {
   // Auth

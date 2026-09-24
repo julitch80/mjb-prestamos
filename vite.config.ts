@@ -47,6 +47,12 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Notificaciones push (Etapa 1 — docs/notificaciones-push): NO se crea
+        // un segundo service worker (se estorbarían); en vez de eso, el SW que
+        // ya genera Workbox importa push-sw.js, que solo agrega los listeners
+        // 'push' y 'notificationclick'. La ruta es relativa a la carpeta donde
+        // vive el SW generado (la raíz servida, por el `base` de arriba).
+        importScripts: ['push-sw.js'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         // Las fotos de la brigada (kit de inmovilización) se consultan justo
         // en una emergencia: si no están en el precache, un celular sin señal

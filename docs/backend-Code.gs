@@ -428,7 +428,30 @@ function crearNotificacion(destinatario, tipo, mensaje) {
   const sheet = getSheet('Notificaciones', NOTIF_HEADERS);
   const id = 'NOT-' + new Date().getTime() + '-' + Math.random().toString(36).slice(2, 6);
   sheet.appendRow([id, destinatario, tipo, mensaje, false, new Date().toISOString()]);
+  avisarPush_(destinatario, tipo, mensaje);
   return id;
+}
+
+// Notificaciones en el celular (docs/notificaciones-push, Etapa 1). Llamada
+// best-effort: si el secreto no está configurado, o la función de Firebase
+// falla o tarda, NO debe romper la creación de la notificación de la app
+// (que ya funcionaba antes y sigue siendo la fuente de verdad). Por eso va en
+// try/catch con muteHttpExceptions y no se usa el resultado para nada.
+function avisarPush_(destinatario, tipo, mensaje) {
+  try {
+    const secreto = PropertiesService.getScriptProperties().getProperty('PUSH_SECRETO');
+    if (!secreto) return; // Etapa 1 aún no configurada por Julián: no hace nada.
+    UrlFetchApp.fetch('https://us-central1-mjb-prestamos.cloudfunctions.net/pushDesdeAppsScript', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-mjb-secreto': secreto },
+      payload: JSON.stringify({ destinatario: destinatario, tipo: tipo, mensaje: mensaje }),
+      muteHttpExceptions: true,
+    });
+  } catch (err) {
+    // Silencioso a propósito: un problema con el push nunca debe impedir que
+    // se guarde la notificación dentro de la aplicación.
+  }
 }
 
 function crearNotificacionesLote(p) {

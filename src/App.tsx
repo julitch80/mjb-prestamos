@@ -28,6 +28,7 @@ import GestionRiesgo from './components/GestionRiesgo';
 import Asistentes from './components/Asistentes';
 import Asistencia from './asistencia';
 import BannerNotificaciones from './components/BannerNotificaciones';
+import MisNotificaciones from './components/MisNotificaciones';
 import FichaSede from './components/FichaSede';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
@@ -35,6 +36,7 @@ import { getNotificaciones } from './data/api';
 import { useCasosVencidos } from './hooks/useCasosVencidos';
 import { useHistorialDeVistas } from './hooks/useHistorialDeVistas';
 import { cargarSyncEditor } from './data/syncEditor';
+import { limpiarBadge, refrescarUltimoUso } from './data/notificacionesPush';
 import { USUARIOS, SEDES, esDirectivo, sedeDeUsuario } from './data/maestros';
 import { AUTH_MODE } from './data/authStore';
 import { useChatStore } from './data/chatStore';
@@ -70,6 +72,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'chat',           label: 'Chat',            descripcion: 'Mensajería interna',                roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',          roles: ['superusuario'] },
   { id: 'sugerencias',    label: 'Sugerencias',     descripcion: 'Lo que reportan los docentes',      roles: ['superusuario'] },
+  { id: 'notificaciones', label: 'Mis notificaciones', descripcion: 'Qué te avisa al celular',        roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
 ];
 
 const ROL_COLOR: Record<string, string> = {
@@ -174,6 +177,39 @@ export default function App() {
       setMenuSedeAbierto(true);
     }
   }, [userId, rol]);
+
+  // Notificaciones push (Etapa 1 — docs/notificaciones-push): al abrir la app
+  // con sesión, se borra el número del ícono y se refresca `ultimoUso` del
+  // token de este dispositivo si ya estaba activo (no pide permiso ni crea
+  // nada nuevo — eso solo lo hace la tarjeta de PanelInicio o «Mis
+  // notificaciones» cuando la persona lo pide).
+  useEffect(() => {
+    if (!userId) return;
+    limpiarBadge();
+    void refrescarUltimoUso();
+  }, [userId]);
+
+  // Deep link de una notificación tocada: `?ir=chat&canal=<id>` o `?ir=<vista>`
+  // (public/push-sw.js construye esa URL en 'notificationclick'). Se lee una
+  // sola vez que hay sesión, se aplica y se limpia la URL para que un F5
+  // posterior no vuelva a saltar de vista.
+  useEffect(() => {
+    if (!userId) return;
+    const params = new URLSearchParams(window.location.search);
+    const ir = params.get('ir');
+    if (!ir) return;
+    if (ir === 'chat') {
+      const canal = params.get('canal');
+      setVistaActual('chat' as typeof vistaActual);
+      if (canal) useChatStore.getState().abrirCanal(canal);
+    } else {
+      setVistaActual(ir as typeof vistaActual);
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete('ir');
+    url.searchParams.delete('canal');
+    window.history.replaceState({}, '', url.pathname + url.hash);
+  }, [userId, setVistaActual]);
 
   // ── Ruta de desarrollo: banco de acompañamientos ──────────
   // Va aqui, despues de TODOS los hooks, igual que la ruta de la agenda: un return
@@ -370,7 +406,7 @@ export default function App() {
             */}
             {(() => {
               const sede = SEDES.find(s => s.id === sedeActual);
-              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes' || vistaActual === 'sugerencias';
+              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes' || vistaActual === 'sugerencias' || vistaActual === 'notificaciones';
               if (sede && !sede.configurada && !vistaTransversal) {
                 return <FichaSede sede={sede} />;
               }
@@ -392,6 +428,7 @@ export default function App() {
                   {vistaActual === 'admin_users'    && rol === 'superusuario' && <PanelSuperusuario />}
                   {vistaActual === 'sugerencias'    && rol === 'superusuario' && <PanelSugerencias />}
                   {vistaActual === 'asistencia'     && <Asistencia />}
+                  {vistaActual === 'notificaciones' && <MisNotificaciones />}
                 </>
               );
             })()}

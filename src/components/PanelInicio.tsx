@@ -353,6 +353,8 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
         <p className="text-sm text-muted mt-0.5 first-letter:uppercase">{fechaLargaHoy()}</p>
       </div>
 
+      <TarjetaActivarNotificaciones />
+
       {/* ── Bloque A: Tu día — banners con scroll lateral ────────────────── */}
       {avisos.length > 0 && (
         <section>
@@ -465,6 +467,87 @@ function BaldosaNeon({ id, label, onClick }: { id: string; label: string; onClic
         {label}
       </span>
     </motion.button>
+  );
+}
+
+// ── Tarjeta «Activa las notificaciones» (Etapa 1 — docs/notificaciones-push) ─
+// Solo aparece cuando: hay soporte del navegador, hay sesión Google/Firebase,
+// y el permiso está en 'default' (nunca se decidió). Si dice que no, se
+// recuerda en localStorage y no se vuelve a insistir en cada entrada (PRD).
+
+const CLAVE_DESCARTADA = 'mjb_notif_tarjeta_descartada';
+
+function TarjetaActivarNotificaciones() {
+  const [visible, setVisible] = useState(false);
+  const [activando, setActivando] = useState(false);
+  const disponibleAuth = AUTH_MODE === 'google' && firebaseConfigurado;
+
+  useEffect(() => {
+    if (!disponibleAuth) return;
+    let cancelado = false;
+    void (async () => {
+      try {
+        if (localStorage.getItem(CLAVE_DESCARTADA) === '1') return;
+      } catch {
+        // localStorage puede fallar (privado/bloqueado): seguir sin recordar.
+      }
+      const { soportado } = await import('../data/notificacionesPush');
+      const ok = await soportado();
+      const permisoOk = typeof Notification !== 'undefined' && Notification.permission === 'default';
+      if (!cancelado && ok && permisoOk) setVisible(true);
+    })();
+    return () => { cancelado = true; };
+  }, [disponibleAuth]);
+
+  if (!visible) return null;
+
+  async function activarAhora() {
+    setActivando(true);
+    try {
+      const { activar } = await import('../data/notificacionesPush');
+      await activar();
+    } finally {
+      setActivando(false);
+      setVisible(false);
+    }
+  }
+
+  function ahoraNo() {
+    try {
+      localStorage.setItem(CLAVE_DESCARTADA, '1');
+    } catch {
+      // No crítico: en el peor caso vuelve a preguntar la próxima sesión.
+    }
+    setVisible(false);
+  }
+
+  return (
+    <section className="rounded-xl bg-card border border-line px-4 py-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <IconoCampana className="w-5 h-5 flex-shrink-0" />
+        <p className="text-strong text-sm font-semibold">Activa las notificaciones</p>
+      </div>
+      <p className="text-muted text-xs leading-snug">
+        Te avisamos en este celular cuando te escriban en el chat, cambie tu horario o te
+        respondan una sugerencia — aunque tengas la aplicación cerrada.
+        No lo actives en un equipo compartido como la pizarra del salón.
+      </p>
+      <div className="flex gap-2 pt-1">
+        <button
+          onClick={activarAhora}
+          disabled={activando}
+          className="px-3 py-2 rounded-lg bg-accent text-accent-fg text-sm font-semibold disabled:opacity-40"
+        >
+          {activando ? 'Activando…' : 'Activar'}
+        </button>
+        <button
+          onClick={ahoraNo}
+          className="px-3 py-2 rounded-lg bg-elevated text-soft hover:text-strong text-sm font-semibold"
+        >
+          Ahora no
+        </button>
+      </div>
+    </section>
   );
 }
 

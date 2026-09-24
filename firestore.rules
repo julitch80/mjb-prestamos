@@ -29,7 +29,8 @@
 // escritura sin guarda en /config. Cuenta con: grep -E '^\s*allow [a-z, ]*(write|create|update|delete)'
 //
 // Comprobacion despues de cada sincronizacion: el numero de `allow` de escritura debe
-// coincidir con el de `esSuplantacion()`. Hoy son 83 escrituras y 37 lecturas libres.
+// coincidir con el de `esSuplantacion()`. Hoy son 85 escrituras y 37 lecturas libres.
+// (23-sep-2026: +2 por notifDispositivos/notifPreferencias, Etapa 1 de notificaciones push.)
 //
 // El 2026-08-30 esta cifra decia 57 cuando ya eran 58: se habia quedado atras sin que
 // nada avisara. Si vuelves a tocar el archivo, actualizala en el mismo commit — es el
@@ -349,6 +350,39 @@ service cloud.firestore {
              int(resource.data.vigenteDesde.split('-')[1]),
              int(resource.data.vigenteDesde.split('-')[2]))
       );
+      allow delete: if !esSuplantacion() && (false);
+    }
+
+    // ---------- Notificaciones push (Etapa 1 — docs/notificaciones-push) ----------
+    //
+    // Tres colecciones, todas de solo-dueño desde el cliente:
+    //  - notifDispositivos/{correo}/items/{idDispositivo}: el token FCM de cada
+    //    celular/computador de esa persona.
+    //  - notifPreferencias/{correo}: los interruptores por categoría.
+    //  - pushPendientes/{id}: la cola nocturna — SOLO la escriben/leen las
+    //    Cloud Functions (admin SDK), por eso no hay regla de cliente y la
+    //    regla catch-all del final la niega.
+    match /notifDispositivos/{correo}/items/{idDispositivo} {
+      allow read, delete: if isActiveUser() && callerEmail() == correo && !esSuplantacion();
+      allow create, update: if !esSuplantacion() && (isActiveUser() && callerEmail() == correo
+        && request.resource.data.keys().hasOnly(['token', 'creadoEn', 'ultimoUso', 'plataforma', 'userAgentCorto'])
+        && request.resource.data.token is string
+        && request.resource.data.token.size() > 0);
+    }
+    match /notifPreferencias/{correo} {
+      allow read: if isActiveUser() && callerEmail() == correo;
+      allow create, update: if !esSuplantacion() && (isActiveUser() && callerEmail() == correo
+        && request.resource.data.keys().hasOnly(
+             ['chat', 'avisos', 'horario', 'reservas', 'sugerencias', 'casos', 'evasion'])
+        && request.resource.data.keys().toSet().difference(
+             ['chat', 'avisos', 'horario', 'reservas', 'sugerencias', 'casos', 'evasion'].toSet()).size() == 0
+        && (!('chat' in request.resource.data) || request.resource.data.chat is bool)
+        && (!('avisos' in request.resource.data) || request.resource.data.avisos is bool)
+        && (!('horario' in request.resource.data) || request.resource.data.horario is bool)
+        && (!('reservas' in request.resource.data) || request.resource.data.reservas is bool)
+        && (!('sugerencias' in request.resource.data) || request.resource.data.sugerencias is bool)
+        && (!('casos' in request.resource.data) || request.resource.data.casos is bool)
+        && (!('evasion' in request.resource.data) || request.resource.data.evasion is bool));
       allow delete: if !esSuplantacion() && (false);
     }
 

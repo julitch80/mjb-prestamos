@@ -1,0 +1,17 @@
+{
+  "name": "notificaciones-functions",
+  "scripts": {
+    "build": "tsc",
+    "deploy": "firebase deploy --only functions:notificaciones"
+  },
+  "engines": { "node": "22" },
+  "main": "lib/functions-notificaciones/src/index.js",
+  "dependencies": {
+    "firebase-admin": "^13.0.2",
+    "firebase-functions": "^6.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  },
+  "private": true
+}
