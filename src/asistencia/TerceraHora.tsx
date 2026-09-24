@@ -22,6 +22,7 @@ import {
 } from './domain/permanencia';
 import type { CensoDia, ContactResult, FamilyContact, Jornada } from './domain/types';
 import TelefonoAcudiente from './TelefonoAcudiente';
+import { ETIQUETA_JORNADA } from './domain/filtro-jornada';
 import { mensajeInasistencia } from './domain/sms';
 import { ModalRegistrarLlamada, type LlamadaRegistrada } from './RegistrarLlamada';
 
@@ -62,10 +63,21 @@ function haceDias(n: number): string {
  *
  * El reporte se CALCULA, no se guarda. Lo unico que se persiste son las llamadas.
  */
-export default function TerceraHora({ sede }: { sede: string }) {
+export default function TerceraHora({
+  sede,
+  jornadaLimitada = null,
+}: {
+  sede: string;
+  /**
+   * Coordinador de central acotado a una jornada. No es solo comodidad: las reglas solo
+   * le dejan leer las sesiones de la suya, asi que si escogiera la otra, la consulta se
+   * rechazaria entera y el reporte fallaria.
+   */
+  jornadaLimitada?: Jornada | null;
+}) {
   const [fecha, setFecha] = useState(toDateKey(new Date()));
   const [jornada, setJornada] = useState<Jornada>(
-    new Date().getHours() < 12 ? 'manana' : 'tarde',
+    jornadaLimitada ?? (new Date().getHours() < 12 ? 'manana' : 'tarde'),
   );
   const [gradosEsperados, setGradosEsperados] = useState('');
   const [reporte, setReporte] = useState<ReporteTerceraHora | null>(null);
@@ -232,17 +244,23 @@ export default function TerceraHora({ sede }: { sede: string }) {
             className="mt-0.5 block rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong"
           />
         </label>
-        <label className="text-xs text-muted">
-          Jornada
-          <select
-            value={jornada}
-            onChange={(e) => setJornada(e.target.value as Jornada)}
-            className="mt-0.5 block rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong"
-          >
-            <option value="manana">Mañana (bloque 3: 08:10–09:05)</option>
-            <option value="tarde">Tarde (bloque 3: 14:25–15:20)</option>
-          </select>
-        </label>
+        {jornadaLimitada ? (
+          <span className="self-end rounded-full bg-elevated px-2 py-1 text-xs text-soft">
+            {ETIQUETA_JORNADA[jornadaLimitada]}
+          </span>
+        ) : (
+          <label className="text-xs text-muted">
+            Jornada
+            <select
+              value={jornada}
+              onChange={(e) => setJornada(e.target.value as Jornada)}
+              className="mt-0.5 block rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong"
+            >
+              <option value="manana">Mañana (bloque 3: 08:10–09:05)</option>
+              <option value="tarde">Tarde (bloque 3: 14:25–15:20)</option>
+            </select>
+          </label>
+        )}
         <label className="grow text-xs text-muted">
           Grados esperados (separados por coma, para detectar los que no reportaron)
           <input

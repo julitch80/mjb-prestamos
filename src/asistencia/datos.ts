@@ -170,6 +170,41 @@ export async function leerSesiones(
   return aLista<Session>(snap);
 }
 
+/**
+ * Sesiones de UNA jornada en varios dias, con una consulta por dia (2026-09-23).
+ *
+ * Existe para el coordinador limitado a una jornada (`autoridadSede.soloJornada`). La regla
+ * solo le deja leer las sesiones de la suya, asi que su consulta DEBE filtrar por
+ * `jornada`; sin ese filtro Firestore la rechaza entera. Pero sede + jornada + un RANGO de
+ * fechas pide un indice compuesto que no esta declarado, y los indices son de MJB (un
+ * despliegue de indices reemplaza la lista entera). Con puras IGUALDADES
+ * (sede, fecha, jornada) no hace falta indice compuesto: es la misma forma de consulta que
+ * ya usa la tercera hora en produccion, sin el bloque.
+ *
+ * Son pocos dias (el umbral de dias sin asistir mas un margen), asi que unas cuantas
+ * consultas pequenas en paralelo cuestan menos que un indice nuevo.
+ */
+export async function leerSesionesDeJornadaPorDias(
+  sede: string,
+  jornada: 'manana' | 'tarde',
+  fechas: string[],
+): Promise<Session[]> {
+  if (!(await listo())) return [];
+  const porDia = await Promise.all(
+    fechas.map((fecha) =>
+      getDocs(
+        query(
+          collection(baseDatos(), 'asistenciaSessions'),
+          where('sede', '==', sede),
+          where('fecha', '==', fecha),
+          where('jornada', '==', jornada),
+        ),
+      ),
+    ),
+  );
+  return porDia.flatMap((snap) => aLista<Session>(snap));
+}
+
 /** Estudiantes con matrícula vigente en un grado. */
 export async function leerGrupo(
   grado: string,

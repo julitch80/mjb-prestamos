@@ -47,7 +47,9 @@ import {
   type PermanenciaConfig,
 } from './domain/permanencia';
 import { alertaDeSeguimiento, type SeguimientoCaso } from './domain/seguimiento-caso';
-import type { FamilyContact, Sede, Student } from './domain/types';
+import { filtroEfectivo, filtroInicial, gradoEnJornada, type FiltroJornada } from './domain/filtro-jornada';
+import type { FamilyContact, Jornada, Sede, Student } from './domain/types';
+import SelectorJornada from './SelectorJornada';
 
 /** Cuántos días de calendario se piden para cubrir la ventana de días con censo. Holgado a
  *  propósito: un puente festivo o una semana de receso no deben dejar la ventana corta. */
@@ -70,12 +72,21 @@ export default function CasosPermanencia({
   sede,
   rol,
   onAbrirFicha,
+  jornadaLimitada = null,
 }: {
   sede: Sede;
   rol: string | null;
   onAbrirFicha: (studentId: string) => void;
+  /**
+   * Coordinador de central acotado a una jornada. Solo cambia lo que VE: el calculo y la
+   * apertura automatica de casos siguen siendo de toda la sede, para que un caso de la
+   * otra jornada no espere a que entre su coordinador (ver domain/filtro-jornada).
+   */
+  jornadaLimitada?: Jornada | null;
 }) {
   const esCoordinacion = rol === 'coordinador';
+  const [elegida, setElegida] = useState<FiltroJornada>(filtroInicial(jornadaLimitada));
+  const filtro = filtroEfectivo(jornadaLimitada, elegida);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -212,7 +223,7 @@ export default function CasosPermanencia({
   const abiertos = useMemo(() => {
     const hoy = toDateKey(new Date());
     return casos
-      .filter((c) => ESTADOS_ABIERTOS.includes(c.estado))
+      .filter((c) => ESTADOS_ABIERTOS.includes(c.estado) && gradoEnJornada(c.grado, filtro))
       .map((c) => ({
         caso: c,
         alerta: alertaDeSeguimiento({
@@ -228,15 +239,22 @@ export default function CasosPermanencia({
           Number(b.alerta.vencido) - Number(a.alerta.vencido) ||
           (a.caso.proximoSeguimiento ?? '9999').localeCompare(b.caso.proximoSeguimiento ?? '9999'),
       );
-  }, [casos, seguimientosDe, contactosDe, config]);
-  const cerrados = casos.filter((c) => !ESTADOS_ABIERTOS.includes(c.estado));
+  }, [casos, seguimientosDe, contactosDe, config, filtro]);
+  const cerrados = casos.filter((c) => !ESTADOS_ABIERTOS.includes(c.estado) && gradoEnJornada(c.grado, filtro));
   const vencidos = abiertos.filter((a) => a.alerta.vencido).length;
 
   if (cargando) return <p className="p-3 text-sm text-muted">Revisando el censo y las llamadas…</p>;
 
-  const cuenta = (n: NivelPermanencia) => evaluaciones.filter((e) => e.nivel === n).length;
-  const graves = evaluaciones.filter((e) => e.nivel === 'candidato' || e.nivel === 'alerta');
-  const seguimiento = evaluaciones.filter((e) => e.nivel === 'seguimiento');
+  // Sin ficha no se sabe la jornada: se muestra en vez de esconderlo. Esconder a un
+  // estudiante en riesgo por un dato faltante es peor que mostrarle uno de mas.
+  const visibles = evaluaciones.filter((ev) => {
+    const e = porId.get(ev.studentId);
+    return !e || gradoEnJornada(e.gradoActual, filtro);
+  });
+  const cuenta = (n: NivelPermanencia) => visibles.filter((e) => e.nivel === n).length;
+  const graves = visibles.filter((e) => e.nivel === 'candidato' || e.nivel === 'alerta');
+  const seguimiento = visibles.filter((e) => e.nivel === 'seguimiento');
+  const sinCensoVisibles = gruposSinCenso.filter((g) => gradoEnJornada(g, filtro));
 
   const detalle = (c: CasoPermanencia) => (
     <DetalleCaso
@@ -255,6 +273,10 @@ export default function CasosPermanencia({
     <div className="space-y-3">
       {aviso && <p className="rounded-lg border border-info-soft bg-info-soft p-2 text-sm text-info-soft-fg">{aviso}</p>}
       {error && <p className="rounded-lg border border-danger-soft bg-danger-soft p-2 text-sm text-danger-soft-fg">{error}</p>}
+
+      <div className="flex justify-end">
+        <SelectorJornada limitada={jornadaLimitada} valor={elegida} onCambio={setElegida} />
+      </div>
 
       {/* ================= 1. CASOS ABIERTOS ================= */}
       <div className="rounded-xl border border-line bg-card p-3">
@@ -361,9 +383,9 @@ export default function CasosPermanencia({
             ))}
           </div>
 
-          {gruposSinCenso.length > 0 && (
+          {sinCensoVisibles.length > 0 && (
             <p className="mt-3 rounded-lg border border-warning-soft bg-warning-soft p-2 text-xs text-warning-soft-fg">
-              <b>Sin datos:</b> {gruposSinCenso.join(', ')}. En estos grupos nadie pasó lista en tercera hora en la
+              <b>Sin datos:</b> {sinCensoVisibles.join(', ')}. En estos grupos nadie pasó lista en tercera hora en la
               ventana, así que el sistema no sabe quién faltó. <b>No significa que no haya faltado nadie.</b>
             </p>
           )}

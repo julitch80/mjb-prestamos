@@ -8,6 +8,7 @@ import {
   leerEstudiante,
   leerLlegadasTarde,
   leerSesiones,
+  leerSesionesDeJornadaPorDias,
   registrarLlegadaTarde,
   resolverLlegadaTarde,
 } from './datos';
@@ -25,7 +26,9 @@ import {
   pasoLlegadasTarde,
   type ColorAlerta,
 } from './domain/alertas';
-import type { AlertConfig, LateArrival, Student } from './domain/types';
+import { filtroEfectivo, filtroInicial, gradoEnJornada, type FiltroJornada } from './domain/filtro-jornada';
+import type { AlertConfig, Jornada, LateArrival, Student } from './domain/types';
+import SelectorJornada from './SelectorJornada';
 import { BLOQUES_MANANA, BLOQUES_TARDE } from '../data/maestros';
 
 /** Colores de la escala de reincidencia. Via `style`, no clase: son tres tonos fijos de
@@ -62,7 +65,20 @@ function estiloAlerta(color: ColorAlerta): React.CSSProperties {
  * marcarla injustificada —disparando una alerta que quiza no corresponde— o no
  * registrar el hecho.
  */
-export default function LlegadasTarde({ sede }: { sede: string }) {
+export default function LlegadasTarde({
+  sede,
+  jornadaLimitada = null,
+}: {
+  sede: string;
+  /**
+   * Coordinador de central acotado a una jornada. Ve solo las llegadas y alertas de la
+   * suya. Registrar, en cambio, puede a cualquier estudiante: en la porteria no se le
+   * puede cerrar la puerta a nadie por la jornada que tenga en la ficha.
+   */
+  jornadaLimitada?: Jornada | null;
+}) {
+  const [elegida, setElegida] = useState<FiltroJornada>(filtroInicial(jornadaLimitada));
+  const filtro = filtroEfectivo(jornadaLimitada, elegida);
   const [fecha, setFecha] = useState(toDateKey(new Date()));
   const [busqueda, setBusqueda] = useState('');
   const [candidatos, setCandidatos] = useState<Student[]>([]);
@@ -98,14 +114,26 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
   // asistir a NINGUNA clase. Ventana acotada (umbral + margen) para no traer todas las
   // sesiones de la sede desde siempre.
   const [alertasInasistencia, setAlertasInasistencia] = useState<
-    { studentId: string; nombre: string; dias: number }[]
+    { studentId: string; nombre: string; dias: number; grado: string | null }[]
   >([]);
   useEffect(() => {
     let vivo = true;
     void (async () => {
       try {
         const desde = addDays(fecha, -(config.diasSinAsistir + 4));
-        const sesiones = await leerSesiones({ tipo: 'coordinador', sede }, { desde, hasta: fecha });
+        // El coordinador limitado a una jornada NO puede pedir las sesiones de toda la sede:
+        // la regla se la rechaza entera. Antes se pedian igual, el `catch` de abajo se
+        // tragaba el rechazo, y a esa coordinadora esta alerta le salia SIEMPRE vacia sin
+        // que nadie lo notara. Ver `leerSesionesDeJornadaPorDias` para el porque de una
+        // consulta por dia.
+        let sesiones;
+        if (jornadaLimitada) {
+          const fechas: string[] = [];
+          for (let d = desde; d <= fecha; d = addDays(d, 1)) fechas.push(d);
+          sesiones = await leerSesionesDeJornadaPorDias(sede, jornadaLimitada, fechas);
+        } else {
+          sesiones = await leerSesiones({ tipo: 'coordinador', sede }, { desde, hasta: fecha });
+        }
         const idsVistos = new Set<string>();
         for (const s of sesiones) for (const id of Object.keys(s.estudiantes ?? {})) idsVistos.add(id);
         const candidatas = [...idsVistos]
@@ -123,6 +151,7 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
             studentId: a.studentId,
             dias: a.dias,
             nombre: fichas[i] ? nombreCompleto(fichas[i]!) : a.studentId,
+            grado: fichas[i]?.gradoActual ?? null,
           })),
         );
       } catch {
@@ -134,7 +163,7 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
     return () => {
       vivo = false;
     };
-  }, [sede, fecha, config.diasSinAsistir]);
+  }, [sede, fecha, config.diasSinAsistir, jornadaLimitada]);
 
   const cargar = useCallback(async () => {
     try {
@@ -270,7 +299,10 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
         ? 'bg-warning-soft text-warning-soft-fg'
         : 'bg-danger-soft text-danger-soft-fg';
 
-  const pendientes = registros.filter((r) => r.estado === 'pendiente_verificacion').length;
+  // Se filtra al MOSTRAR (ver domain/filtro-jornada). Sin grado conocido, se muestra.
+  const registrosVisibles = registros.filter((r) => gradoEnJornada(r.grado, filtro));
+  const alertasVisibles = alertasInasistencia.filter((a) => !a.grado || gradoEnJornada(a.grado, filtro));
+  const pendientes = registrosVisibles.filter((r) => r.estado === 'pendiente_verificacion').length;
 
   return (
     <div className="space-y-3">
@@ -290,10 +322,10 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
         </button>
       </div>
 
-      {alertasInasistencia.length > 0 && (
+      {alertasVisibles.length > 0 && (
         <section className="rounded-xl border border-danger-soft bg-danger-soft p-3">
           <h3 className="text-sm font-semibold text-danger-soft-fg">
-            {alertasInasistencia.length} estudiante(s) sin asistir {config.diasSinAsistir}{' '}
+            {alertasVisibles.length} estudiante(s) sin asistir {config.diasSinAsistir}{' '}
             días seguidos o más
           </h3>
           <p className="text-xs text-danger-soft-fg">
@@ -301,7 +333,7 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
             hay ausencia proyectada.
           </p>
           <ul className="mt-2 space-y-1">
-            {alertasInasistencia.map((a) => (
+            {alertasVisibles.map((a) => (
               <li
                 key={a.studentId}
                 className="flex items-center justify-between rounded-lg border border-line bg-card p-2 text-sm"
@@ -327,6 +359,7 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
               className="mt-0.5 block rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong"
             />
           </label>
+          <SelectorJornada limitada={jornadaLimitada} valor={elegida} onCambio={setElegida} />
           <label className="grow text-xs text-muted">
             Buscar estudiante
             <input
@@ -414,7 +447,7 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
 
       <section className="rounded-xl border border-line bg-card p-3">
         <h3 className="text-sm font-semibold text-strong">
-          Registradas el {fecha} <span className="text-muted">({registros.length})</span>
+          Registradas el {fecha} <span className="text-muted">({registrosVisibles.length})</span>
         </h3>
         {pendientes > 0 && (
           <p className="text-xs text-warning-soft-fg">
@@ -423,11 +456,11 @@ export default function LlegadasTarde({ sede }: { sede: string }) {
           </p>
         )}
 
-        {registros.length === 0 ? (
+        {registrosVisibles.length === 0 ? (
           <p className="mt-2 text-sm text-muted">Ninguna todavía.</p>
         ) : (
           <ul className="mt-2 space-y-1">
-            {registros.map((r) => (
+            {registrosVisibles.map((r) => (
               <li
                 key={r.lateArrivalId}
                 className="flex flex-wrap items-center gap-2 rounded-lg border border-line p-2 text-sm"

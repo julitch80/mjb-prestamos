@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { leerEvasionesDelDia, resolverEvasion } from './datos';
 import { toDateKey } from './domain/ids';
 import { BLOQUE_CENTRO } from './domain/evasion';
-import type { AvisoEvasion, Sede } from './domain/types';
+import { coincideJornada, filtroEfectivo, filtroInicial, type FiltroJornada } from './domain/filtro-jornada';
+import type { AvisoEvasion, Jornada, Sede } from './domain/types';
+import SelectorJornada from './SelectorJornada';
 
 /**
  * Bandeja de evasiones del coordinador (Julian, 2026-09-09).
@@ -19,8 +21,17 @@ import type { AvisoEvasion, Sede } from './domain/types';
  * localizar a un menor que no esta donde deberia; por eso lo primero que se lee es el
  * nombre y de donde falto, y por eso los avisos abiertos van arriba y en color.
  */
-export default function Evasiones({ sede }: { sede: Sede }) {
+export default function Evasiones({
+  sede,
+  jornadaLimitada = null,
+}: {
+  sede: Sede;
+  /** Coordinador de central acotado a una jornada: solo ve los avisos de la suya. */
+  jornadaLimitada?: Jornada | null;
+}) {
   const [fecha, setFecha] = useState(toDateKey(new Date()));
+  const [elegida, setElegida] = useState<FiltroJornada>(filtroInicial(jornadaLimitada));
+  const filtro = filtroEfectivo(jornadaLimitada, elegida);
   const [avisos, setAvisos] = useState<AvisoEvasion[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,12 +59,14 @@ export default function Evasiones({ sede }: { sede: Sede }) {
   }, [sede, fecha]);
 
   // Abiertos arriba: es lo unico accionable, y el resto es historial del dia.
-  const ordenados = [...avisos].sort(
+  // Se filtra al MOSTRAR: la lectura sigue siendo de la sede (ver domain/filtro-jornada).
+  const deLaJornada = avisos.filter((a) => coincideJornada(a.jornada, filtro));
+  const ordenados = [...deLaJornada].sort(
     (a, b) =>
       Number(b.estado === 'abierto') - Number(a.estado === 'abierto') ||
       a.grado.localeCompare(b.grado),
   );
-  const abiertos = avisos.filter((a) => a.estado === 'abierto').length;
+  const abiertos = deLaJornada.filter((a) => a.estado === 'abierto').length;
 
   async function cerrar(estado: 'confirmada' | 'descartada') {
     if (!resolviendo) return;
@@ -74,6 +87,7 @@ export default function Evasiones({ sede }: { sede: Sede }) {
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-base font-semibold text-strong">Evasiones reportadas</h2>
         <span className="grow" />
+        <SelectorJornada limitada={jornadaLimitada} valor={elegida} onCambio={setElegida} />
         <label className="text-xs text-muted">
           Día{' '}
           <input
@@ -101,7 +115,9 @@ export default function Evasiones({ sede }: { sede: Sede }) {
         <p className="p-3 text-sm text-muted">Cargando…</p>
       ) : ordenados.length === 0 ? (
         <p className="rounded-xl border border-line bg-card p-3 text-sm text-muted">
-          Ningún docente reportó evasiones este día.
+          {filtro === 'ambas'
+            ? 'Ningún docente reportó evasiones este día.'
+            : 'Ningún docente reportó evasiones de esta jornada este día.'}
         </p>
       ) : (
         <>

@@ -825,7 +825,7 @@ export default function Asistencia() {
     return (
       <div className="space-y-3">
         <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
-        <TerceraHora sede={sede} />
+        <TerceraHora sede={sede} jornadaLimitada={alcanceUsuario.jornadaLimitada} />
       </div>
     );
   }
@@ -837,7 +837,7 @@ export default function Asistencia() {
     return (
       <div className="space-y-3">
         <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
-        <Evasiones sede={sede as Sede} />
+        <Evasiones sede={sede as Sede} jornadaLimitada={alcanceUsuario.jornadaLimitada} />
       </div>
     );
   }
@@ -851,7 +851,12 @@ export default function Asistencia() {
     return (
       <div className="space-y-3">
         <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
-        <CasosPermanencia sede={sede as Sede} rol={rol} onAbrirFicha={setFichaAbierta} />
+        <CasosPermanencia
+          sede={sede as Sede}
+          rol={rol}
+          onAbrirFicha={setFichaAbierta}
+          jornadaLimitada={alcanceUsuario.jornadaLimitada}
+        />
         <details className="rounded-xl border border-line bg-card p-3">
           <summary className="cursor-pointer text-sm font-semibold text-strong">
             Criterios, catálogo de motivos y contactabilidad
@@ -869,7 +874,7 @@ export default function Asistencia() {
     return (
       <div className="space-y-3">
         <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
-        <LlegadasTarde sede={sede} />
+        <LlegadasTarde sede={sede} jornadaLimitada={alcanceUsuario.jornadaLimitada} />
       </div>
     );
   }
