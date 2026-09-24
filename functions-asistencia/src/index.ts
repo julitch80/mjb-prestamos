@@ -809,13 +809,13 @@ export const onSesionBloque3 = onDocumentWritten(
  * Coordinador de la sede, y en central de esa jornada si esta acotado (la misma logica
  * que `asisCoordinaJornada` en las reglas). El superusuario NO: sus acciones no son
  * atribuibles a una persona, y avisar a una familia es una actuacion con autor.
+ *
+ * Recibe el correo YA validado por `requireRole`, que cada funcion llama en su primera
+ * linea: la sesion se verifica antes de mirar los datos, para que a quien no tiene
+ * cuenta no se le conteste nada sobre ellos («Datos incompletos», «Ese aviso no
+ * existe»). Los identificadores no se pueden adivinar, pero no hay por que dar pistas.
  */
-async function requireCoordinadorDeJornada(
-  auth: { token?: { email?: string } } | undefined,
-  sede: string,
-  jornada: string,
-): Promise<string> {
-  const email = await requireRole(auth, ['coordinador']);
+async function exigirCoordinaJornada(email: string, sede: string, jornada: string): Promise<void> {
   const autoridad = (await db.doc('asistenciaConfig/autoridadSede').get()).data() ?? {};
   const correos = ((autoridad.mapa ?? {}) as Record<string, string[]>)[sede] ?? [];
   if (!correos.includes(email)) throw new HttpsError('permission-denied', 'No coordina esa sede.');
@@ -823,7 +823,6 @@ async function requireCoordinadorDeJornada(
   const soloOtra =
     ((autoridad.soloJornada ?? {}) as Record<string, Record<string, string[]>>)[sede]?.[otra] ?? [];
   if (soloOtra.includes(email)) throw new HttpsError('permission-denied', 'No coordina esa jornada.');
-  return email;
 }
 
 async function urlBaseDeAvisos(): Promise<string> {
@@ -912,6 +911,7 @@ function textoDeAviso(clave: Buffer, aviso: AvisoInasistencia): string {
 export const crearAvisosInasistencia = onCall(
   { region: REGION, cors: true, invoker: 'public', secrets: [DOC_HASH_KEY] },
   async (request) => {
+    const email = await requireRole(request.auth, ['coordinador']);
     const d = (request.data ?? {}) as {
       sede?: unknown;
       fecha?: unknown;
@@ -931,7 +931,7 @@ export const crearAvisosInasistencia = onCall(
       throw new HttpsError('invalid-argument', 'Lista de estudiantes vacía o demasiado larga.');
     }
 
-    const email = await requireCoordinadorDeJornada(request.auth, sede, jornada);
+    await exigirCoordinaJornada(email, sede, jornada);
     const clave = claveDeAvisos(DOC_HASH_KEY.value());
     const urlBase = await urlBaseDeAvisos();
     const resultados: ResultadoCreacion[] = [];
@@ -1050,6 +1050,7 @@ export const crearAvisosInasistencia = onCall(
  * es la constancia declarada, con autor y hora del servidor.
  */
 export const marcarEnvioAviso = onCall({ region: REGION, cors: true, invoker: 'public' }, async (request) => {
+  const email = await requireRole(request.auth, ['coordinador']);
   const d = (request.data ?? {}) as { avisoId?: unknown; evento?: unknown };
   const evento = d.evento === 'enviado' || d.evento === 'no_salio' ? d.evento : null;
   if (typeof d.avisoId !== 'string' || !evento) throw new HttpsError('invalid-argument', 'Datos incompletos.');
@@ -1057,7 +1058,7 @@ export const marcarEnvioAviso = onCall({ region: REGION, cors: true, invoker: 'p
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Ese aviso no existe.');
   const aviso = snap.data() as AvisoInasistencia;
-  const email = await requireCoordinadorDeJornada(request.auth, aviso.sede, aviso.jornada);
+  await exigirCoordinaJornada(email, aviso.sede, aviso.jornada);
   const ahora = Date.now();
 
   await db.runTransaction(async (tx) => {
