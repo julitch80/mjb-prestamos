@@ -30,13 +30,14 @@ export interface LlamadaRegistrada {
  * «reconocer».
  */
 
-/** Etiquetas en español de `ContactReason` (domain/types.ts). No se inventan motivos
- *  nuevos aquí: son exactamente los que acepta el servidor. */
+/** Etiquetas en español de `ContactReason` (domain/types.ts). La regla de creación no
+ *  restringe el motivo (sí el resultado), así que agregar uno no exige desplegar reglas. */
 export const ETIQUETAS_MOTIVO: Record<ContactReason, string> = {
   inasistencia_dia: 'No vino hoy',
   umbral_ausencias: 'Acumulado de ausencias',
   umbral_retrasos: 'Acumulado de retrasos',
   umbral_llegadas_tarde: 'Acumulado de llegadas tarde',
+  llegada_tarde: 'Llegada tarde de hoy',
   faltas_consecutivas: 'Faltas consecutivas',
 };
 

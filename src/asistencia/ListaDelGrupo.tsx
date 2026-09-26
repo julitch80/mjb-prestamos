@@ -5,6 +5,7 @@ import EscribirAlGrupo from './EscribirAlGrupo';
 import { ModalNuevoEstudiante, type NuevoEstudianteInput } from './Planilla';
 import { buscarEstudiantes, crearEstudianteManual, leerGrupo } from './datos';
 import { nombresDePila } from './domain/nombres';
+import { gradoEnJornada, type FiltroJornada } from './domain/filtro-jornada';
 import type { Student } from './domain/types';
 import { colorGrado } from '../data/maestros';
 
@@ -145,10 +146,13 @@ export default function ListaDelGrupo({
 export function BuscarEstudiante({
   sede,
   incluirRetirados,
+  filtro = 'ambas',
   onAbrirFicha,
 }: {
   sede: string;
   incluirRetirados: boolean;
+  /** Jornada elegida en Planillas: el buscador solo trae estudiantes de ella. */
+  filtro?: FiltroJornada;
   onAbrirFicha: (studentId: string) => void;
 }) {
   const [texto, setTexto] = useState('');
@@ -163,7 +167,7 @@ export function BuscarEstudiante({
     let vigente = true;
     setBuscando(true);
     const t = setTimeout(() => {
-      void buscarEstudiantes(sede, texto, incluirRetirados)
+      void buscarEstudiantes(sede, texto, incluirRetirados, (g) => gradoEnJornada(g, filtro))
         .then((r) => vigente && setResultados(r))
         .catch(() => vigente && setResultados([]))
         .finally(() => vigente && setBuscando(false));
@@ -172,7 +176,7 @@ export function BuscarEstudiante({
       vigente = false;
       clearTimeout(t);
     };
-  }, [texto, sede, incluirRetirados]);
+  }, [texto, sede, incluirRetirados, filtro]);
 
   return (
     <div className="rounded-xl border border-line bg-card p-3">

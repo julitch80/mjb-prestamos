@@ -420,6 +420,11 @@ export async function buscarEstudiantes(
   sede: string,
   texto: string,
   incluirInactivos = false,
+  /**
+   * Filtro opcional por grado (p. ej. la jornada elegida en Planillas). Va ANTES del
+   * recorte a 12: filtrar despues dejaria la lista corta, llena de la otra jornada.
+   */
+  gradoAdmitido: (grado: string) => boolean = () => true,
 ): Promise<Student[]> {
   if (!(await listo()) || texto.trim().length < 2) return [];
   // Firestore no hace búsqueda por subcadena. A escala de una sede (unos cientos de
@@ -436,6 +441,7 @@ export async function buscarEstudiantes(
     .toUpperCase();
   return todos
     .filter((e) => e.activo || incluirInactivos)
+    .filter((e) => gradoAdmitido(e.gradoActual))
     .filter((e) =>
       `${e.apellidos} ${e.nombres}`
         .normalize('NFD')
@@ -526,6 +532,10 @@ export async function registrarContacto(input: {
    */
   medio?: 'llamada' | 'mensaje';
   avisoId?: string | null;
+  /** Aviso por mensaje de una llegada tarde (motivo `llegada_tarde`). */
+  lateArrivalId?: string | null;
+  /** Aviso de tope de llegadas tarde: el color alcanzado. */
+  tope?: 'amarillo' | 'naranja' | 'rojo' | null;
 }): Promise<void> {
   const autor = await exigirAutor();
   const ref = doc(collection(baseDatos(), 'asistenciaFamilyContacts'));
@@ -539,6 +549,8 @@ export async function registrarContacto(input: {
     compromiso: input.compromiso?.trim() || null,
     medio: input.medio ?? 'llamada',
     avisoId: input.avisoId ?? null,
+    lateArrivalId: input.lateArrivalId ?? null,
+    tope: input.tope ?? null,
     llamadoPor: autor,
     llamadoEn: serverTimestamp(),
   });
@@ -3049,6 +3061,40 @@ export async function leerContactosDeSede(sede: string): Promise<FamilyContact[]
  * `grado` porque es lo que lee la regla del director (`asisIsDirectorOf(grado)`): sin ese
  * filtro la consulta no se puede probar y se rechaza entera.
  */
+/**
+ * Los avisos por mensaje de las llegadas tarde de UN dia (motivo `llegada_tarde`). Tres
+ * igualdades: no necesitan indice compuesto, y la sede es lo que la regla comprueba. Por
+ * dia y no por año: son 30-40 diarios y leer el año entero en cada carga seria pesado.
+ */
+export async function leerAvisosDeLlegadasDelDia(sede: string, fecha: string): Promise<FamilyContact[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(
+      collection(baseDatos(), 'asistenciaFamilyContacts'),
+      where('sede', '==', sede),
+      where('motivoContacto', '==', 'llegada_tarde'),
+      where('fecha', '==', fecha),
+    ),
+  );
+  return aLista<FamilyContact>(snap);
+}
+
+/**
+ * Los avisos de TOPE de llegadas tarde de la sede en un lapso. Son pocos (uno por
+ * estudiante y color), asi que se piden por sede y motivo y el lapso se filtra en memoria.
+ */
+export async function leerAvisosDeTope(sede: string, desde: string, hasta: string): Promise<FamilyContact[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(
+      collection(baseDatos(), 'asistenciaFamilyContacts'),
+      where('sede', '==', sede),
+      where('motivoContacto', '==', 'umbral_llegadas_tarde'),
+    ),
+  );
+  return aLista<FamilyContact>(snap).filter((c) => c.fecha >= desde && c.fecha <= hasta);
+}
+
 export async function leerContactosDeEstudiante(grado: string, studentId: string): Promise<FamilyContact[]> {
   if (!(await listo())) return [];
   const snap = await getDocs(

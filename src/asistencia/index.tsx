@@ -54,6 +54,8 @@ import LlegadasTarde from './LlegadasTarde';
 import Eventos from './Eventos';
 import MisGrupos from './MisGrupos';
 import ListaDelGrupo, { BuscarEstudiante } from './ListaDelGrupo';
+import SelectorJornada from './SelectorJornada';
+import { filtroEfectivo, gradoEnJornada, type FiltroJornada } from './domain/filtro-jornada';
 import AvisoEvasion from './AvisoEvasion';
 import Evasiones from './Evasiones';
 
@@ -225,6 +227,14 @@ export default function Asistencia() {
   const cambiarVista = setVista;
   /** Grupo que llega abierto a Planillas desde el tablero de tercera hora. */
   const [grupoPlanillas, setGrupoPlanillas] = useState<string | null>(null);
+  /**
+   * Jornada que se mira en Planillas (coordinacion y consulta). Julián, 2026-09-25: el
+   * buscador traia estudiantes de la otra jornada. Filtra el buscador y los grupos. Un
+   * coordinador acotado a una jornada no la escoge: queda fija en la suya.
+   */
+  const [jornadaPlanillasElegida, setJornadaPlanillas] = useState<FiltroJornada>('ambas');
+  // Se calcula despues de `alcanceUsuario`, que llega tarde: por eso no es el estado inicial.
+  const jornadaPlanillas = filtroEfectivo(alcanceUsuario.jornadaLimitada, jornadaPlanillasElegida);
   /** Lista de un grupo sin asignatura (coordinacion y consulta), ver ListaDelGrupo.tsx. */
   const [listaGrupo, setListaGrupo] = useState<string | null>(null);
   useNivelAtras(listaGrupo !== null, () => setListaGrupo(null));
@@ -1046,16 +1056,31 @@ export default function Asistencia() {
       ) : !cruce ? (
         <>
         {perfilPlanillas !== 'docente' && (
-          <BuscarEstudiante
-            sede={sede}
-            // Coordinacion ve tambien a los retirados: reintegrar empieza por encontrar.
-            incluirRetirados={rol === 'coordinador'}
-            onAbrirFicha={setFichaAbierta}
-          />
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted">Mostrando:</span>
+              <SelectorJornada
+                limitada={alcanceUsuario.jornadaLimitada}
+                valor={jornadaPlanillas}
+                onCambio={setJornadaPlanillas}
+              />
+            </div>
+            <BuscarEstudiante
+              sede={sede}
+              // Coordinacion ve tambien a los retirados: reintegrar empieza por encontrar.
+              incluirRetirados={rol === 'coordinador'}
+              filtro={jornadaPlanillas}
+              onAbrirFicha={setFichaAbierta}
+            />
+          </div>
         )}
         <MisGrupos
           slotId={slotId}
-          extras={cruces}
+          extras={
+            perfilPlanillas === 'docente'
+              ? cruces
+              : cruces.filter((c) => gradoEnJornada(c.grado, jornadaPlanillas))
+          }
           // Todos los grados que le TOCAN, no solo los que ya tienen planilla. Sin esto,
           // un cargo de apoyo solo ve los grupos donde alguien ya paso lista — y los que
           // NO aparecen son precisamente los que tiene que ir a buscar.
@@ -1072,11 +1097,7 @@ export default function Asistencia() {
           // sede COMPLETA sin filtrar. Sin este recorte, al coordinador de la manana le
           // saldrian los diez grupos de la tarde como "sin asistencia registrada" — trece
           // grupos que no son asunto suyo, presentados como si tuviera que perseguirlos.
-          todosLosGrados={Object.keys(directores).filter(
-            (g) =>
-              !alcanceUsuario.jornadaLimitada ||
-              jornadaDeGrado(g) === alcanceUsuario.jornadaLimitada,
-          )}
+          todosLosGrados={Object.keys(directores).filter((g) => gradoEnJornada(g, jornadaPlanillas))}
           perfil={perfilPlanillas}
           onListaDelGrupo={perfilPlanillas !== 'docente' ? setListaGrupo : undefined}
           onElegir={(grado, subjectId) => {

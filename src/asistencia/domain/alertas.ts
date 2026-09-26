@@ -148,10 +148,29 @@ export interface CuentaLlegadas {
 
 export const CUENTA_VACIA: CuentaLlegadas = { llegadas: 0, segundoNivel: 0, puntos: 0 };
 
-/** Cuenta por estudiante de las llegadas que alertan (sin justificar), con su peso. */
-export function cuentaLlegadasPorEstudiante(llegadas: LateArrival[]): Record<string, CuentaLlegadas> {
+/**
+ * Cuenta por estudiante de las llegadas que alertan, con su peso.
+ *
+ * Sin opciones: las sin justificar, todas las que lleguen (asi la usa quien ya trae un
+ * año). Con opciones (2026-09-25): solo las del lapso `desde..hasta`, y las pendientes de
+ * verificacion cuentan tambien si llevan `diasVencePendiente` dias sin resolverse.
+ */
+export function cuentaLlegadasPorEstudiante(
+  llegadas: LateArrival[],
+  opciones?: { hoy: string; diasVencePendiente: number; desde: string; hasta: string },
+): Record<string, CuentaLlegadas> {
   const r: Record<string, CuentaLlegadas> = {};
-  for (const l of llegadasQueAlertan(llegadas)) {
+  const queCuentan = opciones
+    ? llegadas.filter(
+        (l) =>
+          l.fecha >= opciones.desde &&
+          l.fecha <= opciones.hasta &&
+          (l.estado === 'sin_justificar' ||
+            (l.estado === 'pendiente_verificacion' &&
+              diasCorridos(l.fecha, opciones.hoy) >= opciones.diasVencePendiente)),
+      )
+    : llegadasQueAlertan(llegadas);
+  for (const l of queCuentan) {
     const c = r[l.studentId] ?? { ...CUENTA_VACIA };
     const segundo = nivelDeLlegada(l) === 2;
     c.llegadas += 1;
@@ -160,6 +179,10 @@ export function cuentaLlegadasPorEstudiante(llegadas: LateArrival[]): Record<str
     r[l.studentId] = c;
   }
   return r;
+}
+
+function diasCorridos(desde: string, hasta: string): number {
+  return Math.round((Date.parse(`${hasta}T12:00:00`) - Date.parse(`${desde}T12:00:00`)) / 86_400_000);
 }
 
 /** «4 llegadas tarde sin justificar (1 de 2º nivel, cuenta doble)». */

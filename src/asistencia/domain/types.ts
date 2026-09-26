@@ -229,6 +229,8 @@ export type ContactReason =
   | 'umbral_ausencias'
   | 'umbral_retrasos'
   | 'umbral_llegadas_tarde'
+  /** Aviso por mensaje de cada llegada tarde (2026-09-25). */
+  | 'llegada_tarde'
   | 'faltas_consecutivas';
 
 /**
@@ -285,6 +287,10 @@ export interface FamilyContact {
    * coordinacion a su nombre; `avisoId` dice de cual, para no registrarla dos veces.
    */
   medio?: 'llamada' | 'mensaje';
+  /** Aviso de una llegada tarde concreta: cual (motivo `llegada_tarde`). */
+  lateArrivalId?: string | null;
+  /** Aviso de tope: el color alcanzado (motivo `umbral_llegadas_tarde`), para no repetirlo. */
+  tope?: 'amarillo' | 'naranja' | 'rojo' | null;
   avisoId?: string | null;
   llamadoPor: string;
   llamadoEn: number;
@@ -313,6 +319,15 @@ export interface AlertConfig {
    * configuracion guardada antes del 2026-09-25: se usa el valor por defecto.
    */
   toleranciaMinutos?: number;
+  /**
+   * Sobre que lapso se cuentan los topes de llegadas tarde: periodo, semestre o año
+   * (lo escoge coordinacion, 2026-09-25). Ausente = año, como antes.
+   */
+  ventanaLlegadas?: 'periodo' | 'semestre' | 'anio';
+  /** Inicio del periodo 2 en adelante (AAAA-MM-DD). Ver `ventanaDe`. */
+  iniciosPeriodo?: string[];
+  /** Dias tras los cuales una «pendiente de verificación» cuenta como sin justificar (8). */
+  diasVencePendiente?: number;
   /** Dias consecutivos sin asistir a la institucion (ninguna sesion, ningun bloque) que
    *  alertan al coordinador para verificar con la familia. */
   diasSinAsistir: number;

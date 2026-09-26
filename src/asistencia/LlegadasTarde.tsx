@@ -1,14 +1,24 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   buscarEstudiantes,
   buscarPorQrToken,
   ConflictoError,
   guardarConfigAlertas,
+  leerAvisosDeLlegadasDelDia,
   leerConfigAlertas,
   leerLlegadasTarde,
+  registrarContacto,
   registrarLlegadaTarde,
   resolverLlegadaTarde,
 } from './datos';
+import SeguimientoLlegadas, { BotonAvisoSms, useFichas } from './SeguimientoLlegadas';
+import {
+  ajustesDeSeguimiento,
+  ETIQUETA_VENTANA,
+  mensajeLlegadaTarde,
+  ventanaDe,
+  type VentanaLlegadas,
+} from './domain/llegadas-seguimiento';
 import EscanerQr from './EscanerQr';
 import VerificacionFoto from './VerificacionFoto';
 import { jornadaDeGrado, toDateKey } from './domain/ids';
@@ -28,7 +38,7 @@ import {
   type CuentaLlegadas,
 } from './domain/alertas';
 import { filtroEfectivo, filtroInicial, gradoEnJornada, type FiltroJornada } from './domain/filtro-jornada';
-import type { AlertConfig, Jornada, LateArrival, Student } from './domain/types';
+import type { AlertConfig, FamilyContact, Jornada, LateArrival, Student } from './domain/types';
 import SelectorJornada from './SelectorJornada';
 import { BLOQUES_MANANA, BLOQUES_TARDE } from '../data/maestros';
 
@@ -106,12 +116,26 @@ export default function LlegadasTarde({
   // Se piden aparte de `registros` (que es solo del día) porque la reincidencia es un
   // patrón acumulado, no algo que se vea en la fila de un solo día.
   // Con peso: las de 2º nivel valen doble (ver `cuentaLlegadasPorEstudiante`).
-  const [conteoAnual, setConteoAnual] = useState<Record<string, CuentaLlegadas>>({});
+  // El lapso (periodo, semestre o año) y el plazo de las pendientes los escoge
+  // coordinacion en «Ajustar alertas» (Julián, 2026-09-25).
+  const [anuales, setAnuales] = useState<LateArrival[]>([]);
+  const hoy = toDateKey(new Date());
+  const seguimiento = ajustesDeSeguimiento(config);
+  const ventana = ventanaDe(fecha, seguimiento.ventana, seguimiento.iniciosPeriodo);
+  const conteoAnual = useMemo<Record<string, CuentaLlegadas>>(
+    () =>
+      cuentaLlegadasPorEstudiante(anuales, {
+        hoy,
+        diasVencePendiente: seguimiento.diasVencePendiente,
+        desde: ventana.desde,
+        hasta: ventana.hasta,
+      }),
+    [anuales, hoy, seguimiento.diasVencePendiente, ventana.desde, ventana.hasta],
+  );
   const cuentaDe = (studentId: string) => conteoAnual[studentId] ?? CUENTA_VACIA;
   const recontar = useCallback(async () => {
     const anio = fecha.slice(0, 4);
-    const lista = await leerLlegadasTarde({ sede, desde: `${anio}-01-01`, hasta: `${anio}-12-31` });
-    setConteoAnual(cuentaLlegadasPorEstudiante(lista));
+    setAnuales(await leerLlegadasTarde({ sede, desde: `${anio}-01-01`, hasta: `${anio}-12-31` }));
   }, [sede, fecha]);
   useEffect(() => {
     void recontar();
@@ -304,6 +328,7 @@ export default function LlegadasTarde({
       }
       setAResolver(null);
       await cargar();
+      await recontar();
     } catch (e) {
       setError(`No fue posible actualizar: ${(e as Error).message}`);
     }
@@ -339,6 +364,20 @@ export default function LlegadasTarde({
   // Se filtra al MOSTRAR (ver domain/filtro-jornada). Sin grado conocido, se muestra.
   const registrosVisibles = registros.filter((r) => gradoEnJornada(r.grado, filtro));
   const pendientes = registrosVisibles.filter((r) => r.estado === 'pendiente_verificacion').length;
+
+  // Para el aviso de cada llegada: la ficha (celular) y si ya se le aviso hoy.
+  const fichasDelDia = useFichas(registros.map((r) => r.studentId));
+  const [avisosDelDia, setAvisosDelDia] = useState<FamilyContact[]>([]);
+  const cargarAvisosDelDia = useCallback(async () => {
+    try {
+      setAvisosDelDia(await leerAvisosDeLlegadasDelDia(sede, fecha));
+    } catch {
+      setAvisosDelDia([]);
+    }
+  }, [sede, fecha]);
+  useEffect(() => {
+    void cargarAvisosDelDia();
+  }, [cargarAvisosDelDia]);
 
   return (
     <div className="space-y-3">
@@ -610,7 +649,7 @@ export default function LlegadasTarde({
                         style={estiloAlerta(paso.color)}
                         title={paso.mensaje}
                       >
-                        {cuenta.llegadas} en el año{cuenta.segundoNivel > 0 ? ` (${cuenta.segundoNivel} de 2º)` : ''}
+                        {cuenta.llegadas} {ventana.nombre}{cuenta.segundoNivel > 0 ? ` (${cuenta.segundoNivel} de 2º)` : ''}
                       </span>
                     )
                   );
@@ -618,6 +657,27 @@ export default function LlegadasTarde({
                 <span className={`rounded-full px-2 py-0.5 text-xs ${tono(r.estado)}`}>
                   {etiqueta(r.estado)}
                 </span>
+                <BotonAvisoSms
+                  estudiante={fichasDelDia[r.studentId]}
+                  texto={mensajeLlegadaTarde(nombres[r.studentId] ?? (fichasDelDia[r.studentId] ? nombreCompleto(fichasDelDia[r.studentId]) : ''), r.horaLlegada, nivelDeLlegada(r))}
+                  enviado={avisosDelDia.find((c) => c.lateArrivalId === r.lateArrivalId)}
+                  onEnviado={async (telefono) => {
+                    const ficha = fichasDelDia[r.studentId];
+                    await registrarContacto({
+                      studentId: r.studentId,
+                      grado: r.grado,
+                      sede,
+                      fecha: r.fecha,
+                      motivoContacto: 'llegada_tarde',
+                      telefonoUsado: telefono,
+                      resultado: 'pendiente',
+                      medio: 'mensaje',
+                      lateArrivalId: r.lateArrivalId,
+                      observacion: mensajeLlegadaTarde(ficha ? nombreCompleto(ficha) : '', r.horaLlegada, nivelDeLlegada(r)),
+                    });
+                    await cargarAvisosDelDia();
+                  }}
+                />
                 <button
                   onClick={() => setAResolver(r)}
                   className="rounded-lg border border-line px-2 py-1 text-xs text-strong"
@@ -637,12 +697,25 @@ export default function LlegadasTarde({
         )}
 
         <p className="mt-2 text-xs text-muted">
-          Solo las <b>no justificadas</b> cuentan para las alertas, y las de <b>2º nivel</b>{' '}
+          Solo las <b>no justificadas</b> cuentan para las alertas (y las pendientes que pasan{' '}
+          {seguimiento.diasVencePendiente} días sin resolverse); las de <b>2º nivel</b>{' '}
           (después de la primera hora) cuentan doble. El colegio tiene el
           deber de creer lo que informa la familia: coordinación verifica que esté al
           tanto, registra y firma.
         </p>
       </section>
+
+      <SeguimientoLlegadas
+        sede={sede}
+        hoy={hoy}
+        filtro={filtro}
+        anuales={anuales}
+        cuentas={conteoAnual}
+        ventana={ventana}
+        config={config}
+        estiloAlerta={estiloAlerta}
+        onJustificar={setAResolver}
+      />
 
       {aResolver && (
         <MenuExcusas
@@ -716,7 +789,7 @@ function ModalConfigAlertas({
       onClick={onCerrar}
     >
       <div
-        className="w-full max-w-md space-y-3 rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+        className="max-h-[90vh] w-full max-w-md space-y-3 overflow-auto rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
         onClick={(ev) => ev.stopPropagation()}
       >
         <p className="text-lg font-semibold text-strong">Ajustar alertas</p>
@@ -741,6 +814,50 @@ function ModalConfigAlertas({
           'Amarillo al llegar aquí, naranja la siguiente, rojo de dos más en adelante. Las de 2º nivel cuentan doble.',
           borrador.llegadasTardeUmbral,
           (n) => setBorrador({ ...borrador, llegadasTardeUmbral: n }),
+        )}
+        <label className="block text-sm">
+          <span className="font-medium text-strong">Los topes de llegadas tarde se cuentan</span>
+          <select
+            value={borrador.ventanaLlegadas ?? 'anio'}
+            onChange={(ev) => setBorrador({ ...borrador, ventanaLlegadas: ev.target.value as VentanaLlegadas })}
+            className="mt-0.5 block rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong"
+          >
+            {(Object.keys(ETIQUETA_VENTANA) as VentanaLlegadas[]).map((v) => (
+              <option key={v} value={v}>
+                {ETIQUETA_VENTANA[v]}
+              </option>
+            ))}
+          </select>
+          <span className="mt-0.5 block text-xs text-muted">
+            Al empezar un periodo, semestre o año nuevo, la cuenta vuelve a cero. Semestres: enero a
+            junio y julio a diciembre.
+          </span>
+        </label>
+        {(borrador.ventanaLlegadas ?? 'anio') === 'periodo' && (
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            {[0, 1].map((k) => (
+              <label key={k} className="block">
+                <span className="font-medium text-strong">Inicio del periodo {k + 2}</span>
+                <input
+                  type="date"
+                  value={borrador.iniciosPeriodo?.[k] ?? ''}
+                  onChange={(ev) => {
+                    const inicios = [...(borrador.iniciosPeriodo ?? [])];
+                    inicios[k] = ev.target.value;
+                    setBorrador({ ...borrador, iniciosPeriodo: inicios.filter(Boolean) });
+                  }}
+                  className="mt-0.5 block w-full rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong"
+                />
+              </label>
+            ))}
+            <span className="col-span-2 text-xs text-muted">El periodo 1 empieza en enero.</span>
+          </div>
+        )}
+        {campo(
+          'Días para verificar una excusa',
+          'Si una llegada «pendiente de verificación» pasa este plazo sin resolverse, cuenta como sin justificar.',
+          borrador.diasVencePendiente ?? 8,
+          (n) => setBorrador({ ...borrador, diasVencePendiente: n }),
         )}
         {campo(
           'Minutos de tolerancia al entrar',

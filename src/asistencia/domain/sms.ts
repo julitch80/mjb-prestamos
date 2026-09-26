@@ -82,7 +82,7 @@ export function nombreCorto(nombreCompleto: string): string {
  * texto es el que lleva la instruccion de que hacer, y cortarlo dejaria a la familia sin
  * saber que se le pide.
  */
-function armar(plantilla: (nombre: string) => string, nombre: string): string {
+export function armarMensaje(plantilla: (nombre: string) => string, nombre: string): string {
   const corto = nombreCorto(nombre);
   const completo = sinTildes(plantilla(corto));
   if (mensajesQueOcupa(completo) === 1) return completo;
@@ -93,7 +93,7 @@ function armar(plantilla: (nombre: string) => string, nombre: string): string {
 
 /** Tras el censo de la tercera hora: el estudiante no llego al colegio. */
 export function mensajeInasistencia(nombreCompleto: string): string {
-  return armar(
+  return armarMensaje(
     (n) => `${REMITENTE}: hoy no registramos el ingreso de ${n} al colegio. Por favor responda este mensaje informando el motivo. Gracias.`,
     nombreCompleto,
   );
@@ -101,7 +101,7 @@ export function mensajeInasistencia(nombreCompleto: string): string {
 
 /** Cuando el numero contesta pero hay que confirmar que es el del acudiente. */
 export function mensajeConfirmarDatos(nombreCompleto: string): string {
-  return armar(
+  return armarMensaje(
     (n) => `${REMITENTE}: estamos actualizando los datos de contacto de ${n}. Si este es el numero del acudiente, por favor responda SI. Gracias.`,
     nombreCompleto,
   );
@@ -116,7 +116,7 @@ export function mensajeConfirmarDatos(nombreCompleto: string): string {
  * enlace: un enlace cortado no abre.
  */
 export function mensajeAvisoConEnlace(nombreCompleto: string, enlace: string): string {
-  return armar(
+  return armarMensaje(
     (n) => `${REMITENTE}: hoy no registramos el ingreso de ${n}. Informe el motivo: ${enlace}`,
     nombreCompleto,
   );
