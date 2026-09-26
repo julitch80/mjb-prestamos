@@ -440,6 +440,12 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
       </ol>
     </div>
   </div>
+
+  <div class="bloque solo" id="i-notificaciones">
+    <h3 class="sub">Activa las notificaciones</h3>
+    <p style="color:var(--ink-2);max-width:64ch">Un recuadro <b>«Activa las notificaciones»</b> te ofrece recibir avisos en el celular aunque tengas la aplicación cerrada. Desde tu perfil, <b>«Mis notificaciones»</b> trae un interruptor por tipo — incluidos dos que solo ven coordinación, rectoría y superusuario: <b>Casos de permanencia</b> y <b>Posible evasión</b>. Nada llega entre 9:00 p.&nbsp;m. y 5:30 a.&nbsp;m.; se entrega a las 5:30 a. m. No las actives en un equipo compartido.</p>
+  </div>
+
   <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#rol"><small>Anterior</small>← Tu rol</a><a class="ps-next" href="#panel"><small>Siguiente</small>Panel →</a></nav>
 </section>
 
@@ -783,12 +789,12 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
   <div class="mod-cab">
     <p class="menu">Menú · Asistencia</p>
     <h2>Asistencia</h2>
-    <p class="para">Además de Planillas, Eventos, Centros de interés y Restaurante, tienes tres pestañas que solo son de coordinación: <b>Reporte de tercera hora</b>, <b>Llegadas tarde</b> y <b>Evasiones</b>.</p>
+    <p class="para">Además de Planillas, Eventos, Centros de interés y Restaurante, tienes pestañas que solo son de coordinación: <b>Llegadas tarde</b>, <b>Tercera hora</b>, <b>Permanencia</b> y <b>Evasiones</b>, en ese orden — el orden en el que trabaja el día: primero la puerta, después quién no vino, después los casos que exigen seguimiento.</p>
   </div>
 
   <nav class="indice-mod" aria-label="Contenido de Asistencia">
     <a href="#a-panorama">Todos los grupos</a>
-    <a href="#a-tercera">Reporte de tercera hora</a>
+    <a href="#a-tercera">Tercera hora</a>
     <a href="#a-tarde">Llegadas tarde</a>
     <a href="#a-evasiones">Evasiones</a>
     <a href="#a-permanencia">Casos de permanencia</a>
@@ -799,45 +805,81 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
 
   <div class="bloque solo" id="a-panorama">
     <h3 class="sub">Todos los grupos</h3>
-    <p style="color:var(--ink-2);max-width:64ch">En Planillas ves <b>«Todos los grupos del colegio»</b> de tu jornada, con la cuenta <b>«N de M están registrando asistencia»</b>. Tocas un grado y entras a su planilla.</p>
+    <p style="color:var(--ink-2);max-width:64ch">Entras al módulo por <b>Planillas</b>, agrupadas por grupo. Tocas un grado y entras a su planilla, o tocas <span class="bt">Lista del grupo</span> para ver a sus estudiantes sin pasar por ninguna asignatura.</p>
     <div class="grid-si">
       <div class="si"><span class="quien">Grupos en gris</span><h3>Nadie ha pasado lista ahí</h3><p>No es un problema de permisos: ese grupo todavía no tiene ninguna planilla. Si hace falta, <span class="bt">Abrir una sesión a mano</span>.</p></div>
+      <div class="si"><span class="quien">Lista del grupo</span><h3>Estudiantes sin pasar por una asignatura</h3><p>Antes, para abrir la ficha de alguien o darlo de alta, tocaba entrar por una planilla de alguna materia. <span class="bt">Lista del grupo</span> muestra directamente a sus estudiantes: toca uno para su ficha, o <span class="bt">+ Agregar estudiante nuevo</span> para darlo de alta. Ahí mismo está <span class="bt">Correo a todo el grupo</span>, con las direcciones en copia oculta.</p></div>
+      <div class="si"><span class="quien">Buscador</span><h3>Buscar por nombre en toda la sede</h3><p>Arriba de la lista de grupos, un buscador por nombre o apellido que no exige saber el grupo. Incluye a los <b>retirados</b>: reintegrar a alguien empieza por encontrarlo.</p></div>
       <div class="si"><span class="quien">Para Master2000</span><h3>La columna «A Master2000»</h3><p>En el <b>Resumen del periodo</b> de cada planilla, esa columna dice cuántas faltas hay que transcribir. Solo cuentan <b>Ausencia</b> y <b>Evasión</b>. Las justificadas van en su propia columna, como contexto: no se copian.</p></div>
       <div class="si"><span class="quien">Lo que no ves</span><h3>El cuaderno del director</h3><p>La pestaña <b>Dirección de grupo</b> es solo del director de cada grupo. Tú ves <b>Asistencia</b> y <b>Fotos</b>.</p></div>
     </div>
   </div>
 
-  <div class="bloque" id="a-tercera">
-    <div>
-      <div class="pantalla" role="img" aria-label="Reporte de tercera hora">
-        <div class="scr">
-          <div class="hd"><div class="tit">Reporte de tercera hora</div></div>
-          <div class="pad">
-            <div class="campo" style="position:relative">Mañana (bloque 3: 08:10–09:05)<span class="n tr">1</span></div>
-            <span class="lbl">No ingresaron al colegio</span>
-            <div class="cd" style="position:relative"><span class="n tl">2</span>
-              <span class="h">Cardona, Sara · 10.2 <span class="b" style="font-size:10px;padding:1px 6px;background:var(--a-warn-soft);color:var(--a-warn-ink);border-color:transparent">Llamar primero</span></span>
-              <span class="d">Tiene un caso de permanencia en gestión. Acudiente: 300 000 0000</span>
-              <div class="fila" style="justify-content:flex-end"><span class="b pri">Registrar llamada</span></div>
+  <div class="bloque solo" id="a-tercera">
+    <h3 class="sub">Tercera hora, en dos pasos</h3>
+    <p style="color:var(--ink-2);max-width:64ch">Es una sola pestaña con dos pantallas, en el orden en que se trabaja: primero asegurarse de que todos los grupos pasaron lista, después atender a los que no vinieron.</p>
+
+    <div class="bloque">
+      <div>
+        <div class="pantalla" role="img" aria-label="Paso 1: ¿Quién llamó lista?">
+          <div class="scr">
+            <div class="hd"><div class="tit">1. ¿Quién llamó lista?</div></div>
+            <div class="pad">
+              <div class="cd" style="position:relative"><span class="n tl">1</span>
+                <span class="h">7 de 9 grupos ya llamaron lista</span>
+                <span class="d">Por resolver ahora: grupos sin lista</span>
+              </div>
+              <div class="cd" style="border-color:var(--a-danger,#e11)"><span class="h">10.2 <span class="b" style="font-size:10px;padding:1px 6px">Física · Luis Pérez</span></span><span class="d">Aula 5</span></div>
+              <div class="fila" style="gap:4px;position:relative"><span class="b" style="background:var(--a-ok-soft)">llamó lista</span><span class="b" style="background:var(--a-danger-soft,#fee)">sin lista</span><span class="b">todavía no, o no aplica</span><span class="n tr">2</span></div>
             </div>
-            <span class="lbl">Ingresaron pero no están en clase</span>
-            <div class="cd"><span class="h">Duque, Mateo · 11.2</span></div>
           </div>
         </div>
+        <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
       </div>
-      <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+      <div>
+        <h3 class="sub">1. ¿Quién llamó lista?</h3>
+        <p style="color:var(--ink-2);margin-bottom:16px">Un tablero que se actualiza solo: escucha las planillas del día en vivo y avisa apenas alguien pasa lista, sin que toques nada.</p>
+        <ol class="pasos">
+          <li><div><span class="t">Arriba, cuántos faltan</span><p>«N de M grupos ya llamaron lista», con la barra de progreso.</p></div></li>
+          <li><div><span class="t">«Por resolver ahora»: solo los que faltan</span><p>Con asignatura, docente y aula de esa hora, para que sepas a quién buscar. Pasados unos minutos de gracia sin que nadie marque, el grupo pasa a esta lista.</p></div></li>
+          <li><div><span class="t">Toca cualquier grupo para su detalle</span><p>Quién tomó lista y a qué hora, quiénes faltaron, y sus seis horas del día. <span class="bt">Ver las planillas de…</span> te lleva directo a Planillas, con ese grupo ya abierto.</p></div></li>
+        </ol>
+        <p class="sabias" style="margin-top:16px">Los tres colores: <b>llamó lista</b> (verde), <b>sin lista</b> (rojo) y <b>todavía no, o no aplica</b> (gris) — este último cubre tanto al grupo que aún está dentro de los minutos de gracia como al que hoy no tiene clase a esa hora.</p>
+      </div>
     </div>
-    <div>
-      <h3 class="sub">Reporte de tercera hora</h3>
-      <p style="color:var(--ink-2);margin-bottom:16px">En la 3.ª hora ya entraron los que llegan tarde, así que ahí se sabe quién no vino al colegio. El reporte sale de las listas que pasaron los profesores en esa hora.</p>
-      <ol class="pasos">
-        <li><div><span class="t">Elige la fecha y la jornada</span><p>Si quieres, escribe los grados que esperas ver, separados por coma.</p></div></li>
-        <li><div><span class="t">Empieza por los que dicen «Llamar primero»</span><p>Es un orden, no un filtro: siguen saliendo todos los demás debajo. La etiqueta trae la razón escrita al lado — caso de permanencia abierto, un factor de riesgo que informó la familia, varios días seguidos sin venir, o que el acudiente no tiene otro medio de contacto (sin celular, o el teléfono de la ficha ya falló).</p></div></li>
-        <li><div><span class="t"><span class="bt">Registrar llamada</span> con lo que de verdad pasó</span><p>Mismo formulario que en la ficha del estudiante: el <b>resultado</b> (Contestó, No contestó, Buzón, Número equivocado, Número fuera de servicio o Pendiente), y si contestaron, <b>quién</b> atendió y <b>qué informó la familia</b>, del catálogo de motivos. Un compromiso es opcional. La llamada queda en la ficha del estudiante y, si tiene caso abierto, en su línea de tiempo.</p></div></li>
-      </ol>
-      <p class="sabias" style="margin-top:16px">Si un estudiante que faltó no aparece en el reporte, no es un error: ya tenía la falta <b>justificada</b> o <b>con autorización</b>, y el colegio ya sabía por qué.</p>
-      <p class="sabias">Un <b>número equivocado</b> o <b>fuera de servicio</b> no cuenta como intento de contacto: es la ficha la que está desactualizada. Consigue otro número y corrígela desde ahí.</p>
-      <p class="sabias ojo">Este reporte es también la lista con la que la aplicación detecta <a href="#a-evasiones">posibles evasiones</a> desde la 4.ª hora. Si un grupo no pasa lista en la 3.ª hora, ese día no hay con qué comparar.</p>
+
+    <div class="bloque">
+      <div>
+        <div class="pantalla" role="img" aria-label="Paso 2: Ausentes y familias">
+          <div class="scr">
+            <div class="hd"><div class="tit">2. Ausentes y familias</div></div>
+            <div class="pad">
+              <div class="cd" style="background:var(--a-danger-soft,#fee);border-color:transparent"><span class="d">3 estudiantes sin asistir 3 días seguidos o más</span></div>
+              <span class="lbl">No ingresaron al colegio</span>
+              <div class="cd" style="position:relative"><span class="n tl">1</span>
+                <span class="h">Cardona, Sara · 10.2 <span class="b" style="font-size:10px;padding:1px 6px;background:var(--a-warn-soft);color:var(--a-warn-ink);border-color:transparent">Llamar primero</span></span>
+                <div class="fila" style="justify-content:flex-end;gap:4px"><span class="b">Registrar llamada</span><span class="b pri" style="position:relative">Mensaje de texto<span class="n tr">2</span></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
+      </div>
+      <div>
+        <h3 class="sub">2. Ausentes y familias</h3>
+        <p style="color:var(--ink-2);margin-bottom:16px">En la 3.ª hora ya entraron los que llegan tarde, así que ahí se sabe quién no vino al colegio. Es el reporte de siempre, con el aviso por mensaje de texto integrado.</p>
+        <ol class="pasos">
+          <li><div><span class="t">Si aparece, atiende primero la alerta roja</span><p>«N estudiante(s) sin asistir X días seguidos o más»: ninguna clase, en ningún bloque. El umbral se ajusta en Llegadas tarde → Ajustar alertas.</p></div></li>
+          <li><div><span class="t">Empieza por los que dicen «Llamar primero»</span><p>Es un orden, no un filtro: siguen saliendo todos los demás debajo. La etiqueta trae la razón — caso de permanencia abierto, un factor de riesgo informado, varios días sin venir, o que el acudiente no tiene otro medio de contacto.</p></div></li>
+          <li><div><span class="t"><span class="bt">Preparar y enviar N aviso(s)</span> por mensaje de texto</span><p>El servidor arma un mensaje por estudiante, con un enlace único para que el acudiente informe el motivo. Se abren uno tras otro: <span class="bt">Enviar mensaje</span> abre la aplicación de mensajes del celular con el número y el texto puestos — el envío lo hace la persona, no hay pasarela — y al volver ya está el siguiente. Si no se pudo, <span class="bt">No salió</span>.</p></div></li>
+          <li><div><span class="t">Cuando la familia responde</span><p>Su respuesta se ve aquí como una pista, con el motivo y, si lo adjuntó, la <b>foto del soporte</b> (bajo demanda, con registro de quién la vio). No entra sola al historial: tú la validas con un toque a tu nombre.</p></div></li>
+          <li><div><span class="t"><span class="bt">Registrar llamada</span> con lo que de verdad pasó</span><p>Mismo formulario que en la ficha del estudiante: el <b>resultado</b> (Contestó, No contestó, Buzón, Número equivocado, Número fuera de servicio o Pendiente), y si contestaron, <b>quién</b> atendió y <b>qué informó la familia</b>, del catálogo de motivos.</p></div></li>
+        </ol>
+        <p class="sabias" style="margin-top:16px">El enlace del aviso vence a las pocas horas; sin respuesta, el estudiante pasa a llamada. Un aviso sin resolver sigue apareciendo en <b>«Pendientes de días anteriores»</b> hasta que se resuelva o venza.</p>
+        <p class="sabias">Si un estudiante que faltó no aparece, no es un error: ya tenía la falta <b>justificada</b> o <b>con autorización</b>, y el colegio ya sabía por qué.</p>
+        <p class="sabias ojo">Esta pantalla es también la lista con la que la aplicación detecta <a href="#a-evasiones">posibles evasiones</a> desde la 4.ª hora. Si un grupo no pasa lista en la 3.ª hora, ese día no hay con qué comparar.</p>
+        <p class="sabias">Si tu cuenta está acotada a una jornada, aquí ves y trabajas solo la tuya; en la sede con un coordinador por jornada, la otra jornada no aparece.</p>
+      </div>
     </div>
   </div>
 
@@ -847,10 +889,11 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
         <div class="scr">
           <div class="hd"><div class="tit">Llegadas tarde a la institución</div><span class="b" style="font-size:10.5px">Ajustar alertas</span></div>
           <div class="pad">
-            <div class="fila" style="position:relative"><div class="campo vacio" style="flex:1">Buscar estudiante…</div><span class="b">QR</span><span class="n tr">1</span></div>
+            <div class="tabs" style="position:relative"><span class="on">Hall de primera hora</span><span>Llega a coordinación</span><span class="n tr">1</span></div>
+            <div class="fila" style="position:relative"><div class="campo vacio" style="flex:1">Buscar estudiante…</div><span class="b">QR</span><span class="n tr">2</span></div>
             <div class="cd">
               <div class="fila"><span class="av" style="width:34px;height:34px"></span><div style="flex:1"><span class="h">Benítez, Tomás · 9.3</span><div><span class="b" style="font-size:10px;padding:2px 6px;background:var(--a-warn-soft);color:var(--a-warn-ink);border-color:transparent">3.ª llegada tarde sin justificar en el año.</span></div></div></div>
-              <div class="fila" style="justify-content:flex-end;position:relative"><span class="b">Dice traer excusa</span><span class="b pri">Registrar</span><span class="n tr">2</span></div>
+              <div class="fila" style="justify-content:flex-end;position:relative"><span class="b">Al hall · dice traer excusa</span><span class="b pri">Al hall</span></div>
             </div>
           </div>
         </div>
@@ -858,13 +901,14 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
       <p class="pie-pantalla">Dibujo simplificado · datos de ejemplo</p>
     </div>
     <div>
-      <h3 class="sub">Llegadas tarde</h3>
-      <p style="color:var(--ink-2);margin-bottom:16px">El registro de la entrada al colegio. No es lo mismo que el «Retraso» que pone un profesor en su clase.</p>
+      <h3 class="sub">Llegadas tarde, en dos niveles</h3>
+      <p style="color:var(--ink-2);margin-bottom:16px">El registro de la entrada al colegio. No es lo mismo que el «Retraso» que pone un profesor en su clase. Hay dos caminos, según cómo llegó el estudiante, y de cuál se registre depende el nivel:</p>
       <ol class="pasos">
-        <li><div><span class="t">Busca al estudiante o escanea su carné</span><p>Confirma que es él con la foto.</p></div></li>
-        <li><div><span class="t"><span class="bt">Registrar</span>, o <span class="bt">Dice traer excusa</span></span><p>La segunda queda <b>pendiente de verificar</b> con el acudiente. Cuando llegue la excusa, abres el registro y tocas <b>Justificar</b>.</p></div></li>
+        <li><div><span class="t">«Hall de primera hora»: pasó la tolerancia y espera</span><p>Búscalos o escanéalos uno a uno con <span class="bt">Al hall</span> (o <span class="bt">Al hall · dice traer excusa</span>); se van sumando a la lista «En el hall». Cuando termina la primera hora, <span class="bt">Registrar a los N del hall y enviarlos al salón</span> los registra a todos juntos, de una vez: <b>1.º nivel</b>.</p></div></li>
+        <li><div><span class="t">«Llega a coordinación»: lo trae el vigilante</span><p>Búscalo o escanéalo y toca <span class="bt">Registrar</span> (o <span class="bt">Dice traer excusa</span>). Si todavía no ha terminado la primera hora es <b>1.º nivel</b>; si ya terminó, <b>2.º nivel</b> — cuenta <b>doble</b> en las alertas de reincidencia.</p></div></li>
       </ol>
-      <p class="sabias" style="margin-top:16px">Las etiquetas de color avisan de la reincidencia en el año: amarillo en el primer umbral, naranja al siguiente y rojo después. Si alguien lleva varios días seguidos sin asistir a ninguna clase, arriba sale un bloque rojo. Los umbrales se cambian con <span class="bt">Ajustar alertas</span> y valen para <b>todo el colegio</b>, no solo tu jornada.</p>
+      <p class="sabias" style="margin-top:16px">Las etiquetas de color avisan de la reincidencia en el año, contando las de 2.º nivel doble: amarillo en el primer umbral, naranja al siguiente y rojo después. Los umbrales, y los minutos de tolerancia al entrar, se cambian con <span class="bt">Ajustar alertas</span> y valen para <b>todo el colegio</b>, no solo tu jornada.</p>
+      <p class="sabias">La alerta de días seguidos sin asistir a ninguna clase se movió al paso 2 de <a href="#a-tercera">Tercera hora</a>, que es donde ya estás llamando a las familias; aquí queda solo su umbral, dentro de <span class="bt">Ajustar alertas</span>.</p>
       <p class="sabias">Un registro equivocado no se borra: <b>Corregir</b> lo deja justificado con una nota del error. Así queda claro qué pasó.</p>
     </div>
   </div>
@@ -928,6 +972,7 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
       <p class="sabias" style="margin-top:16px">Un caso sale <b>vencido</b> si pasa la fecha del seguimiento programado sin que se haga, o si lleva varios días sin ninguna actuación. Cuentan como actuación un seguimiento, una llamada registrada al estudiante o las gestiones que ya tenía el caso de antes de este cambio.</p>
       <p class="sabias"><span class="bt">Remitir al director de grupo</span> le comparte el caso —incluida la causa que dio la familia— para que también agregue lo que haga, normalmente hablar con el estudiante. El director <b>no decide el rumbo</b> del caso: no cierra, no programa, no corrige lo de otros; solo aporta. Sin remitirlo, el director no ve nada de esto.</p>
       <p class="sabias ojo">Nada se borra. <span class="bt">Corregir</span> en un seguimiento agrega una versión nueva que reemplaza a la anterior en pantalla, pero la original queda en el historial con quién la escribió. Un expediente que puede terminar en una Comisaría de Familia tiene que poder explicarse completo.</p>
+      <p class="sabias">Si tu cuenta está acotada a una jornada, aquí y en Evasiones y Llegadas tarde ves solo los casos de tu jornada. La apertura automática de un caso, en cambio, sigue cubriendo toda la sede: acotar es de la <b>vista</b>, no del cálculo.</p>
     </div>
   </div>
 
@@ -1026,6 +1071,8 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
     </div>
     <p class="sabias">Hoy los cupos de la sede central suman exactamente lo que cabe en cada nivel: 20 de 20 en básica, 20 de 20 en media académica y 24 de 24 por quincena en media técnica. Para subirle a una asignatura hay que bajarle a otra.</p>
     <p class="sabias ojo">En media técnica la suma incluye las dos especialidades, pero cada grupo cursa solo una: en la práctica cada grupo usa 23. Ese momento sobrante podría pasar a otra asignatura.</p>
+    <p class="sabias">El valor con el que arranca media académica, si nunca se ha tocado «Asignación de momentos» para un colegio nuevo o una instalación nueva, es <b>Ética y Valores: 1</b> y <b>Ciencias Sociales: 2</b> por semana (antes era al revés). Es solo el punto de partida: lo que de verdad rige es lo que quede guardado ahí.</p>
+    <p class="sabias">Como piloto (10.1, una semana, con visto bueno de Julián para pasar a otros grupos), cada tarea llega además al Google Calendar institucional del estudiante, en un calendario aparte llamado <b>«Tareas MJB»</b>. No cambia nada de cómo se publica una tarea: se llena solo.</p>
   </div>
   <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#correos"><small>Anterior</small>← Correos</a><a class="ps-next" href="#chatbot"><small>Siguiente</small>Chatbot →</a></nav>
 </section>

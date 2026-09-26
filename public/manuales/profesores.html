@@ -463,6 +463,18 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
     </div>
   </div>
   <p class="sabias">La tarjeta de la clase se actualiza sola con la hora: dice <b>«Siguiente: 3.ª hora»</b> antes de empezar y <b>«Ahora: 3.ª hora»</b> mientras estás en ella. Cuando terminas la jornada cambia a <b>«No tienes más clases hoy»</b>.</p>
+
+  <div class="bloque solo" id="i-notificaciones">
+    <h3 class="sub">Activa las notificaciones</h3>
+    <p style="color:var(--ink-2);max-width:64ch">En Inicio puede aparecer un recuadro <b>«Activa las notificaciones»</b>: te avisa en el celular cuando te escriben en el chat, cambia tu horario o te responden una sugerencia, <b>aunque tengas la aplicación cerrada</b>. Si tocas «Ahora no», no se te vuelve a insistir en cada entrada.</p>
+    <div class="grid-si">
+      <div class="si"><span class="quien">Mis notificaciones</span><h3>Un interruptor por tipo</h3><p>Desde tu perfil entras a <b>«Mis notificaciones»</b>: ahí ves si este dispositivo está activo, y apagas o prendes cada aviso por separado (chat, avisos de coordinación y rectoría, cambios de horario, tus reservas, respuesta a tu sugerencia). Todo empieza encendido.</p></div>
+      <div class="si"><span class="quien">Horario de silencio</span><h3>Nada entre 9:00 p.&nbsp;m. y 5:30 a.&nbsp;m.</h3><p>Lo que ocurra en ese lapso se entrega a las 5:30 a. m., no antes.</p></div>
+      <div class="si"><span class="quien">iPhone</span><h3>Solo con la app en la pantalla de inicio</h3><p>En iPhone las notificaciones solo funcionan si agregaste la aplicación a la pantalla de inicio, con iOS 16.4 o más reciente.</p></div>
+      <div class="si"><span class="quien">Ojo</span><h3>No en equipos compartidos</h3><p>No las actives en un computador o tableta que use más de una persona, como la pizarra del salón: quedarían llegándole a quien primero las activó ahí.</p></div>
+    </div>
+  </div>
+
   <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#entrar"><small>Anterior</small>← Entrar, moverte y salir</a><a class="ps-next" href="#agenda"><small>Siguiente</small>Agenda →</a></nav>
 </section>
 
@@ -1139,10 +1151,19 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
       <h3 class="sub">La agenda del grupo: lo que ven tus estudiantes</h3>
       <p style="color:var(--ink-2);margin-bottom:16px">Cada grupo tiene su agenda. Se abre en cualquier celular, <b>sin cuenta ni contraseña</b>. Llegas a ella con el botón <span class="bt">Agenda de 10.2</span>, arriba del formulario.</p>
       <ol class="pasos">
+        <li><div><span class="t">Semana pasada · Esta semana · Próxima semana</span><p>Tres botones arriba de la franja. En <b>Esta semana</b> solo se ven los días desde hoy en adelante — los que ya pasaron no muestran plan, porque se recalcula a diario. Si esta semana ya empezó, aparece <b>«Ver lo de días anteriores»</b>.</p></div></li>
         <li><div><span class="t">La franja de la semana</span><p>Cada día dice cuántos momentos tiene de su tope: <b>2/4</b>, <b>4/4</b>. El punto verde debajo marca un día de entrega. Tocar un día muestra lo de ese día.</p></div></li>
         <li><div><span class="t">Lo de hoy, con casilla</span><p>Cada tarea dice la asignatura, cuánto tiempo toma hoy y cuándo se entrega. Al terminarla, el estudiante la tacha. El archivo adjunto se abre desde ahí.</p></div></li>
-        <li><div><span class="t">«¿Cuándo la vas a hacer?»</span><p>El estudiante elige en qué momento de su día la va a hacer: al llegar a la casa, después de almorzar, en la noche… o escribe el suyo. Es un compromiso consigo mismo, no un control.</p></div></li>
+        <li><div><span class="t">«¿Cuándo la vas a hacer?», ahora más a la vista</span><p>El botón resalta con un borde de color y un parpadeo suave mientras la tarea no tiene momento elegido. El estudiante toca y escoge: al llegar a la casa, después de almorzar, en la noche… o escribe el suyo. Es un compromiso consigo mismo, no un control.</p></div></li>
       </ol>
+    </div>
+  </div>
+
+  <div class="bloque solo">
+    <div class="si" style="max-width:64ch">
+      <span class="quien">Semana pasada / Repaso</span>
+      <h3>Lo que se proponía hacer, para revisar</h3>
+      <p>En <b>Semana pasada</b>, o al abrir <b>«Ver lo de días anteriores»</b> dentro de esta semana, la agenda no muestra el mapa de calor: muestra día por día lo que el estudiante se había propuesto, con cada tarea marcada <b>pendiente — aún la puedes entregar</b> o <b>se venció el…</b>, y la misma casilla para tacharla si ya la hizo.</p>
     </div>
   </div>
 
@@ -1151,8 +1172,10 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
       <div class="si"><span class="quien">Compartir</span><h3>Con el código QR o el enlace</h3><p>En la agenda está <b>Compartir esta agenda</b>: el código QR para proyectarlo y que lo escaneen, y <span class="bt">Copiar enlace</span> para pegarlo en el grupo de WhatsApp del curso.</p></div>
       <div class="si"><span class="quien">Sin celular</span><h3><span class="bt">Imprimir semana</span></h3><p>Una hoja con la semana y una casilla por tarea, para quien no tiene celular o prefiere el papel. Tiene una línea en blanco para escribir a mano cuándo la va a hacer.</p></div>
       <div class="si"><span class="quien">En el salón</span><h3><span class="bt">Proyectar en el salón</span></h3><p>La agenda en letra grande, para verla todos juntos al comienzo o al final de la clase. No muestra lo que eligió o tachó cada estudiante.</p></div>
+      <div class="si"><span class="quien">Instalarla</span><h3>«Deja la agenda como ícono en tu celular»</h3><p>Al abrir la agenda por el enlace o el QR aparece este recuadro con el botón para instalarla (o, en iPhone, el paso a paso de Safari). Queda como un ícono aparte llamado <b>«Agenda MJB»</b> que abre directo la agenda del grupo que se escaneó, sin pedir sesión — no es la aplicación del colegio.</p></div>
     </div>
     <p class="sabias">Lo que el estudiante tacha y el momento que elige <b>se guardan solo en su teléfono</b>. Ni tú ni el director ni coordinación lo pueden ver. La agenda es una herramienta para que el estudiante se organice, no para vigilarlo.</p>
+    <p class="sabias">Como piloto, los estudiantes de <b>10.1</b> reciben además cada tarea en su Google Calendar institucional, en un calendario aparte llamado <b>«Tareas MJB»</b> (no toca su calendario principal), con aviso el día antes de la entrega. No hace falta que hagas nada distinto: se llena solo con las tareas que publicas.</p>
   </div>
 
   <!-- ── Director ── -->
