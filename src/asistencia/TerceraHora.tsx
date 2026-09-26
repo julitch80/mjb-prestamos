@@ -67,8 +67,16 @@ function haceDias(n: number): string {
 export default function TerceraHora({
   sede,
   jornadaLimitada = null,
+  controlado,
 }: {
   sede: string;
+  /**
+   * Fecha y jornada que manda el contenedor de dos pasos (`TerceraHoraCoordinacion`,
+   * 2026-09-25), para que «¿Quién llamó lista?» y «Ausentes y familias» miren el mismo dia.
+   * En ese modo esta pantalla no muestra sus selectores, ni el campo de grados esperados:
+   * que grupo no llamo lista ya lo dice el paso 1, sacado del horario.
+   */
+  controlado?: { fecha: string; jornada: Jornada };
   /**
    * Coordinador de central acotado a una jornada. No es solo comodidad: las reglas solo
    * le dejan leer las sesiones de la suya, asi que si escogiera la otra, la consulta se
@@ -76,10 +84,12 @@ export default function TerceraHora({
    */
   jornadaLimitada?: Jornada | null;
 }) {
-  const [fecha, setFecha] = useState(toDateKey(new Date()));
-  const [jornada, setJornada] = useState<Jornada>(
+  const [fechaLocal, setFecha] = useState(toDateKey(new Date()));
+  const [jornadaLocal, setJornada] = useState<Jornada>(
     jornadaLimitada ?? (new Date().getHours() < 12 ? 'manana' : 'tarde'),
   );
+  const fecha = controlado?.fecha ?? fechaLocal;
+  const jornada = controlado?.jornada ?? jornadaLocal;
   const [gradosEsperados, setGradosEsperados] = useState('');
   const [reporte, setReporte] = useState<ReporteTerceraHora | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -239,6 +249,18 @@ export default function TerceraHora({
 
   return (
     <div className="space-y-3">
+      {controlado ? (
+        <div className="flex justify-end">
+          <button
+            onClick={() => void generar()}
+            disabled={cargando}
+            className="rounded-lg border border-line px-3 py-1.5 text-xs text-strong disabled:opacity-50"
+          >
+            {cargando ? 'Actualizando…' : 'Actualizar'}
+          </button>
+        </div>
+      ) : (
+      <>
       <div>
         <h2 className="text-base font-semibold text-strong">Reporte de tercera hora</h2>
         <p className="text-xs text-muted">
@@ -291,6 +313,8 @@ export default function TerceraHora({
           {cargando ? 'Generando…' : 'Actualizar'}
         </button>
       </div>
+      </>
+      )}
 
       {error && (
         <div className="rounded-xl border border-danger-soft bg-danger-soft p-3 text-sm text-danger-soft-fg">

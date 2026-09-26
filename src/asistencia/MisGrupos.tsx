@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { asignacionDeDocente, getAsignatura } from '../data/asignacionAcademica';
 import { colorGrado } from '../data/maestros';
 import { gradoSortKey } from './domain/ids';
@@ -17,6 +18,7 @@ export default function MisGrupos({
   todosLosGrados,
   onElegir,
   onSinAsignacion,
+  grupoAbierto = null,
 }: {
   slotId: string | null;
   /**
@@ -57,6 +59,8 @@ export default function MisGrupos({
   todosLosGrados?: string[];
   onElegir: (grado: string, subjectId: string) => void;
   onSinAsignacion: () => void;
+  /** Grupo que llega abierto desde el tablero de tercera hora («Ver las planillas de…»). */
+  grupoAbierto?: string | null;
 }) {
   const resumenes = slotId ? asignacionDeDocente(slotId) : [];
 
@@ -239,16 +243,20 @@ export default function MisGrupos({
               ? 'Otras planillas con registros suyos, fuera de la asignación académica:'
               : 'Planillas disponibles:'}
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {otros.map((e) => (
-              <TarjetaGrupo
-                key={`${e.grado}|${e.subjectId}`}
-                grado={e.grado}
-                detalle={getAsignatura(e.subjectId)?.nombre ?? e.subjectId}
-                onElegir={() => onElegir(e.grado, e.subjectId)}
-              />
-            ))}
-          </div>
+          {perfil === 'docente' ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {otros.map((e) => (
+                <TarjetaGrupo
+                  key={`${e.grado}|${e.subjectId}`}
+                  grado={e.grado}
+                  detalle={getAsignatura(e.subjectId)?.nombre ?? e.subjectId}
+                  onElegir={() => onElegir(e.grado, e.subjectId)}
+                />
+              ))}
+            </div>
+          ) : (
+            <PlanillasPorGrupo cruces={otros} grupoAbierto={grupoAbierto} onElegir={onElegir} />
+          )}
         </div>
       )}
 
@@ -314,6 +322,97 @@ function TarjetaGrupoConMaterias({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Las planillas del colegio agrupadas por GRUPO (2026-09-25), para coordinacion y
+ * consulta. Antes salia una tarjeta por cada asignatura de cada grupo —9.1 doce veces,
+ * 9.2 catorce—: una lista larga en la que no se encontraba nada. Ahora es un renglon por
+ * grupo con cuantas planillas tiene, y al tocarlo se despliegan sus asignaturas.
+ *
+ * El grupo que llega desde el tablero de tercera hora viene abierto y se desplaza a la
+ * vista, para no obligar a buscarlo otra vez.
+ */
+function PlanillasPorGrupo({
+  cruces,
+  grupoAbierto,
+  onElegir,
+}: {
+  cruces: { grado: string; subjectId: string }[];
+  grupoAbierto: string | null;
+  onElegir: (grado: string, subjectId: string) => void;
+}) {
+  const [abiertos, setAbiertos] = useState<Set<string>>(() => new Set(grupoAbierto ? [grupoAbierto] : []));
+  const refAbierto = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!grupoAbierto) return;
+    setAbiertos((s) => new Set(s).add(grupoAbierto));
+    refAbierto.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [grupoAbierto]);
+
+  const porGrado = new Map<string, string[]>();
+  for (const c of cruces) {
+    if (!porGrado.has(c.grado)) porGrado.set(c.grado, []);
+    porGrado.get(c.grado)!.push(c.subjectId);
+  }
+  const grupos = [...porGrado.entries()].sort((a, b) => gradoSortKey(a[0]).localeCompare(gradoSortKey(b[0])));
+
+  return (
+    <div className="space-y-1.5">
+      {grupos.map(([grado, materias]) => {
+        const abierto = abiertos.has(grado);
+        return (
+          <div
+            key={grado}
+            ref={grado === grupoAbierto ? refAbierto : undefined}
+            style={{ borderLeftColor: colorGrado(grado) }}
+            className="rounded-xl border border-line border-l-4 bg-card"
+          >
+            <button
+              onClick={() =>
+                setAbiertos((s) => {
+                  const n = new Set(s);
+                  if (n.has(grado)) n.delete(grado);
+                  else n.add(grado);
+                  return n;
+                })
+              }
+              aria-expanded={abierto}
+              className="flex min-h-12 w-full items-center gap-2 px-3 text-left"
+            >
+              <b style={{ color: colorGrado(grado) }} className="text-xl">
+                {grado}
+              </b>
+              <span className="text-sm text-muted">
+                {materias.length} planilla{materias.length === 1 ? '' : 's'}
+              </span>
+              <span className="grow" />
+              <span className={`text-muted transition-transform ${abierto ? 'rotate-180' : ''}`} aria-hidden>
+                ▾
+              </span>
+            </button>
+            {abierto && (
+              <div className="grid gap-1.5 px-3 pb-3 sm:grid-cols-2">
+                {[...materias]
+                  .map((id) => ({ id, nombre: getAsignatura(id)?.nombre ?? id }))
+                  .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+                  .map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => onElegir(grado, m.id)}
+                      className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-left text-sm font-semibold text-strong hover:bg-hover"
+                    >
+                      {m.nombre}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

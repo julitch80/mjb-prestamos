@@ -49,7 +49,7 @@ import Restaurante from './Restaurante';
 import DiagnosticoPermisos from './DiagnosticoPermisos';
 import Ficha from './Ficha';
 import PanelEstudiante from './PanelEstudiante';
-import TerceraHora from './TerceraHora';
+import TerceraHoraCoordinacion from './TerceraHoraCoordinacion';
 import LlegadasTarde from './LlegadasTarde';
 import Eventos from './Eventos';
 import MisGrupos from './MisGrupos';
@@ -209,7 +209,25 @@ export default function Asistencia() {
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
   useNivelAtras(fichaAbierta !== null, () => setFichaAbierta(null));
   const [directores, setDirectores] = useState<Record<string, string>>({});
-  const [vista, setVista] = useState<VistaAsistencia>('planilla');
+  /**
+   * Coordinacion entra directo a la tercera hora (decision de Julián, 2026-09-25): es lo
+   * que revisa todos los dias, y Planillas queda como pestaña de consulta. Si el rol llega
+   * tarde (el store se hidrata despues del primer render), el efecto de abajo lo corrige,
+   * salvo que la persona ya haya escogido otra pestaña.
+   */
+  const [vista, setVista] = useState<VistaAsistencia>(() =>
+    rol === 'coordinador' ? 'tercera_hora' : 'planilla',
+  );
+  const vistaElegida = useRef(false);
+  const cambiarVista = useCallback((v: VistaAsistencia) => {
+    vistaElegida.current = true;
+    setVista(v);
+  }, []);
+  useEffect(() => {
+    if (rol === 'coordinador' && !vistaElegida.current) setVista('tercera_hora');
+  }, [rol]);
+  /** Grupo que llega abierto a Planillas desde el tablero de tercera hora. */
+  const [grupoPlanillas, setGrupoPlanillas] = useState<string | null>(null);
   /**
    * Seccion dentro de Restaurante. Arranca en 'registrar' incluso para coordinacion: lo
    * que se hace a diario es atender la fila; el reporte se mira una vez al mes.
@@ -824,8 +842,16 @@ export default function Asistencia() {
   if (rol === 'coordinador' && vista === 'tercera_hora') {
     return (
       <div className="space-y-3">
-        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
-        <TerceraHora sede={sede} jornadaLimitada={alcanceUsuario.jornadaLimitada} />
+        <Pestanas vista={vista} onCambiar={cambiarVista} rol={rol} />
+        <TerceraHoraCoordinacion
+          sede={sede}
+          jornadaLimitada={alcanceUsuario.jornadaLimitada}
+          grados={Object.keys(directores)}
+          onVerPlanillas={(grado) => {
+            setGrupoPlanillas(grado);
+            cambiarVista('planilla');
+          }}
+        />
       </div>
     );
   }
@@ -836,7 +862,7 @@ export default function Asistencia() {
   if (rol === 'coordinador' && vista === 'evasiones') {
     return (
       <div className="space-y-3">
-        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
+        <Pestanas vista={vista} onCambiar={cambiarVista} rol={rol} />
         <Evasiones sede={sede as Sede} jornadaLimitada={alcanceUsuario.jornadaLimitada} />
       </div>
     );
@@ -850,7 +876,7 @@ export default function Asistencia() {
   if ((rol === 'coordinador' || rol === 'rectora') && vista === 'permanencia') {
     return (
       <div className="space-y-3">
-        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
+        <Pestanas vista={vista} onCambiar={cambiarVista} rol={rol} />
         <CasosPermanencia
           sede={sede as Sede}
           rol={rol}
@@ -873,7 +899,7 @@ export default function Asistencia() {
   if (rol === 'coordinador' && vista === 'llegadas') {
     return (
       <div className="space-y-3">
-        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
+        <Pestanas vista={vista} onCambiar={cambiarVista} rol={rol} />
         <LlegadasTarde sede={sede} jornadaLimitada={alcanceUsuario.jornadaLimitada} />
       </div>
     );
@@ -890,7 +916,7 @@ export default function Asistencia() {
       alcanceUsuario.soloConsulta;
     return (
       <div className="space-y-3">
-        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
+        <Pestanas vista={vista} onCambiar={cambiarVista} rol={rol} />
         {administra && (
           <div className="flex flex-wrap gap-1.5">
             {(
@@ -938,7 +964,7 @@ export default function Asistencia() {
   if (vista === 'programas') {
     return (
       <div className="space-y-3">
-        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
+        <Pestanas vista={vista} onCambiar={cambiarVista} rol={rol} />
         {/* La autoridad la resuelve la propia pantalla leyendo `coordinadores` del
             programa: el lider ve su centro y nada mas, la coordinacion ve los veintiuno.
             `puedeRegistrar` solo decide si se ofrece marcar asistencia, igual que en
@@ -975,7 +1001,7 @@ export default function Asistencia() {
   if (vista === 'eventos') {
     return (
       <div className="space-y-3">
-        <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
+        <Pestanas vista={vista} onCambiar={cambiarVista} rol={rol} />
         {/* La rectora consulta pero no registra: puede entrar a un evento que le hayan
             compartido, pero no crearlo ni marcar. El servidor ya lo impide
             (`asisCanRecord`); esto solo evita ofrecerle botones que fallarian. */}
@@ -991,7 +1017,7 @@ export default function Asistencia() {
 
   return (
     <div className="space-y-3">
-      <Pestanas vista={vista} onCambiar={setVista} rol={rol} />
+      <Pestanas vista={vista} onCambiar={cambiarVista} rol={rol} />
 
       <IndicadorSync sync={sync} />
 
@@ -1051,6 +1077,7 @@ export default function Asistencia() {
             else setCruce({ grado, subjectId });
           }}
           onSinAsignacion={() => setFormularioManual(true)}
+          grupoAbierto={grupoPlanillas}
         />
       ) : (
         <>
@@ -1825,16 +1852,16 @@ const SECCIONES: {
   coordinacionYRectoria?: boolean;
 }[] = [
   {
+    vista: 'tercera_hora',
+    nombre: 'Tercera hora',
+    descripcion:
+      'Primero, qué grupos ya llamaron lista a tercera hora y, de los que no, qué asignatura, docente y aula les tocaba. Después, quiénes no vinieron hoy al colegio y el contacto con sus familias.',
+    soloCoordinador: true,
+  },
+  {
     vista: 'planilla',
     nombre: 'Planillas',
     descripcion: 'Pase de lista de sus clases: escoja un grupo y marque la asistencia del día.',
-  },
-  {
-    vista: 'tercera_hora',
-    nombre: 'Reporte de tercera hora',
-    descripcion:
-      'Quiénes no vinieron hoy al colegio. Se mide después de la tercera hora, cuando ya entraron los que esperaban afuera.',
-    soloCoordinador: true,
   },
   {
     vista: 'evasiones',

@@ -28,6 +28,7 @@ import {
   getDoc,
   getDocFromCache,
   getDocs,
+  onSnapshot,
   query,
   runTransaction,
   serverTimestamp,
@@ -243,6 +244,42 @@ export async function leerGrupo(
  * resultado será legible. Por eso es un reporte POR SEDE, no uno del colegio entero.
  * El índice que lo sostiene es `sede + fecha + jornada + bloque`.
  */
+/**
+ * Las sesiones de UN dia y UNA jornada de la sede, EN VIVO (2026-09-25). Para el tablero
+ * «¿Quién llamó lista?»: la coordinadora ve pasar un grupo a verde sin oprimir nada.
+ *
+ * Solo igualdades (sede, fecha, jornada): no pide indice compuesto, y cumple la regla del
+ * coordinador acotado a una jornada, que exige filtrar por ella. Son unas decenas de
+ * documentos por dia, asi que escucharlos en vivo cuesta poco.
+ *
+ * Devuelve la funcion para dejar de escuchar. Si Firebase no esta listo, no escucha nada.
+ */
+export function escucharSesionesDelDia(
+  filtro: { sede: string; fecha: string; jornada: 'manana' | 'tarde' },
+  onDatos: (sesiones: Session[]) => void,
+  onError: (e: Error) => void,
+): () => void {
+  let cancelado = false;
+  let dejar: (() => void) | null = null;
+  void listo().then((ok) => {
+    if (!ok || cancelado) return;
+    dejar = onSnapshot(
+      query(
+        collection(baseDatos(), 'asistenciaSessions'),
+        where('sede', '==', filtro.sede),
+        where('fecha', '==', filtro.fecha),
+        where('jornada', '==', filtro.jornada),
+      ),
+      (snap) => onDatos(aLista<Session>(snap)),
+      (e) => onError(e),
+    );
+  });
+  return () => {
+    cancelado = true;
+    dejar?.();
+  };
+}
+
 export async function leerInsumosTerceraHora(input: {
   sede: string;
   fecha: string;
