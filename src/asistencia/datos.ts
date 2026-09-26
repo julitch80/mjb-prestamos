@@ -459,6 +459,9 @@ export async function registrarLlegadaTarde(input: {
   horaLlegada: string;
   bloqueIngreso: number;
   estado: 'sin_justificar' | 'pendiente_verificacion';
+  /** 1 = hall de primera hora; 2 = despues de la primera hora. Ver `LateArrival.nivel`. */
+  nivel: 1 | 2;
+  origen: 'hall' | 'individual';
 }): Promise<void> {
   const autor = await exigirAutor();
   const id = `${input.studentId}_${input.fecha}`;

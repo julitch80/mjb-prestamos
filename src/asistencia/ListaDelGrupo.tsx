@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search } from 'lucide-react';
 import Avatar from './Avatar';
+import EscribirAlGrupo from './EscribirAlGrupo';
 import { ModalNuevoEstudiante, type NuevoEstudianteInput } from './Planilla';
 import { buscarEstudiantes, crearEstudianteManual, leerGrupo } from './datos';
 import { nombresDePila } from './domain/nombres';
@@ -23,6 +24,7 @@ export default function ListaDelGrupo({
   grado,
   sede,
   puedeAgregar,
+  puedeEscribir,
   onAbrirFicha,
   onVolver,
 }: {
@@ -30,6 +32,8 @@ export default function ListaDelGrupo({
   sede: string;
   /** Alta de estudiantes: coordinacion (el servidor vuelve a comprobarlo). */
   puedeAgregar: boolean;
+  /** Correo a todo el grupo: coordinacion (el director lo tiene en su planilla). */
+  puedeEscribir: boolean;
   onAbrirFicha: (studentId: string) => void;
   onVolver: () => void;
 }) {
@@ -53,9 +57,14 @@ export default function ListaDelGrupo({
 
   return (
     <div className="space-y-3">
-      <button onClick={onVolver} className="min-h-[36px] text-sm text-accent">
-        ← Planillas
-      </button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button onClick={onVolver} className="min-h-[36px] text-sm text-accent">
+          ← Planillas
+        </button>
+        {/* Correo con las direcciones en copia oculta, el mismo del director de grupo.
+            No aparece si nadie del grupo tiene correo institucional. */}
+        {puedeEscribir && estudiantes && <EscribirAlGrupo estudiantes={estudiantes} etiqueta={grado} conTexto />}
+      </div>
 
       <div
         style={{ borderLeftColor: colorGrado(grado) }}

@@ -1039,6 +1039,7 @@ export default function Asistencia() {
           grado={listaGrupo}
           sede={sede}
           puedeAgregar={rol === 'coordinador'}
+          puedeEscribir={rol === 'coordinador' || rol === 'superusuario'}
           onAbrirFicha={setFichaAbierta}
           onVolver={atras}
         />

@@ -188,16 +188,33 @@ export interface SubjectConfig {
  * dos categorias. Asi "llego 10 minutos tarde" y "llego en cuarta hora" son el mismo
  * hecho con distinta magnitud, y los umbrales se ajustan sin tocar el modelo.
  */
+export type NivelLlegada = 1 | 2;
+
 export interface LateArrival {
   lateArrivalId: string;
   studentId: string;
   grado: string;
   sede: Sede;
   fecha: string;
-  /** 'HH:mm' real de llegada. */
+  /**
+   * 'HH:mm' en que ENTRO (al salon). En el registro individual coincide con la llegada;
+   * en la lista del hall es la hora en que coordinacion los paso a clase, no la hora a la
+   * que llego cada uno (esa no se toma: estaban esperando).
+   */
   horaLlegada: string;
   /** A que bloque alcanza a entrar. Es la magnitud del retraso. */
   bloqueIngreso: number;
+  /**
+   * Nivel de la llegada tarde (Julián, 2026-09-25):
+   *  1 = paso la tolerancia y espero en el hall a que terminara la primera hora.
+   *  2 = llego despues de la primera hora; el vigilante lo lleva a coordinacion.
+   * Una de 2º nivel sin justificar cuenta DOBLE para las alertas. Ausente en los
+   * registros anteriores a esta fecha: se leen como 1º nivel (decision de Julián).
+   * Inmutable: la regla de update no lo deja cambiar.
+   */
+  nivel?: NivelLlegada;
+  /** Por donde se registro: la lista del hall o uno a uno. Ausente = individual. */
+  origen?: 'hall' | 'individual';
   estado: LateArrivalState;
   motivo: ExcuseReason | null;
   observacion: string | null;
@@ -289,6 +306,13 @@ export interface AlertConfig {
   /** Llegadas tarde SIN JUSTIFICAR acumuladas en el año que activan el primer aviso
    *  (amarillo) al coordinador. Ver `pasoLlegadasTarde` para el resto de la escala. */
   llegadasTardeUmbral: number;
+  /**
+   * Minutos de tolerancia despues del inicio de la jornada (hoy 6:00 → 6:10, y la tarde
+   * igual). Solo informativo en pantalla: el nivel NO se decide con esto sino por el
+   * camino del registro (hall o individual) y el fin de la primera hora. Ausente en la
+   * configuracion guardada antes del 2026-09-25: se usa el valor por defecto.
+   */
+  toleranciaMinutos?: number;
   /** Dias consecutivos sin asistir a la institucion (ninguna sesion, ningun bloque) que
    *  alertan al coordinador para verificar con la familia. */
   diasSinAsistir: number;

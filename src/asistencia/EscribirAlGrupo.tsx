@@ -13,7 +13,19 @@ import type { Student } from './domain/types';
  * final del cuaderno de dirección de grupo; ahí no se encontraba, y arriba ocupaba demasiado
  * (Julián, 2026-09-17). Un botón pequeño arriba y la explicación dentro de la ventana.
  */
-export default function EscribirAlGrupo({ estudiantes, etiqueta }: { estudiantes: Student[]; etiqueta: string }) {
+export default function EscribirAlGrupo({
+  estudiantes,
+  etiqueta,
+  conTexto = false,
+}: {
+  estudiantes: Student[];
+  etiqueta: string;
+  /**
+   * Pastilla con texto en vez del icono solo. La usa la lista del grupo de coordinacion
+   * (2026-09-25): con el sobre solo, Julián no sabia que la opcion existia.
+   */
+  conTexto?: boolean;
+}) {
   const [abierta, setAbierta] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const { conCorreo, sinCorreo } = destinatariosDe(estudiantes);
@@ -27,9 +39,14 @@ export default function EscribirAlGrupo({ estudiantes, etiqueta }: { estudiantes
         onClick={() => setAbierta(true)}
         title={`Escribir al grupo (${correos.length} con correo)`}
         aria-label={`Escribir al grupo, ${correos.length} con correo`}
-        className="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-card text-soft"
+        className={
+          conTexto
+            ? 'flex min-h-[36px] items-center gap-1.5 rounded-full border border-accent px-3 py-1 text-sm font-medium text-accent'
+            : 'flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-card text-soft'
+        }
       >
         <Mail size={16} aria-hidden />
+        {conTexto && 'Correo a todo el grupo'}
       </button>
 
       {abierta && (

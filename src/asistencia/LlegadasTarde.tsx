@@ -17,9 +17,15 @@ import { nombreCompleto } from './domain/nombres';
 import { EXCUSE_REASONS, LATE_ARRIVAL_STATES, type ExcuseReason } from './domain/marks';
 import {
   ALERT_CONFIG_POR_DEFECTO,
-  llegadasQueAlertan,
+  CUENTA_VACIA,
+  cuentaLlegadasPorEstudiante,
+  modoSugerido,
+  nivelDeLlegada,
+  nivelDeRegistroIndividual,
   pasoLlegadasTarde,
+  sumarMinutos,
   type ColorAlerta,
+  type CuentaLlegadas,
 } from './domain/alertas';
 import { filtroEfectivo, filtroInicial, gradoEnJornada, type FiltroJornada } from './domain/filtro-jornada';
 import type { AlertConfig, Jornada, LateArrival, Student } from './domain/types';
@@ -60,6 +66,12 @@ function estiloAlerta(color: ColorAlerta): React.CSSProperties {
  * marcarla injustificada —disparando una alerta que quiza no corresponde— o no
  * registrar el hecho.
  */
+/** 'HH:mm' de este momento. */
+function horaActual(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 export default function LlegadasTarde({
   sede,
   jornadaLimitada = null,
@@ -93,17 +105,34 @@ export default function LlegadasTarde({
   // Llegadas tarde SIN JUSTIFICAR acumuladas en el año, para el color de reincidencia.
   // Se piden aparte de `registros` (que es solo del día) porque la reincidencia es un
   // patrón acumulado, no algo que se vea en la fila de un solo día.
-  const [conteoAnual, setConteoAnual] = useState<Record<string, number>>({});
-  useEffect(() => {
+  // Con peso: las de 2º nivel valen doble (ver `cuentaLlegadasPorEstudiante`).
+  const [conteoAnual, setConteoAnual] = useState<Record<string, CuentaLlegadas>>({});
+  const cuentaDe = (studentId: string) => conteoAnual[studentId] ?? CUENTA_VACIA;
+  const recontar = useCallback(async () => {
     const anio = fecha.slice(0, 4);
-    void leerLlegadasTarde({ sede, desde: `${anio}-01-01`, hasta: `${anio}-12-31` }).then(
-      (lista) => {
-        const conteo: Record<string, number> = {};
-        for (const l of llegadasQueAlertan(lista)) conteo[l.studentId] = (conteo[l.studentId] ?? 0) + 1;
-        setConteoAnual(conteo);
-      },
-    );
+    const lista = await leerLlegadasTarde({ sede, desde: `${anio}-01-01`, hasta: `${anio}-12-31` });
+    setConteoAnual(cuentaLlegadasPorEstudiante(lista));
   }, [sede, fecha]);
+  useEffect(() => {
+    void recontar();
+  }, [recontar]);
+
+  /**
+   * Los dos caminos de una llegada tarde (Julián, 2026-09-25), que son los que distinguen
+   * el nivel:
+   *  - `hall`: paso la tolerancia (6:10) y espera en el hall a que termine la primera
+   *    hora. Coordinacion arma la lista y la registra junta al pasarlos a clase: 1º nivel.
+   *  - `individual`: el vigilante lo trae a coordinacion. Si ya termino la primera hora,
+   *    2º nivel (cuenta doble); si no, 1º.
+   * Por la hora sola no se distinguen: la lista del hall se pasa a las 6:55, la misma
+   * hora a la que entraria uno de 2º nivel.
+   */
+  const tolerancia = config.toleranciaMinutos ?? ALERT_CONFIG_POR_DEFECTO.toleranciaMinutos ?? 10;
+  const [modo, setModo] = useState<'hall' | 'individual'>(() =>
+    modoSugerido([BLOQUES_MANANA, BLOQUES_TARDE], horaActual(), tolerancia),
+  );
+  const [hall, setHall] = useState<{ estudiante: Student; excusa: boolean }[]>([]);
+  const [registrandoHall, setRegistrandoHall] = useState(false);
 
   // La alerta de «N dias seguidos sin asistir» vivia aqui; se movio al paso 2 de la
   // tercera hora (AlertaDiasSinAsistir.tsx, 2026-09-25). El umbral se sigue ajustando
@@ -152,6 +181,7 @@ export default function LlegadasTarde({
     // se calcula con la hora de llegada y la jornada del estudiante.
     const bloques = jornadaDeGrado(e.gradoActual) === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
     const bloqueIngreso = bloqueDeHora(bloques, hora);
+    const nivel = nivelDeRegistroIndividual(bloques, hora);
     try {
       await registrarLlegadaTarde({
         studentId: e.studentId,
@@ -161,15 +191,78 @@ export default function LlegadasTarde({
         horaLlegada: hora,
         bloqueIngreso,
         estado: conExcusa ? 'pendiente_verificacion' : 'sin_justificar',
+        nivel,
+        origen: 'individual',
       });
-      setAviso(`${nombreCompleto(e)} — registrado a las ${hora}.`);
+      setAviso(
+        `${nombreCompleto(e)} — registrado a las ${hora}, ` +
+          (nivel === 2 ? '2º nivel (después de la primera hora: cuenta doble).' : '1º nivel.'),
+      );
       setBusqueda('');
       setCandidatos([]);
       await cargar();
+      await recontar();
     } catch (err) {
       if (err instanceof ConflictoError) setAviso(err.message);
       else setError((err as Error).message);
     }
+  }
+
+  function agregarAlHall(e: Student, excusa: boolean) {
+    setAviso(null);
+    setHall((h) => (h.some((x) => x.estudiante.studentId === e.studentId) ? h : [...h, { estudiante: e, excusa }]));
+    setBusqueda('');
+    setCandidatos([]);
+  }
+
+  /**
+   * Registra a todos los del hall de una vez, al pasarlos a clase. Todos 1º nivel, con la
+   * hora de ahora (la de entrada al salon) y entrando a la segunda hora, aunque se pase
+   * la lista un par de minutos antes de que termine la primera.
+   */
+  async function registrarHall() {
+    if (hall.length === 0) return;
+    setAviso(null);
+    setError(null);
+    setRegistrandoHall(true);
+    const hora = horaActual();
+    const yaEstaban: string[] = [];
+    const fallaron: { id: string; texto: string }[] = [];
+    const registrados: string[] = [];
+    for (const { estudiante: e, excusa } of hall) {
+      const bloques = jornadaDeGrado(e.gradoActual) === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
+      try {
+        await registrarLlegadaTarde({
+          studentId: e.studentId,
+          grado: e.gradoActual,
+          sede,
+          fecha,
+          horaLlegada: hora,
+          bloqueIngreso: bloques[1]?.id ?? 2,
+          estado: excusa ? 'pendiente_verificacion' : 'sin_justificar',
+          nivel: 1,
+          origen: 'hall',
+        });
+        registrados.push(e.studentId);
+      } catch (err) {
+        if (err instanceof ConflictoError) yaEstaban.push(nombreCompleto(e));
+        else fallaron.push({ id: e.studentId, texto: `${nombreCompleto(e)} (${(err as Error).message})` });
+      }
+    }
+    // Se quedan en la lista solo los que fallaron por un error real, para reintentar.
+    setHall((h) => h.filter((x) => fallaron.some((f) => f.id === x.estudiante.studentId)));
+    setRegistrandoHall(false);
+    setAviso(
+      [
+        `${registrados.length} del hall registrados (1º nivel) a las ${hora}. Ya pueden ir al salón.`,
+        yaEstaban.length > 0 ? `Ya tenían llegada tarde hoy: ${yaEstaban.join('; ')}.` : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    );
+    if (fallaron.length > 0) setError(`No se pudo registrar: ${fallaron.map((f) => f.texto).join('; ')}`);
+    await cargar();
+    await recontar();
   }
 
   // Al leer un QR NO se registra automaticamente: se deja como unico candidato para que
@@ -267,6 +360,42 @@ export default function LlegadasTarde({
 
 
       <div className="rounded-xl border border-line bg-card p-3">
+        {/* Los dos caminos, como pastillas: de cual se registra depende el nivel. */}
+        <div role="tablist" aria-label="Cómo llegó" className="mb-3 grid gap-2 sm:grid-cols-2">
+          {(
+            [
+              {
+                id: 'hall',
+                titulo: 'Hall de primera hora',
+                detalle: `Llegaron después de las ${sumarMinutos(BLOQUES_MANANA[0].inicio, tolerancia)} (tarde: ${sumarMinutos(BLOQUES_TARDE[0].inicio, tolerancia)}) y esperan. Se registran juntos al pasarlos a clase: 1º nivel.`,
+              },
+              {
+                id: 'individual',
+                titulo: 'Llega a coordinación',
+                detalle: 'Lo trae el vigilante. Si ya terminó la primera hora es 2º nivel y cuenta doble en las alertas.',
+              },
+            ] as const
+          ).map((m) => (
+            <button
+              key={m.id}
+              role="tab"
+              aria-selected={modo === m.id}
+              onClick={() => setModo(m.id)}
+              className={[
+                'rounded-2xl border-2 px-3 py-2 text-left',
+                modo === m.id
+                  ? 'border-accent bg-accent-soft text-accent-soft-fg'
+                  : 'border-line bg-elevated text-soft hover:bg-hover',
+              ].join(' ')}
+            >
+              <span className={`block text-sm ${modo === m.id ? 'font-bold' : 'font-semibold text-strong'}`}>
+                {m.titulo}
+              </span>
+              <span className="block text-xs opacity-80">{m.detalle}</span>
+            </button>
+          ))}
+        </div>
+
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs text-muted">
             Fecha
@@ -313,7 +442,7 @@ export default function LlegadasTarde({
                 estudiante={e}
                 tamano={candidatos.length === 1 ? 110 : 56}
                 extra={(() => {
-                  const paso = pasoLlegadasTarde(conteoAnual[e.studentId] ?? 0, config);
+                  const paso = pasoLlegadasTarde(cuentaDe(e.studentId), config);
                   return (
                     paso && (
                       <span
@@ -326,6 +455,23 @@ export default function LlegadasTarde({
                   );
                 })()}
                 acciones={
+                  modo === 'hall' ? (
+                    <>
+                      <button
+                        onClick={() => agregarAlHall(e, false)}
+                        className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-fg"
+                      >
+                        Al hall
+                      </button>
+                      <button
+                        onClick={() => agregarAlHall(e, true)}
+                        className="rounded-lg border border-line px-3 py-2 text-sm text-strong"
+                        title="Dice tener excusa pero no la trae: queda pendiente de verificar con el acudiente"
+                      >
+                        Al hall · dice traer excusa
+                      </button>
+                    </>
+                  ) : (
                   <>
                     <button
                       onClick={() => void registrar(e, false)}
@@ -341,6 +487,7 @@ export default function LlegadasTarde({
                       Dice traer excusa
                     </button>
                   </>
+                  )
                 }
               />
             ))}
@@ -349,6 +496,57 @@ export default function LlegadasTarde({
 
         {busqueda.trim().length >= 2 && candidatos.length === 0 && (
           <p className="mt-2 text-sm text-muted">Ningún estudiante coincide.</p>
+        )}
+
+        {modo === 'hall' && (
+          <div className="mt-3 rounded-xl border border-line bg-elevated p-3">
+            <p className="text-sm font-semibold text-strong">
+              En el hall <span className="text-muted">({hall.length})</span>
+            </p>
+            {hall.length === 0 ? (
+              <p className="mt-1 text-xs text-muted">
+                Busque o escanee a cada estudiante que está esperando y tóquelo «Al hall». Nada
+                se guarda hasta que los registre juntos.
+              </p>
+            ) : (
+              <>
+                <ul className="mt-2 space-y-1">
+                  {hall.map(({ estudiante: e, excusa }) => (
+                    <li
+                      key={e.studentId}
+                      className="flex items-center gap-2 rounded-lg border border-line bg-card p-2 text-sm"
+                    >
+                      <span className="grow">
+                        <b className="text-strong">{nombreCompleto(e)}</b>
+                        <span className="ml-2 text-xs text-muted">{e.gradoActual}</span>
+                        {excusa && (
+                          <span className="ml-2 rounded-full bg-warning-soft px-1.5 py-0.5 text-xs text-warning-soft-fg">
+                            dice traer excusa
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        onClick={() => setHall((h) => h.filter((x) => x.estudiante.studentId !== e.studentId))}
+                        aria-label={`Quitar a ${nombreCompleto(e)} de la lista`}
+                        className="rounded-lg border border-line px-2 py-1 text-xs text-muted"
+                      >
+                        Quitar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => void registrarHall()}
+                  disabled={registrandoHall}
+                  className="mt-2 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-60"
+                >
+                  {registrandoHall
+                    ? 'Registrando…'
+                    : `Registrar a los ${hall.length} del hall y enviarlos al salón`}
+                </button>
+              </>
+            )}
+          </div>
         )}
       </div>
 
@@ -386,12 +584,25 @@ export default function LlegadasTarde({
                 <span className="rounded-full bg-elevated px-2 py-0.5 text-xs font-semibold text-strong">
                   {r.horaLlegada}
                 </span>
+                {nivelDeLlegada(r) === 2 ? (
+                  <span
+                    className="rounded-full bg-danger-soft px-2 py-0.5 text-xs font-semibold text-danger-soft-fg"
+                    title="Llegó después de la primera hora: cuenta doble si no se justifica"
+                  >
+                    2º nivel
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-elevated px-2 py-0.5 text-xs text-muted">
+                    {r.origen === 'hall' ? 'hall · 1º nivel' : '1º nivel'}
+                  </span>
+                )}
                 <span className="grow">
                   <b className="text-strong">{nombres[r.studentId] ?? r.studentId}</b>
                   <span className="ml-2 text-xs text-muted">{r.grado}</span>
                 </span>
                 {(() => {
-                  const paso = pasoLlegadasTarde(conteoAnual[r.studentId] ?? 0, config);
+                  const cuenta = cuentaDe(r.studentId);
+                  const paso = pasoLlegadasTarde(cuenta, config);
                   return (
                     paso && (
                       <span
@@ -399,7 +610,7 @@ export default function LlegadasTarde({
                         style={estiloAlerta(paso.color)}
                         title={paso.mensaje}
                       >
-                        {conteoAnual[r.studentId]}ª del año
+                        {cuenta.llegadas} en el año{cuenta.segundoNivel > 0 ? ` (${cuenta.segundoNivel} de 2º)` : ''}
                       </span>
                     )
                   );
@@ -426,7 +637,8 @@ export default function LlegadasTarde({
         )}
 
         <p className="mt-2 text-xs text-muted">
-          Solo las <b>no justificadas</b> cuentan para las alertas. El colegio tiene el
+          Solo las <b>no justificadas</b> cuentan para las alertas, y las de <b>2º nivel</b>{' '}
+          (después de la primera hora) cuentan doble. El colegio tiene el
           deber de creer lo que informa la familia: coordinación verifica que esté al
           tanto, registra y firma.
         </p>
@@ -526,9 +738,15 @@ function ModalConfigAlertas({
         )}
         {campo(
           'Llegadas tarde para el primer aviso',
-          'Amarillo al llegar aquí, naranja la siguiente, rojo de dos más en adelante.',
+          'Amarillo al llegar aquí, naranja la siguiente, rojo de dos más en adelante. Las de 2º nivel cuentan doble.',
           borrador.llegadasTardeUmbral,
           (n) => setBorrador({ ...borrador, llegadasTardeUmbral: n }),
+        )}
+        {campo(
+          'Minutos de tolerancia al entrar',
+          'Después del inicio de la jornada (6:00 y 12:15). Pasado este tiempo, al hall.',
+          borrador.toleranciaMinutos ?? 10,
+          (n) => setBorrador({ ...borrador, toleranciaMinutos: n }),
         )}
         {campo(
           'Días seguidos sin asistir',
