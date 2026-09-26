@@ -53,6 +53,7 @@ import TerceraHoraCoordinacion from './TerceraHoraCoordinacion';
 import LlegadasTarde from './LlegadasTarde';
 import Eventos from './Eventos';
 import MisGrupos from './MisGrupos';
+import ListaDelGrupo, { BuscarEstudiante } from './ListaDelGrupo';
 import AvisoEvasion from './AvisoEvasion';
 import Evasiones from './Evasiones';
 
@@ -177,6 +178,12 @@ export default function Asistencia() {
    * "no puede escribirla". El superusuario no entra: sale por su propio panel mucho antes.
    */
   const soloConsulta = rol === 'rectora' || alcanceUsuario.soloConsulta;
+  /** Como se presenta Planillas: el docente ve sus grupos; los demas, el colegio. */
+  const perfilPlanillas: 'docente' | 'coordinacion' | 'consulta' = soloConsulta
+    ? 'consulta'
+    : rol === 'coordinador'
+      ? 'coordinacion'
+      : 'docente';
 
   /**
    * Excepcion de eventos (Julian, 2026-09-07). Un cargo de apoyo SI crea eventos y SI
@@ -210,24 +217,17 @@ export default function Asistencia() {
   useNivelAtras(fichaAbierta !== null, () => setFichaAbierta(null));
   const [directores, setDirectores] = useState<Record<string, string>>({});
   /**
-   * Coordinacion entra directo a la tercera hora (decision de Julián, 2026-09-25): es lo
-   * que revisa todos los dias, y Planillas queda como pestaña de consulta. Si el rol llega
-   * tarde (el store se hidrata despues del primer render), el efecto de abajo lo corrige,
-   * salvo que la persona ya haya escogido otra pestaña.
+   * Todos entran por Planillas, tambien coordinacion. Se probo entrar directo a la tercera
+   * hora y Julián lo revirtio el mismo dia (2026-09-25): «que entre a Planillas», que es
+   * la primera pestaña y donde ahora estan la lista de cada grupo y el buscador.
    */
-  const [vista, setVista] = useState<VistaAsistencia>(() =>
-    rol === 'coordinador' ? 'tercera_hora' : 'planilla',
-  );
-  const vistaElegida = useRef(false);
-  const cambiarVista = useCallback((v: VistaAsistencia) => {
-    vistaElegida.current = true;
-    setVista(v);
-  }, []);
-  useEffect(() => {
-    if (rol === 'coordinador' && !vistaElegida.current) setVista('tercera_hora');
-  }, [rol]);
+  const [vista, setVista] = useState<VistaAsistencia>('planilla');
+  const cambiarVista = setVista;
   /** Grupo que llega abierto a Planillas desde el tablero de tercera hora. */
   const [grupoPlanillas, setGrupoPlanillas] = useState<string | null>(null);
+  /** Lista de un grupo sin asignatura (coordinacion y consulta), ver ListaDelGrupo.tsx. */
+  const [listaGrupo, setListaGrupo] = useState<string | null>(null);
+  useNivelAtras(listaGrupo !== null, () => setListaGrupo(null));
   /**
    * Seccion dentro de Restaurante. Arranca en 'registrar' incluso para coordinacion: lo
    * que se hace a diario es atender la fila; el reporte se mira una vez al mes.
@@ -1034,7 +1034,24 @@ export default function Asistencia() {
         sesiones. Tenia sentido cuando el sistema no sabia que grupos dictaba cada quien y
         tenia que deducirlos de lo registrado; con la asignacion academica cargada, sobran.
       */}
-      {!cruce ? (
+      {!cruce && listaGrupo ? (
+        <ListaDelGrupo
+          grado={listaGrupo}
+          sede={sede}
+          puedeAgregar={rol === 'coordinador'}
+          onAbrirFicha={setFichaAbierta}
+          onVolver={atras}
+        />
+      ) : !cruce ? (
+        <>
+        {perfilPlanillas !== 'docente' && (
+          <BuscarEstudiante
+            sede={sede}
+            // Coordinacion ve tambien a los retirados: reintegrar empieza por encontrar.
+            incluirRetirados={rol === 'coordinador'}
+            onAbrirFicha={setFichaAbierta}
+          />
+        )}
         <MisGrupos
           slotId={slotId}
           extras={cruces}
@@ -1059,13 +1076,8 @@ export default function Asistencia() {
               !alcanceUsuario.jornadaLimitada ||
               jornadaDeGrado(g) === alcanceUsuario.jornadaLimitada,
           )}
-          perfil={
-            rol === 'rectora' || alcanceUsuario.soloConsulta
-              ? 'consulta'
-              : rol === 'coordinador'
-                ? 'coordinacion'
-                : 'docente'
-          }
+          perfil={perfilPlanillas}
+          onListaDelGrupo={perfilPlanillas !== 'docente' ? setListaGrupo : undefined}
           onElegir={(grado, subjectId) => {
             const yaTieneSesiones = cruces.some(
               (c) => c.grado === grado && c.subjectId === subjectId,
@@ -1079,6 +1091,7 @@ export default function Asistencia() {
           onSinAsignacion={() => setFormularioManual(true)}
           grupoAbierto={grupoPlanillas}
         />
+        </>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">

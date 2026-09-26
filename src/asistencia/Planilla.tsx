@@ -1003,7 +1003,7 @@ function MenuMarcas({
  * el error se muestra tal cual, porque nombra a quién ya existe y con eso basta para
  * saber qué hacer (trasladar, no duplicar).
  */
-function ModalNuevoEstudiante({
+export function ModalNuevoEstudiante({
   grado,
   onGuardar,
   onCerrar,

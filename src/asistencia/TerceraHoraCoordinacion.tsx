@@ -3,6 +3,7 @@ import { ListChecks, Phone } from 'lucide-react';
 import { ETIQUETA_JORNADA } from './domain/filtro-jornada';
 import { jornadaDeGrado, toDateKey } from './domain/ids';
 import type { Jornada } from './domain/types';
+import AlertaDiasSinAsistir from './AlertaDiasSinAsistir';
 import TableroTerceraHora from './TableroTerceraHora';
 import TerceraHora from './TerceraHora';
 
@@ -12,8 +13,8 @@ import TerceraHora from './TerceraHora';
  *   1. ¿Quién llamó lista?  — asegurar que todos los grupos tomaron asistencia.
  *   2. Ausentes y familias  — atender a los que no vinieron (el reporte de siempre).
  *
- * Es lo primero que ve la coordinadora al entrar al modulo (decision de Julián): reemplazo
- * a Planillas como pantalla de inicio, que quedo como pestaña de consulta.
+ * Va despues de Planillas y Llegadas tarde; se entra al modulo por Planillas (Julián,
+ * 2026-09-25, revirtiendo el mismo dia la entrada directa a esta pestaña).
  *
  * La fecha y la jornada viven aqui para que los dos pasos miren el mismo dia.
  */
@@ -41,10 +42,39 @@ export default function TerceraHoraCoordinacion({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-xl border border-line bg-card p-3">
-        <div className="flex flex-wrap items-end gap-2">
+      <div className="space-y-3 rounded-xl border border-line bg-card p-3">
+        <div>
           <h2 className="text-base font-semibold text-strong">Tercera hora</h2>
-          <span className="grow" />
+          <p className="text-xs text-muted">
+            Esta pestaña tiene dos pantallas. Escoja cuál ver:
+          </p>
+        </div>
+
+        {/*
+          Los dos pasos como PASTILLAS grandes, con el estilo de las demas pastillas de la
+          aplicacion (borde y fondo de acento en la elegida). Antes eran dos pestañas
+          subrayadas que se leian como un titulo: Julián descubrio «por pura casualidad»
+          que eran dos pantallas distintas (2026-09-25). Cada una dice que muestra.
+        */}
+        <div role="tablist" aria-label="Pantallas de tercera hora" className="grid gap-2 sm:grid-cols-2">
+          <PastillaPaso
+            activo={paso === 'lista'}
+            onClick={() => setPaso('lista')}
+            icono={<ListChecks size={18} aria-hidden />}
+            titulo="1. ¿Quién llamó lista?"
+            detalle="Grupo por grupo: si ya se tomó la asistencia a tercera hora."
+          />
+          <PastillaPaso
+            activo={paso === 'ausentes'}
+            onClick={() => setPaso('ausentes')}
+            icono={<Phone size={18} aria-hidden />}
+            titulo="2. Ausentes y familias"
+            detalle="Quién no vino, los avisos por mensaje y las llamadas a las familias."
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+          <span className="text-xs text-muted">Mostrando:</span>
           <label className="text-xs text-muted">
             Día{' '}
             <input
@@ -70,15 +100,6 @@ export default function TerceraHoraCoordinacion({
             </label>
           )}
         </div>
-
-        <div role="tablist" className="mt-3 flex border-b border-line">
-          <BotonPaso activo={paso === 'lista'} onClick={() => setPaso('lista')}>
-            <ListChecks size={16} aria-hidden /> 1. ¿Quién llamó lista?
-          </BotonPaso>
-          <BotonPaso activo={paso === 'ausentes'} onClick={() => setPaso('ausentes')}>
-            <Phone size={16} aria-hidden /> 2. Ausentes y familias
-          </BotonPaso>
-        </div>
       </div>
 
       {paso === 'lista' ? (
@@ -90,20 +111,27 @@ export default function TerceraHoraCoordinacion({
           onVerPlanillas={onVerPlanillas}
         />
       ) : (
-        <TerceraHora sede={sede} jornadaLimitada={jornadaLimitada} controlado={{ fecha, jornada }} />
+        <>
+          <AlertaDiasSinAsistir sede={sede} fecha={fecha} jornada={jornada} />
+          <TerceraHora sede={sede} jornadaLimitada={jornadaLimitada} controlado={{ fecha, jornada }} />
+        </>
       )}
     </div>
   );
 }
 
-function BotonPaso({
+function PastillaPaso({
   activo,
   onClick,
-  children,
+  icono,
+  titulo,
+  detalle,
 }: {
   activo: boolean;
   onClick: () => void;
-  children: React.ReactNode;
+  icono: React.ReactNode;
+  titulo: string;
+  detalle: string;
 }) {
   return (
     <button
@@ -111,11 +139,17 @@ function BotonPaso({
       aria-selected={activo}
       onClick={onClick}
       className={[
-        '-mb-px flex min-h-11 items-center gap-1.5 border-b-2 px-3 text-sm',
-        activo ? 'border-accent font-semibold text-strong' : 'border-transparent text-muted',
+        'flex min-h-14 items-start gap-2 rounded-2xl border-2 px-3 py-2 text-left',
+        activo
+          ? 'border-accent bg-accent-soft text-accent-soft-fg'
+          : 'border-line bg-elevated text-soft hover:bg-hover',
       ].join(' ')}
     >
-      {children}
+      <span className="mt-0.5 shrink-0">{icono}</span>
+      <span className="min-w-0">
+        <span className={`block text-sm ${activo ? 'font-bold' : 'font-semibold text-strong'}`}>{titulo}</span>
+        <span className="block text-xs opacity-80">{detalle}</span>
+      </span>
     </button>
   );
 }

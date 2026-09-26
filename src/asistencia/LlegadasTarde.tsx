@@ -5,23 +5,18 @@ import {
   ConflictoError,
   guardarConfigAlertas,
   leerConfigAlertas,
-  leerEstudiante,
   leerLlegadasTarde,
-  leerSesiones,
-  leerSesionesDeJornadaPorDias,
   registrarLlegadaTarde,
   resolverLlegadaTarde,
 } from './datos';
 import EscanerQr from './EscanerQr';
 import VerificacionFoto from './VerificacionFoto';
-import { addDays, jornadaDeGrado, toDateKey } from './domain/ids';
+import { jornadaDeGrado, toDateKey } from './domain/ids';
 import { bloqueDeHora } from './domain/bloques';
 import { nombreCompleto } from './domain/nombres';
 import { EXCUSE_REASONS, LATE_ARRIVAL_STATES, type ExcuseReason } from './domain/marks';
 import {
   ALERT_CONFIG_POR_DEFECTO,
-  activaAlertaDiasSinAsistir,
-  diasSinAsistirConsecutivos,
   llegadasQueAlertan,
   pasoLlegadasTarde,
   type ColorAlerta,
@@ -110,60 +105,9 @@ export default function LlegadasTarde({
     );
   }, [sede, fecha]);
 
-  // Alerta institucional: estudiantes con `diasSinAsistir` o más días seguidos sin
-  // asistir a NINGUNA clase. Ventana acotada (umbral + margen) para no traer todas las
-  // sesiones de la sede desde siempre.
-  const [alertasInasistencia, setAlertasInasistencia] = useState<
-    { studentId: string; nombre: string; dias: number; grado: string | null }[]
-  >([]);
-  useEffect(() => {
-    let vivo = true;
-    void (async () => {
-      try {
-        const desde = addDays(fecha, -(config.diasSinAsistir + 4));
-        // El coordinador limitado a una jornada NO puede pedir las sesiones de toda la sede:
-        // la regla se la rechaza entera. Antes se pedian igual, el `catch` de abajo se
-        // tragaba el rechazo, y a esa coordinadora esta alerta le salia SIEMPRE vacia sin
-        // que nadie lo notara. Ver `leerSesionesDeJornadaPorDias` para el porque de una
-        // consulta por dia.
-        let sesiones;
-        if (jornadaLimitada) {
-          const fechas: string[] = [];
-          for (let d = desde; d <= fecha; d = addDays(d, 1)) fechas.push(d);
-          sesiones = await leerSesionesDeJornadaPorDias(sede, jornadaLimitada, fechas);
-        } else {
-          sesiones = await leerSesiones({ tipo: 'coordinador', sede }, { desde, hasta: fecha });
-        }
-        const idsVistos = new Set<string>();
-        for (const s of sesiones) for (const id of Object.keys(s.estudiantes ?? {})) idsVistos.add(id);
-        const candidatas = [...idsVistos]
-          .map((id) => ({ studentId: id, dias: diasSinAsistirConsecutivos(sesiones, id) }))
-          .filter((a) => activaAlertaDiasSinAsistir(a.dias, config));
-        if (!vivo) return;
-        if (candidatas.length === 0) {
-          setAlertasInasistencia([]);
-          return;
-        }
-        const fichas = await Promise.all(candidatas.map((a) => leerEstudiante(a.studentId)));
-        if (!vivo) return;
-        setAlertasInasistencia(
-          candidatas.map((a, i) => ({
-            studentId: a.studentId,
-            dias: a.dias,
-            nombre: fichas[i] ? nombreCompleto(fichas[i]!) : a.studentId,
-            grado: fichas[i]?.gradoActual ?? null,
-          })),
-        );
-      } catch {
-        // Es un aviso adicional, no el trabajo de la pantalla: si falla, la puerta del
-        // colegio sigue funcionando con lo demás.
-        if (vivo) setAlertasInasistencia([]);
-      }
-    })();
-    return () => {
-      vivo = false;
-    };
-  }, [sede, fecha, config.diasSinAsistir, jornadaLimitada]);
+  // La alerta de «N dias seguidos sin asistir» vivia aqui; se movio al paso 2 de la
+  // tercera hora (AlertaDiasSinAsistir.tsx, 2026-09-25). El umbral se sigue ajustando
+  // desde «Ajustar alertas» de esta pantalla.
 
   const cargar = useCallback(async () => {
     try {
@@ -301,7 +245,6 @@ export default function LlegadasTarde({
 
   // Se filtra al MOSTRAR (ver domain/filtro-jornada). Sin grado conocido, se muestra.
   const registrosVisibles = registros.filter((r) => gradoEnJornada(r.grado, filtro));
-  const alertasVisibles = alertasInasistencia.filter((a) => !a.grado || gradoEnJornada(a.grado, filtro));
   const pendientes = registrosVisibles.filter((r) => r.estado === 'pendiente_verificacion').length;
 
   return (
@@ -322,31 +265,6 @@ export default function LlegadasTarde({
         </button>
       </div>
 
-      {alertasVisibles.length > 0 && (
-        <section className="rounded-xl border border-danger-soft bg-danger-soft p-3">
-          <h3 className="text-sm font-semibold text-danger-soft-fg">
-            {alertasVisibles.length} estudiante(s) sin asistir {config.diasSinAsistir}{' '}
-            días seguidos o más
-          </h3>
-          <p className="text-xs text-danger-soft-fg">
-            Ninguna clase, en ningún bloque. Verifique con la familia qué ha informado y si
-            hay ausencia proyectada.
-          </p>
-          <ul className="mt-2 space-y-1">
-            {alertasVisibles.map((a) => (
-              <li
-                key={a.studentId}
-                className="flex items-center justify-between rounded-lg border border-line bg-card p-2 text-sm"
-              >
-                <span className="text-strong">{a.nombre}</span>
-                <span className="text-xs font-semibold text-danger-soft-fg">
-                  {a.dias} días seguidos
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       <div className="rounded-xl border border-line bg-card p-3">
         <div className="flex flex-wrap items-end gap-2">

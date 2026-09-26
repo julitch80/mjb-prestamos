@@ -19,6 +19,7 @@ export default function MisGrupos({
   onElegir,
   onSinAsignacion,
   grupoAbierto = null,
+  onListaDelGrupo,
 }: {
   slotId: string | null;
   /**
@@ -61,6 +62,11 @@ export default function MisGrupos({
   onSinAsignacion: () => void;
   /** Grupo que llega abierto desde el tablero de tercera hora («Ver las planillas de…»). */
   grupoAbierto?: string | null;
+  /**
+   * Abre la lista del grupo sin asignatura (ficha, alta de estudiantes). Solo para quien
+   * no dicta clase: el docente ya llega a su grupo por su planilla.
+   */
+  onListaDelGrupo?: (grado: string) => void;
 }) {
   const resumenes = slotId ? asignacionDeDocente(slotId) : [];
 
@@ -199,15 +205,20 @@ export default function MisGrupos({
           <p className="mt-0.5 text-xs text-muted">
             Los grupos en gris todavía no tienen ninguna planilla: nadie ha pasado lista
             ahí. No es que falten permisos.
+            {onListaDelGrupo && ' Toque un grupo para ver su lista de estudiantes.'}
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {[...todosLosGrados!]
               .sort((a, b) => gradoSortKey(a).localeCompare(gradoSortKey(b)))
               .map((g) => {
                 const activo = conSesiones.has(g);
+                // Con `onListaDelGrupo` la pastilla es un boton: TODOS los grupos, tambien
+                // los grises, tienen estudiantes y ficha aunque nadie haya pasado lista.
+                const Etiqueta = onListaDelGrupo ? 'button' : 'span';
                 return (
-                  <span
+                  <Etiqueta
                     key={g}
+                    {...(onListaDelGrupo ? { onClick: () => onListaDelGrupo(g) } : {})}
                     title={
                       activo
                         ? `${g}: ${conSesiones.get(g)} planilla(s) registradas`
@@ -223,7 +234,7 @@ export default function MisGrupos({
                     {activo && (
                       <span className="ml-1 text-xs font-normal">· {conSesiones.get(g)}</span>
                     )}
-                  </span>
+                  </Etiqueta>
                 );
               })}
           </div>
@@ -255,7 +266,12 @@ export default function MisGrupos({
               ))}
             </div>
           ) : (
-            <PlanillasPorGrupo cruces={otros} grupoAbierto={grupoAbierto} onElegir={onElegir} />
+            <PlanillasPorGrupo
+              cruces={otros}
+              grupoAbierto={grupoAbierto}
+              onElegir={onElegir}
+              onListaDelGrupo={onListaDelGrupo}
+            />
           )}
         </div>
       )}
@@ -339,10 +355,12 @@ function PlanillasPorGrupo({
   cruces,
   grupoAbierto,
   onElegir,
+  onListaDelGrupo,
 }: {
   cruces: { grado: string; subjectId: string }[];
   grupoAbierto: string | null;
   onElegir: (grado: string, subjectId: string) => void;
+  onListaDelGrupo?: (grado: string) => void;
 }) {
   const [abiertos, setAbiertos] = useState<Set<string>>(() => new Set(grupoAbierto ? [grupoAbierto] : []));
   const refAbierto = useRef<HTMLDivElement | null>(null);
@@ -396,6 +414,14 @@ function PlanillasPorGrupo({
             </button>
             {abierto && (
               <div className="grid gap-1.5 px-3 pb-3 sm:grid-cols-2">
+                {onListaDelGrupo && (
+                  <button
+                    onClick={() => onListaDelGrupo(grado)}
+                    className="rounded-lg border border-accent px-2 py-1.5 text-left text-sm font-semibold text-accent hover:bg-hover sm:col-span-2"
+                  >
+                    Lista del grupo (fichas y estudiantes nuevos)
+                  </button>
+                )}
                 {[...materias]
                   .map((id) => ({ id, nombre: getAsignatura(id)?.nombre ?? id }))
                   .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
