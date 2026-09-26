@@ -67,6 +67,11 @@ export default defineConfig({
           '**/*.{js,css,html,ico,svg,woff2}',
           'fotos-brigada/**/*.{jpg,jpeg,png,webp}',
         ],
+        // Manual de convivencia (public/convivencia/): la versión digital pesa ~7 MB
+        // y el PDF/Word son descargas; nada de eso va al precache. Y sus páginas
+        // no deben caer en el navigateFallback (servirían la app en vez del manual).
+        globIgnores: ['convivencia/**'],
+        navigateFallbackDenylist: [/\/convivencia\//],
         skipWaiting: true,
         clientsClaim: true,
         runtimeCaching: [

@@ -150,9 +150,9 @@ function FichaGustavoRodas() {
           La <strong className="text-soft">agenda semanal</strong> y la{' '}
           <strong className="text-soft">gestión del riesgo</strong> también son de toda la
           institución — las brigadas de esta sede ya están cargadas desde la Resolución 33.{' '}
-          Y los <strong className="text-soft">asistentes institucionales</strong> (el chatbot del
-          Manual de Convivencia) también están disponibles: no dependen de datos académicos de la
-          sede, así que ya funcionan igual que en central.
+          Y el módulo <strong className="text-soft">Manual de convivencia</strong> (chatbots,
+          versión digital y versión clásica) también está disponible: no depende de datos
+          académicos de la sede, así que ya funciona igual que en central.
         </p>
       </Bloque>
     </div>

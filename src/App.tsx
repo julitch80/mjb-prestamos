@@ -64,7 +64,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'generar_horario', label: 'Generar horario',  descripcion: 'Construir el horario del proximo ano',  roles: ['coordinador', 'superusuario'] },
   { id: 'asistencia',     label: 'Asistencia',      descripcion: 'Registro de clase',                 roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'tareas',         label: 'Tareas',          descripcion: 'Momentos de tarea por grupo',       roles: ['docente', 'coordinador', 'rectora'] },
-  { id: 'asistentes',     label: 'Chatbot',         descripcion: 'Chatbots de convivencia y evaluación', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'asistentes',     label: 'Manual de convivencia', descripcion: 'Chatbots, versión digital y versión clásica del manual', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'riesgo',         label: 'Gestión del Riesgo', descripcion: 'Emergencia escolar, brigadas y números', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'disponibilidad', label: 'Reservas',        descripcion: 'Solicita un aula o recurso',        roles: ['docente', 'coordinador'] },
   { id: 'historial',      label: 'Mis reservas',    descripcion: 'Tus solicitudes y su estado',       roles: ['rectora'] },
