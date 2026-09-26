@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useAppStore } from '../data/store';
+import { listarUsuarios, type UsuarioFirestore } from '../data/adminUsers';
 import {
   borradorFurat, estadoCuentaRegresivaFurat, horaLimiteFurat, horasRestantesFurat,
   type EstadoCuentaRegresiva, type TipoPersonaAccidente,
@@ -544,8 +545,11 @@ function MisReportes() {
 // ── COPASST (rectora/superusuario) ──────────────────────────────────────────
 
 function AdminCopasst() {
+  // Se escoge a la gente de la lista de usuarios de la app (ya tiene sus correos):
+  // nadie tiene que escribir un correo a mano (Julián, 26-sep-2026).
   const [correos, setCorreos] = useState<string[]>([]);
-  const [nuevo, setNuevo] = useState('');
+  const [usuarios, setUsuarios] = useState<UsuarioFirestore[]>([]);
+  const [filtro, setFiltro] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -553,41 +557,55 @@ function AdminCopasst() {
     getDoc(doc(db, 'sstConfig/copasst')).then(snap => {
       if (snap.exists()) setCorreos((snap.data().correos as string[]) ?? []);
     }).catch(() => {});
+    listarUsuarios()
+      .then(lista => setUsuarios(lista.filter(u => u.active)))
+      .catch(() => setError('No se pudo cargar la lista de usuarios.'));
   }, []);
 
   async function guardar(lista: string[]) {
     if (!db) return;
-    await setDoc(doc(db, 'sstConfig/copasst'), { correos: lista });
-    setCorreos(lista);
+    try {
+      await setDoc(doc(db, 'sstConfig/copasst'), { correos: lista });
+      setCorreos(lista);
+      setError('');
+    } catch {
+      setError('No se pudo guardar. Solo la rectora o el superusuario pueden cambiar el COPASST.');
+    }
   }
 
-  function agregar() {
-    const c = nuevo.trim().toLowerCase();
-    if (!c.endsWith('@iemanueljbetancur.edu.co')) {
-      setError('Debe ser un correo @iemanueljbetancur.edu.co');
-      return;
-    }
-    if (correos.includes(c)) { setError('Ya está en la lista'); return; }
-    setError('');
-    guardar([...correos, c]);
-    setNuevo('');
+  function alternar(email: string) {
+    const c = email.toLowerCase();
+    guardar(correos.includes(c) ? correos.filter(x => x !== c) : [...correos, c]);
   }
+
+  const nombreDe = (email: string) => usuarios.find(u => u.email === email)?.displayName || email;
+  const f = filtro.trim().toLowerCase();
+  const visibles = usuarios.filter(u =>
+    !correos.includes(u.email) && (!f || (u.displayName || '').toLowerCase().includes(f) || u.email.includes(f)));
 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-muted leading-relaxed">
-        Representantes docentes del COPASST según el PRD: Gloria Gallego, Luis Javier, Julián Medina, Dolly
-        (agrega aquí sus correos institucionales; la app no los inventa).
+        Representantes docentes del COPASST. La rectora y los coordinadores ya reciben los avisos por su cargo:
+        aquí solo se agregan los docentes del comité.
       </p>
-      {correos.map(c => (
+      {correos.length === 0 ? (
+        <p className="text-sm text-muted">Todavía no hay representantes escogidos.</p>
+      ) : correos.map(c => (
         <div key={c} className="flex items-center justify-between gap-2 rounded-lg border border-line bg-card px-3 py-2">
-          <span className="text-sm text-strong">{c}</span>
-          <button onClick={() => guardar(correos.filter(x => x !== c))} className="text-xs text-danger font-semibold">Quitar</button>
+          <span className="text-sm text-strong">{nombreDe(c)}</span>
+          <button onClick={() => alternar(c)} className="text-xs text-danger font-semibold">Quitar</button>
         </div>
       ))}
-      <div className="flex items-center gap-2">
-        <input className={inputCls} placeholder="correo@iemanueljbetancur.edu.co" value={nuevo} onChange={e => setNuevo(e.target.value)} />
-        <button onClick={agregar} className="px-3 py-2 rounded-lg bg-accent text-accent-fg text-xs font-semibold whitespace-nowrap">Agregar</button>
+      <input className={inputCls} placeholder="Buscar docente por nombre…" value={filtro} onChange={e => setFiltro(e.target.value)} />
+      <div className="max-h-64 overflow-y-auto flex flex-col gap-1">
+        {visibles.map(u => (
+          <button key={u.email} onClick={() => alternar(u.email)}
+            className="text-left rounded-lg border border-line px-3 py-2 text-sm text-soft hover:bg-elevated flex justify-between gap-2">
+            <span>{u.displayName || u.email}</span>
+            <span className="text-xs text-accent font-semibold">Agregar</span>
+          </button>
+        ))}
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
     </div>
