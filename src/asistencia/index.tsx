@@ -1851,6 +1851,20 @@ const SECCIONES: {
   /** Coordinacion Y rectoria. Hoy solo permanencia; ver la nota de su bloque. */
   coordinacionYRectoria?: boolean;
 }[] = [
+  // Orden del flujo de trabajo del dia (Julián, 2026-09-25): planillas, la puerta,
+  // la tercera hora, permanencia; luego lo que se usa por temporadas o por evento.
+  {
+    vista: 'planilla',
+    nombre: 'Planillas',
+    descripcion: 'Pase de lista de sus clases: escoja un grupo y marque la asistencia del día.',
+  },
+  {
+    vista: 'llegadas',
+    nombre: 'Llegadas tarde',
+    descripcion:
+      'Registro en la puerta de quien entra tarde al colegio. No es el retraso a una clase, que lo pone cada docente.',
+    soloCoordinador: true,
+  },
   {
     vista: 'tercera_hora',
     nombre: 'Tercera hora',
@@ -1859,22 +1873,17 @@ const SECCIONES: {
     soloCoordinador: true,
   },
   {
-    vista: 'planilla',
-    nombre: 'Planillas',
-    descripcion: 'Pase de lista de sus clases: escoja un grupo y marque la asistencia del día.',
+    vista: 'permanencia',
+    nombre: 'Permanencia',
+    descripcion:
+      'Los criterios con los que el sistema abre un caso de permanencia: cuántos días de inasistencia, y qué respuestas de la familia explican la falta o encienden una alerta. Lo administran coordinación y rectoría.',
+    coordinacionYRectoria: true,
   },
   {
     vista: 'evasiones',
     nombre: 'Evasiones',
     descripcion:
       'Estudiantes que un docente marcó como evasión: no estaban en su clase y tampoco figuran entre los ausentes del día. Aquí se descarta el que salió con permiso y se busca al que no.',
-    soloCoordinador: true,
-  },
-  {
-    vista: 'llegadas',
-    nombre: 'Llegadas tarde',
-    descripcion:
-      'Registro en la puerta de quien entra tarde al colegio. No es el retraso a una clase, que lo pone cada docente.',
     soloCoordinador: true,
   },
   {
@@ -1888,13 +1897,6 @@ const SECCIONES: {
     nombre: 'Centros de interés',
     descripcion:
       'Los centros de interés del semestre. Cada profesor entra a la planilla del suyo; la coordinación del programa los ve todos, carga las listas desde Excel y resuelve los casos que no cruzaron.',
-  },
-  {
-    vista: 'permanencia',
-    nombre: 'Permanencia',
-    descripcion:
-      'Los criterios con los que el sistema abre un caso de permanencia: cuántos días de inasistencia, y qué respuestas de la familia explican la falta o encienden una alerta. Lo administran coordinación y rectoría.',
-    coordinacionYRectoria: true,
   },
   {
     vista: 'restaurante',

@@ -117,12 +117,16 @@ export default function TableroTerceraHora({
             <p className="mt-1 text-lg font-semibold text-strong">
               {resumen.llamo} de {resumen.conClase} grupos ya llamaron lista
             </p>
+            <p className="text-xs text-muted">
+              Son los {resumen.conClase} grupos que, según el horario de hoy, tienen clase a tercera
+              hora. Un grupo «llamó lista» cuando alguien marcó la asistencia en esa hora en la
+              aplicación. Se actualiza sola.
+            </p>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-elevated" aria-hidden>
               <div className="h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
-              <Pastilla estado="llamo">{resumen.llamo} con lista</Pastilla>
-              {resumen.enCurso > 0 && <Pastilla estado="en_curso">{resumen.enCurso} en curso</Pastilla>}
+              <Pastilla estado="llamo">{resumen.llamo} llamaron lista</Pastilla>
               {resumen.sinLista > 0 && <Pastilla estado="sin_lista">{resumen.sinLista} sin lista</Pastilla>}
               {resumen.enHora > 0 && (
                 <Pastilla estado="en_hora">
@@ -130,6 +134,12 @@ export default function TableroTerceraHora({
                 </Pastilla>
               )}
             </div>
+            {resumen.sinCerrar > 0 && (
+              <p className="mt-1 text-xs text-muted">
+                De los que llamaron lista, {resumen.sinCerrar} no han cerrado la planilla. No hace
+                falta para esta pantalla: las marcas ya cuentan.
+              </p>
+            )}
           </>
         )}
       </div>
@@ -143,6 +153,11 @@ export default function TableroTerceraHora({
         <div className="rounded-xl border border-danger-soft bg-card p-3">
           <p className="flex items-center gap-2 text-sm font-semibold text-danger-soft-fg">
             <AlertCircle size={16} aria-hidden /> Por resolver ahora: grupos sin lista
+          </p>
+          <p className="mt-0.5 text-xs text-muted">
+            Tenían clase a tercera hora y, pasados {GRACIA_MINUTOS} minutos, nadie ha marcado
+            asistencia en la aplicación. Puede ser que no se llamó lista, que se llevó en otro
+            medio, o que se registró como otra hora: toque el grupo y mire sus seis horas.
           </p>
           <ul className="mt-1 divide-y divide-line">
             {faltan.map((f) => (
@@ -166,7 +181,7 @@ export default function TableroTerceraHora({
         </div>
       )}
 
-      {resumen.conClase > 0 && faltan.length === 0 && resumen.enHora === 0 && resumen.enCurso === 0 && (
+      {resumen.conClase > 0 && faltan.length === 0 && resumen.enHora === 0 && (
         <p className="flex items-center gap-2 rounded-xl border border-line bg-success-soft p-3 text-sm text-success-soft-fg">
           <CheckCircle2 size={16} aria-hidden /> Todos los grupos con clase a tercera hora ya llamaron lista.
         </p>
@@ -179,11 +194,11 @@ export default function TableroTerceraHora({
           <span className="grow" />
           <div className="flex flex-wrap gap-1 text-xs">
             <Pastilla estado="llamo">llamó lista</Pastilla>
-            <Pastilla estado="en_curso">en curso</Pastilla>
             <Pastilla estado="sin_lista">sin lista</Pastilla>
-            <Pastilla estado="sin_clase">sin clase</Pastilla>
+            <Pastilla estado="sin_clase">todavía no, o no aplica</Pastilla>
           </div>
         </div>
+        <p className="mt-0.5 text-xs text-muted">Toque un grupo para ver quién faltó y sus seis horas de hoy.</p>
 
         {niveles.map((n) => (
           <div key={n} className="mt-2">
@@ -216,7 +231,6 @@ export default function TableroTerceraHora({
 
 const TONO: Record<EstadoLista, string> = {
   llamo: 'border-success-soft bg-success-soft text-success-soft-fg',
-  en_curso: 'border-warning-soft bg-warning-soft text-warning-soft-fg',
   sin_lista: 'border-danger-soft bg-danger-soft text-danger-soft-fg',
   en_hora: 'border-line bg-elevated text-muted',
   sin_clase: 'border-line bg-elevated text-muted',
@@ -225,7 +239,7 @@ const TONO: Record<EstadoLista, string> = {
 
 function IconoEstado({ estado }: { estado: EstadoLista }) {
   if (estado === 'llamo') return <CheckCircle2 size={16} aria-label="Llamó lista" />;
-  if (estado === 'en_curso' || estado === 'en_hora') return <Clock size={16} aria-label="En curso" />;
+  if (estado === 'en_hora') return <Clock size={16} aria-label="Todavía en hora" />;
   if (estado === 'sin_lista') return <AlertCircle size={16} aria-label="Sin lista" />;
   return <Minus size={16} aria-label="Sin clase" />;
 }
@@ -288,10 +302,8 @@ function TarjetaGrupo({ fila, abierta, onTocar }: { fila: FilaTablero; abierta: 
   const e = b.estado;
   const detalle =
     e === 'llamo'
-      ? `${ausentesDe(b.sesion).length} ausente(s) · ${horaDe(b.sesion?.closedAt ?? b.sesion?.createdAt)}`
-      : e === 'en_curso'
-        ? `${marcasDe(b.sesion)} marcados, sin cerrar`
-        : e === 'sin_lista'
+      ? `${ausentesDe(b.sesion).length} ausente(s)${b.sesion?.closed ? '' : ' · sin cerrar'}`
+      : e === 'sin_lista'
           ? (b.clase?.aula ?? 'sin aula')
           : e === 'en_hora'
             ? 'en hora'
@@ -351,10 +363,10 @@ function DetalleGrupo({
 
   const estadoTexto =
     b.estado === 'llamo'
-      ? `Lista tomada por ${nombrePorCorreo(b.sesion?.closedBy ?? b.sesion?.createdBy)} a las ${horaDe(b.sesion?.closedAt ?? b.sesion?.createdAt)}.`
-      : b.estado === 'en_curso'
-        ? `${marcasDe(b.sesion)} estudiantes marcados por ${nombrePorCorreo(b.sesion?.createdBy)}; la lista no se ha cerrado.`
-        : b.estado === 'sin_lista'
+      ? b.sesion?.closed
+        ? `Lista tomada por ${nombrePorCorreo(b.sesion.closedBy ?? b.sesion.createdBy)}; planilla cerrada a las ${horaDe(b.sesion.closedAt)}.`
+        : `Lista tomada por ${nombrePorCorreo(b.sesion?.createdBy)}: ${marcasDe(b.sesion)} estudiantes marcados. La planilla no se ha cerrado.`
+      : b.estado === 'sin_lista'
           ? 'Todavía nadie ha llamado lista en esta hora.'
           : b.estado === 'en_hora'
             ? `Todavía está dentro de los primeros ${GRACIA_MINUTOS} minutos de la hora.`

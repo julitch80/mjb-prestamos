@@ -99,9 +99,14 @@ export function titularAusente(clase: ClaseDelDia, cambio: CambioDelDia | undefi
   return (cambio?.ausencias ?? []).some((a) => a.docenteId === clase.docente && a.bloques.includes(original));
 }
 
+/**
+ * Tres colores, a proposito: verde (llamo lista), rojo (no, y ya deberia) y gris (no
+ * aplica todavia o no aplica). Hubo un cuarto, ambar, para «marco pero no cerro la
+ * planilla», y confundio: el tablero decia «0 con lista» cuando cuatro grupos si habian
+ * llamado lista (Julián, 2026-09-25). Que falte cerrar es un detalle, no otro estado.
+ */
 export type EstadoLista =
-  | 'llamo' //       verde: la sesion tiene marcas y se cerro
-  | 'en_curso' //    ambar: tiene marcas pero no se ha cerrado
+  | 'llamo' //       verde: la sesion tiene marcas (cerrada o no)
   | 'sin_lista' //   rojo: tenia clase, paso la gracia y no hay marcas
   | 'en_hora' //     gris: tenia clase pero todavia esta dentro de la gracia
   | 'sin_clase' //   gris: el horario no le pone clase a esa hora
@@ -126,9 +131,9 @@ export function ausentesDe(sesion: Pick<Session, 'estudiantes'> | null | undefin
  * El estado de un grupo en un bloque.
  *
  * Una sesion con marcas manda sobre el horario: si alguien llamo lista, se llamo lista,
- * diga lo que diga el horario (clase movida, reemplazo improvisado). Sin marcas, decide
- * el horario y el reloj. Una sesion abierta sin ninguna marca cuenta como sin lista:
- * abrir la planilla no es llamar lista.
+ * diga lo que diga el horario (clase movida, reemplazo improvisado), y aunque no haya
+ * cerrado la planilla. Sin marcas, decide el horario y el reloj. Una sesion abierta sin
+ * ninguna marca cuenta como sin lista: abrir la planilla no es llamar lista.
  */
 export function estadoDeLista(input: {
   sesion: Pick<Session, 'closed' | 'estudiantes'> | null;
@@ -139,8 +144,7 @@ export function estadoDeLista(input: {
   minutoActual: number;
   inicioBloque: number;
 }): EstadoLista {
-  const marcas = marcasDe(input.sesion);
-  if (marcas > 0) return input.sesion?.closed ? 'llamo' : 'en_curso';
+  if (marcasDe(input.sesion) > 0) return 'llamo';
   if (!input.grupoConHorario) return 'sin_horario';
   if (!input.tieneClase) return 'sin_clase';
   if (input.fecha < input.hoy) return 'sin_lista';
@@ -231,7 +235,8 @@ export function construirTablero(input: {
 
 export interface ResumenTablero {
   llamo: number;
-  enCurso: number;
+  /** De los que llamaron lista, cuantos no han cerrado la planilla. Solo informativo. */
+  sinCerrar: number;
   sinLista: number;
   enHora: number;
   /** Los que tienen clase a tercera hora, o sesion: el denominador honesto. */
@@ -239,11 +244,11 @@ export interface ResumenTablero {
 }
 
 export function resumirTablero(filas: FilaTablero[]): ResumenTablero {
-  const r: ResumenTablero = { llamo: 0, enCurso: 0, sinLista: 0, enHora: 0, conClase: 0 };
+  const r: ResumenTablero = { llamo: 0, sinCerrar: 0, sinLista: 0, enHora: 0, conClase: 0 };
   for (const f of filas) {
     const e = f.tercera.estado;
     if (e === 'llamo') r.llamo++;
-    if (e === 'en_curso') r.enCurso++;
+    if (e === 'llamo' && !f.tercera.sesion?.closed) r.sinCerrar++;
     if (e === 'sin_lista') r.sinLista++;
     if (e === 'en_hora') r.enHora++;
     if (e !== 'sin_clase' && e !== 'sin_horario') r.conClase++;
