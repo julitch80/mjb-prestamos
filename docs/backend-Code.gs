@@ -277,6 +277,11 @@ function manejar(e) {
       // ⚠ CAMBIO: requiere redespliegue (docs/anclas-por-grupo-contrato.md)
       case 'getAnclasGrupos':    resultado = getAnclasGrupos();                       break;
       case 'guardarAnclasGrupo': resultado = guardarAnclasGrupo(p, correoAutenticado); break;
+      // ⚠ CAMBIO: requiere redespliegue (docs/accidente-laboral/PRD.md).
+      // NO va en ACCIONES_PROTEGIDAS: no hay sesión de usuario en esta
+      // llamada (la hace la Cloud Function `notificaciones`, servidor a
+      // servidor), se autentica comparando p.secreto con PUSH_SECRETO.
+      case 'correoAccidenteLaboral': resultado = correoAccidenteLaboral(p); break;
       default:
         resultado = { ok: false, error: 'Acción desconocida: ' + p.action };
     }
@@ -619,6 +624,56 @@ function enviarHtml(para, asunto, html, cc, extra) {
   if (cc) opciones.cc = cc;
   if (e.correoAutor) opciones.replyTo = e.correoAutor;
   GmailApp.sendEmail(para, asunto, '', opciones);
+}
+
+// ── ACCIDENTE LABORAL (docs/accidente-laboral/PRD.md) ─────────
+// Llamada servidor a servidor desde la Cloud Function `notificaciones`
+// (functions-notificaciones/src/index.ts, alNuevoAccidente): NO hay sesión de
+// usuario, por eso NO va en ACCIONES_PROTEGIDAS. Se autentica comparando
+// p.secreto con la propiedad PUSH_SECRETO (la misma que usa avisarPush_ al
+// revés). Si no coincide o no está configurada, {ok:false} sin enviar nada.
+// ⚠ Requiere redespliegue de este script para quedar activa.
+function correoAccidenteLaboral(p) {
+  const secreto = PropertiesService.getScriptProperties().getProperty('PUSH_SECRETO');
+  if (!secreto || String(p.secreto || '') !== secreto) {
+    return { ok: false, error: 'no-autorizado' };
+  }
+  // Solo cuentas institucionales y pocas: aunque el secreto se filtrara, esta acción no
+  // sirve para mandar correos a cualquiera.
+  const destinatarios = String(p.destinatarios || '').split(',')
+    .map(function(c) { return c.trim().toLowerCase(); })
+    .filter(function(c) { return /^[^@\s]+@iemanueljbetancur\.edu\.co$/.test(c); })
+    .slice(0, 20);
+  if (destinatarios.length === 0) return { ok: false, error: 'sin-destinatarios' };
+  // El reporte lo escribe cualquier docente: todo texto suyo va escapado en el HTML.
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  const fecha = p.fechaHora ? new Date(p.fechaHora) : new Date();
+  const fechaTexto = Utilities.formatDate(fecha, 'America/Bogota', "d 'de' MMMM 'de' yyyy, HH:mm");
+  const tipoLabel = { docente: 'Docente o directivo docente', administrativo: 'Administrativo', contratista: 'Contratista' }[p.tipoPersona] || esc(p.tipoPersona);
+
+  var html = '<h2 style="color:#b91c1c">Accidente laboral registrado</h2>' +
+    '<table style="width:100%;font-size:13px;border-collapse:collapse">' +
+    '<tr><td style="padding:4px 8px;font-weight:bold">Persona</td><td style="padding:4px 8px">' + (esc(p.nombrePersona) || '—') + ' (' + tipoLabel + ')</td></tr>' +
+    '<tr><td style="padding:4px 8px;font-weight:bold">Fecha y hora</td><td style="padding:4px 8px">' + fechaTexto + '</td></tr>' +
+    '<tr><td style="padding:4px 8px;font-weight:bold">Lugar</td><td style="padding:4px 8px">' + (esc(p.lugar) || '—') + '</td></tr>' +
+    '<tr><td style="padding:4px 8px;font-weight:bold">Lesión aparente</td><td style="padding:4px 8px">' + (esc(p.lesionAparente) || '—') + '</td></tr>';
+  if (p.horaLimiteFurat) {
+    const limiteTexto = Utilities.formatDate(new Date(p.horaLimiteFurat), 'America/Bogota', "d 'de' MMMM, HH:mm");
+    html += '<tr><td style="padding:4px 8px;font-weight:bold;color:#b91c1c">Límite FURAT (48 h)</td><td style="padding:4px 8px;color:#b91c1c;font-weight:bold">' + limiteTexto + '</td></tr>';
+  }
+  html += '</table>' +
+    '<p style="font-size:12px;margin-top:12px"><a href="https://www.fomag.gov.co/horus/" target="_blank">Radicar en el módulo SST/FURAT de SUIM-HORUS</a></p>' +
+    '<p style="font-size:11px;color:#666">Este caso quedó registrado en la pestaña Gestión del Riesgo → Accidente laboral, con su borrador de FURAT.</p>';
+
+  try {
+    enviarHtml(destinatarios.join(','), 'Accidente laboral – ' + tipoLabel + ' – ' + fechaTexto, html, null, {});
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) };
+  }
 }
 
 // Correo (uno o varios destinatarios) a nombre del colegio: además del

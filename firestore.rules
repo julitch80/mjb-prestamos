@@ -31,6 +31,7 @@
 // Comprobacion despues de cada sincronizacion: el numero de `allow` de escritura debe
 // coincidir con el de `esSuplantacion()`. Hoy son 85 escrituras y 37 lecturas libres.
 // (23-sep-2026: +2 por notifDispositivos/notifPreferencias, Etapa 1 de notificaciones push.)
+// (26-sep-2026: +6 escrituras / +4 lecturas por sstAccidentes+eventos+sstConfig, Etapa 1 de accidente laboral.)
 //
 // El 2026-08-30 esta cifra decia 57 cuando ya eran 58: se habia quedado atras sin que
 // nada avisara. Si vuelves a tocar el archivo, actualizala en el mismo commit — es el
@@ -373,17 +374,79 @@ service cloud.firestore {
       allow read: if isActiveUser() && callerEmail() == correo;
       allow create, update: if !esSuplantacion() && (isActiveUser() && callerEmail() == correo
         && request.resource.data.keys().hasOnly(
-             ['chat', 'avisos', 'horario', 'reservas', 'sugerencias', 'casos', 'evasion'])
+             ['chat', 'avisos', 'horario', 'reservas', 'sugerencias', 'casos', 'evasion', 'accidentes'])
         && request.resource.data.keys().toSet().difference(
-             ['chat', 'avisos', 'horario', 'reservas', 'sugerencias', 'casos', 'evasion'].toSet()).size() == 0
+             ['chat', 'avisos', 'horario', 'reservas', 'sugerencias', 'casos', 'evasion', 'accidentes'].toSet()).size() == 0
         && (!('chat' in request.resource.data) || request.resource.data.chat is bool)
         && (!('avisos' in request.resource.data) || request.resource.data.avisos is bool)
         && (!('horario' in request.resource.data) || request.resource.data.horario is bool)
         && (!('reservas' in request.resource.data) || request.resource.data.reservas is bool)
         && (!('sugerencias' in request.resource.data) || request.resource.data.sugerencias is bool)
         && (!('casos' in request.resource.data) || request.resource.data.casos is bool)
-        && (!('evasion' in request.resource.data) || request.resource.data.evasion is bool));
+        && (!('evasion' in request.resource.data) || request.resource.data.evasion is bool)
+        && (!('accidentes' in request.resource.data) || request.resource.data.accidentes is bool));
       allow delete: if !esSuplantacion() && (false);
+    }
+
+    // ---------- Accidente laboral (docs/accidente-laboral/PRD.md, Etapa 1) ----------
+    //
+    // sstAccidentes/{id}: quién VE un caso = responsable (rectora, coordinador,
+    // superusuario, o correo en sstConfig/copasst.correos) o el propio autor
+    // (reportadoPor == callerEmail()). Cualquier usuario activo puede CREAR su
+    // propio reporte; el campo del reporte original queda inmutable después:
+    // solo responsables pueden tocar estado/furat/investigacion. Nadie borra
+    // (evidencia legal). eventos: subcolección de auditoría, la crean los
+    // responsables y el autor al crear el caso; nadie edita ni borra.
+    function esResponsableSST() {
+      return isActiveUser() && (
+        callerDoc().role in ['rectora', 'coordinador', 'superusuario']
+        || callerEmail() in get(/databases/$(database)/documents/sstConfig/copasst).data.correos
+      );
+    }
+    function camposInmutablesSSTAccidentes() {
+      return ['tipoPersona', 'nombrePersona', 'cargoOEmpresa', 'fechaHora', 'lugar',
+              'queHacia', 'comoOcurrio', 'lesionAparente', 'partesCuerpo', 'testigos',
+              'atencion', 'reportadoPor', 'reportadoEn'];
+    }
+    match /sstAccidentes/{id} {
+      allow read: if isActiveUser()
+        && (esResponsableSST() || resource.data.reportadoPor == callerEmail());
+      allow create: if !esSuplantacion() && (isActiveUser()
+        && request.resource.data.reportadoPor == callerEmail()
+        && request.resource.data.reportadoEn == request.time
+        && request.resource.data.estado == 'reportado'
+        && request.resource.data.tipoPersona in ['docente', 'administrativo', 'contratista']
+        // Un reporte nace sin radicación, sin investigación y sin marcas de alertas: si
+        // no, quien reporta podría fingir un FURAT radicado o apagar los avisos.
+        && !request.resource.data.keys().hasAny(['furat', 'investigacion', 'avisos']));
+      allow update: if !esSuplantacion() && (isActiveUser() && esResponsableSST()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['estado', 'furat', 'investigacion']));
+      allow delete: if !esSuplantacion() && (false);
+
+      match /eventos/{eventoId} {
+        allow read: if isActiveUser()
+          && (esResponsableSST() || get(/databases/$(database)/documents/sstAccidentes/$(id)).data.reportadoPor == callerEmail());
+        allow create: if !esSuplantacion() && (isActiveUser()
+          && (esResponsableSST()
+              || get(/databases/$(database)/documents/sstAccidentes/$(id)).data.reportadoPor == callerEmail())
+          && request.resource.data.por == callerEmail()
+          && request.resource.data.cuando == request.time);
+        allow update, delete: if !esSuplantacion() && (false);
+      }
+    }
+
+    // sstConfig/copasst: lee cualquier activo, escriben rectora o superusuario.
+    // sstConfig/contactos: lee cualquier activo, escriben rectora, coordinador o superusuario.
+    match /sstConfig/copasst {
+      allow read: if isActiveUser();
+      allow write: if !esSuplantacion() && (isActiveUser()
+        && callerDoc().role in ['rectora', 'superusuario']);
+    }
+    match /sstConfig/contactos {
+      allow read: if isActiveUser();
+      allow write: if !esSuplantacion() && (isActiveUser()
+        && callerDoc().role in ['rectora', 'coordinador', 'superusuario']);
     }
 
     // =========================================================================

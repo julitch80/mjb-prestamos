@@ -4,6 +4,7 @@ import {
   debeEnviarse,
   destinatariosDeCanal,
   esHorarioSilencioBogota,
+  esUrgente,
   PREFERENCIAS_DEFAULT,
   type PreferenciasNotif,
 } from './notificacionesPushLogica';
@@ -19,8 +20,20 @@ describe('categoriaDeTipo', () => {
     ['rechazada', 'reservas'],
     ['cancelada', 'reservas'],
     ['sugerencia', 'sugerencias'],
+    ['accidente_nuevo', 'accidentes'],
   ] as const)('%s -> %s', (tipo, categoria) => {
     expect(categoriaDeTipo(tipo)).toBe(categoria);
+  });
+});
+
+describe('esUrgente', () => {
+  test('accidente_nuevo omite el silencio nocturno', () => {
+    expect(esUrgente('accidente_nuevo')).toBe(true);
+  });
+  test('el resto de categorías respeta el silencio nocturno', () => {
+    expect(esUrgente('chat')).toBe(false);
+    expect(esUrgente('aprobada')).toBe(false);
+    expect(esUrgente('horario_modificado')).toBe(false);
   });
 });
 

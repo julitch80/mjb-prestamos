@@ -6,7 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import { logger } from 'firebase-functions';
 import {
-  debeEnviarse, esHorarioSilencioBogota, type TipoNotificacion,
+  debeEnviarse, esHorarioSilencioBogota, esUrgente, type TipoNotificacion,
 } from '../../src/data/notificacionesPushLogica';
 
 export interface EnviarOpciones {
@@ -44,7 +44,9 @@ export async function enviarAUsuarios(
       const prefs = prefSnap.exists ? prefSnap.data() : null;
       if (!debeEnviarse(opciones.tipo, prefs as Record<string, boolean> | null)) continue;
 
-      if (silencio) {
+      // Urgente (p. ej. accidente laboral, PRD accidente-laboral): se entrega
+      // de inmediato aunque sea de noche, nunca se encola.
+      if (silencio && !esUrgente(opciones.tipo)) {
         await db.collection('pushPendientes').add({
           correo, ...opciones, creadoEn: FieldValue.serverTimestamp(),
         });

@@ -14,7 +14,8 @@ export type TipoNotificacion =
   | 'rechazada'
   | 'cancelada'
   | 'horario_modificado'
-  | 'sugerencia';
+  | 'sugerencia'
+  | 'accidente_nuevo';
 
 /** Categorías que la persona controla en «Mis notificaciones» (PRD D1). */
 export type CategoriaNotificacion =
@@ -24,7 +25,8 @@ export type CategoriaNotificacion =
   | 'reservas'
   | 'sugerencias'
   | 'casos'
-  | 'evasion';
+  | 'evasion'
+  | 'accidentes';
 
 export interface PreferenciasNotif {
   chat: boolean;
@@ -34,10 +36,12 @@ export interface PreferenciasNotif {
   sugerencias: boolean;
   casos: boolean;
   evasion: boolean;
+  accidentes: boolean;
 }
 
 /** Ausencia de preferencias guardadas = todo encendido (PRD: "por defecto,
- * todo encendido"). */
+ * todo encendido"). "accidentes" también encendida por defecto (docs/
+ * accidente-laboral/PRD.md): quien puede ver casos debe enterarse). */
 export const PREFERENCIAS_DEFAULT: PreferenciasNotif = {
   chat: true,
   avisos: true,
@@ -46,6 +50,7 @@ export const PREFERENCIAS_DEFAULT: PreferenciasNotif = {
   sugerencias: true,
   casos: true,
   evasion: true,
+  accidentes: true,
 };
 
 /** A qué categoría de «Mis notificaciones» pertenece cada tipo disparado por
@@ -66,7 +71,18 @@ export function categoriaDeTipo(tipo: TipoNotificacion): CategoriaNotificacion {
       return 'reservas';
     case 'sugerencia':
       return 'sugerencias';
+    case 'accidente_nuevo':
+      return 'accidentes';
   }
+}
+
+/**
+ * Categorías cuya alerta NUNCA debe esperar el silencio nocturno (PRD
+ * accidente-laboral: un accidente laboral se avisa de inmediato). Hoy solo
+ * "accidentes"; si otra categoría necesita lo mismo, se agrega aquí.
+ */
+export function esUrgente(tipo: TipoNotificacion): boolean {
+  return categoriaDeTipo(tipo) === 'accidentes';
 }
 
 /** Aplica preferencias (o el default si la persona nunca las guardó) a un

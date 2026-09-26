@@ -39,6 +39,7 @@ import {
 import type { FaseEmergencia, LlamadaFase, TonoFase } from '../data/guiaEmergencia';
 import { InformeContencion } from './InformeContencion';
 import { RemisionSeguro } from './RemisionSeguro';
+import { AccidenteLaboral } from './AccidenteLaboral';
 import TableroCasos from './TableroCasos';
 import {
   ATRIBUCION,
@@ -807,7 +808,7 @@ function GuiaAuxiliosRapida() {
   );
 }
 
-type VistaEmergencia = 'menu' | 'primeros_auxilios' | 'contencion' | 'protocolo_completo' | 'guia_auxilios' | 'informe_contencion' | 'remision_seguro';
+type VistaEmergencia = 'menu' | 'primeros_auxilios' | 'contencion' | 'protocolo_completo' | 'guia_auxilios' | 'informe_contencion' | 'remision_seguro' | 'accidente_laboral';
 
 function BotonVolver({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
@@ -860,6 +861,12 @@ function SubmenuEmergencia({ onSeleccionar }: { onSeleccionar: (vista: VistaEmer
           titulo="Contención emocional"
           subtitulo="Tristeza, angustia, crisis emocional"
           onClick={() => onSeleccionar('contencion')}
+        />
+        <TarjetaSubmenu
+          icono="🦺"
+          titulo="Accidente laboral"
+          subtitulo="Docente o directivo que se lesiona en el colegio"
+          onClick={() => onSeleccionar('accidente_laboral')}
         />
         <TarjetaSubmenu
           icono="📋"
@@ -1090,6 +1097,15 @@ function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
       <div className="flex flex-col gap-4">
         <BotonVolver onClick={volver}>Volver</BotonVolver>
         <RemisionSeguro onTerminado={volver} onCancelar={volver} />
+      </div>
+    );
+  }
+
+  if (vista === 'accidente_laboral') {
+    return (
+      <div className="flex flex-col gap-4">
+        <BotonVolver onClick={volver}>Volver</BotonVolver>
+        <AccidenteLaboral />
       </div>
     );
   }

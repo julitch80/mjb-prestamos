@@ -9,8 +9,10 @@ import {
 } from '../data/notificacionesPush';
 import { PREFERENCIAS_DEFAULT, type CategoriaNotificacion, type PreferenciasNotif } from '../data/notificacionesPushLogica';
 import { IconoCampana } from './IconosNeon';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 
-const CATEGORIAS: { id: CategoriaNotificacion; label: string; descripcion: string; soloDirectivos?: boolean }[] = [
+const CATEGORIAS: { id: CategoriaNotificacion; label: string; descripcion: string; soloDirectivos?: boolean; tambienCopasst?: boolean }[] = [
   { id: 'chat', label: 'Mensajes del chat', descripcion: 'Cuando te escriben en un canal que puedes ver' },
   { id: 'avisos', label: 'Avisos de coordinación y rectoría', descripcion: 'Rectoría, coordinación e intercambios de espacio' },
   { id: 'horario', label: 'Cambios en mi horario', descripcion: 'Cuando tu horario se modifica temporalmente' },
@@ -18,11 +20,22 @@ const CATEGORIAS: { id: CategoriaNotificacion; label: string; descripcion: strin
   { id: 'sugerencias', label: 'Respuesta a mi sugerencia', descripcion: 'Cuando te responden lo que reportaste' },
   { id: 'casos', label: 'Casos de permanencia', descripcion: 'Nuevos, vencidos o remitidos', soloDirectivos: true },
   { id: 'evasion', label: 'Posible evasión', descripcion: 'Alertas de evasión escolar', soloDirectivos: true },
+  { id: 'accidentes', label: 'Accidentes laborales', descripcion: 'Cuando hay un caso nuevo por atender', soloDirectivos: true, tambienCopasst: true },
 ];
 
 export default function MisNotificaciones() {
   const rol = useAppStore(s => s.rol);
   const esDirectivo = rol === 'coordinador' || rol === 'rectora' || rol === 'superusuario';
+  // Los representantes docentes del COPASST también reciben los avisos de accidente
+  // laboral (sstConfig/copasst): tienen que poder apagarlos aquí.
+  const [esCopasst, setEsCopasst] = useState(false);
+  useEffect(() => {
+    const correo = auth?.currentUser?.email?.toLowerCase();
+    if (!db || !correo) return;
+    getDoc(doc(db, 'sstConfig/copasst'))
+      .then((snap) => setEsCopasst(((snap.data()?.correos ?? []) as string[]).map((c) => c.toLowerCase()).includes(correo)))
+      .catch(() => setEsCopasst(false));
+  }, []);
 
   const [disponible, setDisponible] = useState(false);
   const [permiso, setPermiso] = useState<NotificationPermission>('default');
@@ -126,7 +139,7 @@ export default function MisNotificaciones() {
 
       <div className="bg-card rounded-xl p-4 border border-line space-y-1">
         <p className="text-strong text-sm font-semibold mb-2">Qué te avisa</p>
-        {CATEGORIAS.filter(c => !c.soloDirectivos || esDirectivo).map(c => (
+        {CATEGORIAS.filter(c => !c.soloDirectivos || esDirectivo || (c.tambienCopasst && esCopasst)).map(c => (
           <label key={c.id} className="flex items-center justify-between gap-3 py-2 border-b border-line last:border-0">
             <span>
               <span className="block text-strong text-sm">{c.label}</span>
