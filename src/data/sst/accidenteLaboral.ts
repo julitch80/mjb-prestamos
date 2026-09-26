@@ -122,3 +122,56 @@ export function borradorFurat(datos: DatosBorradorFurat): string {
   lineas.push('', 'Nota: la cédula del trabajador se digita directamente en HORUS al radicar.');
   return lineas.join('\n');
 }
+
+// ── Evidencias (fotos y documentos escaneados) ──────────────────────────────
+
+/** Tipos de contenido admitidos para una evidencia (espeja storage.rules). */
+export const TIPOS_EVIDENCIA_VALIDOS = [
+  'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf',
+] as const;
+
+export const TAMANO_MAXIMO_EVIDENCIA_BYTES = 10 * 1024 * 1024; // 10 MB
+
+/** true si el contentType es uno de los admitidos para evidencias. */
+export function esTipoEvidenciaValido(contentType: string): boolean {
+  return (TIPOS_EVIDENCIA_VALIDOS as readonly string[]).includes(contentType);
+}
+
+/** true si el tamaño (bytes) está dentro del límite de evidencias. */
+export function esTamanoEvidenciaValido(bytes: number): boolean {
+  return bytes > 0 && bytes < TAMANO_MAXIMO_EVIDENCIA_BYTES;
+}
+
+/**
+ * Dimensiones de destino para comprimir una imagen antes de subirla como
+ * evidencia: conserva la proporción y limita el lado mayor a `ladoMaximo`
+ * (1600 px por defecto). Si la imagen ya es más chica, no se agranda.
+ */
+export function dimensionesComprimidas(
+  anchoOriginal: number,
+  altoOriginal: number,
+  ladoMaximo = 1600,
+): { width: number; height: number } {
+  if (anchoOriginal <= 0 || altoOriginal <= 0) return { width: anchoOriginal, height: altoOriginal };
+  const ladoMayor = Math.max(anchoOriginal, altoOriginal);
+  if (ladoMayor <= ladoMaximo) return { width: anchoOriginal, height: altoOriginal };
+  const factor = ladoMaximo / ladoMayor;
+  return {
+    width: Math.round(anchoOriginal * factor),
+    height: Math.round(altoOriginal * factor),
+  };
+}
+
+// ── "Mis reportes": fusión de casos reportados + casos donde soy la persona ──
+
+/**
+ * Fusiona dos listas de casos (reportados por mí + casos donde soy la
+ * persona accidentada) sin duplicar por id. Se usa porque son dos consultas
+ * Firestore separadas (no se puede hacer OR de dos campos distintos con
+ * where()).
+ */
+export function fusionarCasosSinDuplicar<T extends { id: string }>(a: T[], b: T[]): T[] {
+  const porId = new Map<string, T>();
+  for (const c of [...a, ...b]) porId.set(c.id, c);
+  return [...porId.values()];
+}

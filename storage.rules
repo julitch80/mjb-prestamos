@@ -261,6 +261,44 @@ service firebase.storage {
       allow read, write: if asisActivo() && asisRol() == 'superusuario';
     }
 
+    // ---------- Evidencias de "Accidente laboral" (fotos y documentos) ----------
+    // Metadatos en Firestore: sstAccidentes/{id}/evidencias/{eid} (ver
+    // firestore.rules). El archivo real vive aquí, en
+    // sst/accidentes/{id}/{eid}. No hay `hasAny()` ni `map.get(clave,defecto)`
+    // en el lenguaje de Storage (ver la nota grande más arriba en este mismo
+    // archivo): por eso `'personaCorreo' in doc` en vez de un default.
+    function sstAccidenteDoc(accidenteId) {
+      return firestore.get(/databases/(default)/documents/sstAccidentes/$(accidenteId)).data;
+    }
+    function sstEsResponsable() {
+      return asisActivo()
+        && (asisRol() in ['rectora', 'coordinador', 'superusuario']
+            || asisCaller() in firestore.get(/databases/(default)/documents/sstConfig/copasst).data.correos);
+    }
+    function sstEsAutorizadoAccidente(accidenteId) {
+      return sstEsResponsable()
+        || sstAccidenteDoc(accidenteId).reportadoPor == asisCaller()
+        || ('personaCorreo' in sstAccidenteDoc(accidenteId) && sstAccidenteDoc(accidenteId).personaCorreo == asisCaller());
+    }
+    function sstContentTypeValido() {
+      return request.resource.contentType == 'image/jpeg'
+        || request.resource.contentType == 'image/png'
+        || request.resource.contentType == 'image/webp'
+        || request.resource.contentType == 'image/heic'
+        || request.resource.contentType == 'application/pdf';
+    }
+    match /sst/accidentes/{accidenteId}/{eid} {
+      allow read: if request.auth != null && sstEsAutorizadoAccidente(accidenteId);
+      // create solo: nada de update/delete. `resource == null` exige que el
+      // archivo no exista todavía (una evidencia nunca se reemplaza).
+      allow create: if !esSuplantacion() && (request.auth != null
+        && resource == null
+        && (sstEsResponsable() || sstAccidenteDoc(accidenteId).reportadoPor == asisCaller())
+        && sstContentTypeValido()
+        && request.resource.size < 10 * 1024 * 1024);
+      allow update, delete: if !esSuplantacion() && (false);
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

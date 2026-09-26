@@ -404,13 +404,20 @@ service cloud.firestore {
       );
     }
     function camposInmutablesSSTAccidentes() {
-      return ['tipoPersona', 'nombrePersona', 'cargoOEmpresa', 'fechaHora', 'lugar',
+      return ['tipoPersona', 'nombrePersona', 'personaCorreo', 'cargoOEmpresa', 'fechaHora', 'lugar',
               'queHacia', 'comoOcurrio', 'lesionAparente', 'partesCuerpo', 'testigos',
               'atencion', 'reportadoPor', 'reportadoEn'];
     }
+    // La persona accidentada (docente, identificada por su propio correo en
+    // `personaCorreo`) también ve su caso, aunque no lo haya reportado ella
+    // misma. `.get('personaCorreo', '')` porque los reportes de antes de esta
+    // funcionalidad no traen el campo.
+    function esPersonaAccidentada(datos) {
+      return datos.get('personaCorreo', '') == callerEmail();
+    }
     match /sstAccidentes/{id} {
       allow read: if isActiveUser()
-        && (esResponsableSST() || resource.data.reportadoPor == callerEmail());
+        && (esResponsableSST() || resource.data.reportadoPor == callerEmail() || esPersonaAccidentada(resource.data));
       allow create: if !esSuplantacion() && (isActiveUser()
         && request.resource.data.reportadoPor == callerEmail()
         && request.resource.data.reportadoEn == request.time
@@ -426,12 +433,33 @@ service cloud.firestore {
 
       match /eventos/{eventoId} {
         allow read: if isActiveUser()
-          && (esResponsableSST() || get(/databases/$(database)/documents/sstAccidentes/$(id)).data.reportadoPor == callerEmail());
+          && (esResponsableSST()
+              || get(/databases/$(database)/documents/sstAccidentes/$(id)).data.reportadoPor == callerEmail()
+              || esPersonaAccidentada(get(/databases/$(database)/documents/sstAccidentes/$(id)).data));
         allow create: if !esSuplantacion() && (isActiveUser()
           && (esResponsableSST()
               || get(/databases/$(database)/documents/sstAccidentes/$(id)).data.reportadoPor == callerEmail())
           && request.resource.data.por == callerEmail()
           && request.resource.data.cuando == request.time);
+        allow update, delete: if !esSuplantacion() && (false);
+      }
+
+      // Evidencias (fotos/documentos): el archivo real vive en Storage
+      // (storage.rules, sst/accidentes/{id}/{eid}); aquí solo se guardan los
+      // metadatos. read: responsables, autor del reporte o la persona
+      // accidentada. create: responsables o el autor del reporte (no la
+      // persona accidentada si no fue quien reportó: evita que suba
+      // "evidencia" de un caso ajeno). Sin update/delete: es evidencia.
+      match /evidencias/{eid} {
+        allow read: if isActiveUser()
+          && (esResponsableSST()
+              || get(/databases/$(database)/documents/sstAccidentes/$(id)).data.reportadoPor == callerEmail()
+              || esPersonaAccidentada(get(/databases/$(database)/documents/sstAccidentes/$(id)).data));
+        allow create: if !esSuplantacion() && (isActiveUser()
+          && (esResponsableSST()
+              || get(/databases/$(database)/documents/sstAccidentes/$(id)).data.reportadoPor == callerEmail())
+          && request.resource.data.subidoPor == callerEmail()
+          && request.resource.data.subidoEn == request.time);
         allow update, delete: if !esSuplantacion() && (false);
       }
     }

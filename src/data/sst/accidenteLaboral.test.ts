@@ -3,7 +3,11 @@ import {
   borradorFurat,
   debeAlertarInvestigacion,
   destinatariosAccidente,
+  dimensionesComprimidas,
+  esTamanoEvidenciaValido,
+  esTipoEvidenciaValido,
   estadoCuentaRegresivaFurat,
+  fusionarCasosSinDuplicar,
   horaLimiteFurat,
   horasRestantesFurat,
 } from './accidenteLaboral';
@@ -110,5 +114,60 @@ describe('borradorFurat', () => {
     // digitarla en HORUS, pero el objeto de entrada no trae ningún campo de
     // cédula que pudiera filtrarse al texto.
     expect(texto).toContain('se digita directamente en HORUS');
+  });
+});
+
+describe('esTipoEvidenciaValido', () => {
+  it('acepta jpeg, png, webp, heic y pdf', () => {
+    expect(esTipoEvidenciaValido('image/jpeg')).toBe(true);
+    expect(esTipoEvidenciaValido('image/png')).toBe(true);
+    expect(esTipoEvidenciaValido('image/webp')).toBe(true);
+    expect(esTipoEvidenciaValido('image/heic')).toBe(true);
+    expect(esTipoEvidenciaValido('application/pdf')).toBe(true);
+  });
+  it('rechaza otros tipos', () => {
+    expect(esTipoEvidenciaValido('application/msword')).toBe(false);
+    expect(esTipoEvidenciaValido('video/mp4')).toBe(false);
+    expect(esTipoEvidenciaValido('')).toBe(false);
+  });
+});
+
+describe('esTamanoEvidenciaValido', () => {
+  it('acepta tamaños positivos menores a 10 MB', () => {
+    expect(esTamanoEvidenciaValido(1024)).toBe(true);
+    expect(esTamanoEvidenciaValido(10 * 1024 * 1024 - 1)).toBe(true);
+  });
+  it('rechaza cero, negativos y 10 MB o más', () => {
+    expect(esTamanoEvidenciaValido(0)).toBe(false);
+    expect(esTamanoEvidenciaValido(-5)).toBe(false);
+    expect(esTamanoEvidenciaValido(10 * 1024 * 1024)).toBe(false);
+  });
+});
+
+describe('dimensionesComprimidas', () => {
+  it('no cambia una imagen ya menor al límite', () => {
+    expect(dimensionesComprimidas(800, 600)).toEqual({ width: 800, height: 600 });
+  });
+  it('reduce el lado mayor a 1600 px conservando proporción (horizontal)', () => {
+    expect(dimensionesComprimidas(3200, 2400)).toEqual({ width: 1600, height: 1200 });
+  });
+  it('reduce el lado mayor a 1600 px conservando proporción (vertical)', () => {
+    expect(dimensionesComprimidas(2400, 3200)).toEqual({ width: 1200, height: 1600 });
+  });
+  it('respeta un ladoMaximo distinto', () => {
+    expect(dimensionesComprimidas(1000, 500, 400)).toEqual({ width: 400, height: 200 });
+  });
+});
+
+describe('fusionarCasosSinDuplicar', () => {
+  it('une dos listas sin duplicar por id', () => {
+    const a = [{ id: '1', x: 1 }, { id: '2', x: 2 }];
+    const b = [{ id: '2', x: 2 }, { id: '3', x: 3 }];
+    const r = fusionarCasosSinDuplicar(a, b);
+    expect(r.map(c => c.id).sort()).toEqual(['1', '2', '3']);
+  });
+  it('funciona con una lista vacía', () => {
+    const a = [{ id: '1' }];
+    expect(fusionarCasosSinDuplicar(a, [])).toEqual(a);
   });
 });

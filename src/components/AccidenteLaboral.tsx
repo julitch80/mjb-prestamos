@@ -11,9 +11,10 @@ import { auth, db } from '../lib/firebase';
 import { useAppStore } from '../data/store';
 import { listarUsuarios, type UsuarioFirestore } from '../data/adminUsers';
 import {
-  borradorFurat, estadoCuentaRegresivaFurat, horaLimiteFurat, horasRestantesFurat,
+  borradorFurat, estadoCuentaRegresivaFurat, fusionarCasosSinDuplicar, horaLimiteFurat, horasRestantesFurat,
   type EstadoCuentaRegresiva, type TipoPersonaAccidente,
 } from '../data/sst/accidenteLaboral';
+import { subirEvidencia, urlEvidencia } from '../data/sst/evidencias';
 
 function miEmail(): string {
   return auth?.currentUser?.email?.toLowerCase() ?? '';
@@ -187,6 +188,7 @@ function SelectorTipoPersona({ onSeleccionar }: { onSeleccionar: (t: TipoPersona
 interface FormAccidente {
   tipoPersona: TipoPersonaAccidente;
   nombrePersona: string;
+  personaCorreo: string;
   cargoOEmpresa: string;
   fecha: string; hora: string;
   lugar: string;
@@ -202,7 +204,7 @@ interface FormAccidente {
 function formularioVacio(tipo: TipoPersonaAccidente): FormAccidente {
   const ahora = new Date();
   return {
-    tipoPersona: tipo, nombrePersona: '', cargoOEmpresa: '',
+    tipoPersona: tipo, nombrePersona: '', personaCorreo: '', cargoOEmpresa: '',
     fecha: ahora.toISOString().slice(0, 10),
     hora: ahora.toTimeString().slice(0, 5),
     lugar: '', queHacia: '', comoOcurrio: '', lesionAparente: '',
@@ -221,6 +223,72 @@ function Campo({ label, children }: { label: string; children: React.ReactNode }
 
 const inputCls = 'w-full px-3 py-2 rounded-xl bg-elevated border border-line text-sm text-strong placeholder:text-muted focus:outline-none focus:border-line-strong';
 
+/**
+ * Buscador de la persona accidentada cuando es docente/directivo docente: NO
+ * admite texto libre, se escoge de la lista de usuarios activos de la app
+ * (docente, coordinador, rectora). Guarda displayName + email exactos.
+ */
+function BuscadorPersonaDocente({ seleccionado, onSeleccionar }: {
+  seleccionado: { nombre: string; correo: string };
+  onSeleccionar: (nombre: string, correo: string) => void;
+}) {
+  const [usuarios, setUsuarios] = useState<UsuarioFirestore[]>([]);
+  const [filtro, setFiltro] = useState('');
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    listarUsuarios()
+      .then(lista => setUsuarios(lista.filter(u => u.active && ['docente', 'coordinador', 'rectora'].includes(u.role))))
+      .catch(() => {})
+      .finally(() => setCargando(false));
+  }, []);
+
+  if (seleccionado.correo) {
+    return (
+      <div className="flex items-center justify-between gap-2 rounded-xl border border-line bg-card px-3 py-2.5">
+        <span className="text-sm font-semibold text-strong">{seleccionado.nombre}</span>
+        <button type="button" onClick={() => onSeleccionar('', '')} className="text-xs text-muted hover:text-soft">
+          Cambiar
+        </button>
+      </div>
+    );
+  }
+
+  const f = filtro.trim().toLowerCase();
+  const visibles = f
+    ? usuarios.filter(u => (u.displayName || '').toLowerCase().includes(f) || u.email.toLowerCase().includes(f)).slice(0, 8)
+    : [];
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <input
+        className={inputCls}
+        placeholder={cargando ? 'Cargando lista de usuarios…' : 'Escribe el nombre…'}
+        value={filtro}
+        onChange={e => setFiltro(e.target.value)}
+        disabled={cargando}
+      />
+      {f && visibles.length > 0 && (
+        <div className="flex flex-col gap-1 max-h-48 overflow-y-auto rounded-xl border border-line bg-card p-1">
+          {visibles.map(u => (
+            <button
+              key={u.email}
+              type="button"
+              onClick={() => { onSeleccionar(u.displayName, u.email); setFiltro(''); }}
+              className="text-left rounded-lg px-3 py-2 text-sm text-soft hover:bg-elevated"
+            >
+              {u.displayName}
+            </button>
+          ))}
+        </div>
+      )}
+      {f && !cargando && visibles.length === 0 && (
+        <p className="text-xs text-muted">Si no está en la lista, avise a coordinación.</p>
+      )}
+    </div>
+  );
+}
+
 function FormularioRegistro({ tipo, onGuardado, onCancelar }: {
   tipo: TipoPersonaAccidente; onGuardado: (id: string, f: FormAccidente) => void; onCancelar: () => void;
 }) {
@@ -235,6 +303,10 @@ function FormularioRegistro({ tipo, onGuardado, onCancelar }: {
       setError('Completa nombre, lugar, qué hacía, cómo ocurrió y la lesión aparente.');
       return;
     }
+    if (tipo === 'docente' && !f.personaCorreo.trim()) {
+      setError('Escoge la persona accidentada de la lista. Si no está, avise a coordinación.');
+      return;
+    }
     if (!db || !auth?.currentUser) {
       setError('No hay sesión activa.');
       return;
@@ -246,6 +318,7 @@ function FormularioRegistro({ tipo, onGuardado, onCancelar }: {
       const ref = await addDoc(collection(db, 'sstAccidentes'), {
         tipoPersona: f.tipoPersona,
         nombrePersona: f.nombrePersona.trim(),
+        personaCorreo: tipo === 'docente' ? f.personaCorreo.trim().toLowerCase() : null,
         cargoOEmpresa: f.cargoOEmpresa.trim() || null,
         fechaHora,
         lugar: f.lugar.trim(),
@@ -273,9 +346,18 @@ function FormularioRegistro({ tipo, onGuardado, onCancelar }: {
         Aviso de privacidad: este reporte solo lo ven la rectora, coordinación y los representantes del COPASST.
         Tu jefe inmediato se entera si corresponde a tu ruta institucional.
       </div>
-      <Campo label="Nombre completo de la persona accidentada">
-        <input className={inputCls} value={f.nombrePersona} onChange={e => set('nombrePersona', e.target.value)} />
-      </Campo>
+      {tipo === 'docente' ? (
+        <Campo label="Persona accidentada (docente o directivo docente)">
+          <BuscadorPersonaDocente
+            seleccionado={{ nombre: f.nombrePersona, correo: f.personaCorreo }}
+            onSeleccionar={(nombre, correo) => setF(prev => ({ ...prev, nombrePersona: nombre, personaCorreo: correo }))}
+          />
+        </Campo>
+      ) : (
+        <Campo label="Nombre completo de la persona accidentada">
+          <input className={inputCls} value={f.nombrePersona} onChange={e => set('nombrePersona', e.target.value)} />
+        </Campo>
+      )}
       {tipo !== 'docente' && (
         <Campo label="Cargo / empresa contratista">
           <input className={inputCls} value={f.cargoOEmpresa} onChange={e => set('cargoOEmpresa', e.target.value)} />
@@ -335,7 +417,7 @@ function FormularioRegistro({ tipo, onGuardado, onCancelar }: {
 
 // ── Confirmación + borrador FURAT ───────────────────────────────────────────
 
-function Confirmacion({ tipo, f }: { tipo: TipoPersonaAccidente; f: FormAccidente }) {
+function Confirmacion({ tipo, f, accidenteId }: { tipo: TipoPersonaAccidente; f: FormAccidente; accidenteId: string }) {
   const [copiado, setCopiado] = useState(false);
   const fechaHora = new Date(`${f.fecha}T${f.hora}:00`).toISOString();
   const limite = tipo === 'docente' ? horaLimiteFurat(fechaHora) : null;
@@ -386,6 +468,9 @@ function Confirmacion({ tipo, f }: { tipo: TipoPersonaAccidente; f: FormAccident
           <p className="text-[11px] text-muted">La cédula se digita directamente en HORUS: no se guarda en la aplicación.</p>
         </div>
       )}
+      <div className="rounded-xl border border-line bg-card px-4 py-3">
+        <EvidenciasSection accidenteId={accidenteId} />
+      </div>
     </div>
   );
 }
@@ -403,6 +488,111 @@ interface CasoAccidente {
   furat?: { fechaHoraComprobante: string; numero?: string };
   investigacion?: { causas: string; acciones: { accion: string; responsable: string; fechaLimite?: string; hecha: boolean }[] };
   reportadoPor: string;
+  personaCorreo?: string | null;
+}
+
+// ── Evidencias (fotos y documentos escaneados) ──────────────────────────────
+
+interface EvidenciaDoc {
+  id: string;
+  nombre: string;
+  tipo: string;
+  tamano: number;
+  ruta: string;
+  subidoPor: string;
+  subidoEn?: { toDate: () => Date } | null;
+}
+
+function EvidenciasSection({ accidenteId }: { accidenteId: string }) {
+  const [evidencias, setEvidencias] = useState<EvidenciaDoc[]>([]);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [subiendoDoc, setSubiendoDoc] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!db) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'sstAccidentes', accidenteId, 'evidencias'), orderBy('subidoEn', 'desc')),
+      snap => setEvidencias(snap.docs.map(d => ({ id: d.id, ...d.data() } as EvidenciaDoc))),
+      () => {},
+    );
+    return unsub;
+  }, [accidenteId]);
+
+  async function subir(file: File | undefined, marcar: (v: boolean) => void) {
+    if (!file || !db) return;
+    marcar(true);
+    setError('');
+    try {
+      const eid = doc(collection(db, 'sstAccidentes', accidenteId, 'evidencias')).id;
+      const subida = await subirEvidencia(accidenteId, eid, file);
+      await setDoc(doc(db, 'sstAccidentes', accidenteId, 'evidencias', eid), {
+        nombre: subida.nombre,
+        tipo: subida.tipo,
+        tamano: subida.tamano,
+        ruta: subida.ruta,
+        subidoPor: miEmail(),
+        subidoEn: serverTimestamp(),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo subir la evidencia.');
+    } finally {
+      marcar(false);
+    }
+  }
+
+  async function abrir(ruta: string) {
+    try {
+      const url = await urlEvidencia(ruta);
+      window.open(url, '_blank', 'noopener');
+    } catch {
+      setError('No se pudo abrir el archivo.');
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-2 mt-1">
+      <p className="text-xs font-semibold text-strong">Evidencias</p>
+      <p className="text-[11px] text-muted leading-relaxed">
+        Las evidencias solo las ven la rectora, coordinación, el COPASST, quien reportó y la persona accidentada.
+        No suba fotos de documentos de identidad.
+      </p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <label className="px-3 py-2 rounded-lg bg-elevated text-soft hover:text-strong text-xs font-semibold cursor-pointer">
+          {subiendoFoto ? 'Subiendo…' : '📷 Agregar foto'}
+          <input
+            type="file" accept="image/*" capture="environment" className="hidden" disabled={subiendoFoto}
+            onChange={e => { void subir(e.target.files?.[0], setSubiendoFoto); e.target.value = ''; }}
+          />
+        </label>
+        <label className="px-3 py-2 rounded-lg bg-elevated text-soft hover:text-strong text-xs font-semibold cursor-pointer">
+          {subiendoDoc ? 'Subiendo…' : '📄 Agregar documento (PDF o foto del escaneo)'}
+          <input
+            type="file" accept="application/pdf,image/*" className="hidden" disabled={subiendoDoc}
+            onChange={e => { void subir(e.target.files?.[0], setSubiendoDoc); e.target.value = ''; }}
+          />
+        </label>
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+      {evidencias.length === 0 ? (
+        <p className="text-xs text-muted">Sin evidencias todavía.</p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {evidencias.map(ev => (
+            <button
+              key={ev.id}
+              type="button"
+              onClick={() => abrir(ev.ruta)}
+              className="text-left flex items-center justify-between gap-2 rounded-lg border border-line bg-card px-3 py-2 hover:bg-elevated"
+            >
+              <span className="text-xs text-strong truncate">{ev.tipo.startsWith('image/') ? '🖼️' : '📄'} {ev.nombre}</span>
+              <span className="text-[10px] text-muted shrink-0">{ev.subidoPor}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const COLOR_CUENTA: Record<EstadoCuentaRegresiva, string> = {
@@ -490,6 +680,8 @@ function TarjetaCaso({ caso, onCambiar }: { caso: CasoAccidente; onCambiar: () =
           Cerrar caso
         </button>
       )}
+
+      <EvidenciasSection accidenteId={caso.id} />
     </div>
   );
 }
@@ -518,24 +710,49 @@ function Seguimiento() {
 // ── Mis reportes (autor) ─────────────────────────────────────────────────────
 
 function MisReportes() {
-  const [casos, setCasos] = useState<CasoAccidente[]>([]);
+  // Dos consultas por igualdad (no se puede hacer OR de dos campos distintos
+  // con where()): los casos que reporté + los casos donde soy la persona
+  // accidentada, fusionados sin duplicar (puede ser ambos a la vez).
+  const [reportados, setReportados] = useState<CasoAccidente[]>([]);
+  const [comoPersona, setComoPersona] = useState<CasoAccidente[]>([]);
+  const [expandido, setExpandido] = useState<string | null>(null);
+
   useEffect(() => {
     if (!db || !auth?.currentUser) return;
     const unsub = onSnapshot(query(collection(db, 'sstAccidentes'), where('reportadoPor', '==', miEmail())), snap => {
-      setCasos(snap.docs.map(d => ({ id: d.id, ...d.data() } as CasoAccidente)));
+      setReportados(snap.docs.map(d => ({ id: d.id, ...d.data() } as CasoAccidente)));
     });
     return unsub;
   }, []);
+
+  useEffect(() => {
+    if (!db || !auth?.currentUser) return;
+    const unsub = onSnapshot(query(collection(db, 'sstAccidentes'), where('personaCorreo', '==', miEmail())), snap => {
+      setComoPersona(snap.docs.map(d => ({ id: d.id, ...d.data() } as CasoAccidente)));
+    });
+    return unsub;
+  }, []);
+
+  const casos = fusionarCasosSinDuplicar(reportados, comoPersona)
+    .sort((a, b) => (a.fechaHora < b.fechaHora ? 1 : -1));
+
   if (casos.length === 0) return <p className="text-sm text-muted text-center py-6">Todavía no has reportado ningún caso.</p>;
   return (
     <div className="flex flex-col gap-3">
       {casos.map(c => (
-        <div key={c.id} className="rounded-xl border border-line bg-card px-4 py-3 flex items-center justify-between gap-2">
-          <div>
-            <p className="text-sm font-semibold text-strong">{new Date(c.fechaHora).toLocaleDateString('es-CO')}</p>
-            <p className="text-xs text-muted">{c.lugar}</p>
-          </div>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-elevated border border-line text-muted">{c.estado}</span>
+        <div key={c.id} className="rounded-xl border border-line bg-card px-4 py-3 flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => setExpandido(prev => (prev === c.id ? null : c.id))}
+            className="flex items-center justify-between gap-2 text-left"
+          >
+            <div>
+              <p className="text-sm font-semibold text-strong">{new Date(c.fechaHora).toLocaleDateString('es-CO')}</p>
+              <p className="text-xs text-muted">{c.lugar}{c.personaCorreo === miEmail() && c.reportadoPor !== miEmail() ? ' · reportado por otra persona' : ''}</p>
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-elevated border border-line text-muted">{c.estado}</span>
+          </button>
+          {expandido === c.id && <EvidenciasSection accidenteId={c.id} />}
         </div>
       ))}
     </div>
@@ -625,6 +842,7 @@ export function AccidenteLaboral() {
   const [paso, setPaso] = useState<Paso>('inicio');
   const [tipo, setTipo] = useState<TipoPersonaAccidente>('docente');
   const [datosGuardados, setDatosGuardados] = useState<FormAccidente | null>(null);
+  const [idGuardado, setIdGuardado] = useState<string | null>(null);
 
   const Tab = ({ id, label }: { id: Paso; label: string }) => (
     <button
@@ -660,11 +878,13 @@ export function AccidenteLaboral() {
         <FormularioRegistro
           tipo={tipo}
           onCancelar={() => setPaso('tipo')}
-          onGuardado={(_id, f) => { setDatosGuardados(f); setPaso('confirmacion'); }}
+          onGuardado={(id, f) => { setDatosGuardados(f); setIdGuardado(id); setPaso('confirmacion'); }}
         />
       )}
 
-      {paso === 'confirmacion' && datosGuardados && <Confirmacion tipo={tipo} f={datosGuardados} />}
+      {paso === 'confirmacion' && datosGuardados && idGuardado && (
+        <Confirmacion tipo={tipo} f={datosGuardados} accidenteId={idGuardado} />
+      )}
 
       {paso === 'seguimiento' && esResponsable && <Seguimiento />}
       {paso === 'mis_reportes' && <MisReportes />}
