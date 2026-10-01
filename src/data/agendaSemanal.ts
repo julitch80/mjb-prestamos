@@ -1853,6 +1853,207 @@ export const AGENDAS: AgendaSemanal[] = [
       },
     ],
   },
+  {
+    semana: 6,
+    periodo: 3,
+    desde: '2026-09-28',
+    hasta: '2026-10-02',
+    publicadaPor: 'Equipo Técnico Institucional',
+    notaFinal: 'NOTA IMPORTANTE: CUIDE de sus hijos en Vacaciones, existen muchos riesgos y algunos están en su celular',
+    dias: [
+      {
+        fecha: '2026-09-28',
+        dia: 'lunes',
+        actividades: [
+          {
+            hora: '8.00 am',
+            actividad: 'Vamos al parque para grupo T°1',
+            asisten: 'Grupo T° 1 sede GRI',
+            lugar: 'Parque Biblioteca',
+            responsables: 'Macroproyecto leer bien',
+          },
+          {
+            hora: '8:00 am a 3:00 pm',
+            actividad: 'Participación de proyecto ambiental en evento internacional CLIMATE WEEK',
+            asisten: '3 estudiantes y Docente Juan Carlos Blandón',
+            lugar: 'Jardín Botánico',
+            responsables: 'Juan Carlos Blandón y SED',
+          },
+          {
+            hora: '10:00 am',
+            actividad: 'Capacitación presencial en MASTER',
+            asisten: 'Coordinadores y auxiliares administrativos',
+            lugar: 'BIblioteca',
+            responsables: 'MASTER 2000',
+          },
+          {
+            hora: '11:30 am a 12m',
+            actividad:
+              'Reunión de docentes de la jornada PM: Socialización: inicio de herramienta de tareas escolares.',
+            asisten: 'Docentes de la jornada PM sede ppal',
+            lugar: 'Aula innovación',
+            responsables: 'Coordinador y Julián',
+          },
+          {
+            hora: '12:30 pm a 5:30 pm',
+            actividad: 'Formación en manejo de emociones',
+            asisten: 'Grupos 6°1. 6°2 ,6°3 por turnos de 2 horas y docente de la clase',
+            lugar: 'Aula de clase',
+            responsables: 'Comfama y Cosmos School',
+          },
+          {
+            hora: '12:30 pm a 1:15 pm',
+            actividad: 'Cìrculo de la palabra',
+            asisten: 'Grupo 6º3 y directora de grupo',
+            lugar: 'Aula de clase',
+            responsables: 'Natalia Rivas',
+          },
+          {
+            hora: 'Por definir',
+            actividad: 'Actividad autocuidado ( semana Andina)',
+            asisten: 'Grupos grados 6 y docente a la hora de clase',
+            lugar: 'Sede principal',
+            responsables: 'Natalia Rivas- Entorno',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-29',
+        dia: 'martes',
+        actividades: [
+          {
+            hora: 'Última hora de clase en la jornada AM y primera hora de clase Jornada PM en sede principal',
+            actividad:
+              'Dirección de grupo: política de tareas y análisis de clima de aula (reportar situaciones) . No habrá centro de interés',
+            asisten: 'Estudiantes y directores de grupo',
+            lugar: 'Aulas',
+            responsables: 'Directores de grupo',
+          },
+          {
+            hora: 'Primera hora de clase jornada AM y última hora jornada PM',
+            actividad:
+              'Dirección de grupo en primaria : análisis de clima de aula y recoger percepción de estudiantes frente a centros de interés ( hacer acta)',
+            asisten: 'Estudiantes y directores de grupo de las sedes de primaria',
+            lugar: 'Aulas',
+            responsables: 'Directores de grupo',
+          },
+          {
+            hora: '7:00 am a 9.00 am',
+            actividad: 'Capacitación virtual a docentes del programa PREST MATH',
+            asisten: 'Leonardo y Leidy Zapata',
+            lugar: 'LINK',
+            responsables: 'Fundación LUKER',
+          },
+          {
+            hora: '12:15 pm a 6:15 pm',
+            actividad: 'Formación en manejo de emociones',
+            asisten: 'Grupos 7°1. 7°2 ,7°3 por turnos de 2 horas y docente de la clase',
+            lugar: 'Aula de clase',
+            responsables: 'Comfama y Cosmos School',
+          },
+        ],
+      },
+      {
+        fecha: '2026-09-30',
+        dia: 'miércoles',
+        actividades: [
+          {
+            hora: '9:00 am a 10:30 am',
+            actividad: 'Acto cultural: Día de amor y amistad.',
+            asisten: 'Estudiantes de la jornada de la mañana y docentes.',
+            lugar: 'Patio central Aulas de clase.',
+            responsables: 'Grado 9º',
+          },
+          {
+            hora: '10:30: am a 1:00pm',
+            actividad:
+              'Reunión conjunta de docentes en la sede principal: Cierre del Mes de Amor y Amistad y manejo de emociones.',
+            asisten: 'Docentes de todas las sedes.',
+            lugar: 'Auditorio',
+            responsables: 'Rectora y coordinadores',
+          },
+          {
+            hora: '12:30 pm a 2:20 pm',
+            actividad: 'Taller Literario',
+            asisten: 'Grupo 4°3 y Directora de grupo',
+            lugar: 'Sede Finca',
+            responsables: 'Parque Biblioteca',
+          },
+          {
+            hora: '12:15 pm a 6:15 pm',
+            actividad: 'Formación en manejo de emociones',
+            asisten: 'Grupos 8°1. 8°2 ,8°3 por turnos de 2 horas y docente de la clase.',
+            lugar: 'Aula de clase',
+            responsables: 'Comfama y Cosmos School',
+          },
+          {
+            hora: '1:00 pm',
+            actividad: 'Reunión con la UAI; asesoría apoyo académico especial',
+            asisten: 'Coordinadores, UAI y Rectora.',
+            lugar: 'Rectoría',
+            responsables: 'UAI',
+          },
+        ],
+      },
+      {
+        fecha: '2026-10-01',
+        dia: 'jueves',
+        actividades: [
+          {
+            hora: '6am a 12m',
+            actividad: 'Formación en manejo de emociones',
+            asisten: 'Grupos 9°1, 9°2 ,9°3 por turnos de 2 horas y docente de la clase',
+            lugar: 'aula de clase',
+            responsables: 'Comfama y Cosmos School',
+          },
+          {
+            hora: '10 am',
+            actividad: 'Reunión con Bienestar Docente: Análisis de casos de docentes con afectación en salud',
+            asisten: 'Mesa de atención del CEC ( coordinadores y sicólogos), docente Jorge Iván y jefe de núcleo , Rectora',
+            lugar: 'Biblioteca',
+            responsables: 'Bienestar docente',
+          },
+          {
+            hora: '4pm',
+            actividad: 'Charla vínculos afectivos padres de familia tejiendo hogares.',
+            asisten: 'grados 4 y 5 .',
+            lugar: 'Sede GRI',
+            responsables: 'Tejiendo hogares y entorno protector',
+          },
+        ],
+      },
+      {
+        fecha: '2026-10-02',
+        dia: 'viernes',
+        notas: [
+          'Inicia Receso escolar de octubre para estudiantes entre el 5 al 12 de octubre y semana de desarrollo Institucional para docentes',
+        ],
+        actividades: [
+          {
+            hora: '6am a 12m',
+            actividad: 'Formación en manejo de emociones',
+            asisten: 'Grupos 10°1, 10°2 ,10°3, 10°4 por turnos de 2 horas y docente de la clase',
+            lugar: 'Aula de clase',
+            responsables: 'Comfama y Cosmos School',
+          },
+          {
+            hora: '12:15 pm a 2.05pm',
+            actividad: 'Formación en manejo de emociones',
+            asisten: 'Grupos 8°4 de 2 horas y docente de la clase',
+            lugar: 'Aula de clase',
+            responsables: 'Comfama y Cosmos School',
+          },
+          {
+            hora: '9:00 a 11:00 am o 1:30 pm a 3.30 pm',
+            actividad: 'Invitación a encuentro virtual de preparación para simulacro nacional en contrajornada',
+            asisten: 'Julian David Medina, Hugo Armando Yepes, Leonardo Acevedo, Gloria Gallego, Leidy Yadira',
+            lugar: 'LINK',
+            responsables: 'DAGRED',
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 
