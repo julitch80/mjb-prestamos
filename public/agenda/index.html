@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Agenda MJB</title>
+<meta name="theme-color" content="#030712" />
+<!-- Entrada propia de la agenda del estudiante (QR / ícono de inicio).
+     iPhone: Safari guarda la URL en la que estás al «Agregar a inicio» y, si la página
+     declara un manifiesto, usa SU start_url (ignorando la URL actual y el grupo). Por eso
+     aquí NO se declara manifiesto en iOS: el ícono abre exactamente /agenda/?g=<grupo>.
+     Android/otros: el manifiesto se agrega abajo por script (no en iOS). -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Agenda MJB" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="icon" type="image/png" sizes="32x32" href="/mjb-prestamos/icons/favicon-32-v3.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/mjb-prestamos/icons/apple-touch-icon-v3.png" />
+<style>html{background:#030712;color:#cbd5e1;font-family:system-ui,sans-serif}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}</style>
+<script>
+(function () {
+  var BASE = '/mjb-prestamos/';
+  var CLAVE = 'mjb:agenda:ultimoGrupo';
+  var ua = navigator.userAgent || '';
+  var esIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+
+  if (!esIOS) {
+    var l = document.createElement('link');
+    l.rel = 'manifest';
+    l.href = BASE + 'agenda.webmanifest';
+    document.head.appendChild(l);
+  }
+
+  var g = null, guardado = null;
+  try { g = new URLSearchParams(location.search).get('g'); } catch (e) {}
+  try { guardado = localStorage.getItem(CLAVE); } catch (e) {}
+
+  if (standalone) {
+    // Ícono ya instalado: manda el último grupo elegido en ESTE teléfono; el ?g= de la
+    // URL de inicio solo siembra la primera vez (así «Cambiar grupo» no se pisa).
+    if (!guardado && g) { try { localStorage.setItem(CLAVE, g); } catch (e) {} }
+    location.replace(BASE + '#/agenda');
+  } else {
+    // Safari / navegador normal: se abre la agenda del grupo del QR.
+    location.replace(BASE + '#/agenda' + ((g || guardado) ? '/' + encodeURIComponent(g || guardado) : ''));
+  }
+})();
+</script>
+</head>
+<body><p>Abriendo la agenda…</p></body>
+</html>

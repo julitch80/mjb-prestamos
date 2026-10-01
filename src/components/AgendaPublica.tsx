@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { RefreshCw, Smartphone, X } from 'lucide-react';
 import { getDatosTareas } from '../data/api';
-import { grupoRecordado, recordarGrupo } from '../data/manifestAgenda';
+import { fijarUrlParaIOS, grupoRecordado, recordarGrupo } from '../data/manifestAgenda';
 import {
   detectarPlataforma, instalarNativo, puedeInstalarNativo, suscribir, yaInstalada,
 } from '../data/installPrompt';
@@ -17,7 +17,7 @@ import AgendaGrupo from './AgendaGrupo';
 export default function AgendaPublica({ grupo }: { grupo: string | null }) {
   const [elegido, setElegido] = useState<string | null>(() => grupo ?? grupoRecordado());
   useEffect(() => { if (grupo) setElegido(grupo); }, [grupo]);
-  useEffect(() => { if (elegido) recordarGrupo(elegido); }, [elegido]);
+  useEffect(() => { if (elegido) { recordarGrupo(elegido); fijarUrlParaIOS(elegido); } }, [elegido]);
 
   return (
     <div className="min-h-screen flex flex-col items-center px-4 py-6">
@@ -140,7 +140,7 @@ function GuardarEnCelular() {
         </button>
       ) : plataforma === 'ios' ? (
         <p className="text-xs text-soft leading-snug">
-          En Safari toca <b>Compartir</b> (el cuadro con la flecha hacia arriba) y luego <b>«Agregar a inicio»</b>.
+          Abre esta página en <b>Safari</b>, toca <b>Compartir</b> (el cuadro con la flecha hacia arriba), luego <b>«Agregar a inicio»</b> y <b>«Agregar»</b>. Hazlo con la agenda de tu grupo a la vista.
         </p>
       ) : (
         <p className="text-xs text-soft leading-snug">

@@ -791,7 +791,7 @@ const CACHE_TTL_TAREAS = 120; // segundos
 const CACHE_CLAVE_GRUPOS = '_gruposCacheadosTareas'; // registro de claves usadas, para poder borrarlas todas
 
 function claveCacheTareas_(grupo) {
-  return 'datosTareas_' + (grupo ? String(grupo) : 'todos');
+  return 'datosTareasV2_' + (grupo ? String(grupo) : 'todos');
 }
 
 // Registra una clave de grupo usada, para que invalidarCacheTareas() la
@@ -883,6 +883,11 @@ function getDatosTareas_(p) {
         fechaAsignacion: normalizarFecha(t.fechaAsignacion),
         fechaEntrega: normalizarFecha(t.fechaEntrega),
         estado: String(t.estado),
+        // Octubre 2026: la agenda del estudiante necesita ver la descripcion y
+        // el adjunto (enlace publico de Firebase Storage). Se omiten si vacios.
+        descripcion: String(t.descripcion || ''),
+        adjuntoUrl: String(t.adjuntoUrl || ''),
+        adjuntoNombre: String(t.adjuntoNombre || ''),
       };
     });
   const cesiones = hojaAObjetos(getSheet('Cesiones', CESIONES_HEADERS))

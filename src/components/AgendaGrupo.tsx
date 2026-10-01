@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Lock, Paperclip, Printer, QrCode as QrIcon, Tv } from 'lucide-react';
+import { Check, Lock, Printer, QrCode as QrIcon, Tv } from 'lucide-react';
 import QRCode from 'qrcode';
 import { colorGrado, DIRECTORES_MANANA, DIRECTORES_TARDE, USUARIOS } from '../data/maestros';
 import { getAsignatura } from '../data/asignacionAcademica';
@@ -14,12 +14,14 @@ import {
 import AgendaImprimible from './AgendaImprimible';
 import AgendaProyeccion from './AgendaProyeccion';
 import PildoraEstudio from './PildoraEstudio';
+import DetalleTarea from './DetalleTarea';
 import { cn } from '@/lib/utils';
 
 const DIAS_LABEL = ['lun', 'mar', 'mié', 'jue', 'vie'];
 
 export function urlAgendaPublica(grupo: string): string {
-  return `${window.location.origin}${window.location.pathname}#/agenda/${encodeURIComponent(grupo)}`;
+  // Entrada estática public/agenda/index.html: en iPhone «Agregar a inicio» guarda esta URL.
+  return `${window.location.origin}${import.meta.env.BASE_URL}agenda/?g=${encodeURIComponent(grupo)}`;
 }
 
 function diaLegibleLargo(f: FechaISO): string {
@@ -358,6 +360,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
                               {getAsignatura(t.asignaturaId)?.nombre}
                             </span>
                             <span className={cn(tachada ? 'text-muted line-through' : 'text-muted')}> · {b.momentos}m · {t.titulo}</span>
+                            <DetalleTarea t={t} />
                             {pendiente && (
                               <div className="text-[10px] text-accent">Pendiente — aún la puedes entregar el {fechaLegible(t.fechaEntrega)}</div>
                             )}
@@ -446,20 +449,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
                       <span className="text-[11px] text-muted">{b.momentos} momento{b.momentos > 1 ? 's' : ''} · {b.momentos * config.duracionMomentoMin} min</span>
                     </div>
                     <div className={cn('text-sm', tachada ? 'text-muted line-through' : 'text-strong')}>{t.titulo}</div>
-                    {t.descripcion && (
-                      <p className="text-xs text-soft mt-1 whitespace-pre-line leading-snug">{t.descripcion}</p>
-                    )}
-                    {t.adjuntoUrl && (
-                      <a
-                        href={t.adjuntoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 mt-1.5 text-[11px] text-accent hover:underline"
-                      >
-                        <Paperclip size={12} />
-                        {t.adjuntoNombre || 'Archivo adjunto'}
-                      </a>
-                    )}
+                    <DetalleTarea t={t} abiertoInicial />
                     <div className="text-[11px] text-muted mt-0.5">entrega: {fechaLegible(t.fechaEntrega)}</div>
                     {/* Chip invitador de "¿cuándo?" — visible siempre, tocable, no un ajuste escondido */}
                     <button
@@ -518,6 +508,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
                                 {getAsignatura(t.asignaturaId)?.nombre}
                               </span>
                               <span className={cn(tachada ? 'text-muted line-through' : 'text-muted')}> · {b.momentos}m · {t.titulo}</span>
+                              <DetalleTarea t={t} />
                               <button
                                 onClick={() => setTareaEligiendoMomento(t)}
                                 className={cn('ml-1.5 inline-block text-[11px] px-1.5 py-0.5 rounded-full border min-h-[28px]',

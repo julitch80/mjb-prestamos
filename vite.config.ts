@@ -71,7 +71,7 @@ export default defineConfig({
         // y el PDF/Word son descargas; nada de eso va al precache. Y sus páginas
         // no deben caer en el navigateFallback (servirían la app en vez del manual).
         globIgnores: ['convivencia/**'],
-        navigateFallbackDenylist: [/\/convivencia\//],
+        navigateFallbackDenylist: [/\/convivencia\//, /\/agenda\/(\?.*)?$/],
         skipWaiting: true,
         clientsClaim: true,
         runtimeCaching: [

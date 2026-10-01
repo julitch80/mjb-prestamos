@@ -25,7 +25,7 @@ _horario_tarde_Hoja1.csv
 # para que Claude las transcriba. NO se versionan — el repositorio es publico y
 # traen nombres y actividades internas. Lo que se publica es la transcripcion en
 # src/data/agendaSemanal.ts, no el archivo original.
-Agenda/
+/Agenda/
 
 functions-calendario/node_modules
 functions-calendario/lib

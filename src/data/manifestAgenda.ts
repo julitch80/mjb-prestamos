@@ -9,6 +9,14 @@
 // Tiene otro `id`, así que convive con la aplicación del docente si el mismo teléfono
 // tiene las dos.
 
+import { detectarPlataforma, yaInstalada } from './installPrompt';
+
+// iPhone: si la página declara un manifiesto, «Agregar a inicio» usa el start_url del
+// manifiesto (no la URL actual) y el grupo del QR se pierde → el ícono abría la app
+// completa con login. Por eso en iOS NO se declara manifiesto en la agenda: Safari guarda
+// la URL actual, que es la entrada estática public/agenda/index.html con ?g=<grupo>
+// (el hash `#/agenda/…` no es fiable en iOS).
+
 const CLAVE_GRUPO = 'mjb:agenda:ultimoGrupo';
 
 export function esRutaAgenda(hash: string = typeof location !== 'undefined' ? location.hash : ''): boolean {
@@ -17,6 +25,11 @@ export function esRutaAgenda(hash: string = typeof location !== 'undefined' ? lo
 
 export function usarManifiestoDeAgenda(): void {
   if (typeof document === 'undefined' || !esRutaAgenda()) return;
+  if (detectarPlataforma() === 'ios') {
+    document.querySelector('link[rel="manifest"]')?.remove();
+    document.title = 'Agenda MJB';
+    return;
+  }
   const href = `${import.meta.env.BASE_URL}agenda.webmanifest`;
   let link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
   if (!link) {
@@ -37,6 +50,18 @@ export function usarManifiestoDeAgenda(): void {
 
 export function recordarGrupo(grupo: string): void {
   try { localStorage.setItem(CLAVE_GRUPO, grupo); } catch { /* sin almacenamiento: no pasa nada */ }
+}
+
+/**
+ * iPhone en Safari (no instalada): deja la barra en `<base>agenda/?g=<grupo>` para que
+ * «Agregar a inicio» guarde esa URL. Recargar ahí pasa por public/agenda/index.html,
+ * que redirige de vuelta a la agenda.
+ */
+export function fijarUrlParaIOS(grupo: string): void {
+  if (typeof window === 'undefined' || detectarPlataforma() !== 'ios' || yaInstalada()) return;
+  try {
+    window.history.replaceState(null, '', `${import.meta.env.BASE_URL}agenda/?g=${encodeURIComponent(grupo)}`);
+  } catch { /* nada */ }
 }
 
 export function grupoRecordado(): string | null {
