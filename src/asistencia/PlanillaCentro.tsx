@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Avatar from './Avatar';
 import Ayuda from './Ayuda';
 import EscanerQr from './EscanerQr';
@@ -440,12 +440,23 @@ export default function PlanillaCentro({
   const columnas = useMemo(() => {
     const fechas = sesiones.map((s) => s.fecha);
     if (fechaPendiente && !fechas.includes(fechaPendiente)) fechas.push(fechaPendiente);
-    fechas.sort((a, b) => a.localeCompare(b));
+    // La mas reciente primero, junto al nombre, como en Planilla.tsx (Julian, 2026-10-01):
+    // en orden cronologico la columna nueva quedaba fuera de la pantalla del celular.
+    // `columnas` solo se usa para dibujar; la estadistica no depende de este orden.
+    fechas.sort((a, b) => b.localeCompare(a));
     return fechas.map((fecha) => ({
       fecha,
       sesion: sesiones.find((s) => s.fecha === fecha) ?? null,
     }));
   }, [sesiones, fechaPendiente]);
+
+  /** Al aparecer una columna nueva, la tabla vuelve al inicio para que se vea. */
+  const refTabla = useRef<HTMLDivElement>(null);
+  const totalAntes = useRef(columnas.length);
+  useEffect(() => {
+    if (columnas.length > totalAntes.current) refTabla.current?.scrollTo({ left: 0, behavior: 'smooth' });
+    totalAntes.current = columnas.length;
+  }, [columnas.length]);
 
   const comoEventos = useMemo(
     () => sesiones.map((s) => comoSesionDeEvento(s)).filter((s): s is EventSession => !!s),
@@ -982,7 +993,7 @@ export default function PlanillaCentro({
       ) : (
         // El contenedor lleva SU PROPIO overflow-x-auto: a 375 px la página no se
         // desborda de lado. La columna del nombre queda fija a la izquierda.
-        <div className="overflow-x-auto rounded-xl border border-line bg-card">
+        <div ref={refTabla} className="overflow-x-auto rounded-xl border border-line bg-card">
           <table className="w-max min-w-full border-collapse">
             <thead>
               <tr>

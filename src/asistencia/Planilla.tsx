@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Avatar from './Avatar';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
 import { nombreCompleto, nombresDePila } from './domain/nombres';
@@ -251,6 +251,23 @@ export default function Planilla({
   );
 
   /**
+   * Orden de DIBUJO de las columnas: la mas reciente primero, junto al nombre, como en
+   * Additio (Julian, 2026-10-01). En orden cronologico la columna nueva quedaba al final,
+   * fuera de la pantalla del celular, y los docentes la creaban y no la veian. Solo se
+   * invierte lo que se pinta: `ordenadas` sigue cronologica para el resumen y las alertas.
+   */
+  const columnas = useMemo(() => [...ordenadas].reverse(), [ordenadas]);
+
+  /** Al crearse una columna, la tabla vuelve al inicio aunque el docente estuviera
+   * mirando dias anteriores: la columna nueva es la primera y tiene que verse. */
+  const refTabla = useRef<HTMLDivElement>(null);
+  const totalAntes = useRef(ordenadas.length);
+  useEffect(() => {
+    if (ordenadas.length > totalAntes.current) refTabla.current?.scrollTo({ left: 0, behavior: 'smooth' });
+    totalAntes.current = ordenadas.length;
+  }, [ordenadas.length]);
+
+  /**
    * De quien es el anillo de la foto. Con guia, de la clasificacion; sin guia, del grupo.
    * Se calcula una vez aqui para que la lista y la cuadricula no puedan discrepar.
    */
@@ -448,6 +465,7 @@ export default function Planilla({
         </p>
       ) : (
         <div
+          ref={refTabla}
           className="overflow-x-auto rounded-xl border border-line bg-card"
           style={estiloBorde(color)}
         >
@@ -460,7 +478,7 @@ export default function Planilla({
                 <th className="sticky left-0 z-10 min-w-[10.5rem] max-w-[10.5rem] border-b border-r border-line bg-card p-2 text-left text-xs font-semibold text-muted">
                   Estudiante ({estudiantes.length})
                 </th>
-                {ordenadas.map((s) => (
+                {columnas.map((s) => (
                   <th
                     key={s.sessionId}
                     className="border-b border-line p-1 text-center text-[0.65rem] font-normal text-muted"
@@ -511,7 +529,7 @@ export default function Planilla({
                       </span>
                     </button>
                   </td>
-                  {ordenadas.map((s) => {
+                  {columnas.map((s) => {
                     const m = s.estudiantes?.[e.studentId];
                     const def = m ? findMark(m.estado) : undefined;
                     return (
