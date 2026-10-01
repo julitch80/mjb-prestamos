@@ -546,11 +546,15 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
           <span className="text-sm font-semibold text-strong block mb-2">Próximas entregas</span>
           <div className="space-y-1.5">
             {proximasEntregas.map(t => (
-              <div key={t.id} className="flex justify-between gap-3 text-xs">
-                <span className="text-muted truncate">
-                  <span className="text-soft font-medium">{getAsignatura(t.asignaturaId)?.nombre}</span> · {t.titulo}
-                </span>
-                <span className="text-strong whitespace-nowrap">{fechaLegible(t.fechaEntrega)}</span>
+              <div key={t.id} className="text-xs">
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted truncate">
+                    <span className="text-soft font-medium">{getAsignatura(t.asignaturaId)?.nombre}</span> · {t.titulo}
+                  </span>
+                  <span className="text-strong whitespace-nowrap">{fechaLegible(t.fechaEntrega)}</span>
+                </div>
+                {/* Aquí es donde el estudiante busca la tarea cuando sus momentos ya pasaron */}
+                <DetalleTarea t={t} />
               </div>
             ))}
           </div>
