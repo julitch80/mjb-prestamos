@@ -138,6 +138,23 @@ export const USUARIOS: Usuario[] = [
   { id: 'gri_diego',     nombre: 'Diego Alejandro Mejía Merino',      nombreCorto: 'Diego',      rol: 'docente', jornada: 'tarde',  correo: '',       color: '#f0abfc', sede: 'gustavo_rodas' },
   { id: 'gri_beatriz_z', nombre: 'Beatriz Elena Zapata Vásquez',      nombreCorto: 'Beatriz Z.', rol: 'docente', jornada: 'tarde',  correo: '',    color: '#fca5a5', sede: 'gustavo_rodas' },
   { id: 'gri_dolly',     nombre: 'Dolly Marley Gutiérrez Guevara',    nombreCorto: 'Dolly',      rol: 'docente', jornada: 'tarde',  correo: '',   color: '#fde047', sede: 'gustavo_rodas' },
+
+  // ── Sede La Finquita / Casa Finca (primaria) ───────────────────────────────
+  // Fuente: "asignacion Academica 2026 FINAL.xlsx", hoja PRIMARIA CASA FINCA,
+  // cruzada con el directorio de correos y la Resolucion Rectoral 33. Ids con
+  // prefijo `fin_`. Correo vacio a proposito (privacidad, commit 6819ebb): se
+  // resuelve desde Firestore tras el login.
+  // MANANA: Transicion, 1.° y 2.° (cada docente dicta todas las asignaturas).
+  // TARDE: 3.°, 4.° y 5.° con reparto por asignatura. Segun el Excel Soraya,
+  // Leidy Viviana y Paula figuran tambien con "Todas" en la tabla de la manana,
+  // pero la Resolucion 33 y el reparto por asignatura las ubican en la TARDE;
+  // se carga la jornada principal (tarde). Ver nota de 3°3 mas abajo.
+  { id: 'fin_gloria',    nombre: 'Gloria Yanet Gallego Rendón',       nombreCorto: 'Gloria Y.',  rol: 'docente', jornada: 'manana', correo: '', color: '#38bdf8', sede: 'la_finquita' },
+  { id: 'fin_margarita', nombre: 'Margarita María Bedoya Bedoya',     nombreCorto: 'Margarita B.', rol: 'docente', jornada: 'manana', correo: '', color: '#34d399', sede: 'la_finquita' },
+  { id: 'fin_mary',      nombre: 'Mary Luz Hoyos Hoyos',              nombreCorto: 'Mary Luz',   rol: 'docente', jornada: 'manana', correo: '', color: '#fb923c', sede: 'la_finquita' },
+  { id: 'fin_soraya',    nombre: 'Soraya Bodther',                    nombreCorto: 'Soraya',     rol: 'docente', jornada: 'tarde',  correo: '', color: '#c084fc', sede: 'la_finquita' },
+  { id: 'fin_leidy_v',   nombre: 'Leidy Viviana Zapata Corrales',     nombreCorto: 'Leidy V.',   rol: 'docente', jornada: 'tarde',  correo: '', color: '#f87171', sede: 'la_finquita' },
+  { id: 'fin_paula',     nombre: 'Paula Andrea Zapata Martínez',      nombreCorto: 'Paula',      rol: 'docente', jornada: 'tarde',  correo: '', color: '#e2e8f0', sede: 'la_finquita' },
 ];
 
 // ── Sedes: autoridad y direccionamiento ─────────────────────────────────────
@@ -281,12 +298,6 @@ export const GRUPOS_GUSTAVO_RODAS: Record<'manana' | 'tarde', string[]> = {
   tarde:  ['T°2', '3°1', '3°2', '4°1', '4°2', '5°1', '5°2'],
 };
 
-export const GRUPOS_PRIMARIA: string[] = [
-  ...GRUPOS_GUSTAVO_RODAS.manana,
-  ...GRUPOS_GUSTAVO_RODAS.tarde,
-  // La Finquita se anadira cuando lleguen sus datos.
-];
-
 // Direccion de grupo. La MANANA esta confirmada por el cuadro de asignacion
 // academica. La TARDE esta DEDUCIDA del encabezado del horario ("JOHANA 3-1",
 // "EDWIN 3-2"...) y está pendiente de que la coordinadora la confirme.
@@ -345,6 +356,74 @@ export const BLOQUES_POR_JORNADA_GUSTAVO_RODAS: Record<'manana' | 'tarde', numbe
 //   - Qué función cumplen Beatriz Amparo Marín Marín y Milena Badel, que
 //     figuran en la Resolución 33 como personal de la sede pero no en la
 //     asignación académica. Por eso no están en USUARIOS todavía.
+
+// ── Sede La Finquita (Casa Finca): grupos y direccion de grupo ───────────────
+//
+// Notacion de primaria (simbolo de grado, 3°3); el ultimo digito 3 distingue a
+// La Finquita de Gustavo Rodas (1 y 2). Fuente: hoja PRIMARIA CASA FINCA.
+//
+// PENDIENTE — JORNADA DE 3°3: el Excel la pone en AMBAS jornadas (la hoja
+// HORARIO ACADEMICO dice manana "1°-2°-3°" y tarde "3°-4°-5°"; la tabla de
+// asignacion lista a Soraya con 3°3 en la manana y el reparto por asignatura
+// la lista en la tarde). NO esta resuelto: aqui 3°3 figura en la TARDE (jornada
+// de su director, Soraya, segun la Resolucion 33) y NO en la manana, hasta que
+// la coordinacion confirme.
+
+export const GRUPOS_LA_FINQUITA: Record<'manana' | 'tarde', string[]> = {
+  manana: ['T°3', '1°3', '2°3'],
+  tarde:  ['3°3', '4°3', '5°3'],   // 3°3: jornada por confirmar (ver arriba)
+};
+
+// Cada docente dirige el grupo que tiene asignado en la tabla de asignacion
+// (T°3, 1°3, 2°3, 3°3, 4°3, 5°3). Confirmado por el Excel.
+export const DIRECTORES_LA_FINQUITA: Record<string, string> = {
+  'T°3': 'fin_gloria',
+  '1°3': 'fin_margarita',
+  '2°3': 'fin_mary',
+  '3°3': 'fin_soraya',
+  '4°3': 'fin_leidy_v',
+  '5°3': 'fin_paula',
+};
+
+// Asignaturas de la TARDE (3°, 4°, 5°), de la hoja PRIMARIA CASA FINCA.
+// En la manana cada docente dicta todas las de su grupo.
+export const ASIGNATURAS_TARDE_LA_FINQUITA: Record<string, string> = {
+  fin_paula:   'Lengua Castellana, Inglés y Tecnología (más optativa y Ética en 5°3)',
+  fin_soraya:  'Matemáticas y Sociales (más optativa y Ética en 3°3)',
+  fin_leidy_v: 'C. Naturales, Artística y Ed. Física (más Religión/Ética y optativa en 4°3)',
+};
+
+// Horas de entrada y salida (hoja HORARIO ACADEMICO). Transicion tiene horario
+// propio dentro de la manana. La tarde no tiene Transicion.
+export const HORARIO_JORNADA_LA_FINQUITA = [
+  { jornada: 'manana' as const, grupos: ['1°3', '2°3'], inicio: '07:00', fin: '12:00' },
+  { jornada: 'manana' as const, grupos: ['T°3'],        inicio: '07:30', fin: '11:45' },
+  { jornada: 'tarde'  as const, grupos: ['3°3', '4°3', '5°3'], inicio: '12:30', fin: '17:30' },
+];
+
+// Bloques diarios por jornada: desconocidos en ambas.
+export const BLOQUES_POR_JORNADA_LA_FINQUITA: Record<'manana' | 'tarde', number | null> = {
+  manana: null,
+  tarde: null,
+};
+
+// PENDIENTE de la coordinacion (La Finquita):
+//   - Jornada de 3°3 (manana, tarde o ambas).
+//   - Horario detallado por bloques de las dos jornadas.
+//   - Horas de cada bloque y de los descansos.
+//   - Turnos de acompanamiento.
+//   - Reglas de asistencia de la sede.
+//   - Espacios de la sede y salon de cada grupo.
+//   - Si Soraya, Leidy Viviana y Paula tienen carga tambien en la manana
+//     (el Excel las lista con "Todas" en la tabla de la manana).
+
+// Se define aqui (despues de los grupos de ambas sedes) para no leer una const sin inicializar.
+export const GRUPOS_PRIMARIA: string[] = [
+  ...GRUPOS_GUSTAVO_RODAS.manana,
+  ...GRUPOS_GUSTAVO_RODAS.tarde,
+  ...GRUPOS_LA_FINQUITA.manana,
+  ...GRUPOS_LA_FINQUITA.tarde,
+];
 
 // Aulas tarde → grupo
 export const AULA_GRUPO_TARDE: Record<string, string> = {

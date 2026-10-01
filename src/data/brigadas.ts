@@ -43,8 +43,8 @@ export const LIDERES_GESTION_RIESGO: IntegranteBrigada[] = [
   { nombre: 'Janeth Astrid Ocampo Carvajal', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'coord_manana' },
 
   // Docentes líderes por sede
-  { nombre: 'Gloria Yanet Gallego Rendón', sede: 'la_finquita', jornada: 'manana' },
-  { nombre: 'Paula Andrea Zapata M', sede: 'la_finquita', jornada: 'tarde' },
+  { nombre: 'Gloria Yanet Gallego Rendón', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_gloria' },
+  { nombre: 'Paula Andrea Zapata M', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_paula' },
   { nombre: 'Claudia Patricia Henao', sede: 'central', jornada: 'manana', docenteId: 'claudia' },
   { nombre: 'Hugo Armando Yepes', sede: 'central', jornada: 'tarde', docenteId: 'hugo' },
   { nombre: 'Leidy Yadira Atehortua', sede: 'gustavo_rodas', jornada: 'manana' },
@@ -70,13 +70,13 @@ export const BRIGADAS: Brigada[] = [
     ],
     integrantes: [
       // Jornada AM: Sede FINCA
-      { nombre: 'Margarita María Bedoya Bedoya', sede: 'la_finquita', jornada: 'manana' },
-      { nombre: 'Gloria Yanet Gallego Rendón', sede: 'la_finquita', jornada: 'manana' },
-      { nombre: 'Mary Luz Hoyos Hoyos', sede: 'la_finquita', jornada: 'manana' },
+      { nombre: 'Margarita María Bedoya Bedoya', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_margarita' },
+      { nombre: 'Gloria Yanet Gallego Rendón', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_gloria' },
+      { nombre: 'Mary Luz Hoyos Hoyos', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_mary' },
       // Jornada PM: Sede FINCA
-      { nombre: 'Soraya Bother', sede: 'la_finquita', jornada: 'tarde' },
-      { nombre: 'Leidy Viviana Zapata Corrales', sede: 'la_finquita', jornada: 'tarde' },
-      { nombre: 'Paula Andrea Zapata Martínez', sede: 'la_finquita', jornada: 'tarde' },
+      { nombre: 'Soraya Bother', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_soraya' },
+      { nombre: 'Leidy Viviana Zapata Corrales', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_leidy_v' },
+      { nombre: 'Paula Andrea Zapata Martínez', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_paula' },
       // Jornada AM: Sede GRI
       { nombre: 'Leidy Yadira Atehortua Rojas', sede: 'gustavo_rodas', jornada: 'manana' },
       { nombre: 'María Victoria Henao Toro', sede: 'gustavo_rodas', jornada: 'manana' },
@@ -141,8 +141,8 @@ export const BRIGADAS: Brigada[] = [
       { nombre: 'Carlos Alberto Cárdenas', sede: 'central', jornada: 'manana', docenteId: 'carlos' },
       { nombre: 'Dolly Marley Gutiérrez', sede: 'gustavo_rodas', jornada: 'tarde' },
       { nombre: 'Lourdes Uparela', sede: 'gustavo_rodas', jornada: 'manana' },
-      { nombre: 'Mary Luz Hoyos', sede: 'la_finquita', jornada: 'manana' },
-      { nombre: 'Soraya Bother', sede: 'la_finquita', jornada: 'tarde' },
+      { nombre: 'Mary Luz Hoyos', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_mary' },
+      { nombre: 'Soraya Bother', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_soraya' },
     ],
   },
   {
@@ -162,8 +162,8 @@ export const BRIGADAS: Brigada[] = [
       { nombre: 'Jhon Fredy García', sede: 'central', jornada: 'tarde', docenteId: 'fredy_garcia' },
       { nombre: 'Dolly Gutiérrez Guevara', sede: 'gustavo_rodas', jornada: 'tarde' },
       { nombre: 'María Victoria Henao', sede: 'gustavo_rodas', jornada: 'manana' },
-      { nombre: 'Margarita Bedoya', sede: 'la_finquita', jornada: 'manana' },
-      { nombre: 'Paula Andrea Zapata', sede: 'la_finquita', jornada: 'tarde' },
+      { nombre: 'Margarita Bedoya', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_margarita' },
+      { nombre: 'Paula Andrea Zapata', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_paula' },
     ],
   },
   {
@@ -183,8 +183,8 @@ export const BRIGADAS: Brigada[] = [
       { nombre: 'Harold Meyit Gómez Lopera', sede: 'central', jornada: 'tarde', docenteId: 'harol' },
       { nombre: 'Beatriz Elena Zapata', sede: 'gustavo_rodas', jornada: 'tarde' },
       { nombre: 'Lourdes Uparella', sede: 'gustavo_rodas', jornada: 'manana' },
-      { nombre: 'Mary Luz Hoyos', sede: 'la_finquita', jornada: 'manana' },
-      { nombre: 'Leidy Viviana Zapata', sede: 'la_finquita', jornada: 'tarde' },
+      { nombre: 'Mary Luz Hoyos', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_mary' },
+      { nombre: 'Leidy Viviana Zapata', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_leidy_v' },
       { nombre: 'Luis Ángel Quiceno Quiceno', sede: 'central', jornada: 'nocturna', docenteId: 'luis_angel' },
       { nombre: 'Personal de aseo', sede: 'todas', jornada: 'ambas' },
       { nombre: 'Beatriz Marín Marín', sede: 'gustavo_rodas', jornada: 'ambas' },
