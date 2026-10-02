@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronRight, FileText, Smartphone, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import {
@@ -7,6 +7,8 @@ import {
 import type { OpcionManual } from '../data/manualConvivencia';
 import { IconoConvivencia, IconoEvaluacion } from './IconosNeon';
 import DocumentoInstitucional from './DocumentoInstitucional';
+import ModalPropuestaEscena from './ModalPropuestaEscena';
+import { leerMensajeManual, type LaminaDeReferencia } from '../data/propuestaEscena';
 
 // Módulo «Manual de convivencia» (antes «Chatbot»). El id de la vista sigue
 // siendo 'asistentes' para no romper la navegación guardada.
@@ -119,6 +121,21 @@ const ALTO_IFRAME = { height: 'calc(100vh - 220px)', minHeight: 480 };
 function VistaOpcion({ opcion, onVolver }: { opcion: OpcionManual; onVolver: () => void }) {
   const [qr, setQr] = useState(false);
   const escritorio = useAnchoMinimo(768);
+  const marco = useRef<HTMLIFrameElement>(null);
+  const [propuesta, setPropuesta] = useState<{ despuesDe: LaminaDeReferencia } | null>(null);
+
+  // El manual digital, abierto aquí con ?desde=app, muestra «Propón una escena» en la cartilla
+  // y avisa por postMessage. Solo se escucha a ESTE marco y a este mismo origen.
+  useEffect(() => {
+    if (opcion.tipo !== 'digital') return;
+    const fn = (ev: MessageEvent) => {
+      if (ev.origin !== window.location.origin || ev.source !== marco.current?.contentWindow) return;
+      const despuesDe = leerMensajeManual(ev.data);
+      if (despuesDe) setPropuesta({ despuesDe });
+    };
+    window.addEventListener('message', fn);
+    return () => window.removeEventListener('message', fn);
+  }, [opcion.tipo]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -150,7 +167,7 @@ function VistaOpcion({ opcion, onVolver }: { opcion: OpcionManual; onVolver: () 
         </>
       ) : (
         <>
-          <iframe src={opcion.url} title={opcion.nombre}
+          <iframe ref={marco} src={opcion.tipo === 'digital' ? `${opcion.url}?desde=app` : opcion.url} title={opcion.nombre}
             className="w-full rounded-2xl border border-line bg-card" style={ALTO_IFRAME}
             allow="clipboard-write; microphone" />
           {opcion.tipo === 'chatbot' && <p className="text-muted text-xs">El asistente requiere conexión a internet.</p>}
@@ -158,6 +175,7 @@ function VistaOpcion({ opcion, onVolver }: { opcion: OpcionManual; onVolver: () 
       )}
 
       {qr && <VentanaQR onCerrar={() => setQr(false)} />}
+      {propuesta && <ModalPropuestaEscena despuesDe={propuesta.despuesDe} onCerrar={() => setPropuesta(null)} />}
     </div>
   );
 }

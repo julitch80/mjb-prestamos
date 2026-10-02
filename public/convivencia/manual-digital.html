@@ -263,6 +263,9 @@ dialog.r-visor button { position: sticky; top: 8px; float: right; margin: 8px; b
 .miniaturas button { flex: none; border: 2px solid transparent; border-radius: 8px; padding: 0; background: none; cursor: pointer; }
 .miniaturas button[aria-current="true"] { border-color: var(--vino); }
 .miniaturas img { width: 72px; height: 54px; object-fit: cover; border-radius: 6px; display: block; }
+.proponer { border: 1.5px dashed var(--linea); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; }
+.proponer p { margin: 0; font-size: .92rem; color: var(--suave); }
+.proponer button { justify-self: start; border: 1.5px solid var(--vino); background: var(--papel); color: var(--vino); border-radius: 12px; padding: 9px 14px; cursor: pointer; font-weight: 700; font-size: .95rem; }
 .ayuda { background: var(--tinta); color: var(--papel); border-radius: 14px; padding: 18px; display: grid; gap: 10px; }
 .ayuda h2 { color: var(--papel); }
 .ayuda .lineas { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -730,6 +733,10 @@ const CART = DATOS.cartilla;
 const GRUPO_CART = { personajes: 'Personajes', acuerdos: 'Nuestros acuerdos', despues: 'Si pasa algo', autocuidado: 'Me cuido y pido ayuda', derechos: 'Mis derechos' };
 let grupoCart = 'todas', lamina = 0;
 const voz = 'speechSynthesis' in window;
+// «Propón una escena» (Julian, 2026-10-01): solo cuando MJB abre el manual en su marco con
+// ?desde=app. Por el QR o el enlace publico no aparece. La ficha la abre MJB, con sesion
+// iniciada; aqui solo se le dice despues de que lamina se pide la escena nueva.
+const DESDE_APP = new URLSearchParams(location.search).get('desde') === 'app' && window.parent !== window;
 function escenasCart() { return CART.escenas.filter((s) => grupoCart === 'todas' || s.grupo === grupoCart); }
 function pintarCartilla() {
   const lista = escenasCart();
@@ -750,6 +757,10 @@ function pintarCartilla() {
         <button type="button" data-lam="1" ${lamina === lista.length - 1 ? 'disabled' : ''} aria-label="Lámina siguiente">Siguiente ▶</button></div>
       ${voz ? '<button type="button" class="escuchar" data-escuchar>Escuchar</button>' : ''}
     </div>
+    ${DESDE_APP ? `<div class="proponer">
+      <p>¿Crees que hace falta otra escena aquí? Propónla.</p>
+      <button type="button" data-proponer>🎙 Narra la escena que quieres que aparezca</button>
+    </div>` : ''}
     <div class="miniaturas">${lista.map((x, k) => `<button type="button" data-ir-lam="${k}" aria-current="${k === lamina}" aria-label="${esc(x.titulo)}"><img src="${x.imagen}" alt="" loading="lazy"></button>`).join('')}</div>`;
   const actual = document.querySelector('.miniaturas [aria-current="true"]');
   if (actual) actual.parentElement.scrollLeft = actual.offsetLeft - 40;
@@ -774,6 +785,10 @@ document.getElementById('cartilla').addEventListener('click', (ev) => {
   const k = ev.target.closest('[data-ir-lam]');
   if (k) { if (voz) speechSynthesis.cancel(); lamina = +k.dataset.irLam; pintarCartilla(); return; }
   if (ev.target.closest('[data-escuchar]')) leer(escenasCart()[lamina].vineta);
+  if (ev.target.closest('[data-proponer]')) {
+    const s = escenasCart()[lamina];
+    window.parent.postMessage({ tipo: 'mjb-proponer-escena', despuesDe: { numero: s.n, titulo: s.titulo, grupo: GRUPO_CART[s.grupo] || s.grupo } }, location.origin);
+  }
 });
 document.getElementById('cartilla').addEventListener('keydown', (ev) => {
   if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
