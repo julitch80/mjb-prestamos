@@ -41,6 +41,9 @@ import { InformeContencion } from './InformeContencion';
 import { RemisionSeguro } from './RemisionSeguro';
 import { AccidenteLaboral } from './AccidenteLaboral';
 import TableroCasos from './TableroCasos';
+import { MetronomoRcp } from './MetronomoRcp';
+import { RespiracionGuiada } from './RespiracionGuiada';
+import TomaPulso from './TomaPulso';
 import {
   ATRIBUCION,
   FICHAS_AUXILIOS,
@@ -731,6 +734,7 @@ function FichaAuxiliosDetalle({ ficha }: { ficha: FichaAuxilios }) {
         {ficha.bloques.map((bloque, i) => (
           <BloqueFichaView key={i} bloque={bloque} />
         ))}
+        {ficha.id === 'reanimacion' && <MetronomoRcp />}
       </div>
 
       {ficha.llamar123 && (
@@ -762,6 +766,7 @@ function FichaAuxiliosDetalle({ ficha }: { ficha: FichaAuxilios }) {
 function GuiaAuxiliosRapida() {
   const [fichaId, setFichaId] = useState<string | null>(null);
   const ficha = fichaId ? fichaPorId(fichaId) : undefined;
+  const [verPulso, setVerPulso] = useState(false);
 
   return (
     <div className="flex flex-col gap-4">
@@ -769,6 +774,22 @@ function GuiaAuxiliosRapida() {
         <h3 className="text-strong text-sm font-semibold">🚑 Guía de primeros auxilios</h3>
         <p className="text-muted text-xs">Fichas de consulta rápida. Toca una para leerla.</p>
       </div>
+
+      {/* Herramienta de medición: va antes de las fichas porque se usa con la víctima delante */}
+      <button
+        type="button"
+        onClick={() => setVerPulso(v => !v)}
+        aria-expanded={verPulso}
+        className="w-full min-h-[56px] rounded-2xl border border-line bg-elevated px-4 py-3 flex items-center gap-3 text-left hover:brightness-110 transition"
+      >
+        <span className="text-2xl" aria-hidden="true">💓</span>
+        <span className="flex-1 flex flex-col">
+          <span className="text-strong text-sm font-semibold">Tomar el pulso</span>
+          <span className="text-muted text-xs">Temporizador, semáforo por edad y registro</span>
+        </span>
+        <span className="text-muted text-xs">{verPulso ? 'Ocultar' : 'Abrir'}</span>
+      </button>
+      {verPulso && <TomaPulso />}
 
       <div className="flex items-center gap-1.5 flex-wrap">
         {FICHAS_AUXILIOS.map(f => (
@@ -1063,6 +1084,7 @@ function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
     return (
       <div className="flex flex-col gap-4">
         <BotonVolver onClick={volver}>Volver</BotonVolver>
+        <RespiracionGuiada />
         <VisorFases
           secuenciaIds={SECUENCIA_CONTENCION_EMOCIONAL}
           mostrarNumero={false}
