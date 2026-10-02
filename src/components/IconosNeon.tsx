@@ -265,6 +265,37 @@ export const IconoEvaluacion = (p: Props) => (
   </Svg>
 );
 
+/** Generar horario — cuadrícula de horario con una chispa de "crear". */
+export const IconoGenerarHorario = (p: Props) => (
+  <Svg {...p}>
+    <rect x="3" y="5" width="14" height="14" rx="2.5" />
+    <path d="M3 10h14M8.5 5v14" />
+    <path d="M19.5 2.5v4M17.5 4.5h4" />
+    <path d="M20.5 10.5v2.5M19.25 11.75h2.5" />
+  </Svg>
+);
+
+/** Mis notificaciones — celular con ondas de aviso. */
+export const IconoNotificaciones = (p: Props) => (
+  <Svg {...p}>
+    <rect x="6" y="2.5" width="10" height="19" rx="2.5" />
+    <path d="M10 18.5h2" />
+    <path d="M18.5 8a4 4 0 0 1 0 6" />
+    <path d="M20.5 6a7 7 0 0 1 0 10" />
+  </Svg>
+);
+
+/** Datos de la sede — edificio escolar con una marca de confirmación. */
+export const IconoSedeDatos = (p: Props) => (
+  <Svg {...p}>
+    <path d="M3 10.5L11 5l8 5.5" />
+    <path d="M5 9.5V20h12V9.5" />
+    <path d="M9.5 20v-4h3v4" />
+    <circle cx="18" cy="17" r="3.5" />
+    <path d="M16.6 17l1 1 1.8-1.9" />
+  </Svg>
+);
+
 /** Genérico, por si aparece una sección nueva sin icono propio. */
 export const IconoGenerico = (p: Props) => (
   <Svg {...p}>
@@ -295,6 +326,9 @@ export const NEON_NAV: Record<
   chat:           { Icono: IconoChat,       color: '#2dd4bf' }, // turquesa
   sugerencias:    { Icono: IconoSugerencias, color: '#fde047' }, // amarillo
   asistencia:     { Icono: IconoAsistencia, color: '#4ade80' }, // verde esmeralda
+  generar_horario: { Icono: IconoGenerarHorario, color: '#818cf8' }, // índigo
+  notificaciones: { Icono: IconoNotificaciones, color: '#e879f9' }, // fucsia
+  sede_datos:     { Icono: IconoSedeDatos,  color: '#fdba74' }, // durazno
 };
 
 export function neonDe(id: string) {
