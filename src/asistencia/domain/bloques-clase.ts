@@ -35,6 +35,12 @@ export interface HoraDeClase {
   grado: string;
   aula: string;
   jornada: Jornada;
+  /**
+   * Hora real de ESE dia ('HH:MM'), si se conoce. La da `clasesEfectivas` de MJB y cambia
+   * en una jornada reducida; sin ella se usa la franja normal del bloque.
+   */
+  inicio?: string;
+  fin?: string;
 }
 
 export interface Encuentro {
@@ -43,6 +49,9 @@ export interface Encuentro {
   jornada: Jornada;
   /** Una hora (`[3]`) o un bloque de dos (`[3, 4]`), siempre en orden. */
   bloques: number[];
+  /** Inicio de la primera hora y fin de la ultima, si las horas traian su hora real. */
+  inicio?: string;
+  fin?: string;
 }
 
 /**
@@ -66,11 +75,13 @@ export function encuentrosDelDia(horas: HoraDeClase[]): Encuentro[] {
           )
         : undefined;
     if (companera) usadas.add(companera);
+    const ultima = companera ?? h;
     encuentros.push({
       grado: h.grado,
       aula: h.aula,
       jornada: h.jornada,
       bloques: companera ? [h.bloque, companera.bloque] : [h.bloque],
+      ...(h.inicio && ultima.fin ? { inicio: h.inicio, fin: ultima.fin } : {}),
     });
   }
   return encuentros;
@@ -110,22 +121,25 @@ export function sugerirClase(
 ): Sugerencia | null {
   const conHora = encuentros
     .map((e) => {
+      // La hora real del dia manda (jornada reducida); si no viene, la franja normal.
+      if (e.inicio && e.fin) return { e, inicio: e.inicio, fin: e.fin };
       const lista = franjas[e.jornada] ?? [];
       const primera = lista.find((f) => f.id === e.bloques[0]);
       const ultima = lista.find((f) => f.id === e.bloques[e.bloques.length - 1]);
-      return primera && ultima ? { e, ini: aMinutos(primera.inicio), fin: aMinutos(ultima.fin), primera, ultima } : null;
+      return primera && ultima ? { e, inicio: primera.inicio, fin: ultima.fin } : null;
     })
     .filter((x): x is NonNullable<typeof x> => x !== null)
+    .map((x) => ({ ...x, ini: aMinutos(x.inicio), finMin: aMinutos(x.fin) }))
     .sort((a, b) => a.ini - b.ini);
 
-  const enCurso = conHora.find((x) => minutosAhora >= x.ini && minutosAhora < x.fin);
+  const enCurso = conHora.find((x) => minutosAhora >= x.ini && minutosAhora < x.finMin);
   const elegida = enCurso ?? conHora.find((x) => minutosAhora < x.ini);
   if (!elegida) return null;
   return {
     encuentro: elegida.e,
     estado: enCurso ? 'en_curso' : 'proxima',
-    inicio: elegida.primera.inicio,
-    fin: elegida.ultima.fin,
+    inicio: elegida.inicio,
+    fin: elegida.fin,
     faltan: Math.max(0, elegida.ini - minutosAhora),
   };
 }

@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { encuentrosDelDia, etiquetaHoras, sugerirClase } from './domain/bloques-clase';
-import { asignaturasEnGrado, FRANJAS, horasDeHoy } from './horarioDelDia';
+import { asignaturasEnGrado, FRANJAS, useHorasDeHoy } from './horarioDelDia';
 
 /**
  * «La lista que toca ahora», destacada arriba de «Mis grupos» (Julian, 2026-10-01).
  *
- * Sale del horario del docente (ver `horarioDelDia.ts`, la misma fuente que la pastilla
- * «Próxima clase» de la pantalla de inicio): la clase en curso o, si no hay, la siguiente
+ * Sale de las clases EFECTIVAS de hoy del docente (ver `horarioDelDia.ts`, la misma fuente
+ * que la pastilla «Próxima clase» del inicio: reemplazos, jornadas reducidas y festivos): la clase en curso o, si no hay, la siguiente
  * de hoy. Si es un bloque de dos horas lo dice, y «Pasar lista» abre la planilla con las
  * dos horas creadas y enlazadas. Si ya se llamo lista, baja el tono y ofrece verla.
  *
@@ -28,8 +28,7 @@ export default function TarjetaClaseAhora({
     return () => clearInterval(t);
   }, []);
 
-  const dia = ahora.toDateString();
-  const encuentros = useMemo(() => encuentrosDelDia(horasDeHoy(slotId, ahora)), [slotId, dia]); // eslint-disable-line react-hooks/exhaustive-deps
+  const encuentros = encuentrosDelDia(useHorasDeHoy(slotId, ahora));
   const sugerencia = sugerirClase(encuentros, FRANJAS, ahora.getHours() * 60 + ahora.getMinutes());
   if (!sugerencia) return null;
 

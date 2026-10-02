@@ -1,33 +1,44 @@
 /**
  * De donde saca el modulo de asistencia el horario de hoy de un docente.
  *
- * Es el UNICO punto de contacto con el horario de MJB, a proposito: hoy lee el horario
- * BASE (`horarioBase` + las franjas de `maestros.ts`), igual que la pastilla «Próxima
- * clase» de la pantalla de inicio. No ve los cambios del dia (`horarioModificado`: un
- * reemplazo, una jornada reducida con bloques recortados), que viven en Firestore y los
- * calcula MJB. Cuando MJB exponga una funcion con las clases EFECTIVAS de hoy, se cambia
- * solo este archivo y la tarjeta de «Mis grupos» la usa sin tocar nada mas.
+ * Es el UNICO punto de contacto con el horario de MJB, a proposito. Lee las clases
+ * EFECTIVAS del dia con `clasesEfectivas` de MJB (commit d85ec23), la misma funcion de la
+ * pastilla «Próxima clase» del inicio: horario base del puesto, cambios del dia guardados
+ * (movidas, ausencias, docente nuevo), jornadas reducidas con sus horas reales, y ninguna
+ * clase en fin de semana o festivo. Si los cambios del dia aun no llegaron al store,
+ * devuelve el horario base.
  *
  * En esta carpeta de desarrollo `../data/*` son dobles FICTICIOS; en MJB son los reales.
  */
-import { horarioBase } from '../data/horarioBase';
+import { useMemo } from 'react';
 import { BLOQUES_MANANA, BLOQUES_TARDE } from '../data/maestros';
 import { asignacionDeDocente } from '../data/asignacionAcademica';
+import { useAppStore } from '../data/store';
+import { clasesEfectivas, fechaLocalISO, type ClaseEfectiva } from '../data/horario/clasesEfectivas';
+import { useClasesEfectivasHoy } from '../data/horario/useClasesEfectivasHoy';
 import type { FranjaHoraria, HoraDeClase } from './domain/bloques-clase';
 import type { Jornada } from './domain/types';
 
-const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] as const;
+const aHora = (c: ClaseEfectiva): HoraDeClase => ({
+  bloque: c.bloque, grado: c.grado, aula: c.aula, jornada: c.jornada, inicio: c.inicio, fin: c.fin,
+});
 
-/** Horas de clase de hoy del docente (horario base). Fin de semana: ninguna. */
+/**
+ * Horas de clase del docente en `fecha`, leidas una vez (sin suscribirse). Para un clic,
+ * como abrir la planilla; una pantalla que se queda abierta usa `useHorasDeHoy`.
+ */
 export function horasDeHoy(slotId: string | null, fecha: Date = new Date()): HoraDeClase[] {
-  if (!slotId) return [];
-  const dia = DIAS[fecha.getDay()];
-  return horarioBase
-    .filter((e) => e.dia === dia && e.docente === slotId)
-    .map((e) => ({ bloque: e.bloque, grado: e.grado, aula: e.aula, jornada: e.jornada }));
+  const { horariosModificados, jornadasReducidas } = useAppStore.getState();
+  return clasesEfectivas(slotId, fechaLocalISO(fecha), { horariosModificados, jornadasReducidas }).map(aHora);
 }
 
-/** Hora de inicio y fin de cada bloque, por jornada. */
+/** Igual, como hook: se recalcula cuando llegan al store los cambios del dia. */
+export function useHorasDeHoy(slotId: string | null, fecha: Date): HoraDeClase[] {
+  const clases = useClasesEfectivasHoy(slotId, fechaLocalISO(fecha));
+  return useMemo(() => clases.map(aHora), [clases]);
+}
+
+/** Franjas normales de cada bloque. Respaldo si una hora no trae su inicio y fin reales. */
 export const FRANJAS: Record<Jornada, FranjaHoraria[]> = {
   manana: BLOQUES_MANANA.map((b) => ({ id: b.id, inicio: b.inicio, fin: b.fin })),
   tarde: BLOQUES_TARDE.map((b) => ({ id: b.id, inicio: b.inicio, fin: b.fin })),
