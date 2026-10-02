@@ -11,11 +11,9 @@ import { AUTH_MODE } from '../data/authStore';
 import { firebaseConfigurado } from '../lib/firebase';
 import { getSugerencias } from '../data/api';
 import { useCasosVencidos } from '../hooks/useCasosVencidos';
-import {
-  BLOQUES_MANANA,
-  BLOQUES_TARDE,
-  horaOrdinal,
-} from '../data/maestros';
+import { horaOrdinal } from '../data/maestros';
+import { useClasesEfectivasHoy } from '../data/horario/useClasesEfectivasHoy';
+import { proximaClaseEfectiva } from '../data/horario/clasesEfectivas';
 import { horarioBase } from '../data/horarioBase';
 import { useAcompanamientos } from '../data/acompanamientos/useAcompanamientos';
 import { asignacionesDeDocenteEnDia } from '../data/acompanamientos/vigente';
@@ -115,38 +113,21 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   }, [userId, jornadaEfectivaHoy, hoy, horariosModificados]);
 
   // ── Próxima clase de hoy (solo docentes) ────────────────────────────────
+  // Clases EFECTIVAS de hoy: horario base + ediciones/ausencias/reemplazos + jornada
+  // reducida + festivos (src/data/horario/clasesEfectivas.ts).
+  const clasesHoy = useClasesEfectivasHoy(esDocente ? userId : null, hoy);
   const proximaClase = useMemo(() => {
-    if (!esDocente || !userId) return null;
-    const diaHoy = diaDeSemana(hoy);
-    if (diaHoy === 'sabado' || diaHoy === 'domingo') return null;
-    const entradasHoy = horarioBase
-      .filter((e) => e.dia === diaHoy && e.docente === userId)
-      .sort((a, b) => a.bloque - b.bloque);
-    if (entradasHoy.length === 0) return null;
-
     const ahora = new Date();
-    const minsAhora = ahora.getHours() * 60 + ahora.getMinutes();
-
-    for (const entrada of entradasHoy) {
-      const bloques = entrada.jornada === 'manana' ? BLOQUES_MANANA : BLOQUES_TARDE;
-      const bloque = bloques.find((b) => b.id === entrada.bloque);
-      if (!bloque) continue;
-      const [hIni, mIni] = bloque.inicio.split(':').map(Number);
-      const [hFin, mFin] = bloque.fin.split(':').map(Number);
-      const minsIni = hIni * 60 + mIni;
-      const minsFin = hFin * 60 + mFin;
-      if (minsAhora < minsFin) {
-        return {
-          enCurso: minsAhora >= minsIni,
-          ordinal: horaOrdinal(entrada.bloque),
-          hora: bloque.inicio,
-          grado: entrada.grado,
-          aula: entrada.aula,
-        };
-      }
-    }
-    return null; // ya terminó su jornada
-  }, [esDocente, userId, hoy]);
+    const c = proximaClaseEfectiva(clasesHoy, ahora.getHours() * 60 + ahora.getMinutes());
+    if (!c) return null; // sin clases hoy o ya terminó su jornada
+    return {
+      enCurso: c.enCurso,
+      ordinal: horaOrdinal(c.bloque),
+      hora: c.inicio,
+      grado: c.grado,
+      aula: c.aula,
+    };
+  }, [clasesHoy]);
 
   // ── Acompañamiento de hoy ────────────────────────────────────────────────
   // Lee la distribución vigente (2.3/2.4), no la lista fija de maestros.ts. Se
