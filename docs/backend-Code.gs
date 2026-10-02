@@ -787,7 +787,10 @@ function servirAvisoPublico() {
 // Si CacheService lanza una excepción (cuota, etc.) la función debe seguir
 // funcionando sin caché: nunca debe romper getDatosTareas.
 
-const CACHE_TTL_TAREAS = 120; // segundos
+// Octubre 2026: de 120 s a 600 s. Es seguro porque toda escritura llama a
+// invalidarCacheTareas(); solo una edición hecha a mano en la hoja tarda hasta
+// 10 minutos en verse.
+const CACHE_TTL_TAREAS = 600; // segundos
 const CACHE_CLAVE_GRUPOS = '_gruposCacheadosTareas'; // registro de claves usadas, para poder borrarlas todas
 
 function claveCacheTareas_(grupo) {

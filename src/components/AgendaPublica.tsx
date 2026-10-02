@@ -41,10 +41,28 @@ export default function AgendaPublica({ grupo }: { grupo: string | null }) {
   );
 }
 
+// Última agenda vista en este teléfono, por grupo. Se muestra AL INSTANTE al
+// abrir y en segundo plano se pide la nueva al servidor (Apps Script tarda de
+// 2 a 5 s). Son datos públicos del grupo, no personales.
+type AgendaGuardada = { data: Awaited<ReturnType<typeof getDatosTareas>>; t: number };
+const claveAgendaGuardada = (grupo: string) => `mjb:agenda:datos:${grupo}`;
+
+function leerAgendaGuardada(grupo: string): AgendaGuardada | undefined {
+  try {
+    const crudo = localStorage.getItem(claveAgendaGuardada(grupo));
+    if (!crudo) return undefined;
+    const g = JSON.parse(crudo) as AgendaGuardada;
+    return g && g.data && typeof g.t === 'number' ? g : undefined;
+  } catch { return undefined; }
+}
+
 function AgendaDelGrupo({ grupo }: { grupo: string }) {
-  const { data, dataUpdatedAt, isLoading } = useQuery({
+  const { data, dataUpdatedAt, isLoading, isFetching } = useQuery({
     queryKey: ['agendaPublica', grupo],
     queryFn: () => getDatosTareas(grupo),
+    initialData: () => leerAgendaGuardada(grupo)?.data,
+    initialDataUpdatedAt: () => leerAgendaGuardada(grupo)?.t,
+    // staleTime 0 (por defecto): aunque haya copia guardada, al abrir se pide la nueva.
     // Antes 5 min: con profesores + esta agenda pública por QR refrescando
     // a la vez, ayudaba a saturar el límite de ejecuciones simultáneas de
     // Apps Script (ver getDatosTareas cacheado en docs/backend-Code.gs).
@@ -62,6 +80,14 @@ function AgendaDelGrupo({ grupo }: { grupo: string }) {
     return () => clearInterval(id);
   }, []);
 
+  // Guarda la respuesta buena para la próxima apertura (solo si vino del servidor).
+  useEffect(() => {
+    if (!data?.ok || !dataUpdatedAt) return;
+    try {
+      localStorage.setItem(claveAgendaGuardada(grupo), JSON.stringify({ data, t: dataUpdatedAt }));
+    } catch { /* sin almacenamiento: no pasa nada */ }
+  }, [grupo, data, dataUpdatedAt]);
+
   const minAtras = Math.max(0, Math.round((Date.now() - dataUpdatedAt) / 60000));
 
   if (isLoading) {
@@ -76,7 +102,10 @@ function AgendaDelGrupo({ grupo }: { grupo: string }) {
       <GuardarEnCelular />
       <AgendaGrupo grupo={grupo} tareas={data?.tareas ?? []} mostrarQR={false} anclasPorGrupo={data?.anclas} />
       <footer className="flex justify-between items-center text-[10px] text-muted px-1">
-        <span className="flex items-center gap-1"><RefreshCw size={10} /> actualizado hace {minAtras} min</span>
+        <span className="flex items-center gap-1">
+          <RefreshCw size={10} className={isFetching ? 'animate-spin' : undefined} />
+          {isFetching ? 'buscando cambios…' : `actualizado hace ${minAtras} min`}
+        </span>
         <span>se actualiza automáticamente</span>
       </footer>
     </>
