@@ -8,6 +8,7 @@ import {
   lpmPorConteo,
   lpmPorToques,
 } from '../data/tomaPulso';
+import { AnadirABitacora } from './botiquin/compartido';
 import type { GrupoEdad, MedicionPulso, ModoPulso, Semaforo } from '../data/tomaPulso';
 
 type WakeLockLike = { release: () => Promise<void> };
@@ -267,6 +268,7 @@ export default function TomaPulso() {
                 {irrVivo && (
                   <p className={cn('text-sm font-semibold', FG[sem])}>Ritmo irregular: cuente 60 s con el temporizador.</p>
                 )}
+                <AnadirABitacora detalle={`Pulso: ${valorVivo} lpm (${ESTILO[sem].titulo})`} />
                 {sem === 'alerta' && (
                   <a href="tel:123" className="min-h-[56px] rounded-xl bg-danger text-white text-base font-bold flex items-center justify-center">Llamar al 123</a>
                 )}

@@ -44,6 +44,7 @@ import TableroCasos from './TableroCasos';
 import { MetronomoRcp } from './MetronomoRcp';
 import { RespiracionGuiada } from './RespiracionGuiada';
 import TomaPulso from './TomaPulso';
+import { Botiquin } from './Botiquin';
 import {
   ATRIBUCION,
   FICHAS_AUXILIOS,
@@ -829,7 +830,7 @@ function GuiaAuxiliosRapida() {
   );
 }
 
-type VistaEmergencia = 'menu' | 'primeros_auxilios' | 'contencion' | 'protocolo_completo' | 'guia_auxilios' | 'informe_contencion' | 'remision_seguro' | 'accidente_laboral';
+type VistaEmergencia = 'menu' | 'primeros_auxilios' | 'contencion' | 'protocolo_completo' | 'guia_auxilios' | 'botiquin' | 'informe_contencion' | 'remision_seguro' | 'accidente_laboral';
 
 function BotonVolver({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
@@ -894,6 +895,12 @@ function SubmenuEmergencia({ onSeleccionar }: { onSeleccionar: (vista: VistaEmer
           titulo="Consultar el protocolo completo"
           subtitulo="El documento institucional, para leer con calma"
           onClick={() => onSeleccionar('protocolo_completo')}
+        />
+        <TarjetaSubmenu
+          icono="🧰"
+          titulo="Botiquín digital"
+          subtitulo="Bitácora, cronómetros, ubicación, linterna y más herramientas para el celular"
+          onClick={() => onSeleccionar('botiquin')}
         />
         <TarjetaSubmenu
           icono="🩹"
@@ -1094,6 +1101,10 @@ function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
         />
       </div>
     );
+  }
+
+  if (vista === 'botiquin') {
+    return <Botiquin onVolver={volver} />;
   }
 
   if (vista === 'guia_auxilios') {
