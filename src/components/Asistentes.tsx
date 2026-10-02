@@ -122,7 +122,7 @@ function VistaOpcion({ opcion, onVolver }: { opcion: OpcionManual; onVolver: () 
   const [qr, setQr] = useState(false);
   const escritorio = useAnchoMinimo(768);
   const marco = useRef<HTMLIFrameElement>(null);
-  const [propuesta, setPropuesta] = useState<{ despuesDe: LaminaDeReferencia } | null>(null);
+  const [propuesta, setPropuesta] = useState<{ despuesDe: LaminaDeReferencia | null } | null>(null);
 
   // El manual digital, abierto aquí con ?desde=app, muestra «Propón una escena» en la cartilla
   // y avisa por postMessage. Solo se escucha a ESTE marco y a este mismo origen.
@@ -130,8 +130,8 @@ function VistaOpcion({ opcion, onVolver }: { opcion: OpcionManual; onVolver: () 
     if (opcion.tipo !== 'digital') return;
     const fn = (ev: MessageEvent) => {
       if (ev.origin !== window.location.origin || ev.source !== marco.current?.contentWindow) return;
-      const despuesDe = leerMensajeManual(ev.data);
-      if (despuesDe) setPropuesta({ despuesDe });
+      const mensaje = leerMensajeManual(ev.data);
+      if (mensaje) setPropuesta(mensaje);
     };
     window.addEventListener('message', fn);
     return () => window.removeEventListener('message', fn);

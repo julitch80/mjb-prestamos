@@ -88,7 +88,7 @@ export default function ModalPropuestaEscena({ despuesDe, onCerrar }: {
     try {
       const res = await crearSugerencia(userId || nombre || 'anónimo', textoSugerenciaEscena(propuesta));
       if (res.ok) {
-        setEstado({ tipo: 'ok', texto: '¡Gracias! La propuesta quedó registrada. Coordinación la revisará para dibujarla.' });
+        setEstado({ tipo: 'ok', texto: '¡Gracias! Tu propuesta quedó en la lista de escenas por construir. Coordinación la revisará.' });
         setTimeout(onCerrar, 2200);
       } else {
         setEstado({ tipo: 'error', texto: res.error ?? 'No se pudo enviar la propuesta.' });
@@ -110,7 +110,7 @@ export default function ModalPropuestaEscena({ despuesDe, onCerrar }: {
       >
         <div className="flex items-start gap-2">
           <div className="flex-1">
-            <h3 className="text-strong font-semibold">🎙 Narra la escena que quieres que aparezca</h3>
+            <h3 className="text-strong font-semibold">🎙 Propón una escena para construir</h3>
             <p className="text-muted text-xs mt-0.5">
               {despuesDe
                 ? <>Iría después de la lámina {despuesDe.numero}, «{despuesDe.titulo}».</>
@@ -119,6 +119,12 @@ export default function ModalPropuestaEscena({ despuesDe, onCerrar }: {
           </div>
           <button onClick={onCerrar} aria-label="Cerrar" className="p-1 text-muted hover:text-strong"><X size={16} /></button>
         </div>
+
+        <p className="text-sm text-soft">
+          Cuéntanos qué escena le falta al manual y cómo te la imaginas. No se agrega de inmediato:
+          queda en la lista de escenas por construir. Coordinación la revisa, se dibuja y después se
+          incorpora a la cartilla.
+        </p>
 
         <p className="text-xs rounded-xl bg-warning-soft text-warning-soft-fg px-3 py-2">
           No uses nombres reales de estudiantes ni detalles de un caso verdadero: describe la situación en general.

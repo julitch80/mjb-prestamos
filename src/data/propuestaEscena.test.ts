@@ -43,16 +43,21 @@ describe('textoSugerenciaEscena', () => {
 describe('leerMensajeManual', () => {
   const ok = { tipo: 'mjb-proponer-escena', despuesDe: { numero: 3, titulo: 'Hola', grupo: 'Personajes' } };
   it('acepta la forma exacta', () => {
-    expect(leerMensajeManual(ok)).toEqual({ numero: 3, titulo: 'Hola', grupo: 'Personajes' });
+    expect(leerMensajeManual(ok)).toEqual({ despuesDe: { numero: 3, titulo: 'Hola', grupo: 'Personajes' } });
+  });
+  it('acepta la propuesta general, sin lámina', () => {
+    expect(leerMensajeManual({ tipo: 'mjb-proponer-escena', despuesDe: null })).toEqual({ despuesDe: null });
+    expect(textoSugerenciaEscena({ ...completa, despuesDe: null })).toContain('sin indicar (propuesta general)');
   });
   it('rechaza otros mensajes y formas raras', () => {
     expect(leerMensajeManual('mjb-proponer-escena')).toBeNull();
     expect(leerMensajeManual({ tipo: 'otro', despuesDe: ok.despuesDe })).toBeNull();
+    expect(leerMensajeManual({ tipo: 'mjb-proponer-escena' })).toBeNull();
     expect(leerMensajeManual({ ...ok, despuesDe: { ...ok.despuesDe, numero: '3' } })).toBeNull();
     expect(leerMensajeManual({ ...ok, despuesDe: { ...ok.despuesDe, numero: 2.5 } })).toBeNull();
   });
   it('recorta un título largo', () => {
     const r = leerMensajeManual({ ...ok, despuesDe: { ...ok.despuesDe, titulo: 'x'.repeat(500) } });
-    expect(r?.titulo).toHaveLength(120);
+    expect(r?.despuesDe?.titulo).toHaveLength(120);
   });
 });
