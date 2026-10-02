@@ -62,6 +62,13 @@ export interface Session {
   /** Sello autenticado por el servidor en cada escritura. */
   ultimaEscrituraPor: string;
   ultimaEscrituraEn: number;
+  /**
+   * Clase de dos horas (Julian, 2026-10-01): las dos horas del bloque, p. ej. `[3, 4]`, en
+   * AMBAS sesiones. Se llama lista una vez y la marca se escribe en las dos, asi la
+   * estadistica cuenta dos horas. Ausente = hora suelta (y todas las sesiones anteriores).
+   * Se fija al crear: la regla de `update` no lo deja cambiar despues.
+   */
+  pareja?: number[];
 }
 
 export interface Student {

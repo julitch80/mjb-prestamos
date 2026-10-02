@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { asignacionDeDocente, getAsignatura } from '../data/asignacionAcademica';
 import { colorGrado } from '../data/maestros';
 import { gradoSortKey } from './domain/ids';
+import TarjetaClaseAhora from './TarjetaClaseAhora';
 
 /**
  * "Mis grupos" — la puerta de entrada del docente al módulo.
@@ -20,7 +21,13 @@ export default function MisGrupos({
   onSinAsignacion,
   grupoAbierto = null,
   onListaDelGrupo,
+  sesionesHoy = [],
+  onPasarLista,
 }: {
+  /** Sesiones de hoy (para que la tarjeta de «la clase de ahora» sepa si ya se llamo lista). */
+  sesionesHoy?: { grado: string; bloque: number; subjectId: string }[];
+  /** Abre (o crea, con sus dos horas si es bloque) la planilla de la clase sugerida. */
+  onPasarLista?: (grado: string, subjectId: string, bloque: number) => void;
   slotId: string | null;
   /**
    * Cruces que TIENEN sesiones registradas pero NO estan en la asignacion academica.
@@ -168,6 +175,9 @@ export default function MisGrupos({
 
   return (
     <div className="space-y-3">
+      {perfil === 'docente' && onPasarLista && (
+        <TarjetaClaseAhora slotId={slotId} sesionesHoy={sesionesHoy} onPasarLista={onPasarLista} />
+      )}
       <div className="grid gap-2 sm:grid-cols-2">
         {tarjetas.map((t) =>
           t.materias.length === 1 ? (

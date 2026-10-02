@@ -63,6 +63,7 @@ import {
   type SeguimientoCaso,
 } from './domain/seguimiento-caso';
 import type { MarkCode } from './domain/marks';
+import { planCambioColumna, type PlanCambioColumna } from './domain/columna';
 import type {
   AlertConfig,
   AvisoEvasion,
@@ -1048,6 +1049,9 @@ export async function abrirSesion(input: {
   bloque: number;
   subjectId: string;
   slotId: string;
+  /** Las dos horas si es un bloque (ver `Session.pareja`). La regla de `create` no
+   * restringe campos de mas, asi que no hace falta tocar reglas para guardarlo. */
+  pareja?: number[];
 }): Promise<Session> {
   const autor = await exigirAutor();
   const id = construirSessionId(input.sede, input.grado, input.fecha, input.bloque);
@@ -1063,9 +1067,12 @@ export async function abrirSesion(input: {
   //
   // Se escribe directo: si el documento ya existe, la escritura falla y AHI si se lee,
   // porque a esas alturas el documento existe y la regla puede evaluarse.
+  // `pareja` solo si existe: un campo `undefined` hace que Firestore rechace la escritura.
+  const { pareja, ...datosBase } = input;
   const nueva = {
     sessionId: id,
-    ...input,
+    ...datosBase,
+    ...(pareja && pareja.length === 2 ? { pareja } : {}),
     createdBy: autor,
     createdAt: serverTimestamp(),
     closed: false,
@@ -1197,6 +1204,67 @@ export async function llenarColumna(
   // esperarla dejaria colgado el boton de "llenar columna" sin señal.
   registrarEnvio(updateDoc(ref, cambios));
   return vacios.length;
+}
+
+/**
+ * Pasa la columna ENTERA a una marca, incluidas las casillas ya marcadas (Julian,
+ * 2026-10-01: «le puse falta a todos por error y no pude cambiarlo de una vez»).
+ *
+ * A diferencia de `llenarColumna`, SI pisa lo marcado, por eso la pantalla lo pide con la
+ * cifra a la vista. No hace falta historial propio: cada casilla que cambia de valor la
+ * archiva `onSessionUpdated` en el servidor, igual que una correccion hecha a mano. Las que
+ * ya tenian esa marca no se escriben, para no inflar el historial con cambios que no son.
+ *
+ * La regla de `asistenciaSessions` ya lo permite (se tocan solo `estudiantes` y los campos
+ * de ultima escritura): no requiere desplegar reglas.
+ */
+export async function cambiarColumna(
+  sessionIdDoc: string,
+  studentIds: string[],
+  estado: MarkCode,
+  marcasActuales: Record<string, { estado?: string } | undefined>,
+): Promise<PlanCambioColumna> {
+  const autor = await exigirAutor();
+  const ref = doc(baseDatos(), 'asistenciaSessions', sessionIdDoc);
+  const plan = planCambioColumna(studentIds, marcasActuales, estado);
+  if (plan.nuevas.length + plan.corregidas.length === 0) return plan;
+
+  const cambios: Record<string, unknown> = {
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  };
+  for (const id of plan.nuevas) {
+    cambios[`estudiantes.${id}.estado`] = estado;
+    cambios[`estudiantes.${id}.registradoPor`] = autor;
+    cambios[`estudiantes.${id}.registradoEn`] = serverTimestamp();
+    cambios[`estudiantes.${id}.motivo`] = null;
+    cambios[`estudiantes.${id}.observacion`] = null;
+    cambios[`estudiantes.${id}.modificadoPor`] = null;
+    cambios[`estudiantes.${id}.modificadoEn`] = null;
+  }
+  for (const id of plan.corregidas) {
+    // La autoria original no se toca: queda quien corrigio y cuando. El motivo y la
+    // observacion eran de la marca anterior y no aplican a la nueva.
+    cambios[`estudiantes.${id}.estado`] = estado;
+    cambios[`estudiantes.${id}.motivo`] = null;
+    cambios[`estudiantes.${id}.observacion`] = null;
+    cambios[`estudiantes.${id}.modificadoPor`] = autor;
+    cambios[`estudiantes.${id}.modificadoEn`] = serverTimestamp();
+  }
+  registrarEnvio(updateDoc(ref, cambios));
+  return plan;
+}
+
+/**
+ * Elimina UNA columna creada por error (Julian, 2026-10-01). Va por Cloud Function porque
+ * las reglas prohiben borrar sesiones desde el cliente: la funcion comprueba quien puede
+ * (el docente que la creo y no la ha cerrado, o coordinacion de esa sede y jornada), exige
+ * la frase de confirmacion, guarda una copia completa antes de borrar y deja auditoria.
+ */
+export async function eliminarSesion(sessionIdDoc: string, confirmacion: string): Promise<void> {
+  if (!functions) throw new Error('Firebase no está configurado en esta instalación.');
+  const llamar = httpsCallable(functions, 'eliminarSesion');
+  await llamar({ sessionId: sessionIdDoc, confirmacion });
 }
 
 /** Cierre manual y explícito. Las casillas vacías NO se convierten en nada. */

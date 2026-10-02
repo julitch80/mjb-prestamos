@@ -80,6 +80,8 @@ import {
   leerGrupo,
   leerLlegadasTardePorGrado,
   llenarColumna,
+  cambiarColumna,
+  eliminarSesion,
   leerSesiones,
   marcarEstudiante,
   type AlcanceLectura,
@@ -112,6 +114,9 @@ import { guardarColor, leerMapa, resolverColor, type MapaColores } from './domai
 import Ayuda from './Ayuda';
 import { ASIGNATURAS, getAsignatura } from '../data/asignacionAcademica';
 import { exigirAutor } from './identidad';
+import { planCambioColumna, rolPuedeEliminarSesion } from './domain/columna';
+import { companeraEnLista, parejaDe } from './domain/bloques-clase';
+import { bloquesDeHoyEnGrado } from './horarioDelDia';
 import { observarSync, type EstadoSync } from './sincronizacion';
 import { atras, useNivelAtras } from './useNivelAtras';
 import type { Sede, StudentMark } from './domain/types';
@@ -538,7 +543,32 @@ export default function Asistencia() {
    * esperara igual el resultado la pantalla se quedaría muerta sin señal — se aplica el
    * cambio local y se deja que la escritura viaje sola.
    */
-  async function marcar(sessionIdDoc: string, studentId: string, estado: MarkCode) {
+  /**
+   * La sesion y, si es una clase de dos horas enlazada, tambien la otra hora (ver
+   * `companeraEnLista`). Todo lo que se escribe «en la columna» va a las dos.
+   */
+  function conCompanera(sessionIdDoc: string): string[] {
+    const s = sesiones.find((x) => x.sessionId === sessionIdDoc);
+    const otra = s ? companeraEnLista(s, sesiones) : null;
+    return otra ? [sessionIdDoc, otra.sessionId] : [sessionIdDoc];
+  }
+
+  /** Llenar las vacias: en las dos horas del bloque, cada una con SUS vacias. */
+  async function llenar(sessionIdDoc: string, estado: MarkCode) {
+    for (const id of conCompanera(sessionIdDoc)) await llenarUna(id, estado);
+  }
+
+  /** Cambiar toda la columna: en las dos horas del bloque. */
+  async function cambiarTodo(sessionIdDoc: string, estado: MarkCode) {
+    for (const id of conCompanera(sessionIdDoc)) await cambiarTodoUna(id, estado);
+  }
+
+  async function marcar(
+    sessionIdDoc: string,
+    studentId: string,
+    estado: MarkCode,
+    soloEstaHora = false,
+  ) {
     setError(null);
     let autor: string;
     try {
@@ -547,9 +577,12 @@ export default function Asistencia() {
       setError(mensajeDeError(e));
       return;
     }
+    // Clase de dos horas: la marca va a las dos, salvo «solo esta hora» (el que llega en la
+    // segunda o se va en la primera).
+    const destinos = soloEstaHora ? [sessionIdDoc] : conCompanera(sessionIdDoc);
     setSesiones((prev) =>
       prev.map((s) => {
-        if (s.sessionId !== sessionIdDoc) return s;
+        if (!destinos.includes(s.sessionId)) return s;
         const previa = s.estudiantes[studentId];
         const marca: StudentMark = {
           estado,
@@ -566,7 +599,7 @@ export default function Asistencia() {
       }),
     );
     try {
-      await marcarEstudiante(sessionIdDoc, studentId, estado);
+      for (const id of destinos) await marcarEstudiante(id, studentId, estado);
     } catch (e) {
       setError(mensajeDeError(e));
     }
@@ -662,7 +695,7 @@ export default function Asistencia() {
    * servidor para ver el resultado, y sin red ese llenado de 33 casillas tendría que
    * verse igual de inmediato.
    */
-  async function llenar(sessionIdDoc: string, estado: MarkCode) {
+  async function llenarUna(sessionIdDoc: string, estado: MarkCode) {
     setError(null);
     const sesion = sesiones.find((s) => s.sessionId === sessionIdDoc);
     if (!sesion) return;
@@ -701,6 +734,74 @@ export default function Asistencia() {
     }
   }
 
+  /** Pasa la columna entera a una marca, incluidas las ya marcadas (ver `cambiarColumna`). */
+  async function cambiarTodoUna(sessionIdDoc: string, estado: MarkCode) {
+    setError(null);
+    const sesion = sesiones.find((s) => s.sessionId === sessionIdDoc);
+    if (!sesion) return;
+    let autor: string;
+    try {
+      autor = await exigirAutor();
+    } catch (e) {
+      setError(mensajeDeError(e));
+      return;
+    }
+    const ids = estudiantes.map((e) => e.studentId);
+    const plan = planCambioColumna(ids, sesion.estudiantes, estado);
+    if (plan.nuevas.length + plan.corregidas.length === 0) return;
+    // Mismo patron optimista que `llenar`: la pantalla cambia ya, aun sin señal.
+    setSesiones((prev) =>
+      prev.map((s) => {
+        if (s.sessionId !== sessionIdDoc) return s;
+        const nuevoMapa = { ...s.estudiantes };
+        for (const id of plan.nuevas) {
+          nuevoMapa[id] = {
+            estado, motivo: null, observacion: null,
+            registradoPor: autor, registradoEn: Date.now(), modificadoPor: null, modificadoEn: null,
+          };
+        }
+        for (const id of plan.corregidas) {
+          nuevoMapa[id] = {
+            ...nuevoMapa[id], estado, motivo: null, observacion: null,
+            modificadoPor: autor, modificadoEn: Date.now(),
+          };
+        }
+        return { ...s, estudiantes: nuevoMapa };
+      }),
+    );
+    try {
+      await cambiarColumna(sessionIdDoc, ids, estado, sesion.estudiantes);
+    } catch (e) {
+      setError(mensajeDeError(e));
+    }
+  }
+
+  /**
+   * Correo de quien esta conectado, sacado de la sesion de Firebase y NO del store: con
+   * «Ver como» el store dice otra persona, y quien puede eliminar una columna se decide
+   * por quien la creo de verdad. Solo decide si se OFRECE el boton; el servidor lo
+   * vuelve a comprobar.
+   */
+  const [correoAutor, setCorreoAutor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!firebaseConfigurado) return;
+    exigirAutor().then(setCorreoAutor, () => setCorreoAutor(null));
+  }, []);
+  const puedeEliminarSesion = (s: Session) =>
+    puedeRegistrar && rolPuedeEliminarSesion({ rol, correo: correoAutor, sesion: s });
+
+  /** Elimina la columna por la Cloud Function (exige la frase) y recarga las sesiones. */
+  async function eliminarColumna(sessionIdDoc: string, confirmacion: string) {
+    setError(null);
+    // Un bloque de dos horas se creo junto y se elimina junto: dejar una sola hora
+    // dejaria media clase contando en la estadistica.
+    try {
+      for (const id of conCompanera(sessionIdDoc)) await eliminarSesion(id, confirmacion);
+    } finally {
+      await cargarSesiones();
+    }
+  }
+
   async function cerrar(sessionIdDoc: string, sinRegistrar: number) {
     const ok = window.confirm(
       sinRegistrar > 0
@@ -711,7 +812,8 @@ export default function Asistencia() {
     if (!ok) return;
     setError(null);
     try {
-      await cerrarSesionRemota(sessionIdDoc);
+      // El bloque de dos horas se cierra entero.
+      for (const id of conCompanera(sessionIdDoc)) await cerrarSesionRemota(id);
       await cargarSesiones();
     } catch (e) {
       setError(mensajeDeError(e));
@@ -750,15 +852,25 @@ export default function Asistencia() {
     async (grado: string, subjectId: string, bloque: number) => {
       setError(null);
       try {
-        await abrirSesion({
+        // Clase de dos horas: si el horario de hoy le pone este grupo tambien en la otra
+        // hora del bloque (1-2, 3-4, 5-6), se crean LAS DOS sesiones enlazadas. Se llama
+        // lista una vez y cuenta dos horas (ver domain/bloques-clase.ts).
+        const otra = parejaDe(bloque);
+        const pareja =
+          otra !== null && bloquesDeHoyEnGrado(slotId, grado).includes(otra)
+            ? [Math.min(bloque, otra), Math.max(bloque, otra)]
+            : undefined;
+        const base = {
           sede,
           grado,
           jornada: jornadaDeGrado(grado),
           fecha: toDateKey(new Date()),
-          bloque,
           subjectId,
           slotId: slotId ?? '',
-        });
+          pareja,
+        };
+        await abrirSesion({ ...base, bloque });
+        if (pareja && otra !== null) await abrirSesion({ ...base, bloque: otra });
         setCruce({ grado, subjectId });
         await cargarSesiones();
       } catch (e) {
@@ -1112,6 +1224,21 @@ export default function Asistencia() {
           }}
           onSinAsignacion={() => setFormularioManual(true)}
           grupoAbierto={grupoPlanillas}
+          sesionesHoy={sesiones.filter((s) => s.fecha === toDateKey(new Date()))}
+          onPasarLista={
+            puedeRegistrar
+              ? (grado, subjectId, bloque) => {
+                  // Ya se llamo lista en esa clase: se abre la planilla. Si no, se crea la
+                  // columna de esa hora (y la de la otra hora, si es un bloque).
+                  const hoy = toDateKey(new Date());
+                  const ya = sesiones.some(
+                    (s) => s.fecha === hoy && s.grado === grado && s.bloque === bloque && s.subjectId === subjectId,
+                  );
+                  if (ya) setCruce({ grado, subjectId });
+                  else void abrirCruce(grado, subjectId, bloque);
+                }
+              : undefined
+          }
         />
         </>
       ) : (
@@ -1229,6 +1356,9 @@ export default function Asistencia() {
                 onAbrirFicha={setFichaAbierta}
                 onAbrirPanel={setPanelAbierto}
                 onLlenarColumna={llenar}
+                onCambiarColumna={cambiarTodo}
+                puedeEliminarSesion={puedeEliminarSesion}
+                onEliminarSesion={eliminarColumna}
                 onNuevaSesion={nuevaSesion}
                 onEscanear={iniciarEscaneo}
                 color={resolverColor(mapaColores, cruce.grado, cruce.subjectId)}

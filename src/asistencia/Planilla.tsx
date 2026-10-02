@@ -1,6 +1,12 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Avatar from './Avatar';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
+import {
+  confirmacionEliminarValida,
+  FRASE_ELIMINAR_COLUMNA,
+  planCambioColumna,
+} from './domain/columna';
+import { companeraEnLista } from './domain/bloques-clase';
 import { nombreCompleto, nombresDePila } from './domain/nombres';
 import { computeStats, conDenominador } from './domain/stats';
 import { resumenPastilla } from './domain/panel';
@@ -149,7 +155,8 @@ export interface PlanillaProps {
    * estudiante que si debe poder consultar.
    */
   soloLista: boolean;
-  onMarcar: (sessionId: string, studentId: string, estado: MarkCode) => void;
+  /** `soloEstaHora`: en una clase de dos horas, no copiar la marca a la otra hora. */
+  onMarcar: (sessionId: string, studentId: string, estado: MarkCode, soloEstaHora?: boolean) => void;
   onCerrarSesion: (sessionId: string, sinRegistrar: number) => void;
   onAbrirFicha: (studentId: string) => void;
   /** Abre el panel de estadísticas del estudiante (pastilla de la columna "Faltas"). */
@@ -159,6 +166,12 @@ export interface PlanillaProps {
   onEscanear: (sessionId: string) => void;
   /** Llena de golpe las casillas vacías de una columna. */
   onLlenarColumna: (sessionId: string, estado: MarkCode) => void;
+  /** Pasa la columna ENTERA a una marca, incluidas las ya marcadas (para corregir). */
+  onCambiarColumna: (sessionId: string, estado: MarkCode) => void;
+  /** Si a quien mira le corresponde eliminar esa columna (el servidor lo vuelve a mirar). */
+  puedeEliminarSesion: (s: Session) => boolean;
+  /** Elimina la columna; rechaza con el mensaje del servidor si no se pudo. */
+  onEliminarSesion: (sessionId: string, confirmacion: string) => Promise<void>;
   /** Color identificativo del cruce grado+asignatura, elegido por el docente. Solo ayuda
    * visual: nunca reemplaza el nombre del grupo ni toca el color de las marcas. */
   color: ColorGrupo | null;
@@ -218,6 +231,9 @@ export default function Planilla({
   onNuevaSesion,
   onEscanear,
   onLlenarColumna,
+  onCambiarColumna,
+  puedeEliminarSesion,
+  onEliminarSesion,
   color,
   onElegirColor,
   coloresEstudiante,
@@ -228,6 +244,7 @@ export default function Planilla({
 }: PlanillaProps) {
   const [celda, setCelda] = useState<{ sessionId: string; studentId: string } | null>(null);
   const [columnaMenu, setColumnaMenu] = useState<string | null>(null);
+  const [eliminando, setEliminando] = useState<string | null>(null);
   const [selectorColor, setSelectorColor] = useState(false);
   const [agregando, setAgregando] = useState(false);
   /** Aviso de "cree la sesión de hoy primero", cuando el docente pide escanear sin
@@ -485,6 +502,14 @@ export default function Planilla({
                   >
                     <span className="block font-semibold text-strong">{s.fecha.slice(5)}</span>
                     b{s.bloque}
+                    {companeraEnLista(s, ordenadas) && s.pareja && (
+                      <span
+                        className="block rounded bg-info-soft px-1 text-[0.6rem] font-semibold text-info-soft-fg"
+                        title="Clase de dos horas: se llama lista una vez y cuenta en las dos"
+                      >
+                        bloque {s.pareja[0]}–{s.pareja[1]}
+                      </span>
+                    )}
                     <span className="flex items-center justify-center gap-0.5">
                       <button
                         onClick={() => puedeRegistrar && !s.closed && cerrar(s)}
@@ -492,10 +517,10 @@ export default function Planilla({
                       >
                         {s.closed ? '🔒' : '🔓'}
                       </button>
-                      {puedeRegistrar && !s.closed && (
+                      {((puedeRegistrar && !s.closed) || puedeEliminarSesion(s)) && (
                         <button
                           onClick={() => setColumnaMenu(s.sessionId)}
-                          title="Llenar las casillas vacías de esta columna"
+                          title="Llenar, corregir o eliminar esta columna"
                           className="rounded px-1 text-strong"
                         >
                           ⋯
@@ -612,18 +637,35 @@ export default function Planilla({
         />
       )}
 
-      {columnaMenu && (
+      {columnaMenu && sesionDe(columnaMenu) && (
         <MenuColumna
           sesion={sesionDe(columnaMenu)!}
-          vacias={
-            estudiantes.filter((e) => !sesionDe(columnaMenu)?.estudiantes?.[e.studentId]).length
-          }
-          total={estudiantes.length}
-          onElegir={(estado) => {
+          idsEstudiantes={estudiantes.map((e) => e.studentId)}
+          puedeMarcar={puedeRegistrar && !sesionDe(columnaMenu)!.closed}
+          puedeEliminar={puedeEliminarSesion(sesionDe(columnaMenu)!)}
+          onLlenar={(estado) => {
             onLlenarColumna(columnaMenu, estado);
             setColumnaMenu(null);
           }}
+          onCambiarTodo={(estado) => {
+            onCambiarColumna(columnaMenu, estado);
+            setColumnaMenu(null);
+          }}
+          onEliminar={() => {
+            setEliminando(columnaMenu);
+            setColumnaMenu(null);
+          }}
           onCerrar={() => setColumnaMenu(null)}
+        />
+      )}
+
+      {eliminando && sesionDe(eliminando) && (
+        <ModalEliminarColumna
+          sesion={sesionDe(eliminando)!}
+          bloquePareja={companeraEnLista(sesionDe(eliminando)!, ordenadas) ? (sesionDe(eliminando)!.pareja ?? null) : null}
+          asignatura={getAsignatura(sesionDe(eliminando)!.subjectId ?? asignatura)?.nombre ?? asignatura}
+          onConfirmar={(frase) => onEliminarSesion(eliminando, frase)}
+          onCerrar={() => setEliminando(null)}
         />
       )}
 
@@ -645,8 +687,12 @@ export default function Planilla({
             const s = sesionDe(celda.sessionId);
             return s ? `${s.fecha}, bloque ${s.bloque}` : '';
           })()}
-          onElegir={(estado) => {
-            onMarcar(celda.sessionId, celda.studentId, estado);
+          enBloque={(() => {
+            const s = sesionDe(celda.sessionId);
+            return s && s.pareja && companeraEnLista(s, ordenadas) ? s.bloque : null;
+          })()}
+          onElegir={(estado, soloEstaHora) => {
+            onMarcar(celda.sessionId, celda.studentId, estado, soloEstaHora);
             setCelda(null);
           }}
           onCerrar={() => setCelda(null)}
@@ -828,19 +874,40 @@ function SelectorColor({
   );
 }
 
+/**
+ * Menu ⋯ de una columna (Julian, 2026-10-01). Una sola lista de marcas con dos modos:
+ *  - «Solo las vacías»: lo de siempre; nunca pisa lo ya marcado.
+ *  - «Toda la columna»: corrige de un golpe («le puse falta a todos por error»). Como SI
+ *    pisa marcas, pide confirmar con la cifra a la vista; cada cambio queda en el historial.
+ * Y abajo, si a quien mira le corresponde, «Eliminar esta columna…», que abre una segunda
+ * hoja donde hay que escribir la frase.
+ */
 function MenuColumna({
   sesion,
-  vacias,
-  total,
-  onElegir,
+  idsEstudiantes,
+  puedeMarcar,
+  puedeEliminar,
+  onLlenar,
+  onCambiarTodo,
+  onEliminar,
   onCerrar,
 }: {
   sesion: Session;
-  vacias: number;
-  total: number;
-  onElegir: (estado: MarkCode) => void;
+  idsEstudiantes: string[];
+  /** Llenar y cambiar: solo con la columna abierta y si la cuenta registra. */
+  puedeMarcar: boolean;
+  puedeEliminar: boolean;
+  onLlenar: (estado: MarkCode) => void;
+  onCambiarTodo: (estado: MarkCode) => void;
+  onEliminar: () => void;
   onCerrar: () => void;
 }) {
+  const [modo, setModo] = useState<'vacias' | 'toda'>('vacias');
+  const [confirmando, setConfirmando] = useState<MarkCode | null>(null);
+  const total = idsEstudiantes.length;
+  const vacias = idsEstudiantes.filter((id) => !sesion.estudiantes?.[id]).length;
+  const plan = confirmando ? planCambioColumna(idsEstudiantes, sesion.estudiantes ?? {}, confirmando) : null;
+
   return (
     <div
       className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
@@ -851,41 +918,213 @@ function MenuColumna({
         onClick={(ev) => ev.stopPropagation()}
       >
         <p className="text-sm font-semibold text-strong">
-          Llenar la columna del {sesion.fecha}, bloque {sesion.bloque}
-        </p>
-        <p className="mb-3 text-xs text-muted">
-          {vacias === 0 ? (
-            <>Ya están marcados los {total}. No queda ninguna casilla vacía que llenar.</>
-          ) : (
-            <>
-              Se llenarán las <b>{vacias}</b> casillas vacías de {total}. Lo ya marcado{' '}
-              <b>no se toca</b>.
-            </>
-          )}
+          Columna del {sesion.fecha}, bloque {sesion.bloque}
         </p>
 
-        {vacias > 0 && (
-          <div className="grid gap-1.5">
-            {MARKS.map((m) => (
+        {puedeMarcar && confirmando && plan ? (
+          <div className="mt-2 grid gap-2">
+            <p className="text-sm text-strong">
+              Toda la columna pasará a «{findMark(confirmando)?.label ?? confirmando}».
+            </p>
+            <ul className="list-disc pl-5 text-xs text-muted">
+              {plan.corregidas.length > 0 && (
+                <li>
+                  Se <b>cambiarán {plan.corregidas.length}</b> marcas ya registradas. Cada cambio
+                  queda en el historial con el valor anterior.
+                </li>
+              )}
+              {plan.nuevas.length > 0 && <li>Se llenarán {plan.nuevas.length} casillas vacías.</li>}
+              {plan.sinCambio.length > 0 && <li>{plan.sinCambio.length} ya tenían esa marca y no se tocan.</li>}
+            </ul>
+            {plan.corregidas.length + plan.nuevas.length === 0 ? (
+              <p className="text-xs text-muted">No hay nada que cambiar.</p>
+            ) : (
               <button
-                key={m.code}
-                onClick={() => onElegir(m.code)}
-                className="flex items-center gap-2 rounded-lg border border-line p-2 text-left hover:bg-hover"
+                onClick={() => onCambiarTodo(confirmando)}
+                className="w-full rounded-lg bg-accent p-2 text-sm font-semibold text-on-accent"
               >
-                <span
-                  className={`grid h-7 w-9 place-items-center rounded text-xs font-bold ${CLASE_MARCA[m.code]}`}
-                >
-                  <SiglaMarca code={m.code} />
-                </span>
-                <span className="grow text-sm text-strong">Todos a «{m.label}»</span>
+                Cambiar {plan.corregidas.length + plan.nuevas.length} casillas
               </button>
-            ))}
+            )}
+            <button
+              onClick={() => setConfirmando(null)}
+              className="w-full rounded-lg border border-line p-2 text-sm text-soft"
+            >
+              Volver
+            </button>
           </div>
-        )}
+        ) : (
+          <>
+            {puedeMarcar && (
+              <>
+                <div className="my-2 grid grid-cols-2 gap-1 rounded-lg border border-line p-1 text-sm" role="group">
+                  <button
+                    onClick={() => setModo('vacias')}
+                    aria-pressed={modo === 'vacias'}
+                    className={`rounded-md p-1.5 ${modo === 'vacias' ? 'bg-elevated font-semibold text-strong' : 'text-muted'}`}
+                  >
+                    Solo las vacías
+                  </button>
+                  <button
+                    onClick={() => setModo('toda')}
+                    aria-pressed={modo === 'toda'}
+                    className={`rounded-md p-1.5 ${modo === 'toda' ? 'bg-elevated font-semibold text-strong' : 'text-muted'}`}
+                  >
+                    Toda la columna
+                  </button>
+                </div>
+                <p className="mb-3 text-xs text-muted">
+                  {modo === 'toda' ? (
+                    <>
+                      Para corregir: <b>cambia también lo ya marcado</b>. Antes de aplicar le muestra
+                      cuántas casillas cambian.
+                    </>
+                  ) : vacias === 0 ? (
+                    <>Ya están marcados los {total}. Para corregirlos, use «Toda la columna».</>
+                  ) : (
+                    <>
+                      Se llenarán las <b>{vacias}</b> casillas vacías de {total}. Lo ya marcado{' '}
+                      <b>no se toca</b>.
+                    </>
+                  )}
+                </p>
+                {(modo === 'toda' || vacias > 0) && (
+                  <div className="grid gap-1.5">
+                    {MARKS.map((m) => (
+                      <button
+                        key={m.code}
+                        onClick={() => (modo === 'toda' ? setConfirmando(m.code) : onLlenar(m.code))}
+                        className="flex items-center gap-2 rounded-lg border border-line p-2 text-left hover:bg-hover"
+                      >
+                        <span
+                          className={`grid h-7 w-9 place-items-center rounded text-xs font-bold ${CLASE_MARCA[m.code]}`}
+                        >
+                          <SiglaMarca code={m.code} />
+                        </span>
+                        <span className="grow text-sm text-strong">
+                          {modo === 'toda' ? `Toda la columna a «${m.label}»` : `Todos a «${m.label}»`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
 
+            {puedeEliminar && (
+              <button
+                onClick={onEliminar}
+                className="mt-3 w-full text-left text-sm text-danger underline"
+              >
+                Eliminar esta columna…
+              </button>
+            )}
+
+            <button
+              onClick={onCerrar}
+              className="mt-3 w-full rounded-lg border border-line p-2 text-sm text-soft"
+            >
+              Cancelar
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Eliminar una columna creada por error. Tedioso a proposito (Julian: «que no quede tan
+ * directo»): muestra que se borra y exige escribir la frase. El servidor la vuelve a
+ * exigir y guarda una copia completa antes de borrar.
+ */
+function ModalEliminarColumna({
+  sesion,
+  bloquePareja = null,
+  asignatura,
+  onConfirmar,
+  onCerrar,
+}: {
+  sesion: Session;
+  /** Si es una clase de dos horas: se eliminan las dos juntas. */
+  bloquePareja?: number[] | null;
+  asignatura: string;
+  onConfirmar: (frase: string) => Promise<void>;
+  onCerrar: () => void;
+}) {
+  const [frase, setFrase] = useState('');
+  const [trabajando, setTrabajando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const marcas = Object.keys(sesion.estudiantes ?? {}).length;
+  const valida = confirmacionEliminarValida(frase);
+
+  async function confirmar() {
+    if (!valida || trabajando) return;
+    setTrabajando(true);
+    setError(null);
+    try {
+      await onConfirmar(frase);
+      onCerrar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo eliminar la columna.');
+      setTrabajando(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
+      onClick={trabajando ? undefined : onCerrar}
+    >
+      <div
+        className="w-full max-w-md rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <p className="text-sm font-semibold text-danger">Eliminar columna</p>
+        <p className="mt-1 text-sm text-strong">
+          {sesion.fecha} · bloque {sesion.bloque} · {asignatura}
+        </p>
+        <ul className="mt-2 list-disc pl-5 text-xs text-muted">
+          {bloquePareja && (
+            <li>
+              Es una clase de dos horas: se eliminan <b>las dos</b> ({bloquePareja[0]}.ª y {bloquePareja[1]}.ª hora).
+            </li>
+          )}
+          <li>
+            {marcas === 0 ? 'No tiene ninguna marca.' : <>Se borran sus <b>{marcas}</b> marcas.</>} La
+            estadística deja de contar este día.
+          </li>
+          {(sesion.bloque === 3 || bloquePareja?.includes(3)) && (
+            <li>
+              Es la columna de la <b>tercera hora</b>: también se borra el censo de ese día. Los avisos
+              ya enviados a las familias no se deshacen.
+            </li>
+          )}
+          <li>Queda una copia guardada y registro de quién la eliminó.</li>
+        </ul>
+        <label className="mt-3 block text-xs text-muted" htmlFor="frase-eliminar">
+          Para confirmar, escriba <b className="text-strong">{FRASE_ELIMINAR_COLUMNA}</b>
+        </label>
+        <input
+          id="frase-eliminar"
+          value={frase}
+          onChange={(ev) => setFrase(ev.target.value)}
+          autoComplete="off"
+          autoCapitalize="none"
+          className="mt-1 block w-full rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong"
+        />
+        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+        <button
+          onClick={confirmar}
+          disabled={!valida || trabajando}
+          className="mt-3 w-full rounded-lg bg-danger p-2 text-sm font-semibold text-on-accent disabled:opacity-40"
+        >
+          {trabajando ? 'Eliminando…' : 'Eliminar columna'}
+        </button>
         <button
           onClick={onCerrar}
-          className="mt-3 w-full rounded-lg border border-line p-2 text-sm text-soft"
+          disabled={trabajando}
+          className="mt-2 w-full rounded-lg border border-line p-2 text-sm text-soft"
         >
           Cancelar
         </button>
@@ -945,14 +1184,20 @@ function MenuElegirSesionQr({
 function MenuMarcas({
   estudiante,
   detalle,
+  enBloque = null,
   onElegir,
   onCerrar,
 }: {
   estudiante: Student;
   detalle: string;
-  onElegir: (estado: MarkCode) => void;
+  /** Si la casilla es de una clase de dos horas: el numero de ESTA hora. */
+  enBloque?: number | null;
+  onElegir: (estado: MarkCode, soloEstaHora: boolean) => void;
   onCerrar: () => void;
 }) {
+  // Por defecto la marca va a las dos horas del bloque. «Solo esta hora» es para el que
+  // llega en la segunda o se va en la primera (Julian, 2026-10-01).
+  const [soloEsta, setSoloEsta] = useState(false);
   return (
     <div
       className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
@@ -970,11 +1215,30 @@ function MenuMarcas({
           <p className="text-xs text-muted">{detalle}</p>
         </div>
 
+        {enBloque !== null && (
+          <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg border border-line p-1 text-xs" role="group">
+            <button
+              onClick={() => setSoloEsta(false)}
+              aria-pressed={!soloEsta}
+              className={`rounded-md p-1.5 ${!soloEsta ? 'bg-elevated font-semibold text-strong' : 'text-muted'}`}
+            >
+              Las dos horas
+            </button>
+            <button
+              onClick={() => setSoloEsta(true)}
+              aria-pressed={soloEsta}
+              className={`rounded-md p-1.5 ${soloEsta ? 'bg-elevated font-semibold text-strong' : 'text-muted'}`}
+            >
+              Solo la {enBloque}.ª hora
+            </button>
+          </div>
+        )}
+
         <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
           {MARKS.map((m) => (
             <button
               key={m.code}
-              onClick={() => onElegir(m.code)}
+              onClick={() => onElegir(m.code, soloEsta)}
               className="relative flex flex-col items-center gap-1 rounded-lg border border-line p-2 text-center hover:bg-hover"
             >
               {m.goesToMaster2000 && (

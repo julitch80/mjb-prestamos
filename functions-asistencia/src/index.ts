@@ -33,7 +33,8 @@ import {
 } from '../../src/asistencia/domain/import-matching';
 import { normalizarSexo, normalizarTipoDocumento, type CampoFicha } from '../../src/asistencia/domain/import-parse';
 import { enrollmentId } from '../../src/asistencia/domain/ids';
-import { construirCensoDeSesion } from '../../src/asistencia/domain/evasion';
+import { censoDiaId, construirCensoDeSesion } from '../../src/asistencia/domain/evasion';
+import { confirmacionEliminarValida, rolPuedeEliminarSesion } from '../../src/asistencia/domain/columna';
 import type { DocType, Session, Student } from '../../src/asistencia/domain/types';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import {
@@ -625,6 +626,85 @@ export const borrarSesionesDeCruce = onCall({ region: REGION, cors: true, invoke
     status: 'ok',
   });
   return { dryRun: false, ...resumen };
+});
+
+// ---------------------------------------------------------------------------
+//  Eliminar UNA columna creada por error (Julian, 2026-10-01)
+// ---------------------------------------------------------------------------
+//
+// Las reglas prohiben borrar sesiones desde el cliente («no se borra: se corrige») y eso
+// se mantiene: esta funcion es la unica puerta, y deja rastro de sobra.
+//  - Quien: el docente que la creo, mientras no la haya cerrado, y coordinacion de esa
+//    sede y jornada en cualquier momento. Sin limite de tiempo por ahora. La regla del
+//    rol es la misma de la pantalla (`rolPuedeEliminarSesion`), para que no discrepen.
+//  - La frase «eliminar columna» se exige tambien aqui, no solo en la pantalla.
+//  - Antes de borrar se guarda una COPIA COMPLETA (la sesion con todas sus marcas y su
+//    historial) en `asistenciaSesionesEliminadas`, que ninguna regla deja leer ni escribir
+//    al cliente: si alguien borra una columna real, se puede reconstruir.
+//  - Si era la de bloque 3, se borra el censo de la tercera hora que salio de ella: el
+//    `sessionId` no lleva asignatura, asi que no hay otra columna de bloque 3 de ese grado
+//    y fecha que pueda reemplazarlo. Los avisos a familias ya enviados NO se tocan: son
+//    actuaciones con su propio soporte; solo se cuentan para la auditoria.
+
+export const eliminarSesion = onCall({ region: REGION, cors: true, invoker: 'public' }, async (request) => {
+  const email = await requireRole(request.auth, ['docente', 'coordinador']);
+  const { sessionId: id, confirmacion } = (request.data ?? {}) as { sessionId?: string; confirmacion?: string };
+  if (!id || typeof id !== 'string') throw new HttpsError('invalid-argument', 'Falta la columna.');
+  if (!confirmacionEliminarValida(String(confirmacion ?? ''))) {
+    throw new HttpsError('failed-precondition', 'Falta escribir «eliminar columna» para confirmar.');
+  }
+
+  const ref = db.doc(`asistenciaSessions/${id}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Esa columna ya no existe.');
+  const sesion = snap.data() as Session;
+
+  const user = (await db.doc(`users/${email}`).get()).data() ?? {};
+  // Los cargos de apoyo tienen rol `docente` pero no registran (asisCanRecord): tampoco borran.
+  if (user.asistenciaConsulta === true) throw new HttpsError('permission-denied', 'Su cuenta es de consulta.');
+  if (!rolPuedeEliminarSesion({ rol: user.role as string, correo: email, sesion })) {
+    throw new HttpsError(
+      'permission-denied',
+      'Solo puede eliminarla el docente que la creó, mientras no esté cerrada, o coordinación.',
+    );
+  }
+  if (user.role === 'coordinador') await exigirCoordinaJornada(email, sesion.sede, sesion.jornada);
+
+  const historial = await ref.collection('historial').get();
+  const avisos = sesion.bloque === 3
+    ? (await db.collection('asistenciaAvisos').where('grado', '==', sesion.grado).where('fecha', '==', sesion.fecha).get()).size
+    : 0;
+  const marcas = Object.keys(sesion.estudiantes ?? {}).length;
+
+  await db.collection('asistenciaSesionesEliminadas').add({
+    sessionId: id,
+    sesion,
+    historial: historial.docs.map((d) => ({ id: d.id, ...d.data() })),
+    eliminadaPor: email,
+    eliminadaEn: FieldValue.serverTimestamp(),
+    rolDeQuienElimina: user.role,
+  });
+  await db.recursiveDelete(ref);
+
+  if (sesion.bloque === 3) {
+    const censoRef = db.doc(`asistenciaCensoDia/${censoDiaId(sesion.fecha, sesion.grado)}`);
+    const censo = await censoRef.get();
+    if (censo.exists && censo.data()?.sessionId === id) await censoRef.delete();
+  }
+
+  await audit({
+    action: 'eliminarSesion',
+    executedBy: email,
+    sessionId: id,
+    grado: sesion.grado,
+    fecha: sesion.fecha,
+    bloque: sesion.bloque,
+    subjectId: sesion.subjectId ?? null,
+    marcas,
+    avisosDelDia: avisos,
+    status: 'ok',
+  });
+  return { eliminada: true, marcas, avisosDelDia: avisos };
 });
 
 // ---------------------------------------------------------------------------
