@@ -1197,11 +1197,11 @@ export function generarResumenDifusion(
   }
 
   const autorNombre = usuarios.find(u => u.id === borrador.autor)?.nombreCorto;
-  const publicadoPor = autorNombre ? `Publicado por ${autorNombre}` : 'Generado por MJB Préstamos';
+  const publicadoPor = autorNombre ? `Publicado por ${autorNombre}` : 'Generado por MJB';
   const fechaPublicacion = new Date().toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
   htmlPartes.push(`<p style="margin-top:20px;font-size:11px;color:#94a3b8">${publicadoPor} · ${fechaPublicacion}</p>`);
   htmlPartes.push(`</div>`);
-  textoPartes.push('— MJB Préstamos');
+  textoPartes.push('— MJB · Sistema de Gestión Escolar');
 
   // ── Docentes afectados ─────────────────────────────────────────────────────
   const docentesAfectadosMap = new Map<string, DocenteAfectadoResumen>();

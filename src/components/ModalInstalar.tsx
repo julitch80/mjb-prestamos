@@ -119,7 +119,7 @@ export default function ModalInstalar({ open, onClose }: Props) {
                             <div className="rounded-xl bg-elevated border border-line px-4 py-3 text-sm text-soft">
                               {plataforma === 'android'
                                 ? <>Abre el menú <span className="font-semibold">⋮</span> de Chrome y toca <span className="font-semibold">"Instalar app"</span> (o <span className="font-semibold">"Agregar a pantalla de inicio"</span>).</>
-                                : <>Haz clic en el ícono de instalar <span className="font-semibold">⊕</span> en la barra de direcciones, o menú <span className="font-semibold">⋮</span> → <span className="font-semibold">"Instalar MJB Préstamos"</span>.</>
+                                : <>Haz clic en el ícono de instalar <span className="font-semibold">⊕</span> en la barra de direcciones, o menú <span className="font-semibold">⋮</span> → <span className="font-semibold">"Instalar MJB"</span>.</>
                               }
                             </div>
                           )}
@@ -148,7 +148,7 @@ export default function ModalInstalar({ open, onClose }: Props) {
                   <div className="rounded-xl bg-elevated border border-line px-4 py-4 flex flex-col sm:flex-row items-center gap-4">
                     <img
                       src={`${import.meta.env.BASE_URL}qr-instalar.svg`}
-                      alt="QR para abrir MJB Préstamos"
+                      alt="QR para abrir MJB"
                       width={160}
                       height={160}
                       className="flex-shrink-0 rounded-lg"

@@ -19,9 +19,9 @@ export default defineConfig({
       base: '/mjb-prestamos/',
       scope: '/mjb-prestamos/',
       manifest: {
-        name: 'MJB Préstamos',
+        name: 'MJB',
         short_name: 'MJB',
-        description: 'Sistema de préstamo de recursos — I.E. Manuel J. Betancur',
+        description: 'Sistema de Gestión Escolar — I.E. Manuel J. Betancur',
         theme_color: '#030712',
         background_color: '#030712',
         display: 'standalone',

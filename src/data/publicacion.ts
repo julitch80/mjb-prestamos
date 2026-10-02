@@ -153,7 +153,7 @@ function generarHtmlJornadaReducida(jr: JornadaReducida): string {
   });
 
   const fechaPublicacion = new Date().toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
-  partes.push(`<p style="margin-top:20px;font-size:11px;color:#94a3b8">Generado por MJB Préstamos · ${fechaPublicacion}</p>`);
+  partes.push(`<p style="margin-top:20px;font-size:11px;color:#94a3b8">Generado por MJB · ${fechaPublicacion}</p>`);
   partes.push(`</div>`);
   return partes.join('\n');
 }

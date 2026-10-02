@@ -53,13 +53,13 @@ export function useNotificacionesSistema() {
     try {
       if (nuevasNoLeidas.length === 1) {
         const n = nuevasNoLeidas[0];
-        new Notification('MJB Préstamos', {
+        new Notification('MJB', {
           body: n.mensaje,
           icon: ICONO,
           tag: n.id, // evita duplicados del mismo aviso
         });
       } else {
-        new Notification('MJB Préstamos', {
+        new Notification('MJB', {
           body: `Tienes ${nuevasNoLeidas.length} avisos nuevos en el sistema.`,
           icon: ICONO,
         });

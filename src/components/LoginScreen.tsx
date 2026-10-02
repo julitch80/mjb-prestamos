@@ -215,7 +215,7 @@ export default function LoginScreen() {
               <h1 className="mt-4 text-xl font-bold text-strong tracking-wide text-center">
                 I.E. Manuel J. Betancur
               </h1>
-              <p className="text-sm text-muted mt-1">Sistema de préstamo de recursos</p>
+              <p className="text-sm text-muted mt-1">Sistema de Gestión Escolar</p>
             </motion.div>
 
             {/* Card principal */}
