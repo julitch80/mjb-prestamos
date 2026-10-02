@@ -25,7 +25,8 @@ export type VistaActual =
   | 'asistentes'
   | 'sugerencias'
   | 'asistencia'
-  | 'notificaciones';
+  | 'notificaciones'
+  | 'sede_datos';
 
 interface AppState {
   // Auth

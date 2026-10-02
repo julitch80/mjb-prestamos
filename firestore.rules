@@ -29,8 +29,9 @@
 // escritura sin guarda en /config. Cuenta con: grep -E '^\s*allow [a-z, ]*(write|create|update|delete)'
 //
 // Comprobacion despues de cada sincronizacion: el numero de `allow` de escritura debe
-// coincidir con el de `esSuplantacion()`. Hoy son 85 escrituras y 37 lecturas libres.
+// coincidir con el de `esSuplantacion()`. Hoy son 88 escrituras y 38 lecturas libres.
 // (23-sep-2026: +2 por notifDispositivos/notifPreferencias, Etapa 1 de notificaciones push.)
+// (1-oct-2026: +3 escrituras / +1 lectura por sedeDatos, formulario «Datos de la sede».)
 // (26-sep-2026: +6 escrituras / +4 lecturas por sstAccidentes+eventos+sstConfig, Etapa 1 de accidente laboral.)
 //
 // El 2026-08-30 esta cifra decia 57 cuando ya eran 58: se habia quedado atras sin que
@@ -475,6 +476,50 @@ service cloud.firestore {
       allow read: if isActiveUser();
       allow write: if !esSuplantacion() && (isActiveUser()
         && callerDoc().role in ['rectora', 'coordinador', 'superusuario']);
+    }
+
+    // ---------- Datos de la sede (formulario guiado de coordinadores de primaria) ----------
+    //
+    // sedeDatos/{sedeId}: respuestas, estado, archivos y fecha de envio de UNA sede.
+    // Lee y escribe solo el superusuario o el coordinador con autoridad sobre ESA sede
+    // (espejo asistenciaConfig/autoridadSede, el mismo de asisCoordinaSede; se declara en
+    // el bloque de asistencia, que sigue a este). Nadie borra. Los archivos solo se
+    // agregan: el arreglo `archivos` nunca puede encogerse (el fichero real vive en
+    // Storage: sedeDatos/{sedeId}/{archivoId}, ver storage.rules).
+    // Modo prueba: los ids prueba_gustavo_rodas / prueba_la_finquita son SOLO del
+    // superusuario (lectura y escritura); el coordinador no los lee.
+    function sedeDatosSedeValida(sedeId) {
+      return sedeId in ['gustavo_rodas', 'la_finquita'];
+    }
+    function sedeDatosEsPrueba(sedeId) {
+      return sedeId in ['prueba_gustavo_rodas', 'prueba_la_finquita'];
+    }
+    function sedeDatosPuede(sedeId) {
+      return sedeDatosEsPrueba(sedeId)
+        ? isSuper()
+        : (sedeDatosSedeValida(sedeId) && (isSuper() || asisCoordinaSede(sedeId)));
+    }
+    function sedeDatosCamposValidos(sedeId) {
+      return request.resource.data.keys().hasOnly(
+          ['sede', 'respuestas', 'archivos', 'enviadoEn', 'enviosCount', 'actualizadoPor', 'actualizadoEn'])
+        && request.resource.data.sede == sedeId
+        && request.resource.data.respuestas is map
+        && request.resource.data.archivos is list
+        && request.resource.data.archivos.size() <= 200
+        && request.resource.data.actualizadoPor == callerEmail()
+        && request.resource.data.actualizadoEn == request.time;
+    }
+    match /sedeDatos/{sedeId} {
+      allow read: if isActiveUser() && sedeDatosPuede(sedeId);
+      allow create: if !esSuplantacion() && (isActiveUser() && sedeDatosPuede(sedeId)
+        && sedeDatosCamposValidos(sedeId)
+        && (!('enviadoEn' in request.resource.data) || request.resource.data.enviadoEn == request.time));
+      allow update: if !esSuplantacion() && (isActiveUser() && sedeDatosPuede(sedeId)
+        && sedeDatosCamposValidos(sedeId)
+        && request.resource.data.archivos.size() >= resource.data.archivos.size()
+        && (request.resource.data.get('enviadoEn', null) == resource.data.get('enviadoEn', null)
+            || request.resource.data.enviadoEn == request.time));
+      allow delete: if !esSuplantacion() && (false);
     }
 
     // =========================================================================

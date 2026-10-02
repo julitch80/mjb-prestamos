@@ -299,6 +299,42 @@ service firebase.storage {
       allow update, delete: if !esSuplantacion() && (false);
     }
 
+    // ---------- Datos de la sede (archivos y notas de voz del formulario) ----------
+    // Metadatos en Firestore: sedeDatos/{sedeId} (ver firestore.rules). El archivo vive aqui,
+    // en sedeDatos/{sedeId}/{archivoId}. Solo superusuario o el coordinador con autoridad sobre
+    // ESA sede; prueba_{sede} (modo prueba) solo superusuario (espejo asistenciaConfig/autoridadSede: lista de correos por sede en `mapa`).
+    // Solo se crea: nada de update ni delete. Hasta 20 MB; imagen, audio, PDF, Word, Excel.
+    function sedeDatosPuede(sedeId) {
+      return asisActivo()
+        && (((sedeId == 'prueba_gustavo_rodas' || sedeId == 'prueba_la_finquita')
+              && asisRol() == 'superusuario')
+            || ((sedeId == 'gustavo_rodas' || sedeId == 'la_finquita')
+                && (asisRol() == 'superusuario'
+                    || (asisRol() == 'coordinador'
+                        && asisCaller() in firestore.get(/databases/(default)/documents/asistenciaConfig/autoridadSede).data.mapa[sedeId]))));
+    }
+    function sedeDatosContentTypeValido() {
+      return request.resource.contentType.matches('image/.*')
+        || request.resource.contentType.matches('audio/.*')
+        || request.resource.contentType == 'application/pdf'
+        || request.resource.contentType == 'application/msword'
+        || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        || request.resource.contentType == 'application/vnd.ms-excel'
+        || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        || request.resource.contentType == 'text/plain'
+        || request.resource.contentType == 'text/csv';
+    }
+    match /sedeDatos/{sedeId}/{archivoId} {
+      allow read: if request.auth != null && sedeDatosPuede(sedeId);
+      allow create: if !esSuplantacion() && (request.auth != null
+        && resource == null
+        && sedeDatosPuede(sedeId)
+        && sedeDatosContentTypeValido()
+        && request.resource.size > 0
+        && request.resource.size <= 20 * 1024 * 1024);
+      allow update, delete: if !esSuplantacion() && (false);
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

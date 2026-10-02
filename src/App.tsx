@@ -30,6 +30,7 @@ import Asistencia from './asistencia';
 import BannerNotificaciones from './components/BannerNotificaciones';
 import MisNotificaciones from './components/MisNotificaciones';
 import FichaSede from './components/FichaSede';
+import SedeDatos from './components/sedeDatos/SedeDatos';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
 import { getNotificaciones } from './data/api';
@@ -72,6 +73,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'chat',           label: 'Chat',            descripcion: 'Mensajería interna',                roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',          roles: ['superusuario'] },
   { id: 'sugerencias',    label: 'Sugerencias',     descripcion: 'Lo que reportan los docentes',      roles: ['superusuario'] },
+  { id: 'sede_datos',     label: 'Datos de la sede', descripcion: 'Confirme los datos de su sede',     roles: ['coordinador', 'superusuario'] },
   { id: 'notificaciones', label: 'Mis notificaciones', descripcion: 'Qué te avisa al celular',        roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
 ];
 
@@ -406,7 +408,7 @@ export default function App() {
             */}
             {(() => {
               const sede = SEDES.find(s => s.id === sedeActual);
-              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes' || vistaActual === 'sugerencias' || vistaActual === 'notificaciones';
+              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes' || vistaActual === 'sugerencias' || vistaActual === 'notificaciones' || vistaActual === 'sede_datos';
               if (sede && !sede.configurada && !vistaTransversal) {
                 return <FichaSede sede={sede} />;
               }
@@ -429,6 +431,7 @@ export default function App() {
                   {vistaActual === 'sugerencias'    && rol === 'superusuario' && <PanelSugerencias />}
                   {vistaActual === 'asistencia'     && <Asistencia />}
                   {vistaActual === 'notificaciones' && <MisNotificaciones />}
+                  {vistaActual === 'sede_datos'     && (rol === 'coordinador' || rol === 'superusuario') && <SedeDatos />}
                 </>
               );
             })()}

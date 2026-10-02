@@ -3,6 +3,7 @@
 // accesos rápidos por rol y un resumen de chat (solo modo google + Firebase).
 import { useEffect, useMemo, useRef, useState } from 'react';
 import MiDiaModificado from './MiDiaModificado';
+import TarjetaDatosSede from './sedeDatos/TarjetaDatosSede';
 import { motion } from 'motion/react';
 import { useAppStore } from '../data/store';
 import { useChatStore } from '../data/chatStore';
@@ -354,6 +355,8 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       </div>
 
       <TarjetaActivarNotificaciones />
+
+      <TarjetaDatosSede />
 
       {/* ── Bloque A: Tu día — banners con scroll lateral ────────────────── */}
       {avisos.length > 0 && (
