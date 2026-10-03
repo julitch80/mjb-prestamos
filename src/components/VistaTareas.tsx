@@ -25,6 +25,7 @@ import {
 } from '../data/tareas/motor';
 import { diasDeClase, gruposAsignables, todosLosGrupos, esGrupoDeTarde } from '../data/tareas/horario';
 import { cn } from '@/lib/utils';
+import DetalleTarea from './DetalleTarea';
 
 // Director de ese grupo: solo él (o coordinación/rectoría, ya cubiertos por
 // `esDirectivo` en cada panel) puede tocar sus anclas — ver
@@ -912,6 +913,9 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
               <div className="text-[11px] text-muted">
                 {getAsignatura(t.asignaturaId)?.nombre} · {t.momentos} momento{t.momentos > 1 ? 's' : ''} · entrega {fechaLegible(t.fechaEntrega)}
               </div>
+              {/* La misma descripción y adjunto que ve el estudiante en su agenda: el docente
+                  tiene que poder revisar lo que publicó (antes solo lo veía al crearla). */}
+              <DetalleTarea t={t} />
             </div>
             <button
               onClick={() => setReplicando(t)}
@@ -1464,6 +1468,7 @@ function PanelDirectivo({ tareas, cesiones, cuposOverride, anclasPorGrupo }: {
                 <div className="text-[11px] text-muted">
                   {getAsignatura(t.asignaturaId)?.nombre} · <span style={{ color: docente?.color }}>{docente?.nombreCorto}</span> · {t.momentos}m · entrega {fechaLegible(t.fechaEntrega)}
                 </div>
+                <DetalleTarea t={t} />
               </div>
               <button
                 onClick={() => cancelarComoDirectivo(t.id)}
