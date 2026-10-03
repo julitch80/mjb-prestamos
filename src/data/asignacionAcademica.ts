@@ -287,7 +287,10 @@ const ENTRADAS_BASE: EntradaAsignacion[] = [
   { docenteId: 'juan_pablo', asignaturaId: 'ed_fisica', grupo: '8º1', horas: 2 },
   { docenteId: 'juan_pablo', asignaturaId: 'ed_fisica', grupo: '8º2', horas: 2 },
   { docenteId: 'juan_pablo', asignaturaId: 'ed_fisica', grupo: '8º3', horas: 2 },
-  { docenteId: 'juan_pablo', asignaturaId: 'ed_fisica', grupo: '8º4', horas: 4 },
+  { docenteId: 'juan_pablo', asignaturaId: 'ed_fisica', grupo: '8º4', horas: 2 },
+  // Corregido 2026-10-03: venían 4 h de ed. física; el Excel oficial dice 2 + 1 de ética
+  // + 1 de optativa (CI, que no se lista aquí). Lo reportó el docente.
+  { docenteId: 'juan_pablo', asignaturaId: 'etica',     grupo: '8º4', horas: 1 },
   // Edgar — Educación Artística (tarde)
   { docenteId: 'edgar', asignaturaId: 'artistica', grupo: '6º1', horas: 2 },
   { docenteId: 'edgar', asignaturaId: 'artistica', grupo: '6º2', horas: 2 },
