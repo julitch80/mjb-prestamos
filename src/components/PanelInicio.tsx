@@ -681,7 +681,7 @@ function ChatResumenActivo({ onIrAlChat }: { onIrAlChat: () => void }) {
  * En el celular no se muestran: ahí se desliza con el dedo. Cada flecha aparece solo
  * si hay contenido hacia ese lado.
  */
-function FilaConFlechas({ filaRef, children }: { filaRef: React.RefObject<HTMLDivElement | null>; children: React.ReactNode }) {
+export function FilaConFlechas({ filaRef, children }: { filaRef: React.RefObject<HTMLDivElement | null>; children: React.ReactNode }) {
   const [puedeIzq, setPuedeIzq] = useState(false);
   const [puedeDer, setPuedeDer] = useState(false);
 
@@ -706,8 +706,21 @@ function FilaConFlechas({ filaRef, children }: { filaRef: React.RefObject<HTMLDi
     if (el) el.scrollBy({ left: sentido * el.clientWidth * 0.8, behavior: 'smooth' });
   };
 
+  // Sin círculo: solo el ángulo, con el mismo trazo de línea neón de los iconos
+  // (1.5, extremos redondeados) y del tamaño de los iconos de las baldosas (32 px).
+  // Va sobre una franja de vidrio que se desvanece hacia el contenido.
   const claseFlecha =
-    'hidden [@media(pointer:fine)]:flex absolute top-1/2 -translate-y-1/2 z-10 w-9 h-9 items-center justify-center rounded-full bg-elevated border border-line text-strong shadow-lg hover:brightness-125 transition';
+    'group/flecha hidden [@media(pointer:fine)]:flex absolute inset-y-0 z-10 w-14 items-center justify-center ' +
+    'text-strong/70 hover:text-strong transition-colors';
+
+  const Angulo = ({ haciaLaDerecha }: { haciaLaDerecha: boolean }) => (
+    <svg viewBox="0 0 24 24"
+      className="w-8 h-8 transition-[filter] [filter:drop-shadow(0_0_5px_rgba(148,163,184,0.5))] group-hover/flecha:[filter:drop-shadow(0_0_8px_rgba(226,232,240,0.9))]"
+      fill="none" stroke="currentColor" strokeWidth={1.5}
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={haciaLaDerecha ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
+    </svg>
+  );
 
   return (
     <div className="relative">
@@ -715,13 +728,15 @@ function FilaConFlechas({ filaRef, children }: { filaRef: React.RefObject<HTMLDi
         {children}
       </div>
       {puedeIzq && (
-        <button type="button" aria-label="Ver anteriores" onClick={() => mover(-1)} className={`${claseFlecha} -left-3`}>
-          ‹
+        <button type="button" aria-label="Ver anteriores" onClick={() => mover(-1)}
+          className={`${claseFlecha} left-0 bg-gradient-to-r from-app via-app/70 to-transparent`}>
+          <Angulo haciaLaDerecha={false} />
         </button>
       )}
       {puedeDer && (
-        <button type="button" aria-label="Ver más" onClick={() => mover(1)} className={`${claseFlecha} -right-3`}>
-          ›
+        <button type="button" aria-label="Ver más" onClick={() => mover(1)}
+          className={`${claseFlecha} right-0 bg-gradient-to-l from-app via-app/70 to-transparent`}>
+          <Angulo haciaLaDerecha />
         </button>
       )}
     </div>
