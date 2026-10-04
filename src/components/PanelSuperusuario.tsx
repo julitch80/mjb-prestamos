@@ -889,6 +889,7 @@ function PruebaClassroom() {
   const [estado, setEstado] = useState<'quieto' | 'probando'>('quieto');
   const [resultado, setResultado] = useState<string | null>(null);
   const [cursos, setCursos] = useState<{ id: string; nombre: string; seccion?: string }[]>([]);
+  const [cuenta, setCuenta] = useState('');
 
   async function probar() {
     if (!functions) { setResultado('Firebase no está configurado en esta instalación.'); return; }
@@ -897,10 +898,10 @@ function PruebaClassroom() {
       const r = await httpsCallable<unknown, {
         ok: boolean; motivo?: string; detalle?: string; conteo?: number;
         cursos?: { id: string; nombre: string; seccion?: string }[];
-      }>(functions, 'classroomProbarAcceso')({});
+      }>(functions, 'classroomProbarAcceso')(cuenta.trim() ? { correo: cuenta.trim() } : {});
       if (r.data.ok) {
         setCursos(r.data.cursos ?? []);
-        setResultado(`Acceso correcto: ${r.data.conteo ?? 0} curso(s) activos en tu Classroom.`);
+        setResultado(`Acceso correcto: ${r.data.conteo ?? 0} curso(s) activos en ${cuenta.trim() || 'tu Classroom'}.`);
       } else if (r.data.motivo === 'sin-autorizacion') {
         setResultado('Sin autorización: faltan los permisos de Classroom en la delegación de dominio (consola de administración).');
       } else {
@@ -921,6 +922,9 @@ function PruebaClassroom() {
           Prueba de solo lectura: lista tus cursos de Classroom. No crea ni cambia nada.
         </p>
       </div>
+      <input type="email" value={cuenta} onChange={e => setCuenta(e.target.value)}
+        placeholder="Cuenta de profesor (vacío = la tuya)"
+        className="w-full min-h-[40px] px-3 rounded-lg border border-line bg-app text-sm text-strong" />
       <button type="button" onClick={probar} disabled={estado === 'probando'}
         className="min-h-[40px] px-3 rounded-lg bg-accent text-accent-fg text-sm font-semibold disabled:opacity-50">
         {estado === 'probando' ? 'Probando…' : 'Probar acceso a Classroom'}

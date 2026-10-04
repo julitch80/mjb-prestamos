@@ -31,9 +31,16 @@ export const classroomProbarAcceso = onCall({ invoker: 'public' }, async (reques
     throw new HttpsError('permission-denied', 'No disponible durante una suplantación.');
   }
 
+  // El superusuario puede consultar la cuenta de profesor de otra persona del dominio
+  const pedido = String((request.data as { correo?: unknown } | null)?.correo ?? '').trim().toLowerCase();
+  if (pedido && !/^[^@\s]+@iemanueljbetancur\.edu\.co$/.test(pedido)) {
+    throw new HttpsError('invalid-argument', 'Solo cuentas @iemanueljbetancur.edu.co.');
+  }
+  const cuenta = pedido || correo;
+
   let token: string;
   try {
-    token = await tokenComo(correo, [ALCANCE_CURSOS]);
+    token = await tokenComo(cuenta, [ALCANCE_CURSOS]);
   } catch (e) {
     const detalle = e instanceof Error ? e.message : String(e);
     if (clasificarErrorToken(detalle) === 'sin-autorizacion') {
