@@ -391,6 +391,8 @@ export default function PanelSuperusuario() {
         </p>
       </div>
 
+      <PruebaClassroom />
+
       {/* Espejo de directores de grupo. Las reglas de seguridad del módulo de
           asistencia no pueden leer maestros.ts, así que necesitan este
           documento para saber quién dirige cada grupo. */}
@@ -874,6 +876,61 @@ export default function PanelSuperusuario() {
           )
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Integración con Classroom, paso 1.2 (docs/classroom/TAREAS.md): prueba de SOLO
+ * LECTURA. Lista los cursos de Classroom de quien la usa, para comprobar que la
+ * delegación de dominio tiene los permisos antes de crear nada.
+ */
+function PruebaClassroom() {
+  const [estado, setEstado] = useState<'quieto' | 'probando'>('quieto');
+  const [resultado, setResultado] = useState<string | null>(null);
+  const [cursos, setCursos] = useState<{ id: string; nombre: string; seccion?: string }[]>([]);
+
+  async function probar() {
+    if (!functions) { setResultado('Firebase no está configurado en esta instalación.'); return; }
+    setEstado('probando'); setResultado(null); setCursos([]);
+    try {
+      const r = await httpsCallable<unknown, {
+        ok: boolean; motivo?: string; detalle?: string; conteo?: number;
+        cursos?: { id: string; nombre: string; seccion?: string }[];
+      }>(functions, 'classroomProbarAcceso')({});
+      if (r.data.ok) {
+        setCursos(r.data.cursos ?? []);
+        setResultado(`Acceso correcto: ${r.data.conteo ?? 0} curso(s) activos en tu Classroom.`);
+      } else if (r.data.motivo === 'sin-autorizacion') {
+        setResultado('Sin autorización: faltan los permisos de Classroom en la delegación de dominio (consola de administración).');
+      } else {
+        setResultado(`No se pudo obtener el acceso: ${r.data.detalle ?? r.data.motivo ?? 'error desconocido'}`);
+      }
+    } catch (e) {
+      setResultado(`La función no respondió: ${(e as Error).message}`);
+    } finally {
+      setEstado('quieto');
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-line bg-card p-3 space-y-2">
+      <div>
+        <h3 className="text-strong text-sm font-semibold">Classroom (piloto)</h3>
+        <p className="text-muted text-xs mt-0.5 leading-snug">
+          Prueba de solo lectura: lista tus cursos de Classroom. No crea ni cambia nada.
+        </p>
+      </div>
+      <button type="button" onClick={probar} disabled={estado === 'probando'}
+        className="min-h-[40px] px-3 rounded-lg bg-accent text-accent-fg text-sm font-semibold disabled:opacity-50">
+        {estado === 'probando' ? 'Probando…' : 'Probar acceso a Classroom'}
+      </button>
+      {resultado && <p className="text-xs text-soft">{resultado}</p>}
+      {cursos.length > 0 && (
+        <ul className="text-xs text-muted list-disc pl-4 space-y-0.5">
+          {cursos.map(c => <li key={c.id}>{c.nombre}{c.seccion ? ` · ${c.seccion}` : ''}</li>)}
+        </ul>
+      )}
     </div>
   );
 }

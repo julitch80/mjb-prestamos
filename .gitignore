@@ -29,5 +29,7 @@ _horario_tarde_Hoja1.csv
 
 functions-calendario/node_modules
 functions-calendario/lib
+functions-classroom/node_modules
+functions-classroom/lib
 functions-notificaciones/node_modules
 functions-notificaciones/lib
