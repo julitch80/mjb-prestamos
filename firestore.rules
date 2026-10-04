@@ -1986,6 +1986,145 @@ service cloud.firestore {
       allow delete: if !esSuplantacion() && (false);
     }
 
+    // ════════════════════════════════════════════════════════════════════════════════════
+    //  Alerta academica (2026-10-02) — ver docs/modelo-alerta-academica.md
+    // ════════════════════════════════════════════════════════════════════════════════════
+    //
+    // En la 7.ª semana cada docente senala quien esta en alerta en cada planilla. La
+    // convocatoria la abre coordinacion; el director consolida su grado y cita al acudiente
+    // de quien tiene dos o mas. Quien ve el consolidado: el director de su grado y la
+    // coordinacion de la jornada (Julian, 2026-10-02) — ni rectoria ni orientacion.
+
+    // La convocatoria de la sede y jornada de la planilla, abierta y sin vencer. Se compara
+    // contra `limite` (instante), porque las reglas solo conocen `request.time`.
+    function asisAlertaAbierta(d) {
+      let c = get(/databases/$(database)/documents/asistenciaAlertaConvocatorias/$(string(d.anio) + '_' + string(d.periodo) + '_' + d.sede + '_' + d.jornada)).data;
+      return c.abierta == true && request.time <= c.limite;
+    }
+
+    // ---------- Convocatoria: la abre y la cierra coordinacion ----------
+    match /asistenciaAlertaConvocatorias/{convocatoriaId} {
+
+      // Cabecera sin datos de menores (fechas y franja): la lee cualquier usuario activo,
+      // porque el docente necesita saber si puede marcar y hasta cuando.
+      allow read: if isActiveUser();
+
+      allow create: if !esSuplantacion() && (asisCanRecord()
+        && asisCoordinaJornada(request.resource.data.sede, request.resource.data.jornada)
+        && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
+        && request.resource.data.jornada in ['manana', 'tarde']
+        && request.resource.data.anio is int
+        && request.resource.data.periodo is int
+        // El id no se inventa: es exactamente anio_periodo_sede_jornada.
+        && convocatoriaId == string(request.resource.data.anio) + '_' + string(request.resource.data.periodo)
+             + '_' + request.resource.data.sede + '_' + request.resource.data.jornada
+        && request.resource.data.abierta is bool
+        && request.resource.data.fechaLimite is string
+        && request.resource.data.limite is timestamp
+        && request.resource.data.abiertaPor == callerEmail()
+        && request.resource.data.abiertaEn == request.time);
+
+      // Cerrar, reabrir, mover la fecha limite o poner el dia y la franja de entrega. Nunca
+      // cambiar de que sede, jornada o periodo es, ni quien la abrio.
+      allow update: if !esSuplantacion() && (asisCanRecord()
+        && asisCoordinaJornada(resource.data.sede, resource.data.jornada)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['abierta', 'fechaLimite', 'limite', 'fechaEntrega', 'franjaInicio', 'franjaFin',
+                       'plazoExcusaDias', 'cerradaPor', 'cerradaEn'])
+        && request.resource.data.abierta is bool
+        && request.resource.data.limite is timestamp
+        // Si se cierra, queda dicho quien y cuando.
+        && (request.resource.data.abierta == true
+            || (request.resource.data.cerradaPor == callerEmail() && request.resource.data.cerradaEn == request.time)));
+
+      allow delete: if !esSuplantacion() && (false);
+    }
+
+    // ---------- Alerta: un documento por planilla (grado + asignatura) ----------
+    match /asistenciaAlertas/{alertaId} {
+
+      // OJO EN EL CLIENTE, como en las sesiones: el docente consulta con
+      // where('slotId','==',<el suyo>), el director con where('grado','==',<el suyo>) y la
+      // coordinacion con sede y jornada. Una consulta sin filtrar falla entera.
+      allow read: if isActiveUser() && (
+        asisCoordinaJornada(resource.data.sede, resource.data.jornada)
+        || asisIsDirectorOf(resource.data.grado)
+        || resource.data.slotId == callerDoc().slotId
+      );
+
+      // La crea el docente asignado: la pantalla solo ofrece sus planillas, y la regla exige
+      // que el puesto del documento sea el suyo (Julian, 2026-10-02: «esto ya esta en la
+      // app»; la asignacion vive en el codigo de MJB y las reglas no la ven).
+      allow create: if !esSuplantacion() && (asisCanRecord()
+        && asisAuthorStamp()
+        && request.resource.data.slotId == callerDoc().slotId
+        && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
+        && request.resource.data.jornada in ['manana', 'tarde']
+        && request.resource.data.anio is int
+        && request.resource.data.periodo is int
+        && request.resource.data.grado is string
+        && request.resource.data.subjectId is string
+        && alertaId == string(request.resource.data.anio) + '_' + string(request.resource.data.periodo)
+             + '_' + request.resource.data.sede + '_' + request.resource.data.grado + '_' + request.resource.data.subjectId
+        && request.resource.data.estudiantes is map
+        && request.resource.data.entregada == false
+        && asisAlertaAbierta(request.resource.data));
+
+      // Marcar, corregir o entregar, mientras la convocatoria siga abierta. La identidad de
+      // la planilla no se reescribe; el historial lo archiva el trigger del servidor.
+      allow update: if !esSuplantacion() && (asisCanRecord()
+        && asisAuthorStamp()
+        && resource.data.slotId == callerDoc().slotId
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['estudiantes', 'entregada', 'entregadaPor', 'entregadaEn',
+                       'ultimaEscrituraPor', 'ultimaEscrituraEn'])
+        && request.resource.data.estudiantes is map
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['entregada'])
+            || (request.resource.data.entregadaPor == callerEmail() && request.resource.data.entregadaEn == request.time))
+        && asisAlertaAbierta(resource.data));
+
+      allow delete: if !esSuplantacion() && (false);
+    }
+
+    // ---------- Agenda de citaciones: la arma el director de grupo ----------
+    match /asistenciaCitacionesAlerta/{citacionId} {
+
+      allow read: if isActiveUser() && (
+        asisIsDirectorOf(resource.data.grado)
+        || asisCoordinaJornada(resource.data.sede, resource.data.jornada)
+      );
+
+      allow create: if !esSuplantacion() && (asisCanRecord()
+        && asisAuthorStamp()
+        && asisIsDirectorOf(request.resource.data.grado)
+        && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
+        && request.resource.data.jornada in ['manana', 'tarde']
+        && request.resource.data.modo in ['turnos', 'general', 'mixta']
+        && request.resource.data.citas is map
+        && citacionId == string(request.resource.data.anio) + '_' + string(request.resource.data.periodo)
+             + '_' + request.resource.data.sede + '_' + request.resource.data.grado);
+
+      // El director: la agenda, el dia de la entrega (asistencia, cierre) y el seguimiento.
+      allow update: if !esSuplantacion() && (asisCanRecord()
+        && asisAuthorStamp()
+        && asisIsDirectorOf(resource.data.grado)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['modo', 'parametros', 'citas', 'entregaCerradaEn', 'ultimaEscrituraPor', 'ultimaEscrituraEn'])
+        && request.resource.data.modo in ['turnos', 'general', 'mixta']
+        && request.resource.data.citas is map);
+
+      // Coordinacion de la jornada: atiende los casos remitidos (escribe dentro de `citas`) y
+      // nada mas — ni el modo, ni los parametros, ni el cierre de la entrega (2026-10-03).
+      allow update: if !esSuplantacion() && (asisCanRecord()
+        && asisAuthorStamp()
+        && asisCoordinaJornada(resource.data.sede, resource.data.jornada)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['citas', 'ultimaEscrituraPor', 'ultimaEscrituraEn'])
+        && request.resource.data.citas is map);
+
+      allow delete: if !esSuplantacion() && (false);
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
