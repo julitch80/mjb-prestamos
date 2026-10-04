@@ -170,7 +170,7 @@ function VistaOpcion({ opcion, onVolver }: { opcion: OpcionManual; onVolver: () 
         <>
           <iframe ref={marco} src={opcion.tipo === 'digital' ? `${opcion.url}?desde=app` : opcion.url} title={opcion.nombre}
             className="w-full rounded-2xl border border-line bg-card" style={ALTO_IFRAME}
-            allow="clipboard-write; microphone" />
+            allow="clipboard-write; microphone; fullscreen" allowFullScreen />
           {opcion.tipo === 'chatbot' && <p className="text-muted text-xs">El asistente requiere conexión a internet.</p>}
         </>
       )}

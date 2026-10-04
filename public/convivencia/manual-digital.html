@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Manual a la mano</title>
 <meta name="description" content="Prototipo del manual de convivencia en capas: por preguntas, para estudiantes, familias y docentes.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -243,105 +244,178 @@ dialog.r-visor::backdrop { background: rgba(10, 16, 12, .8); }
 dialog.r-visor img { display: block; max-width: 96vw; height: auto; }
 dialog.r-visor button { position: sticky; top: 8px; float: right; margin: 8px; border: 0; border-radius: 999px; padding: 6px 14px; background: #16211a; color: #fff; cursor: pointer; font-weight: 700; }
 
-/* ---------- cartilla ilustrada ---------- */
-.a-cartilla { justify-self: start; background: none; border: 0; padding: 0; color: var(--vino); text-decoration: underline; cursor: pointer; font-weight: 700; }
-.cartilla { background: var(--superficie); border: 1px solid var(--linea); border-radius: 18px; padding: 14px; display: grid; gap: 12px; }
-.lamina { display: grid; gap: 10px; margin: 0; }
-.lamina img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; background: var(--papel); display: block; }
-.lamina.ancha img { aspect-ratio: auto; object-fit: contain; }
-.lamina figcaption { display: grid; gap: 4px; }
-.lamina .vineta-grande { font-family: var(--texto); font-size: clamp(1.25rem, 4.4vw, 1.6rem); font-weight: 700; line-height: 1.3; text-wrap: balance; }
-.lamina .titulo-lamina { font-family: var(--mono); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--vino); }
-.lamina .adulto { font-size: .84rem; color: var(--suave); }
-.mandos { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
-.mandos .grupo-btn { display: flex; gap: 8px; align-items: center; }
-.mandos button { border: 1.5px solid var(--linea); background: var(--papel); border-radius: 12px; padding: 10px 16px; cursor: pointer; font-weight: 700; font-size: 1rem; }
-.mandos button:disabled { opacity: .4; cursor: default; }
-.mandos button.escuchar { background: var(--verde); border-color: var(--verde); color: var(--papel); }
-.mandos .cuenta { font-family: var(--mono); font-size: .85rem; color: var(--suave); font-variant-numeric: tabular-nums; }
-.miniaturas { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
-.miniaturas button { flex: none; border: 2px solid transparent; border-radius: 8px; padding: 0; background: none; cursor: pointer; }
-.miniaturas button[aria-current="true"] { border-color: var(--vino); }
-.miniaturas img { width: 72px; height: 54px; object-fit: cover; border-radius: 6px; display: block; }
-.proponer { border: 1.5px dashed var(--linea); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; }
-.proponer p { margin: 0; font-size: .92rem; color: var(--suave); }
-.proponer[hidden] { display: none; }
-.proponer.destacada { border-style: solid; border-color: var(--vino); background: var(--papel); }
-.proponer.destacada p { color: inherit; font-weight: 700; font-size: 1rem; }
-.proponer .por-construir { font-size: .82rem; font-weight: 400; color: var(--suave); }
-.proponer button { justify-self: start; border: 1.5px solid var(--vino); background: var(--papel); color: var(--vino); border-radius: 12px; padding: 9px 14px; cursor: pointer; font-weight: 700; font-size: .95rem; }
+/* ---------- navegacion por secciones (Julian, 2026-10-03) ---------- */
+body { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
+.barra { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: var(--superficie); border-top: 1px solid var(--linea);
+  padding-bottom: env(safe-area-inset-bottom); }
+.barra nav { max-width: 760px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
+.barra button { display: grid; justify-items: center; gap: 2px; min-height: 60px; padding: 8px 4px; background: none; border: 0; cursor: pointer;
+  color: var(--suave); font-size: .78rem; font-weight: 700; }
+.barra button svg { width: 22px; height: 22px; }
+.barra button[aria-current="page"] { color: var(--verde); }
+@media (min-width: 720px) {
+  body { padding-bottom: 0; }
+  .barra { position: sticky; top: 0; bottom: auto; margin: 0 -16px; border-top: 0; border-bottom: 1px solid var(--linea); padding-bottom: 0; }
+  .barra nav { display: flex; justify-content: center; gap: 4px; }
+  .barra button { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 8px 18px; font-size: .92rem; }
+}
+.vista { display: grid; gap: 18px; align-content: start; }
+.vista[hidden] { display: none; }
+.volver { justify-self: start; background: none; border: 0; padding: 6px 0; cursor: pointer; color: var(--vino); font-weight: 700; font-size: .95rem; }
+.portada-titulo { display: grid; gap: 10px; }
+.buscador.grande { padding: 14px 16px; border-width: 2px; border-color: var(--verde); }
+.buscador.grande input { font-size: 1.1rem; }
+.leo { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: .88rem; color: var(--suave); }
+.leo .puertas button { padding: 6px 14px; font-size: .9rem; }
+.tarjetas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.tarjeta { display: grid; gap: 8px; align-content: start; background: var(--superficie); border: 1px solid var(--linea); border-radius: 14px; padding: 14px;
+  color: inherit; text-decoration: none; box-shadow: var(--sombra); }
+.tarjeta b { font-family: var(--display); font-size: 1.08rem; line-height: 1.2; }
+.tarjeta small { color: var(--suave); font-size: .85rem; }
+.tarjeta .icono { width: 40px; height: 40px; }
+.tarjeta.urgente { grid-column: 1 / -1; grid-template-columns: 40px 1fr; align-items: center; background: var(--vino); border-color: var(--vino); color: var(--papel); }
+.tarjeta.urgente small { color: var(--papel); opacity: .85; }
+.tarjeta.urgente .icono { background: rgba(255, 255, 255, .16); color: var(--papel); }
+@media (max-width: 360px) { .tarjetas { grid-template-columns: 1fr; } }
+.capa1-dentro { font-weight: 700; }
+.copiar-enlace { justify-self: start; border: 1px solid var(--linea); background: var(--papel); border-radius: 999px; padding: 5px 12px; font-size: .85rem; cursor: pointer; }
+.tema .tema-boton { grid-template-columns: 1fr 22px; }
+.tema .tema-boton.con-icono { grid-template-columns: 44px 1fr 22px; }
+.filas { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.fila { display: grid; grid-template-columns: 1fr auto 18px; gap: 12px; align-items: center; padding: 14px 16px; background: var(--superficie);
+  border: 1px solid var(--linea); border-radius: 12px; color: inherit; text-decoration: none; font-weight: 700; }
+.fila .n { font-family: var(--mono); font-size: .8rem; color: var(--suave); }
+.fila .gravedad { font-family: var(--mono); font-size: .72rem; border-radius: 6px; padding: 2px 8px; background: var(--verde-claro); white-space: nowrap; }
+.fila .gravedad.medio { background: #f6ead0; color: #5c3d00; }
+.fila .gravedad.grave { background: var(--vino-claro); }
+.fila .gravedad.acompana { background: #dcebf7; color: #1d4a70; }
+:root[data-theme="dark"] .fila .gravedad.medio, :root[data-theme="dark"] .fila .gravedad.acompana { color: var(--tinta); background: var(--linea); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .fila .gravedad.medio, :root:not([data-theme="light"]) .fila .gravedad.acompana { color: var(--tinta); background: var(--linea); } }
+.fila svg { color: var(--suave); }
+#v-ruta .r-selector { display: none; }
+.guia-plegada { background: var(--superficie); border: 1px solid var(--linea); border-radius: 14px; padding: 12px 16px; }
+.guia-plegada summary { cursor: pointer; font-weight: 700; color: var(--verde); }
+.guia-plegada .guia { border: 0; padding: 12px 0 0; }
+/* ayuda */
 .ayuda { background: var(--tinta); color: var(--papel); border-radius: 14px; padding: 18px; display: grid; gap: 10px; }
 .ayuda h2 { color: var(--papel); }
-.ayuda .lineas { display: flex; flex-wrap: wrap; gap: 10px; }
-.ayuda .lineas div { background: rgba(255, 255, 255, .08); border-radius: 10px; padding: 8px 12px; }
-.ayuda .lineas b { font-family: var(--mono); font-size: 1.1rem; user-select: all; }
+.contactos { display: grid; gap: 10px; }
+.contacto { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; background: var(--superficie); border: 1px solid var(--linea); border-radius: 12px; padding: 12px 16px; }
+.contacto .nombre { font-weight: 700; }
+.contacto .num { grid-column: 1; font-family: var(--mono); font-size: clamp(1.5rem, 6vw, 2rem); letter-spacing: .02em; user-select: all; color: var(--vino); }
+.contacto .lugar { grid-column: 1; color: var(--suave); }
+.contacto button { grid-row: 1 / span 2; grid-column: 2; border: 1.5px solid var(--verde); background: var(--papel); color: var(--verde); border-radius: 10px; padding: 10px 14px; font-weight: 700; cursor: pointer; }
+/* ponte a prueba */
+.caso .siguiente { justify-self: start; border: 0; background: var(--verde); color: var(--papel); border-radius: 10px; padding: 10px 18px; font-weight: 700; cursor: pointer; }
+/* cartilla */
+.cgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.escena { display: grid; align-content: start; background: var(--superficie); border: 1px solid var(--linea); border-radius: 12px; padding: 0; overflow: hidden; text-align: left; cursor: pointer; }
+.escena img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--papel); }
+.escena .tx { padding: 8px 10px 10px; display: grid; gap: 2px; }
+.escena .tx b { font-size: .92rem; line-height: 1.25; }
+.escena .tx span { font-family: var(--mono); font-size: .7rem; color: var(--suave); }
+.escena.proponer-tarjeta { border: 2px dashed var(--vino); background: var(--papel); padding: 14px; gap: 6px; align-content: center; color: var(--vino); }
+.escena.proponer-tarjeta b { font-size: 1rem; }
+.escena.proponer-tarjeta span { font-size: .78rem; color: var(--suave); }
+.presentar { justify-self: start; border: 0; background: var(--verde); color: var(--papel); border-radius: 12px; padding: 11px 18px; font-weight: 700; font-size: 1rem; cursor: pointer; }
+.presentacion { position: fixed; inset: 0; z-index: 60; background: var(--papel); display: grid; grid-template-rows: auto 1fr auto; gap: 10px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+.presentacion[hidden] { display: none; }
+.p-cab { display: flex; align-items: center; gap: 12px; }
+.p-cab .p-grupo { flex: 1; font-family: var(--mono); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--vino); }
+.p-cab .p-cuenta { font-family: var(--mono); font-size: 1rem; font-variant-numeric: tabular-nums; color: var(--suave); }
+.p-cab .p-cerrar { width: 48px; height: 48px; border-radius: 12px; border: 1.5px solid var(--linea); background: var(--superficie); font-size: 1.3rem; cursor: pointer; }
+.p-cuerpo { display: grid; align-content: center; justify-items: center; gap: 12px; text-align: center; overflow: auto; min-height: 0; touch-action: pan-y; }
+.p-cuerpo img { max-width: 100%; max-height: 58vh; object-fit: contain; border-radius: 14px; }
+.p-titulo { font-family: var(--mono); font-size: .85rem; letter-spacing: .08em; text-transform: uppercase; color: var(--vino); }
+.p-vineta { font-size: clamp(1.4rem, 4.6vw, 2.3rem); font-weight: 700; line-height: 1.25; max-width: 30ch; text-wrap: balance; }
+.p-cuerpo .adulto { font-size: .9rem; color: var(--suave); }
+.p-mandos { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; max-width: 760px; width: 100%; margin: 0 auto; }
+.p-mandos button { min-height: 58px; border-radius: 14px; border: 1.5px solid var(--linea); background: var(--superficie); font-weight: 700; font-size: 1.05rem; cursor: pointer; padding: 0 12px; white-space: nowrap; }
+.p-mandos button:disabled { opacity: .35; cursor: default; }
+.p-mandos .p-sig { background: var(--verde); border-color: var(--verde); color: var(--papel); }
+.p-mandos .escuchar { font-size: .95rem; }
+.p-proponer { justify-self: center; background: none; border: 0; color: var(--vino); text-decoration: underline; cursor: pointer; font-size: .9rem; }
 .pie { font-size: .82rem; color: var(--suave); display: grid; gap: 6px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
+<header class="barra"><nav aria-label="Navegación del manual" id="nav">
+  <button type="button" data-ir-a="inicio" id="nav-inicio"></button>
+  <button type="button" data-ir-a="buscar" id="nav-buscar"></button>
+  <button type="button" data-ir-a="temas" id="nav-temas"></button>
+  <button type="button" data-ir-a="ayuda" id="nav-ayuda"></button>
+</nav></header>
+
 <div class="envoltura">
-  <header class="cabeza">
-    <div class="cuadros" aria-hidden="true"></div>
-    <div>
-      <p class="etiqueta">I.E. Manuel J. Betancur · Manual de convivencia 2026</p>
-      <h1>Manual a la mano</h1>
+  <section class="vista" id="v-inicio">
+    <header class="cabeza">
+      <div class="cuadros" aria-hidden="true"></div>
+      <div class="portada-titulo">
+        <p class="etiqueta">I.E. Manuel J. Betancur · Manual de convivencia 2026</p>
+        <h1>Manual a la mano</h1>
+      </div>
+      <label class="buscador grande" for="busqueda">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="busqueda" type="search" placeholder="¿Qué quieres saber?" autocomplete="off" aria-label="¿Qué quieres saber?">
+      </label>
+    </header>
+    <div class="vista" id="resultados" hidden aria-live="polite"></div>
+    <nav class="tarjetas" id="tarjetas" aria-label="Secciones"></nav>
+    <div class="leo"><span>Leo el manual como</span>
+      <div class="puertas" role="group" aria-label="¿Quién eres?">
+        <button type="button" data-puerta="estudiante" aria-pressed="true">Estudiante</button>
+        <button type="button" data-puerta="familia" aria-pressed="false">Familia</button>
+        <button type="button" data-puerta="docente" aria-pressed="false">Docente</button>
+      </div>
     </div>
-    <p class="lead">Las respuestas del manual de convivencia, por preguntas. Primero lo esencial en una frase; si quieres más, la explicación clara; y siempre, a un toque, el texto oficial.</p>
     <p class="aviso"><b>Prototipo.</b> Los textos en lenguaje claro son una propuesta y no han sido revisados por coordinación. El texto oficial es el que vale.</p>
-    <div class="puertas" role="group" aria-label="¿Quién eres?">
-      <button type="button" data-puerta="estudiante" aria-pressed="true">Soy estudiante</button>
-      <button type="button" data-puerta="familia" aria-pressed="false">Soy familia</button>
-      <button type="button" data-puerta="docente" aria-pressed="false">Soy docente</button>
-    </div>
-    <button type="button" class="a-cartilla" id="ir-cartilla">¿Estás en primaria? Mira la cartilla con dibujos</button>
-    <label class="buscador" for="busqueda">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="busqueda" type="search" placeholder="Escribe tu pregunta: celular, llegar tarde, acoso…" autocomplete="off">
-    </label>
-  </header>
-
-  <section class="bloque" aria-labelledby="t-preguntas">
-    <h2 id="t-preguntas">Preguntas frecuentes</h2>
-    <div class="temas" id="temas"></div>
-    <p class="nota" id="sin-resultados" hidden>Ninguna pregunta coincide con esas palabras. Pruebe con otra palabra, o use «¿Qué tipo de situación es?» más abajo.</p>
+    <footer class="pie">
+      <p>Textos oficiales tomados del Manual de Convivencia 2026 de la I.E. Manuel J. Betancur. Donde el manual no numera artículos, se cita el capítulo.</p>
+      <p>Prototipo para revisión de coordinación y rectoría. No reemplaza el documento adoptado por el Consejo Directivo.</p>
+    </footer>
   </section>
 
-  <section class="bloque" aria-labelledby="t-todos">
-    <div>
-      <h2 id="t-todos">Todos los temas del manual</h2>
-      <p class="nota">Los 43 incumplimientos del capítulo IV, agrupados por el deber que protegen.</p>
+  <section class="vista" id="v-ayuda" hidden>
+    <button type="button" class="volver" data-ir-a="inicio">‹ Inicio</button>
+    <div class="ayuda">
+      <h2>Necesito ayuda ya</h2>
+      <p>Si tú o alguien está en peligro, o sufre violencia, no esperes: habla con cualquier docente, con orientación o con coordinación. También puedes llamar:</p>
     </div>
-    <div class="chips" id="chips" role="group" aria-label="Filtrar por tema"></div>
-    <div class="temas" id="temas43"></div>
+    <div class="contactos" id="contactos"></div>
+    <p class="nota">Toca «Copiar» y pégalo en el teléfono, o mantén pulsado el número para seleccionarlo.</p>
+    <button type="button" class="enlace" data-ir-a="rutas">Ver qué hacer en una situación</button>
   </section>
 
-  <section class="bloque" aria-labelledby="t-cartilla" id="cartilla-sec">
-    <div>
-      <h2 id="t-cartilla">Para los más pequeños</h2>
-      <p class="nota">La cartilla ilustrada de primaria: los acuerdos del manual contados con dibujos. Se puede leer en voz alta con el botón «Escuchar».</p>
-    </div>
-    <div class="proponer destacada" id="proponer-general" hidden>
-      <p>¿Falta un tema en la cartilla? Propón una escena nueva para construirla.</p>
-      <span class="por-construir">No se agrega de inmediato: queda en la lista de escenas por construir para revisión; después se dibuja y se incorpora al manual.</span>
-      <button type="button" data-proponer-general>🎙 Narra la escena que quieres que aparezca</button>
-    </div>
-    <div class="chips" id="chips-cartilla" role="group" aria-label="Partes de la cartilla"></div>
-    <div class="cartilla" id="cartilla" tabindex="0" aria-roledescription="carrusel" aria-label="Cartilla ilustrada"></div>
+  <section class="vista" id="v-faq" hidden>
+    <button type="button" class="volver" data-ir-a="inicio">‹ Inicio</button>
+    <div><h2>Preguntas frecuentes</h2><p class="nota">Toca una pregunta para ver la respuesta.</p></div>
+    <div class="temas" id="lista-faq"></div>
   </section>
 
-  <section class="bloque" aria-labelledby="t-guia">
-    <div>
-      <h2 id="t-guia">¿Qué tipo de situación es?</h2>
-      <p class="nota">Las mismas preguntas que usa el colegio para clasificar una situación, tomadas de las definiciones del manual.</p>
-    </div>
-    <div class="guia" id="guia" aria-live="polite"></div>
+  <section class="vista" id="v-temas" hidden>
+    <button type="button" class="volver" data-ir-a="inicio">‹ Inicio</button>
+    <div><h2>Temas del manual</h2><p class="nota">Los 43 incumplimientos del capítulo IV, agrupados por el deber que protegen. Elige un tema.</p></div>
+    <ul class="filas" id="lista-categorias"></ul>
   </section>
 
-  <section class="bloque" aria-labelledby="t-rutas" id="rutas-sec">
-    <div>
-      <h2 id="t-rutas">Rutas y protocolos</h2>
-      <p class="nota">Qué hacer, en orden. El mapa muestra el recorrido completo; «Guíame» lo lleva paso a paso mientras atiende un caso. Los textos cortos son una ayuda; el texto del manual está a un toque en cada estación.</p>
-    </div>
+  <section class="vista" id="v-tema" hidden>
+    <button type="button" class="volver" data-ir-a="temas">‹ Temas</button>
+    <div><h2 id="tema-titulo"></h2><p class="nota" id="tema-cuenta"></p></div>
+    <div class="temas" id="lista-tema"></div>
+  </section>
+
+  <section class="vista" id="v-rutas" hidden>
+    <button type="button" class="volver" data-ir-a="inicio">‹ Inicio</button>
+    <div><h2>Qué hacer en una situación</h2><p class="nota">Rutas y protocolos del manual. Elige la que más se parezca a lo que pasó: verás el recorrido completo o «Guíame», paso a paso.</p></div>
+    <details class="guia-plegada"><summary>¿No sabes qué tipo de situación es? Averígualo</summary>
+      <div class="guia" id="guia" aria-live="polite"></div>
+    </details>
+    <div id="lista-rutas"></div>
+  </section>
+
+  <section class="vista" id="v-ruta" hidden>
+    <button type="button" class="volver" data-ir-a="rutas">‹ Rutas</button>
     <div class="rc">
   <nav class="r-selector" id="r-selector" aria-label="Elegir ruta"></nav>
   <div id="r-ruta" aria-live="polite"></div>
@@ -350,28 +424,31 @@ dialog.r-visor button { position: sticky; top: 8px; float: right; margin: 8px; b
 
   </section>
 
-  <section class="bloque" aria-labelledby="t-prueba">
-    <div>
-      <h2 id="t-prueba">Ponte a prueba</h2>
-      <p class="nota">Casos inventados. Responder ayuda a recordar más que volver a leer.</p>
-    </div>
+  <section class="vista" id="v-cartilla" hidden>
+    <button type="button" class="volver" data-ir-a="inicio">‹ Inicio</button>
+    <div><h2>Para los más pequeños</h2><p class="nota">La cartilla ilustrada de primaria: los acuerdos del manual contados con dibujos. Toca una escena para verla en grande.</p></div>
+    <div class="chips" id="chips-cartilla" role="group" aria-label="Partes de la cartilla"></div>
+    <button type="button" class="presentar" id="presentar">▶ Modo presentación</button>
+    <div class="cgrid" id="cgrid"></div>
+  </section>
+
+  <section class="vista" id="v-prueba" hidden>
+    <button type="button" class="volver" data-ir-a="inicio">‹ Inicio</button>
+    <div><h2>Ponte a prueba</h2><p class="nota">Casos inventados. Responder ayuda a recordar más que volver a leer.</p></div>
     <p class="marcador" id="marcador"></p>
-    <div class="casos" id="casos"></div>
+    <div class="casos" id="casos" aria-live="polite"></div>
   </section>
+</div>
 
-  <section class="ayuda" aria-labelledby="t-ayuda">
-    <h2 id="t-ayuda">¿Necesitas ayuda ya?</h2>
-    <p>Si tú o alguien está en peligro, o sufre violencia, no esperes: habla con cualquier docente, con orientación o con coordinación. También puedes llamar:</p>
-    <div class="lineas">
-      <div>Emergencias <b>123</b></div>
-      <div>ICBF, línea de protección <b>141</b></div>
-    </div>
-  </section>
-
-  <footer class="pie">
-    <p>Textos oficiales tomados del Manual de Convivencia 2026 de la I.E. Manuel J. Betancur. Donde el manual no numera artículos, se cita el capítulo.</p>
-    <p>Prototipo para revisión de coordinación y rectoría. No reemplaza el documento adoptado por el Consejo Directivo.</p>
-  </footer>
+<div class="presentacion" id="presentacion" role="dialog" aria-modal="true" aria-label="Cartilla en modo presentación" hidden>
+  <div class="p-cab"><span class="p-grupo" id="p-grupo"></span><span class="p-cuenta" id="p-cuenta"></span>
+    <button type="button" class="p-cerrar" id="p-cerrar" aria-label="Cerrar la presentación">✕</button></div>
+  <div class="p-cuerpo" id="p-cuerpo"></div>
+  <div class="p-mandos">
+    <button type="button" id="p-ant" aria-label="Escena anterior">◀ Anterior</button>
+    <button type="button" class="escuchar" id="p-escuchar">Escuchar</button>
+    <button type="button" class="p-sig" id="p-sig">Siguiente ▶</button>
+  </div>
 </div>
 
 <script>
@@ -383,14 +460,26 @@ const ICONOS = {
   escudo: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/></svg>',
   balanza: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v16M7 20h10M5 8h14M5 8l-3 6a3 3 0 0 0 6 0zM19 8l-3 6a3 3 0 0 0 6 0z"/></svg>',
 };
+const sv = (d) => `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICONO = {
+  inicio: sv('<path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-6h4v6"/>'),
+  buscar: sv('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
+  temas: sv('<path d="M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2z"/><path d="M4 19V5"/>'),
+  ayuda: sv('<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/>'),
+  faq: sv('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 115 0c0 1.5-2.5 2-2.5 3.5M12 17h.01"/>'),
+  rutas: sv('<circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h6a3 3 0 000-6h-4a3 3 0 010-6h6"/>'),
+  cartilla: sv('<circle cx="12" cy="8" r="4"/><path d="M5 21c0-4 3-6 7-6s7 2 7 6"/>'),
+  prueba: sv('<path d="M8 12l3 3 5-6"/><rect x="3" y="3" width="18" height="18" rx="4"/>'),
+};
 const FLECHA = '<svg class="flecha" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+const SIGUE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
 
+const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const normal = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const normal = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 let puerta = 'estudiante';
 try { puerta = localStorage.getItem('manual-puerta') || 'estudiante'; } catch (e) { /* sin almacenamiento */ }
-let abierto = null;
 
 const DERECHO_TITULO = {
   estudiante: 'Este deber protege un derecho tuyo',
@@ -398,7 +487,10 @@ const DERECHO_TITULO = {
   docente: 'Este deber protege un derecho del estudiante',
 };
 const PARA_TI = { estudiante: 'Para ti', familia: 'Para usted, como familia', docente: 'Para usted, como docente' };
+const TIPO_ETQ = { deber: 'Incumplimiento de deber', I: 'Tipo I', II: 'Tipo II', III: 'Tipo III' };
+const NOMBRE_CAT = Object.fromEntries(DATOS.categorias.map((c) => [c.id, c.nombre]));
 
+/* ---------- el contenido de cada respuesta (igual que antes) ---------- */
 function lineaDeTiempo() {
   return `<div><h3>Qué pasa y cuándo</h3><p class="nota">Las etapas del capítulo VIII. Los plazos son en días hábiles.</p></div>
   <ol class="tiempo">${DATOS.etapas.map((e, i) => `
@@ -411,133 +503,130 @@ function lineaDeTiempo() {
       </div>
     </li>`).join('')}</ol>`;
 }
+const oficial = (t) => `<details class="oficial"><summary>Texto oficial del manual</summary>
+  <div class="cita">${t.oficial.map((o) => `<div><p class="fuente">${esc(o.tipo)}</p><blockquote>${esc(o.texto)}</blockquote></div>`).join('')}</div></details>`;
+const copiarEnlace = (id) => `<button type="button" class="copiar-enlace" data-copiar-enlace="${esc(id)}">Copiar enlace a esta respuesta</button>`;
 
 function detalle(t) {
   const d = DATOS.derechos[t.derecho];
   return `<div class="detalle">
+    <p class="capa1-dentro">${esc(t.capa1)}</p>
     <ul>${t.capa2.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
     ${t.nota_capa2 ? `<p class="nota">${esc(t.nota_capa2)}</p>` : ''}
     <div class="para-ti"><p class="etiqueta">${PARA_TI[puerta]}</p><p>${esc(t.puertas[puerta])}</p></div>
     ${t.linea_de_tiempo ? lineaDeTiempo() : ''}
     <div class="derecho"><p class="etiqueta">${DERECHO_TITULO[puerta]}</p><q>${esc(d.texto)}</q><span class="cita"><span class="fuente">Capítulo III · Derechos</span></span></div>
-    <details class="oficial"><summary>Texto oficial del manual</summary>
-      <div class="cita">${t.oficial.map((o) => `<div><p class="fuente">${esc(o.tipo)}</p><blockquote>${esc(o.texto)}</blockquote></div>`).join('')}</div>
-    </details>
+    ${oficial(t)}${copiarEnlace(t.id)}
   </div>`;
 }
-
-const TIPO_ETQ = { deber: 'Incumplimiento de deber', I: 'Tipo I', II: 'Tipo II', III: 'Tipo III' };
-let categoria = 'todas';
-
-function protocolo(id) {
-  return `<button type="button" class="enlace" data-ir-ruta="${id}">Ver la ruta: ${esc(tituloRuta(id))}</button>`;
-}
-
 function detalle43(t) {
-  const estudiante = t.puertas.estudiante;
-  const paraTi = puerta === 'estudiante' && !estudiante ? '' :
+  const paraTi = puerta === 'estudiante' && !t.puertas.estudiante ? '' :
     `<div class="para-ti"><p class="etiqueta">${PARA_TI[puerta]}</p><p>${esc(t.puertas[puerta])}</p></div>`;
   return `<div class="detalle">
+    <p class="capa1-dentro">${esc(t.capa1)}</p>
     <ul>${t.significa.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
     <div class="tipos"><span class="etiqueta">Puede ser</span>${t.tipos.map((x) =>
       `<span class="tipo ${x === 'II' || x === 'III' ? 'grave' : ''}">${TIPO_ETQ[x]}</span>`).join('')}
       <span class="sin-validar">propuesta sin validar</span></div>
     ${t.depende ? `<p class="nota">Depende de: ${esc(t.depende)}</p>` : ''}
     <div><p class="etiqueta">Qué hace el colegio</p><ul>${t.que_hace.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
-    ${t.protocolos.map(protocolo).join('')}
+    ${t.protocolos.map((id) => `<button type="button" class="enlace" data-ir-a="ruta-${id}">Ver la ruta: ${esc(tituloRuta(id))}</button>`).join('')}
     ${paraTi}
     <div class="derecho"><p class="etiqueta">${DERECHO_TITULO[puerta]}</p><q>${esc(t.derecho)}</q><span class="cita"><span class="fuente">Capítulo III · Derechos</span></span></div>
-    <details class="oficial"><summary>Texto oficial del manual</summary>
-      <div class="cita">${t.oficial.map((o) => `<div><p class="fuente">${esc(o.tipo)}</p><blockquote>${esc(o.texto)}</blockquote></div>`).join('')}</div>
-    </details>
+    ${oficial(t)}${copiarEnlace(t.id)}
   </div>`;
 }
 
-function coincide(texto, q) {
-  return !q || q.split(/\s+/).every((p) => normal(texto).includes(p));
+/* ---------- acordeon: plegado, solo el titulo; abrir uno cierra el anterior ---------- */
+const ES_FAQ = new Set(DATOS.temas.map((t) => t.id));
+const PREGUNTA = Object.fromEntries([...DATOS.temas, ...DATOS.temas43].map((t) => [t.id, t]));
+const abierto = { 'lista-faq': null, 'lista-tema': null, resultados: null };
+function item(t, lista) {
+  const ab = abierto[lista] === t.id, faq = ES_FAQ.has(t.id);
+  return `<article class="tema" id="q-${lista}-${esc(t.id)}" data-abierto="${ab}">
+    <button class="tema-boton ${faq ? 'con-icono' : ''}" type="button" aria-expanded="${ab}" data-pregunta="${esc(t.id)}">
+      ${faq ? `<span class="icono">${ICONOS[t.icono]}</span>` : ''}
+      <span><h3>${esc(t.pregunta)}</h3></span>${FLECHA}
+    </button>
+    ${ab ? (faq ? detalle(t) : detalle43(t)) : ''}
+  </article>`;
+}
+let temaActual = null, resultadosActuales = [];
+function pintarLista(lista) {
+  if (lista === 'lista-faq') $(lista).innerHTML = DATOS.temas.map((t) => item(t, lista)).join('');
+  if (lista === 'lista-tema') $(lista).innerHTML = DATOS.temas43.filter((t) => t.categoria === temaActual).map((t) => item(t, lista)).join('');
+  if (lista === 'resultados') pintarResultados();
+}
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-pregunta]');
+  if (!b) return;
+  const cont = b.closest('#lista-faq, #lista-tema, #resultados');
+  const lista = cont.id === 'resultados' ? 'resultados' : cont.id;
+  abierto[lista] = abierto[lista] === b.dataset.pregunta ? null : b.dataset.pregunta;
+  pintarLista(lista);
+  const el = $(`q-${lista}-${abierto[lista]}`);
+  if (el && el.getBoundingClientRect().top < 60) el.scrollIntoView({ block: 'start' });
+});
+
+/* ---------- buscador: sin tildes, todas las palabras ---------- */
+function pintarResultados() {
+  const q = normal($('busqueda').value.trim());
+  const palabras = q.split(/\s+/).filter((p) => p.length > 1);
+  const caja = $('resultados');
+  if (!palabras.length) { caja.hidden = true; caja.innerHTML = ''; $('tarjetas').hidden = false; return; }
+  resultadosActuales = [...DATOS.temas, ...DATOS.temas43].map((t) => {
+    const todo = normal(`${t.pregunta} ${t.palabras} ${t.capa1} ${NOMBRE_CAT[t.categoria] || ''}`);
+    const titulo = normal(`${t.pregunta} ${t.palabras}`);
+    let puntos = 0;
+    for (const p of palabras) { if (!todo.includes(p)) return null; puntos += titulo.includes(p) ? 2 : 1; }
+    return { t, puntos };
+  }).filter(Boolean).sort((a, b) => b.puntos - a.puntos).map((x) => x.t);
+  caja.hidden = false;
+  $('tarjetas').hidden = true;
+  caja.innerHTML = resultadosActuales.length
+    ? `<p class="marcador">${resultadosActuales.length} ${resultadosActuales.length === 1 ? 'respuesta' : 'respuestas'}</p><div class="temas">${resultadosActuales.map((t) => item(t, 'resultados')).join('')}</div>`
+    : '<p class="nota">Ninguna pregunta coincide con esas palabras. Prueba con otra palabra, o mira los temas del manual.</p>';
+}
+$('busqueda').addEventListener('input', () => { abierto.resultados = null; pintarResultados(); });
+
+/* ---------- portada ---------- */
+function pintarTarjetas() {
+  const t = [
+    ['ayuda', 'urgente', 'ayuda', 'Necesito ayuda ya', 'Teléfonos y qué hacer si hay peligro'],
+    ['faq', '', 'faq', 'Preguntas frecuentes', `${DATOS.temas.length} respuestas rápidas`],
+    ['temas', '', 'temas', 'Temas del manual', `${DATOS.temas43.length} preguntas en ${DATOS.categorias.length} temas`],
+    ['rutas', '', 'rutas', 'Qué hacer en una situación', `${DATOS.rutas.length} rutas paso a paso`],
+    ['cartilla', '', 'cartilla', 'Para los más pequeños', `${DATOS.cartilla.escenas.length} escenas ilustradas`],
+    ['prueba', '', 'prueba', 'Ponte a prueba', `${DATOS.casos.length} casos para pensar`],
+  ];
+  $('tarjetas').innerHTML = t.map(([h, c, i, n, d]) =>
+    `<a class="tarjeta ${c}" href="#${h}"><span class="icono">${ICONO[i]}</span><span><b>${n}</b><br><small>${d}</small></span></a>`).join('');
 }
 
-function pintarChips() {
-  const todas = [{ id: 'todas', nombre: 'Todos' }, ...DATOS.categorias];
-  document.getElementById('chips').innerHTML = todas.map((c) =>
-    `<button type="button" data-cat="${c.id}" aria-pressed="${categoria === c.id}">${esc(c.nombre)}</button>`).join('') +
-    '<button type="button" class="salto" data-salto="cartilla-sec">Para los más pequeños</button>' +
-    '<button type="button" class="salto" data-salto="rutas-sec">Rutas y protocolos</button>';
+/* ---------- temas en dos niveles ---------- */
+function pintarCategorias() {
+  $('lista-categorias').innerHTML = DATOS.categorias.map((c) => {
+    const n = DATOS.temas43.filter((t) => t.categoria === c.id).length;
+    return `<li><a class="fila" href="#tema-${c.id}"><span>${esc(c.nombre)}</span><span class="n">${n} ${n === 1 ? 'pregunta' : 'preguntas'}</span>${SIGUE}</a></li>`;
+  }).join('');
+}
+function abrirTema(id) {
+  if (!NOMBRE_CAT[id]) return false;
+  if (temaActual !== id) { temaActual = id; abierto['lista-tema'] = null; }
+  const n = DATOS.temas43.filter((t) => t.categoria === id).length;
+  $('tema-titulo').textContent = NOMBRE_CAT[id];
+  $('tema-cuenta').textContent = `${n} ${n === 1 ? 'pregunta' : 'preguntas'}. Toca una para ver la respuesta.`;
+  pintarLista('lista-tema');
+  return true;
 }
 
-function pintar43(q) {
-  const nombreCat = Object.fromEntries(DATOS.categorias.map((c) => [c.id, c.nombre]));
-  const lista = DATOS.temas43.filter((t) =>
-    (q ? true : categoria === 'todas' || t.categoria === categoria) &&
-    coincide(t.pregunta + ' ' + t.palabras + ' ' + t.capa1 + ' ' + nombreCat[t.categoria], q));
-  let html = '', grupo = '';
-  for (const t of lista) {
-    if (t.categoria !== grupo) { grupo = t.categoria; html += `<p class="grupo-titulo">${esc(nombreCat[grupo])}</p>`; }
-    html += `<article class="tema" data-abierto="${abierto === t.id}">
-      <button class="tema-boton" type="button" aria-expanded="${abierto === t.id}" data-tema="${t.id}">
-        <span class="icono"><span class="num-tema">${t.id.replace('-', '·')}</span></span>
-        <span><h3>${esc(t.pregunta)}</h3><p class="capa1">${esc(t.capa1)}</p></span>
-        ${FLECHA}
-      </button>
-      ${abierto === t.id ? detalle43(t) : ''}
-    </article>`;
-  }
-  document.getElementById('temas43').innerHTML = html;
-  return lista.length;
+/* ---------- rutas: lista por tipo con su gravedad; una ruta a la vez ---------- */
+const GRAVEDAD = { leve: 'Leve', medio: 'Intermedia', grave: 'Grave', acompana: 'Acompañamiento' };
+function pintarListaRutas() {
+  const grupo = (g, titulo) => `<h3 class="grupo-titulo">${titulo}</h3><ul class="filas">${DATOS.rutas.filter((r) => r.grupo === g).map((r) =>
+    `<li><a class="fila" href="#ruta-${r.id}"><span>${esc(r.titulo)}</span><span class="gravedad ${r.tono}">${r.no_falta ? 'No es falta · ' : ''}${GRAVEDAD[r.tono] || ''}</span>${SIGUE}</a></li>`).join('')}</ul>`;
+  $('lista-rutas').innerHTML = grupo('tipo', 'Según el tipo de situación') + grupo('especifica', 'Situaciones específicas');
 }
-
-function pintarTemas() {
-  const q = normal(document.getElementById('busqueda').value.trim());
-  const cont = document.getElementById('temas');
-  const visibles = DATOS.temas.filter((t) => coincide(t.pregunta + ' ' + t.palabras + ' ' + t.capa1, q));
-  cont.innerHTML = visibles.map((t) => `
-    <article class="tema" data-abierto="${abierto === t.id}">
-      <button class="tema-boton" type="button" aria-expanded="${abierto === t.id}" data-tema="${t.id}">
-        <span class="icono">${ICONOS[t.icono]}</span>
-        <span><h3>${esc(t.pregunta)}</h3><p class="capa1">${esc(t.capa1)}</p></span>
-        ${FLECHA}
-      </button>
-      ${abierto === t.id ? detalle(t) : ''}
-    </article>`).join('');
-  const n43 = pintar43(q);
-  document.getElementById('sin-resultados').hidden = visibles.length + n43 > 0;
-}
-
-document.getElementById('chips').addEventListener('click', (ev) => {
-  const s = ev.target.closest('[data-salto]');
-  if (s) { document.getElementById(s.dataset.salto).scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-  const b = ev.target.closest('[data-cat]');
-  if (!b) return;
-  categoria = b.dataset.cat;
-  abierto = null;
-  pintarChips();
-  pintarTemas();
-});
-document.getElementById('temas43').addEventListener('click', (ev) => {
-  const r = ev.target.closest('[data-ir-ruta]');
-  if (r) { irARuta(r.dataset.irRuta); return; }
-  const b = ev.target.closest('[data-tema]');
-  if (!b) return;
-  abierto = abierto === b.dataset.tema ? null : b.dataset.tema;
-  pintarTemas();
-});
-document.getElementById('temas').addEventListener('click', (ev) => {
-  const b = ev.target.closest('[data-tema]');
-  if (!b) return;
-  abierto = abierto === b.dataset.tema ? null : b.dataset.tema;
-  pintarTemas();
-});
-document.getElementById('busqueda').addEventListener('input', pintarTemas);
-document.querySelector('.puertas').addEventListener('click', (ev) => {
-  const b = ev.target.closest('[data-puerta]');
-  if (!b) return;
-  puerta = b.dataset.puerta;
-  try { localStorage.setItem('manual-puerta', puerta); } catch (e) { /* sin almacenamiento */ }
-  document.querySelectorAll('.puertas button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-  pintarTemas();
-  pintarCartilla();
-});
-document.querySelectorAll('.puertas button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.puerta === puerta)));
 
 /* ---------- componente de rutas: mapa (linea de metro) + guia paso a paso ---------- */
 (function () {
@@ -686,7 +775,11 @@ document.querySelectorAll('.puertas button').forEach((x) => x.setAttribute('aria
   });
   document.getElementById('r-ruta').addEventListener('click', (ev) => {
     const irA = ev.target.closest('[data-ir]');
-    if (irA) { modo = 'mapa'; elegir(irA.dataset.ir); document.getElementById('r-selector').scrollIntoView({ block: 'start' }); return; }
+    if (irA) {
+      // En el manual con secciones, la navegacion va por el hash (#ruta-ID): el boton atras funciona.
+      if (window.alIrARuta) { window.alIrARuta(irA.dataset.ir); return; }
+      modo = 'mapa'; elegir(irA.dataset.ir); document.getElementById('r-selector').scrollIntoView({ block: 'start' }); return;
+    }
     if (ev.target.closest('[data-diagrama]')) {
       const img = document.getElementById('r-visor-img');
       img.src = ruta().imagen; img.alt = 'Diagrama original: ' + ruta().titulo;
@@ -729,6 +822,13 @@ document.querySelectorAll('.puertas button').forEach((x) => x.setAttribute('aria
     modo = 'mapa'; elegir(id);
     document.getElementById('r-selector').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+  /* mostrar una ruta sin desplazar la pagina (lo usa el manual al entrar por #ruta-ID) */
+  window.mostrarRuta = function (id) {
+    if (!buscar(id)) return false;
+    if (id !== rutaId) { modo = 'mapa'; elegir(id); }
+    return true;
+  };
+  window.datosRuta = buscar;
   window.tituloRuta = (id) => (buscar(id) || { titulo: id }).titulo;
 
   guia = nueva();
@@ -736,87 +836,7 @@ document.querySelectorAll('.puertas button').forEach((x) => x.setAttribute('aria
   pintar();
 })();
 
-
-/* ---------- cartilla ilustrada ---------- */
-const CART = DATOS.cartilla;
-const GRUPO_CART = { personajes: 'Personajes', acuerdos: 'Nuestros acuerdos', despues: 'Si pasa algo', autocuidado: 'Me cuido y pido ayuda', derechos: 'Mis derechos' };
-let grupoCart = 'todas', lamina = 0;
-const voz = 'speechSynthesis' in window;
-// «Propón una escena» (Julian, 2026-10-01): solo cuando MJB abre el manual en su marco con
-// ?desde=app. Por el QR o el enlace publico no aparece. La ficha la abre MJB, con sesion
-// iniciada; aqui solo se le dice despues de que lamina se pide la escena nueva.
-const DESDE_APP = new URLSearchParams(location.search).get('desde') === 'app' && window.parent !== window;
-function escenasCart() { return CART.escenas.filter((s) => grupoCart === 'todas' || s.grupo === grupoCart); }
-function pintarCartilla() {
-  const lista = escenasCart();
-  lamina = Math.max(0, Math.min(lamina, lista.length - 1));
-  const s = lista[lamina];
-  document.getElementById('chips-cartilla').innerHTML = [['todas', 'Toda la cartilla'], ...Object.entries(GRUPO_CART)].map(([id, n]) =>
-    `<button type="button" data-gc="${id}" aria-pressed="${grupoCart === id}">${esc(n)}</button>`).join('');
-  const adulto = puerta === 'estudiante' ? '' :
-    `<p class="adulto">Para el adulto: ${esc(s.tema)}${s.delicada ? ' · trabajar esta lámina con acompañamiento de orientación' : ''}</p>`;
-  document.getElementById('cartilla').innerHTML = `
-    <figure class="lamina ${s.grupo === 'personajes' ? 'ancha' : ''}">
-      <img src="${s.imagen}" alt="${esc(s.titulo)}. ${esc(s.vineta)}">
-      <figcaption><span class="titulo-lamina">${esc(s.titulo)}</span><p class="vineta-grande">${esc(s.vineta)}</p>${adulto}</figcaption>
-    </figure>
-    <div class="mandos">
-      <div class="grupo-btn"><button type="button" data-lam="-1" ${lamina === 0 ? 'disabled' : ''} aria-label="Lámina anterior">◀ Anterior</button>
-        <span class="cuenta">${lamina + 1} / ${lista.length}</span>
-        <button type="button" data-lam="1" ${lamina === lista.length - 1 ? 'disabled' : ''} aria-label="Lámina siguiente">Siguiente ▶</button></div>
-      ${voz ? '<button type="button" class="escuchar" data-escuchar>Escuchar</button>' : ''}
-    </div>
-    ${DESDE_APP ? `<div class="proponer">
-      <p>¿Hace falta otra escena después de esta? Propónla para construirla.</p>
-      <button type="button" data-proponer>🎙 Narra la escena que quieres que aparezca</button>
-    </div>` : ''}
-    <div class="miniaturas">${lista.map((x, k) => `<button type="button" data-ir-lam="${k}" aria-current="${k === lamina}" aria-label="${esc(x.titulo)}"><img src="${x.imagen}" alt="" loading="lazy"></button>`).join('')}</div>`;
-  const actual = document.querySelector('.miniaturas [aria-current="true"]');
-  if (actual) actual.parentElement.scrollLeft = actual.offsetLeft - 40;
-}
-function leer(texto) {
-  if (!voz) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(texto);
-  u.lang = 'es-CO'; u.rate = 0.9;
-  const v = speechSynthesis.getVoices().find((x) => x.lang.startsWith('es'));
-  if (v) u.voice = v;
-  speechSynthesis.speak(u);
-}
-document.getElementById('chips-cartilla').addEventListener('click', (ev) => {
-  const b = ev.target.closest('[data-gc]');
-  if (!b) return;
-  grupoCart = b.dataset.gc; lamina = 0; pintarCartilla();
-});
-document.getElementById('cartilla').addEventListener('click', (ev) => {
-  const m = ev.target.closest('[data-lam]');
-  if (m) { if (voz) speechSynthesis.cancel(); lamina += +m.dataset.lam; pintarCartilla(); return; }
-  const k = ev.target.closest('[data-ir-lam]');
-  if (k) { if (voz) speechSynthesis.cancel(); lamina = +k.dataset.irLam; pintarCartilla(); return; }
-  if (ev.target.closest('[data-escuchar]')) leer(escenasCart()[lamina].vineta);
-  if (ev.target.closest('[data-proponer]')) {
-    const s = escenasCart()[lamina];
-    window.parent.postMessage({ tipo: 'mjb-proponer-escena', despuesDe: { numero: s.n, titulo: s.titulo, grupo: GRUPO_CART[s.grupo] || s.grupo } }, location.origin);
-  }
-});
-document.getElementById('cartilla').addEventListener('keydown', (ev) => {
-  if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
-  const n = escenasCart().length, d = ev.key === 'ArrowRight' ? 1 : -1;
-  if (lamina + d < 0 || lamina + d >= n) return;
-  ev.preventDefault(); lamina += d; pintarCartilla();
-});
-if (DESDE_APP) {
-  const general = document.getElementById('proponer-general');
-  general.hidden = false;
-  general.addEventListener('click', (ev) => {
-    if (ev.target.closest('[data-proponer-general]')) window.parent.postMessage({ tipo: 'mjb-proponer-escena', despuesDe: null }, location.origin);
-  });
-}
-document.getElementById('ir-cartilla').addEventListener('click', () => {
-  document.getElementById('cartilla-sec').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  document.getElementById('cartilla').focus({ preventScroll: true });
-});
-pintarCartilla();
+window.alIrARuta = (id) => { location.hash = '#ruta-' + id; };
 
 /* ---------- guia: ¿que tipo de situacion es? ---------- */
 const PASOS = {
@@ -834,7 +854,7 @@ const FINALES = {
 };
 let rastro = [];
 function pintarGuia(paso) {
-  const g = document.getElementById('guia');
+  const g = $('guia');
   if (PASOS[paso]) {
     const s = PASOS[paso];
     g.innerHTML = `${rastro.length ? `<p class="migas">${rastro.map(esc).join(' → ')}</p>` : ''}
@@ -845,48 +865,250 @@ function pintarGuia(paso) {
     const def = f.tipo ? DATOS.tipos[f.tipo].def : '';
     g.innerHTML = `<p class="migas">${rastro.map(esc).join(' → ')}</p>
       <div class="resultado ${f.grave ? 'grave' : ''}"><strong>${esc(f.t)}</strong><p>${esc(f.x)}</p>
-      ${(f.rutas || []).map((id) => `<button type="button" class="enlace" data-ir-ruta="${id}">Ver la ruta: ${esc(tituloRuta(id))}</button>`).join('')}
+      ${(f.rutas || []).map((id) => `<button type="button" class="enlace" data-ir-a="ruta-${id}">Ver la ruta: ${esc(tituloRuta(id))}</button>`).join('')}
       ${def ? `<details class="oficial"><summary>Definición oficial</summary><div class="cita"><blockquote>${esc(def)}</blockquote><p class="fuente">Capítulo VII · Decreto 1965 de 2013</p></div></details>` : ''}</div>
       <button type="button" class="enlace" data-reinicio>Empezar de nuevo</button>`;
   }
 }
-document.getElementById('guia').addEventListener('click', (ev) => {
+$('guia').addEventListener('click', (ev) => {
   const b = ev.target.closest('button');
-  if (!b) return;
-  if (b.dataset.irRuta) { irARuta(b.dataset.irRuta); return; }
+  if (!b || b.dataset.irA) return;
   if (b.hasAttribute('data-reinicio')) { rastro = []; pintarGuia('inicio'); return; }
   rastro.push(b.dataset.et);
   pintarGuia(b.dataset.sig);
 });
-pintarGuia('inicio');
 
-/* ---------- casos ---------- */
-const respondidos = {};
-function pintarCasos() {
-  const bien = Object.values(respondidos).filter((r) => r.ok).length;
-  const n = Object.keys(respondidos).length;
-  document.getElementById('marcador').textContent = n ? `${bien} de ${n} bien` : `${DATOS.casos.length} casos`;
-  document.getElementById('casos').innerHTML = DATOS.casos.map((c, i) => {
-    const r = respondidos[i];
-    return `<article class="caso">
-      <p>${esc(c.texto)}</p>
-      <div class="opciones">${c.opciones.map((o, k) => {
-        let estado = '';
-        if (r !== undefined) estado = k === c.correcta ? 'bien' : (k === r.elegida ? 'mal' : '');
-        return `<button type="button" data-caso="${i}" data-op="${k}" data-estado="${estado}" ${r !== undefined ? 'disabled' : ''}>${esc(o)}</button>`;
-      }).join('')}</div>
-      ${r !== undefined ? `<p class="explica">${r.ok ? '<b>¡Bien!</b> ' : '<b>No exactamente.</b> '}${esc(c.explica)}</p>` : ''}
-    </article>`;
-  }).join('');
+/* ---------- ayuda ya: el numero grande y «Copiar» (no depende de tel:) ---------- */
+function contactosAyuda() {
+  const lista = [['Emergencias', '123'], ['ICBF, línea de protección', '141']];
+  for (const r of DATOS.rutas) for (const [n, v] of r.contactos || []) {
+    if (!v || lista.some(([, x]) => x === v) || /^123$|^141$/.test(v)) continue;
+    lista.push([n, v]);
+  }
+  return lista;
 }
-document.getElementById('casos').addEventListener('click', (ev) => {
-  const b = ev.target.closest('[data-caso]');
-  if (!b) return;
-  const i = +b.dataset.caso, k = +b.dataset.op;
-  respondidos[i] = { elegida: k, ok: k === DATOS.casos[i].correcta };
-  pintarCasos();
+function pintarAyuda() {
+  $('contactos').innerHTML = contactosAyuda().map(([n, v], i) => /\d/.test(v)
+    ? `<div class="contacto"><span class="nombre">${esc(n)}</span><span class="num" id="num-${i}">${esc(v)}</span>
+        <button type="button" data-copiar="${esc(v)}" data-sel="num-${i}">Copiar</button></div>`
+    : `<div class="contacto"><span class="nombre">${esc(n)}</span><span class="lugar">${esc(v)}</span></div>`).join('');
+}
+function copiar(texto, boton, selId) {
+  const antes = boton.textContent;
+  const listo = (m) => { boton.textContent = m; setTimeout(() => { boton.textContent = antes; }, 1600); };
+  const respaldo = () => {
+    const el = selId && $(selId);
+    if (el) {
+      const r = document.createRange(); r.selectNodeContents(el);
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      try { if (document.execCommand('copy')) { listo('Copiado'); return; } } catch (e) { /* sigue seleccionado */ }
+      listo('Seleccionado'); return;
+    }
+    const ta = document.createElement('textarea'); ta.value = texto; ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'; document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (e) { /* sin portapapeles */ }
+    ta.remove(); listo(ok ? 'Copiado' : 'No se pudo copiar');
+  };
+  try { navigator.clipboard.writeText(texto).then(() => listo('Copiado'), respaldo); } catch (e) { respaldo(); }
+}
+document.addEventListener('click', (ev) => {
+  const c = ev.target.closest('[data-copiar]');
+  if (c) { copiar(c.dataset.copiar, c, c.dataset.sel); return; }
+  const e = ev.target.closest('[data-copiar-enlace]');
+  if (e) copiar(location.href.split('#')[0] + '#p-' + e.dataset.copiarEnlace, e, null);
 });
-pintarCasos();
-pintarChips();
-pintarTemas();
+
+/* ---------- ponte a prueba: un caso a la vez ---------- */
+let caso = 0, respuesta = null, aciertos = 0;
+function pintarCaso() {
+  const c = DATOS.casos[caso];
+  $('marcador').textContent = `Caso ${caso + 1} de ${DATOS.casos.length}${aciertos || caso ? ` · ${aciertos} bien` : ''}`;
+  const ultimo = caso === DATOS.casos.length - 1;
+  $('casos').innerHTML = `<article class="caso">
+    <p>${esc(c.texto)}</p>
+    <div class="opciones">${c.opciones.map((o, k) => {
+      const estado = respuesta === null ? '' : k === c.correcta ? 'bien' : k === respuesta ? 'mal' : '';
+      return `<button type="button" data-op="${k}" data-estado="${estado}" ${respuesta !== null ? 'disabled' : ''}>${esc(o)}</button>`;
+    }).join('')}</div>
+    ${respuesta !== null ? `<p class="explica">${respuesta === c.correcta ? '<b>¡Bien!</b> ' : '<b>No exactamente.</b> '}${esc(c.explica)}</p>
+      <button type="button" class="siguiente" data-siguiente>${ultimo ? `Terminar · ${aciertos} de ${DATOS.casos.length} bien` : 'Siguiente caso'}</button>` : ''}
+  </article>`;
+}
+$('casos').addEventListener('click', (ev) => {
+  const o = ev.target.closest('[data-op]');
+  if (o && respuesta === null) { respuesta = +o.dataset.op; if (respuesta === DATOS.casos[caso].correcta) aciertos++; pintarCaso(); return; }
+  if (ev.target.closest('[data-siguiente]')) {
+    if (caso === DATOS.casos.length - 1) { caso = 0; aciertos = 0; } else caso++;
+    respuesta = null; pintarCaso(); window.scrollTo(0, 0);
+  }
+});
+
+/* ---------- cartilla: cuadricula con filtros y modo presentacion ---------- */
+const CART = DATOS.cartilla;
+const GRUPO_CART = { personajes: 'Personajes', acuerdos: 'Nuestros acuerdos', despues: 'Si pasa algo', autocuidado: 'Me cuido y pido ayuda', derechos: 'Mis derechos' };
+let grupoCart = 'todas', lamina = 0;
+const voz = 'speechSynthesis' in window;
+// «Propón una escena» (Julian, 2026-10-01): solo cuando MJB abre el manual en su marco con
+// ?desde=app. Por el QR o el enlace publico no aparece. La ficha la abre MJB, con sesion
+// iniciada; aqui solo se le avisa con postMessage.
+const DESDE_APP = new URLSearchParams(location.search).get('desde') === 'app' && window.parent !== window;
+const escenasCart = () => CART.escenas.filter((s) => grupoCart === 'todas' || s.grupo === grupoCart);
+function pintarCartilla() {
+  $('chips-cartilla').innerHTML = [['todas', 'Todas'], ...Object.entries(GRUPO_CART)].map(([id, n]) =>
+    `<button type="button" data-gc="${id}" aria-pressed="${grupoCart === id}">${esc(n)}</button>`).join('');
+  $('cgrid').innerHTML = escenasCart().map((s, k) =>
+    `<button type="button" class="escena" data-lam="${k}"><img src="${s.imagen}" alt="" loading="lazy">
+      <span class="tx"><span>${s.n}</span><b>${esc(s.titulo)}</b></span></button>`).join('') +
+    (DESDE_APP ? `<button type="button" class="escena proponer-tarjeta" data-proponer-general>
+      <b>+ Propón una escena</b><span>¿Falta un tema? Narra la escena que quieres que aparezca. No se agrega de inmediato: queda en la lista de escenas por construir para revisión; después se dibuja y se incorpora al manual.</span></button>` : '');
+}
+$('chips-cartilla').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-gc]');
+  if (b) { grupoCart = b.dataset.gc; pintarCartilla(); }
+});
+$('cgrid').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-lam]');
+  if (b) { abrirPresentacion(+b.dataset.lam); return; }
+  if (ev.target.closest('[data-proponer-general]')) window.parent.postMessage({ tipo: 'mjb-proponer-escena', despuesDe: null }, location.origin);
+});
+$('presentar').addEventListener('click', () => abrirPresentacion(0));
+
+let enPantallaCompleta = false;
+function abrirPresentacion(k) {
+  lamina = k;
+  $('presentacion').hidden = false;
+  document.body.style.overflow = 'hidden';
+  pintarLamina();
+  const p = $('presentacion');
+  if (p.requestFullscreen) p.requestFullscreen().then(() => { enPantallaCompleta = true; }, () => { /* opcional: en el marco puede no estar permitido */ });
+  $('p-sig').focus();
+}
+function cerrarPresentacion() {
+  if (voz) speechSynthesis.cancel();
+  $('presentacion').hidden = true;
+  document.body.style.overflow = '';
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  enPantallaCompleta = false;
+}
+document.addEventListener('fullscreenchange', () => {
+  // Esc en pantalla completa la quita el navegador: se cierra tambien la presentacion.
+  if (!document.fullscreenElement && enPantallaCompleta && !$('presentacion').hidden) cerrarPresentacion();
+});
+function pintarLamina() {
+  const lista = escenasCart(), s = lista[lamina], ultima = lamina === lista.length - 1;
+  $('p-grupo').textContent = GRUPO_CART[s.grupo] || s.grupo;
+  $('p-cuenta').textContent = `${lamina + 1} / ${lista.length}`;
+  const adulto = puerta === 'estudiante' ? '' :
+    `<p class="adulto">Para el adulto: ${esc(s.tema)}${s.delicada ? ' · trabajar esta lámina con acompañamiento de orientación' : ''}</p>`;
+  $('p-cuerpo').innerHTML = `<img src="${s.imagen}" alt="${esc(s.titulo)}. ${esc(s.vineta)}">
+    <p class="p-titulo">${esc(s.titulo)}</p><p class="p-vineta">${esc(s.vineta)}</p>${adulto}
+    ${DESDE_APP ? '<button type="button" class="p-proponer" data-proponer>¿Hace falta otra escena después de esta? Propónla</button>' : ''}`;
+  $('p-ant').disabled = lamina === 0;
+  $('p-sig').textContent = ultima ? 'Terminar' : 'Siguiente ▶';
+  $('p-escuchar').hidden = !voz;
+}
+function moverLamina(d) {
+  const n = escenasCart().length;
+  if (voz) speechSynthesis.cancel();
+  if (lamina + d >= n) { cerrarPresentacion(); return; }
+  if (lamina + d < 0) return;
+  lamina += d; pintarLamina();
+}
+function leer(texto) {
+  if (!voz) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(texto);
+  u.lang = 'es-CO'; u.rate = 0.9;
+  const v = speechSynthesis.getVoices().find((x) => x.lang.startsWith('es'));
+  if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+$('p-ant').addEventListener('click', () => moverLamina(-1));
+$('p-sig').addEventListener('click', () => moverLamina(1));
+$('p-cerrar').addEventListener('click', cerrarPresentacion);
+$('p-escuchar').addEventListener('click', () => leer(escenasCart()[lamina].vineta));
+$('p-cuerpo').addEventListener('click', (ev) => {
+  if (!ev.target.closest('[data-proponer]')) return;
+  const s = escenasCart()[lamina];
+  window.parent.postMessage({ tipo: 'mjb-proponer-escena', despuesDe: { numero: s.n, titulo: s.titulo, grupo: GRUPO_CART[s.grupo] || s.grupo } }, location.origin);
+});
+document.addEventListener('keydown', (ev) => {
+  if ($('presentacion').hidden) return;
+  if (ev.key === 'ArrowRight' || ev.key === ' ') { ev.preventDefault(); moverLamina(1); }
+  else if (ev.key === 'ArrowLeft') { ev.preventDefault(); moverLamina(-1); }
+  else if (ev.key === 'Escape') { ev.preventDefault(); cerrarPresentacion(); }
+});
+let toqueX = null, toqueY = null;
+$('presentacion').addEventListener('touchstart', (ev) => { toqueX = ev.touches[0].clientX; toqueY = ev.touches[0].clientY; }, { passive: true });
+$('presentacion').addEventListener('touchend', (ev) => {
+  if (toqueX === null) return;
+  const dx = ev.changedTouches[0].clientX - toqueX, dy = ev.changedTouches[0].clientY - toqueY;
+  toqueX = null;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) moverLamina(dx < 0 ? 1 : -1);
+});
+
+/* ---------- quien lee ---------- */
+document.querySelector('.puertas').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-puerta]');
+  if (!b) return;
+  puerta = b.dataset.puerta;
+  try { localStorage.setItem('manual-puerta', puerta); } catch (e) { /* sin almacenamiento */ }
+  document.querySelectorAll('.puertas button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  pintarLista('lista-faq'); if (temaActual) pintarLista('lista-tema'); pintarResultados();
+});
+document.querySelectorAll('.puertas button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.puerta === puerta)));
+
+/* ---------- navegacion por hash: una seccion a la vez; el boton atras funciona ---------- */
+const VISTAS = ['inicio', 'ayuda', 'faq', 'temas', 'tema', 'rutas', 'ruta', 'cartilla', 'prueba'];
+const NAV = { inicio: 'inicio', temas: 'temas', tema: 'temas', ayuda: 'ayuda' };
+let enfocarBuscador = false;
+function mostrar(v) {
+  VISTAS.forEach((x) => { $('v-' + x).hidden = x !== v; });
+  document.querySelectorAll('#nav button').forEach((b) => b.removeAttribute('aria-current'));
+  if (NAV[v]) $('nav-' + NAV[v]).setAttribute('aria-current', 'page');
+}
+function enrutar() {
+  let h = 'inicio';
+  try { h = decodeURIComponent(location.hash.slice(1)) || 'inicio'; } catch (e) { /* hash raro: inicio */ }
+  if (!$('presentacion').hidden) cerrarPresentacion();
+  let v = h, pregunta = null;
+  if (h.startsWith('tema-')) v = abrirTema(h.slice(5)) ? 'tema' : 'temas';
+  else if (h.startsWith('ruta-')) v = window.mostrarRuta(h.slice(5)) ? 'ruta' : 'rutas';
+  else if (h.startsWith('p-') && PREGUNTA[h.slice(2)]) {
+    const t = PREGUNTA[h.slice(2)];
+    pregunta = t.id;
+    if (ES_FAQ.has(t.id)) { v = 'faq'; abierto['lista-faq'] = t.id; pintarLista('lista-faq'); }
+    else { abrirTema(t.categoria); v = 'tema'; abierto['lista-tema'] = t.id; pintarLista('lista-tema'); }
+  }
+  if (!VISTAS.includes(v)) v = 'inicio';
+  mostrar(v);
+  if (pregunta) {
+    const el = $(`q-${v === 'faq' ? 'lista-faq' : 'lista-tema'}-${pregunta}`);
+    if (el) { el.scrollIntoView({ block: 'start' }); el.querySelector('button').focus({ preventScroll: true }); }
+  } else window.scrollTo(0, 0);
+  if (v === 'inicio' && enfocarBuscador) { enfocarBuscador = false; $('busqueda').focus(); }
+}
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('button[data-ir-a]');
+  if (!b) return;
+  if (b.dataset.irA === 'buscar') {
+    if (location.hash && location.hash !== '#inicio') { enfocarBuscador = true; location.hash = '#inicio'; }
+    else { window.scrollTo(0, 0); $('busqueda').focus(); }
+    return;
+  }
+  location.hash = '#' + b.dataset.irA;
+});
+window.addEventListener('hashchange', enrutar);
+
+/* ---------- arranque ---------- */
+[['inicio', 'Inicio'], ['buscar', 'Buscar'], ['temas', 'Temas'], ['ayuda', 'Ayuda']].forEach(([k, n]) => { $('nav-' + k).innerHTML = `${ICONO[k]}<span>${n}</span>`; });
+pintarTarjetas();
+pintarLista('lista-faq');
+pintarCategorias();
+pintarListaRutas();
+pintarGuia('inicio');
+pintarAyuda();
+pintarCaso();
+pintarCartilla();
+enrutar();
 </script>
