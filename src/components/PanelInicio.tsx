@@ -706,21 +706,30 @@ export function FilaConFlechas({ filaRef, children }: { filaRef: React.RefObject
     if (el) el.scrollBy({ left: sentido * el.clientWidth * 0.8, behavior: 'smooth' });
   };
 
-  // Sin círculo: solo el ángulo, con el mismo trazo de línea neón de los iconos
-  // (1.5, extremos redondeados) y del tamaño de los iconos de las baldosas (32 px).
-  // Va sobre una franja de vidrio que se desvanece hacia el contenido.
+  // Estilo pedido por Julián: solo el ángulo, sin recuadro, con trazo neón en
+  // degradado cian → fucsia y brillo suave, del tamaño de los iconos de las baldosas.
   const claseFlecha =
-    'group/flecha hidden [@media(pointer:fine)]:flex absolute inset-y-0 z-10 w-14 items-center justify-center ' +
-    'text-strong/70 hover:text-strong transition-colors';
+    'group/flecha hidden [@media(pointer:fine)]:flex absolute top-1/2 -translate-y-1/2 z-10 ' +
+    'w-10 h-14 items-center justify-center';
 
-  const Angulo = ({ haciaLaDerecha }: { haciaLaDerecha: boolean }) => (
-    <svg viewBox="0 0 24 24"
-      className="w-8 h-8 transition-[filter] [filter:drop-shadow(0_0_5px_rgba(148,163,184,0.5))] group-hover/flecha:[filter:drop-shadow(0_0_8px_rgba(226,232,240,0.9))]"
-      fill="none" stroke="currentColor" strokeWidth={1.5}
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={haciaLaDerecha ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
-    </svg>
-  );
+  const Angulo = ({ haciaLaDerecha }: { haciaLaDerecha: boolean }) => {
+    const idDegradado = haciaLaDerecha ? 'flecha-neon-der' : 'flecha-neon-izq';
+    return (
+      <svg viewBox="0 0 24 24"
+        className="w-9 h-9 opacity-55 group-hover/flecha:opacity-100 transition-[transform,opacity] duration-200 group-hover/flecha:scale-110 [filter:drop-shadow(0_0_3px_rgba(34,211,238,0.45))_drop-shadow(0_0_6px_rgba(217,70,239,0.35))] group-hover/flecha:[filter:drop-shadow(0_0_5px_rgba(34,211,238,0.95))_drop-shadow(0_0_10px_rgba(217,70,239,0.8))]"
+        fill="none" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <defs>
+          <linearGradient id={idDegradado} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#22d3ee" />
+            <stop offset="100%" stopColor="#d946ef" />
+          </linearGradient>
+        </defs>
+        <path stroke={`url(#${idDegradado})`} strokeOpacity={0.85} d={haciaLaDerecha ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
+        {/* Reflejo interior fino: da el aspecto de vidrio */}
+        <path stroke="white" strokeOpacity={0.45} strokeWidth={0.8} d={haciaLaDerecha ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
+      </svg>
+    );
+  };
 
   return (
     <div className="relative">
@@ -729,13 +738,13 @@ export function FilaConFlechas({ filaRef, children }: { filaRef: React.RefObject
       </div>
       {puedeIzq && (
         <button type="button" aria-label="Ver anteriores" onClick={() => mover(-1)}
-          className={`${claseFlecha} left-0 bg-gradient-to-r from-app via-app/70 to-transparent`}>
+          className={`${claseFlecha} -left-11`}>
           <Angulo haciaLaDerecha={false} />
         </button>
       )}
       {puedeDer && (
         <button type="button" aria-label="Ver más" onClick={() => mover(1)}
-          className={`${claseFlecha} right-0 bg-gradient-to-l from-app via-app/70 to-transparent`}>
+          className={`${claseFlecha} -right-11`}>
           <Angulo haciaLaDerecha />
         </button>
       )}
