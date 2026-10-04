@@ -70,7 +70,7 @@ export default function EscribirAlGrupo({
               target="_blank"
               rel="noreferrer"
               onClick={() => setAbierta(false)}
-              className="flex min-h-[40px] w-full items-center justify-center gap-2 rounded-xl bg-accent px-3 text-sm font-medium text-on-accent"
+              className="flex min-h-[40px] w-full items-center justify-center gap-2 rounded-xl bg-accent px-3 text-sm font-medium text-accent-fg"
             >
               <Mail size={16} aria-hidden />
               Escribir a {correos.length} del grupo

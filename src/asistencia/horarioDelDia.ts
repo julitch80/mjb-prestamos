@@ -12,9 +12,10 @@
  */
 import { useMemo } from 'react';
 import { BLOQUES_MANANA, BLOQUES_TARDE } from '../data/maestros';
-import { asignacionDeDocente } from '../data/asignacionAcademica';
+import { ASIGNACION_2026, asignacionDeDocente, getAsignatura } from '../data/asignacionAcademica';
 import { useAppStore } from '../data/store';
-import { clasesEfectivas, fechaLocalISO, type ClaseEfectiva } from '../data/horario/clasesEfectivas';
+import { clasesEfectivas, esDiaSinClasesPorDefecto, fechaLocalISO, type ClaseEfectiva } from '../data/horario/clasesEfectivas';
+import { horasLibresDelDia, type HoraLibre } from './domain/seguimiento-alerta';
 import { useClasesEfectivasHoy } from '../data/horario/useClasesEfectivasHoy';
 import type { FranjaHoraria, HoraDeClase } from './domain/bloques-clase';
 import type { Jornada } from './domain/types';
@@ -64,4 +65,45 @@ export function bloquesDeHoyEnGrado(slotId: string | null, grado: string, fecha:
   return horasDeHoy(slotId, fecha)
     .filter((h) => h.grado === grado)
     .map((h) => h.bloque);
+}
+
+/**
+ * TODAS las asignaturas que se dictan en un grado, con el puesto de quien las dicta. Es la
+ * lista de las ESPERADAS en el reporte de alerta («9 de 12 entregadas»): sale de la
+ * asignacion academica, no se escribe a mano. Excluye el centro de interes, que no es
+ * una clase del grupo.
+ */
+export function asignaturasDelGrado(grado: string): { subjectId: string; nombre: string; abrev: string; slotId: string }[] {
+  const vistas = new Set<string>();
+  const res: { subjectId: string; nombre: string; abrev: string; slotId: string }[] = [];
+  for (const e of ASIGNACION_2026) {
+    if (e.grupo !== grado || e.asignaturaId === 'ci' || vistas.has(e.asignaturaId)) continue;
+    vistas.add(e.asignaturaId);
+    const a = getAsignatura(e.asignaturaId);
+    res.push({ subjectId: e.asignaturaId, nombre: a?.nombre ?? e.asignaturaId, abrev: a?.abrev ?? e.asignaturaId.slice(0, 4), slotId: e.docenteId });
+  }
+  return res.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+/** Dia sin clases para los estudiantes (festivo, jornada pedagogica…), segun MJB. Fines de semana aparte. */
+export function diaSinClases(fechaISO: string): boolean {
+  return esDiaSinClasesPorDefecto(fechaISO);
+}
+
+/**
+ * Horas libres del director en esos dias, dentro de la jornada del grupo: las franjas en las
+ * que su horario efectivo (con los cambios del dia) no tiene clase. Para proponer la segunda
+ * citacion del acudiente que no vino (Julian, 2026-10-03). En una jornada reducida usa las
+ * franjas normales: es una propuesta, y el director puede escribir otra hora.
+ */
+export function horasLibresDirector(slotId: string | null, jornada: Jornada, dias: string[]): HoraLibre[] {
+  if (!slotId) return [];
+  const { horariosModificados, jornadasReducidas } = useAppStore.getState();
+  return dias.flatMap((f) => {
+    if (diaSinClases(f)) return [];
+    const ocupados = clasesEfectivas(slotId, f, { horariosModificados, jornadasReducidas })
+      .filter((c) => c.jornada === jornada)
+      .map((c) => c.bloque);
+    return horasLibresDelDia(f, ocupados, FRANJAS[jornada]);
+  });
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { FlechaNeon } from '../components/FlechaNeon';
 import QRCode from 'qrcode';
 import {
   abrirDireccionGrupo,
@@ -257,8 +258,8 @@ export default function Ficha({
 
   return (
     <div className="space-y-3">
-      <button onClick={onVolver} className="text-sm text-accent">
-        ← Volver
+      <button onClick={onVolver} className="group inline-flex items-center gap-1 text-sm text-accent">
+        <FlechaNeon direccion="izquierda" tamano="sm" /> Volver
       </button>
 
       <div className="rounded-xl border border-line bg-card p-3">
@@ -874,7 +875,7 @@ function CorreoDelEstudiante({
         <button
           onClick={() => void guardar(`${local}@${DOMINIO_INSTITUCIONAL}`)}
           disabled={!valido || ocupado}
-          className="rounded-lg bg-accent px-3 py-1 text-xs text-on-accent disabled:opacity-50"
+          className="rounded-lg bg-accent px-3 py-1 text-xs text-accent-fg disabled:opacity-50"
         >
           Guardar
         </button>

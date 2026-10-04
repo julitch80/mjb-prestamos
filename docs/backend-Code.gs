@@ -208,6 +208,8 @@ const ACCIONES_PROTEGIDAS = [
   'getSyncEditor', 'guardarCupos', 'guardarSyncEditor', 'marcarLeida',
   'marcarTodasLeidas', 'publicarAviso', 'responderSolicitudCesion',
   'retirarAviso',
+  // Citaciones de la alerta académica (módulo de asistencia, 2026-10-02).
+  'enviarCitacionesAlerta',
   // NO se protegen aquí (a propósito, no es un olvido):
   // - getDatosTareas, getAnclasGrupos: la agenda pública del estudiante los
   //   consulta desde un QR SIN sesión. Protegerlos rompe la agenda de todo
@@ -247,6 +249,7 @@ function manejar(e) {
       case 'marcarTodasLeidas':  resultado = marcarTodasLeidas(p);  break;
       case 'enviarCorreo':       resultado = enviarCorreoAccion(p, correoAutenticado); break;
       case 'enviarCorreoMasivo': resultado = enviarCorreoMasivo(p, correoAutenticado); break;
+      case 'enviarCitacionesAlerta': resultado = enviarCitacionesAlerta(p, correoAutenticado); break;
       case 'publicarAviso':      resultado = publicarAviso(p);      break;
       case 'retirarAviso':       resultado = retirarAviso(p);       break;
       case 'crearSugerencia':    resultado = crearSugerencia(p);    break;
@@ -710,6 +713,74 @@ function enviarCorreoMasivo(p, correoAutenticado) {
       catch (err) { fallidos.push({ correo: d, error: String(err.message || err) }); }
     });
     return { ok: true, enviados: enviados.length, total: destinatarios.length, fallidos: fallidos };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+// ── CITACIONES DE LA ALERTA ACADÉMICA (módulo de asistencia, 2026-10-02) ─────
+// El director de grupo cita a los acudientes de los estudiantes con dos o más
+// asignaturas en alerta. NO es un relay de correo libre, a diferencia de
+// enviarCorreo/enviarCorreoMasivo (solo coordinación/rectoría):
+//   - Solo el director de ESE grupo (DIRECTORES_CORREO) o coordinación.
+//   - El texto lo arma ESTA función con una plantilla fija; del cliente solo
+//     llegan los datos (nombre, fecha, hora...), escapados.
+//   - Solo a correos institucionales (@FIREBASE_DOMAIN), uno por persona, y
+//     como máximo 45 por llamada.
+//   - Cada envío queda en la hoja CitacionesAlerta (quién, a quién, cuándo).
+// El motivo es GENÉRICO, sin asignaturas: el correo institucional también lo
+// lee el estudiante, y el informe se entrega en persona.
+const CITACIONES_ALERTA_HEADERS = ['timestamp', 'enviadoPor', 'grupo', 'correo', 'estudiante', 'fecha', 'hora'];
+// Segunda citación (seguimiento) a quien no justificó su inasistencia: texto VERIFICADO
+// el 2026-10-03 contra la fuente oficial. Vive aquí y no lo manda el cliente.
+const FUNDAMENTO_CITACION_ALERTA = 'De conformidad con el artículo 7, literal c, de la Ley 115 de 1994 y el artículo 2.3.3.3.3.15 del Decreto 1075 de 2015, corresponde a la familia informarse sobre el rendimiento académico de sus hijos, hacer seguimiento a su proceso evaluativo y participar en las acciones de mejoramiento. Nuestro Manual de Convivencia establece como deber de los padres asistir a las citaciones realizadas por los docentes o coordinación.';
+
+function enviarCitacionesAlerta(p, correoAutenticado) {
+  try {
+    const grupo = String(p.grupo || '').trim();
+    if (!grupo) return { ok: false, error: 'Falta el grupo' };
+    const correo = String(correoAutenticado || '').toLowerCase();
+    const esDirectorDeEsteGrupo = String(DIRECTORES_CORREO[grupo] || '').toLowerCase() === correo;
+    const esCoordinacion = correo === String(CONFIG.COORD_MANANA).toLowerCase()
+                         || correo === String(CONFIG.COORD_TARDE).toLowerCase();
+    if (!esDirectorDeEsteGrupo && !esCoordinacion) return { ok: false, error: 'no-autorizado' };
+
+    var lista;
+    try { lista = JSON.parse(p.citaciones || '[]'); } catch (e) { return { ok: false, error: 'Citaciones inválidas' }; }
+    if (!Array.isArray(lista) || lista.length === 0) return { ok: false, error: 'Sin citaciones' };
+    if (lista.length > 45) return { ok: false, error: 'Máximo 45 citaciones por envío' };
+
+    const esc = function(t) {
+      return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    };
+    const sheet = getSheet('CitacionesAlerta', CITACIONES_ALERTA_HEADERS);
+    asegurarEncabezados_(sheet, CITACIONES_ALERTA_HEADERS);
+    const enviados = [];
+    const fallidos = [];
+    lista.forEach(function(c) {
+      const para = String((c && c.correo) || '').trim().toLowerCase();
+      if (!para.endsWith('@' + CONFIG.FIREBASE_DOMAIN)) { fallidos.push({ correo: para, error: 'no-institucional' }); return; }
+      // seguimiento: segunda citación del acudiente que no vino a la entrega.
+      const seg = c.seguimiento && typeof c.seguimiento === 'object' ? c.seguimiento : null;
+      const html =
+        '<p>Señor(a) acudiente de <b>' + esc(c.estudiante) + '</b>, del grupo <b>' + esc(grupo) + '</b>:</p>' +
+        (seg ? '<p>Como no fue posible su asistencia a la entrega de la alerta académica del ' + esc(seg.fechaEntrega) + ', le citamos con el director de grupo el <b>' + esc(c.fecha) + '</b> a las <b>' + esc(c.hora) + '</b>.</p>' +
+               (seg.conFundamento ? '<p>' + esc(FUNDAMENTO_CITACION_ALERTA) + '</p>' : '')
+             : '<p>Le citamos a la Institución el <b>' + esc(c.fecha) + '</b> a las <b>' + esc(c.hora) + '</b>' +
+               (c.general ? ' (reunión general de acudientes)' : '') + '.</p>') +
+        '<p><b>Motivo:</b> ' + esc(c.motivo) + '.</p>' +
+        '<p>Su asistencia es muy importante para acompañar el proceso del estudiante.</p>' +
+        '<p>Su asistencia es <b>obligatoria</b> por requerimiento de la institución. Esta citación sirve como soporte para solicitar la licencia remunerada para obligaciones escolares como acudiente (Código Sustantivo del Trabajo, art. 57, num. 6, lit. f, modificado por la Ley 2466 de 2025).</p>' +
+        '<p>Cordialmente,<br>' + esc(c.director) + '<br>Director(a) de grupo ' + esc(grupo) + '</p>';
+      try {
+        enviarHtml(para, (seg ? 'Citación de seguimiento — ' : 'Citación a acudiente — ') + String(c.estudiante || '').slice(0, 80), html, undefined, {
+          generadoPor: String(c.director || ''), correoAutor: correo,
+        });
+        enviados.push(para);
+        sheet.appendRow([new Date().toISOString(), correo, grupo, para, String(c.estudiante || ''), String(c.fecha || ''), String(c.hora || '')]);
+      } catch (err) {
+        fallidos.push({ correo: para, error: String(err.message || err) });
+      }
+    });
+    return { ok: true, enviados: enviados, fallidos: fallidos };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 

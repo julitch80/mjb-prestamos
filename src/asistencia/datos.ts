@@ -34,6 +34,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  Timestamp,
   where,
   writeBatch,
   type DocumentReference,
@@ -64,6 +65,7 @@ import {
 } from './domain/seguimiento-caso';
 import type { MarkCode } from './domain/marks';
 import { planCambioColumna, type PlanCambioColumna } from './domain/columna';
+import { alertaId, citacionAlertaId, convocatoriaAlertaId } from './domain/alerta-academica';
 import type {
   AlertConfig,
   AvisoEvasion,
@@ -93,6 +95,12 @@ import type {
   Student,
   TipoPendiente,
   ValorCelda,
+  AgendaCitaciones,
+  ConvocatoriaAlerta,
+  MarcaAlerta,
+  PlanillaAlerta,
+  JustificacionInasistencia,
+  ReprogramacionCita,
 } from './domain/types';
 import { ALERT_CONFIG_POR_DEFECTO } from './domain/alertas';
 import { exigirAutor } from './identidad';
@@ -3357,4 +3365,333 @@ export async function leerCasosRemitidos(grado: string): Promise<CasoPermanencia
     ),
   );
   return aLista<CasoPermanencia>(snap).filter((c) => ESTADOS_ABIERTOS.includes(c.estado));
+}
+
+// ════════════════════════════════════════════════════════════════════════════════════
+//  Alerta academica (2026-10-02) — ver docs/modelo-alerta-academica.md
+// ════════════════════════════════════════════════════════════════════════════════════
+
+/** Un instante de Firestore (Timestamp) o un numero, a milisegundos. */
+function aMs(v: unknown): number {
+  if (typeof v === 'number') return v;
+  const t = v as { toMillis?: () => number } | null | undefined;
+  return t?.toMillis?.() ?? 0;
+}
+
+function aConvocatoria(d: Record<string, unknown>): ConvocatoriaAlerta {
+  return {
+    ...(d as unknown as ConvocatoriaAlerta),
+    limite: aMs(d.limite),
+    abiertaEn: aMs(d.abiertaEn),
+    cerradaEn: d.cerradaEn ? aMs(d.cerradaEn) : null,
+  };
+}
+
+/** Fin del dia 'YYYY-MM-DD' en Colombia (UTC-5, sin horario de verano). */
+function finDelDia(fechaISO: string): Timestamp {
+  return Timestamp.fromDate(new Date(`${fechaISO}T23:59:59-05:00`));
+}
+
+/**
+ * Las convocatorias de una sede y jornada, la mas reciente primero. La lee cualquier
+ * usuario activo: es la cabecera, sin datos de menores.
+ */
+export async function convocatoriasAlerta(sede: Sede, jornada: Jornada): Promise<ConvocatoriaAlerta[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(collection(baseDatos(), 'asistenciaAlertaConvocatorias'), where('sede', '==', sede), where('jornada', '==', jornada)),
+  );
+  return snap.docs
+    .map((d) => aConvocatoria(d.data()))
+    .sort((a, b) => b.anio - a.anio || b.periodo - a.periodo);
+}
+
+/** Abre la convocatoria de un periodo. Solo coordinacion de esa sede y jornada (regla). */
+export async function abrirConvocatoriaAlerta(input: {
+  anio: number;
+  periodo: number;
+  sede: Sede;
+  jornada: Jornada;
+  fechaLimite: string;
+}): Promise<void> {
+  const autor = await exigirAutor();
+  const id = convocatoriaAlertaId(input.anio, input.periodo, input.sede, input.jornada);
+  await setDoc(doc(baseDatos(), 'asistenciaAlertaConvocatorias', id), {
+    convocatoriaId: id,
+    ...input,
+    abierta: true,
+    limite: finDelDia(input.fechaLimite),
+    fechaEntrega: null,
+    franjaInicio: null,
+    franjaFin: null,
+    abiertaPor: autor,
+    abiertaEn: serverTimestamp(),
+    cerradaPor: null,
+    cerradaEn: null,
+  });
+}
+
+/**
+ * Cambios de coordinacion sobre una convocatoria ya abierta: cerrarla, reabrirla, mover
+ * la fecha limite o poner el dia y la franja de entrega a las familias.
+ */
+export async function actualizarConvocatoriaAlerta(
+  convocatoriaId: string,
+  cambios: {
+    abierta?: boolean;
+    fechaLimite?: string;
+    fechaEntrega?: string | null;
+    franjaInicio?: string | null;
+    franjaFin?: string | null;
+    plazoExcusaDias?: number;
+  },
+): Promise<void> {
+  const autor = await exigirAutor();
+  const escritura: Record<string, unknown> = { ...cambios };
+  if (cambios.fechaLimite) escritura.limite = finDelDia(cambios.fechaLimite);
+  if (cambios.abierta === false) {
+    escritura.cerradaPor = autor;
+    escritura.cerradaEn = serverTimestamp();
+  }
+  await updateDoc(doc(baseDatos(), 'asistenciaAlertaConvocatorias', convocatoriaId), escritura);
+}
+
+/** La planilla de alerta de UN grado y asignatura, o null si todavia no se ha marcado nada. */
+export async function leerPlanillaAlerta(alertaIdDoc: string): Promise<PlanillaAlerta | null> {
+  if (!(await listo())) return null;
+  // Como en las sesiones: un documento que no existe hace reventar la regla de lectura
+  // (`resource` es null), asi que un rechazo aqui significa «todavia no existe».
+  const snap = await getDoc(doc(baseDatos(), 'asistenciaAlertas', alertaIdDoc)).catch(() => null);
+  return snap?.exists() ? (snap.data() as PlanillaAlerta) : null;
+}
+
+/** Las planillas de alerta del propio docente en un periodo (consulta por su puesto). */
+export async function misPlanillasAlerta(slotId: string, anio: number, periodo: number): Promise<PlanillaAlerta[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(collection(baseDatos(), 'asistenciaAlertas'), where('slotId', '==', slotId), where('anio', '==', anio), where('periodo', '==', periodo)),
+  );
+  return aLista<PlanillaAlerta>(snap);
+}
+
+/** Todas las planillas de un grado en un periodo: el insumo del consolidado del director. */
+export async function alertasDelGrado(grado: string, anio: number, periodo: number): Promise<PlanillaAlerta[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(collection(baseDatos(), 'asistenciaAlertas'), where('grado', '==', grado), where('anio', '==', anio), where('periodo', '==', periodo)),
+  );
+  return aLista<PlanillaAlerta>(snap);
+}
+
+/** Todas las planillas de una sede y jornada en un periodo: para coordinacion. */
+export async function alertasDeJornada(sede: Sede, jornada: Jornada, anio: number, periodo: number): Promise<PlanillaAlerta[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(
+      collection(baseDatos(), 'asistenciaAlertas'),
+      where('sede', '==', sede), where('jornada', '==', jornada), where('anio', '==', anio), where('periodo', '==', periodo),
+    ),
+  );
+  return aLista<PlanillaAlerta>(snap);
+}
+
+/**
+ * Crea la planilla si no existe (la primera marca). Mismo patron que `abrirSesion`: se
+ * escribe directo sin comprobar antes, y si rebota se lee para distinguir «ya existia».
+ */
+async function asegurarPlanillaAlerta(base: {
+  anio: number; periodo: number; sede: Sede; jornada: Jornada; grado: string; subjectId: string; slotId: string;
+}): Promise<string> {
+  const autor = await exigirAutor();
+  const id = alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId);
+  const ref = doc(baseDatos(), 'asistenciaAlertas', id);
+  const nueva = {
+    alertaId: id, ...base, estudiantes: {}, entregada: false, entregadaPor: null, entregadaEn: null,
+    ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp(),
+  };
+  const optimista = { ...nueva, ultimaEscrituraEn: Date.now() } as unknown as PlanillaAlerta;
+  await abrirDocumento<PlanillaAlerta>(ref, nueva, optimista, async (e) => {
+    const otra = await getDoc(ref).catch(() => null);
+    if (otra?.exists()) return otra.data() as PlanillaAlerta;
+    throw e;
+  });
+  return id;
+}
+
+/**
+ * Marca a UN estudiante (⚠️ o ✓) con ruta de campo puntual. El historial lo archiva el
+ * trigger del servidor; aqui no se espera el acuse, para que funcione sin señal.
+ */
+export async function marcarAlerta(
+  base: Parameters<typeof asegurarPlanillaAlerta>[0],
+  existe: boolean,
+  studentId: string,
+  marca: MarcaAlerta,
+): Promise<void> {
+  const autor = await exigirAutor();
+  const id = existe ? alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId) : await asegurarPlanillaAlerta(base);
+  registrarEnvio(
+    updateDoc(doc(baseDatos(), 'asistenciaAlertas', id), {
+      [`estudiantes.${studentId}`]: marca,
+      ultimaEscrituraPor: autor,
+      ultimaEscrituraEn: serverTimestamp(),
+    }),
+  );
+}
+
+/**
+ * «Entregar»: los que siguen sin marcar pasan a ✓ (ver `marcasAlEntregar`) y la planilla
+ * queda entregada. Se espera el acuse: es el momento en que el director empieza a contarla.
+ */
+export async function entregarPlanillaAlerta(
+  base: Parameters<typeof asegurarPlanillaAlerta>[0],
+  existe: boolean,
+  cambios: Record<string, MarcaAlerta>,
+): Promise<void> {
+  const autor = await exigirAutor();
+  const id = existe ? alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId) : await asegurarPlanillaAlerta(base);
+  const escritura: Record<string, unknown> = {
+    entregada: true,
+    entregadaPor: autor,
+    entregadaEn: serverTimestamp(),
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  };
+  for (const [studentId, marca] of Object.entries(cambios)) escritura[`estudiantes.${studentId}`] = marca;
+  await updateDoc(doc(baseDatos(), 'asistenciaAlertas', id), escritura);
+}
+
+/** La agenda de citaciones de un grado, o null si el director aun no la arma. */
+export async function leerAgendaCitaciones(citacionIdDoc: string): Promise<AgendaCitaciones | null> {
+  if (!(await listo())) return null;
+  const snap = await getDoc(doc(baseDatos(), 'asistenciaCitacionesAlerta', citacionIdDoc)).catch(() => null);
+  return snap?.exists() ? (snap.data() as AgendaCitaciones) : null;
+}
+
+/** Las agendas de una sede y jornada en un periodo: para las descargas de coordinacion. */
+export async function agendasDeJornada(sede: Sede, jornada: Jornada, anio: number, periodo: number): Promise<AgendaCitaciones[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(
+      collection(baseDatos(), 'asistenciaCitacionesAlerta'),
+      where('sede', '==', sede), where('jornada', '==', jornada), where('anio', '==', anio), where('periodo', '==', periodo),
+    ),
+  );
+  return aLista<AgendaCitaciones>(snap);
+}
+
+/** Guarda la agenda completa del director (crea o reemplaza la parte editable). */
+export async function guardarAgendaCitaciones(
+  agenda: Omit<AgendaCitaciones, 'citacionId' | 'ultimaEscrituraPor' | 'ultimaEscrituraEn'>,
+  existe: boolean,
+): Promise<void> {
+  const autor = await exigirAutor();
+  const id = citacionAlertaId(agenda.anio, agenda.periodo, agenda.sede, agenda.grado);
+  const ref = doc(baseDatos(), 'asistenciaCitacionesAlerta', id);
+  if (existe) {
+    await updateDoc(ref, {
+      modo: agenda.modo, parametros: agenda.parametros, citas: agenda.citas,
+      ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp(),
+    });
+  } else {
+    await setDoc(ref, { citacionId: id, ...agenda, ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp() });
+  }
+}
+
+/**
+ * Deja constancia de un envio de citaciones (correo, SMS o impresa) con ruta de campo
+ * puntual por estudiante: asi otro dispositivo del mismo director no pisa la marca.
+ */
+export async function marcarEnvioCitas(
+  citacionIdDoc: string,
+  studentIds: string[],
+  campo: 'enviadaCorreoEn' | 'enviadaSmsEn' | 'impresaEn',
+): Promise<void> {
+  if (studentIds.length === 0) return;
+  const autor = await exigirAutor();
+  const cambios: Record<string, unknown> = { ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp() };
+  const ahora = Date.now();
+  for (const id of studentIds) cambios[`citas.${id}.${campo}`] = ahora;
+  await updateDoc(doc(baseDatos(), 'asistenciaCitacionesAlerta', citacionIdDoc), cambios);
+}
+
+// ── Dia de entrega y seguimiento (2026-10-03) — ver domain/seguimiento-alerta.ts ──
+
+/** Escribe campos de UNA cita con rutas puntuales: dos dispositivos no se pisan. */
+async function escribirCita(citacionIdDoc: string, studentId: string, campos: Record<string, unknown>): Promise<void> {
+  const autor = await exigirAutor();
+  const cambios: Record<string, unknown> = { ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp() };
+  for (const [k, v] of Object.entries(campos)) cambios[`citas.${studentId}.${k}`] = v;
+  // Sin esperar el acuse, como la asistencia: el dia de la entrega puede no haber senal.
+  registrarEnvio(updateDoc(doc(baseDatos(), 'asistenciaCitacionesAlerta', citacionIdDoc), cambios));
+}
+
+/** El dia de la entrega: vino (`true`), no vino (`false`) o desmarcar (`null`). */
+export async function marcarAsistenciaEntrega(citacionIdDoc: string, studentId: string, asistio: boolean | null): Promise<void> {
+  await escribirCita(citacionIdDoc, studentId, { asistio });
+}
+
+/** «Cerrar la entrega»: los que siguen sin marcar quedan como no asistieron. */
+export async function cerrarEntrega(citacionIdDoc: string, sinMarcar: string[]): Promise<void> {
+  const autor = await exigirAutor();
+  const cambios: Record<string, unknown> = {
+    entregaCerradaEn: Date.now(), ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp(),
+  };
+  for (const id of sinMarcar) cambios[`citas.${id}.asistio`] = false;
+  await updateDoc(doc(baseDatos(), 'asistenciaCitacionesAlerta', citacionIdDoc), cambios);
+}
+
+export async function registrarJustificacion(
+  citacionIdDoc: string,
+  studentId: string,
+  j: Omit<JustificacionInasistencia, 'registradaPor' | 'registradaEn'> | null,
+): Promise<void> {
+  const autor = await exigirAutor();
+  await escribirCita(citacionIdDoc, studentId, { justificacion: j ? { ...j, registradaPor: autor, registradaEn: Date.now() } : null });
+}
+
+/** La UNICA nueva citacion del director. */
+export async function reprogramarCita(
+  citacionIdDoc: string,
+  studentId: string,
+  r: Pick<ReprogramacionCita, 'fecha' | 'hora' | 'conFundamento'>,
+): Promise<void> {
+  const autor = await exigirAutor();
+  await escribirCita(citacionIdDoc, studentId, {
+    reprogramacion: { ...r, creadaPor: autor, creadaEn: Date.now(), enviadaCorreoEn: null, enviadaSmsEn: null, asistio: null },
+  });
+}
+
+export async function marcarAsistenciaReprogramada(citacionIdDoc: string, studentId: string, asistio: boolean | null): Promise<void> {
+  await escribirCita(citacionIdDoc, studentId, { 'reprogramacion.asistio': asistio });
+}
+
+export async function marcarEnvioReprogramacion(
+  citacionIdDoc: string,
+  studentIds: string[],
+  campo: 'enviadaCorreoEn' | 'enviadaSmsEn',
+): Promise<void> {
+  if (studentIds.length === 0) return;
+  const autor = await exigirAutor();
+  const cambios: Record<string, unknown> = { ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp() };
+  for (const id of studentIds) cambios[`citas.${id}.reprogramacion.${campo}`] = Date.now();
+  await updateDoc(doc(baseDatos(), 'asistenciaCitacionesAlerta', citacionIdDoc), cambios);
+}
+
+/** El director remite a coordinacion (a mano). La remision por plazo se deriva, no se escribe. */
+export async function remitirCita(citacionIdDoc: string, studentId: string, motivo: string): Promise<void> {
+  const autor = await exigirAutor();
+  await escribirCita(citacionIdDoc, studentId, { remision: { motivo, remitidaPor: autor, remitidaEn: Date.now() } });
+}
+
+/**
+ * Coordinacion deja constancia de que atendio un caso remitido. Si la remision fue por plazo
+ * (derivada, sin documento), se escribe completa en ese momento.
+ */
+export async function atenderRemision(citacionIdDoc: string, studentId: string, motivo: string, nota: string, yaEscrita: boolean): Promise<void> {
+  const autor = await exigirAutor();
+  const ahora = Date.now();
+  await escribirCita(citacionIdDoc, studentId, yaEscrita
+    ? { 'remision.atendidaPor': autor, 'remision.atendidaEn': ahora, 'remision.notaCoordinacion': nota }
+    : { remision: { motivo, remitidaPor: 'plazo', remitidaEn: ahora, atendidaPor: autor, atendidaEn: ahora, notaCoordinacion: nota } });
 }

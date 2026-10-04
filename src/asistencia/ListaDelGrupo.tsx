@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FlechaNeon } from '../components/FlechaNeon';
 import { Search } from 'lucide-react';
 import Avatar from './Avatar';
 import EscribirAlGrupo from './EscribirAlGrupo';
@@ -59,8 +60,8 @@ export default function ListaDelGrupo({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <button onClick={onVolver} className="min-h-[36px] text-sm text-accent">
-          ← Planillas
+        <button onClick={onVolver} className="group inline-flex min-h-[36px] items-center gap-1 text-sm text-accent">
+          <FlechaNeon direccion="izquierda" tamano="sm" /> Planillas
         </button>
         {/* Correo con las direcciones en copia oculta, el mismo del director de grupo.
             No aparece si nadie del grupo tiene correo institucional. */}

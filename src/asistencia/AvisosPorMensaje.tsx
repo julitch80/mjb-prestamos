@@ -262,7 +262,7 @@ export default function AvisosPorMensaje({
                     marcar(actual.avisoId, 'enviado');
                     siguiente();
                   }}
-                  className="flex min-h-11 items-center gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-on-accent"
+                  className="flex min-h-11 items-center gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-accent-fg"
                 >
                   <MessageSquare size={16} aria-hidden /> Enviar mensaje
                 </a>
@@ -306,7 +306,7 @@ export default function AvisosPorMensaje({
             <button
               disabled={preparando}
               onClick={() => void preparar(candidatos.map((c) => c.fila.studentId))}
-              className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-on-accent disabled:opacity-50"
+              className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-fg disabled:opacity-50"
             >
               {preparando ? 'Preparando…' : `Preparar y enviar ${candidatos.length} aviso(s)`}
             </button>
@@ -532,7 +532,7 @@ function ConfirmarRegistro({
         </div>
       )}
       <div className="mt-2 flex gap-2">
-        <button onClick={onConfirmar} className="rounded-lg bg-accent px-3 py-1 font-semibold text-on-accent">
+        <button onClick={onConfirmar} className="rounded-lg bg-accent px-3 py-1 font-semibold text-accent-fg">
           Registrar
         </button>
         <button onClick={onCancelar} className="rounded-lg border border-line px-3 py-1 text-strong">

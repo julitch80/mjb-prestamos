@@ -941,7 +941,7 @@ function MenuColumna({
             ) : (
               <button
                 onClick={() => onCambiarTodo(confirmando)}
-                className="w-full rounded-lg bg-accent p-2 text-sm font-semibold text-on-accent"
+                className="w-full rounded-lg bg-accent p-2 text-sm font-semibold text-accent-fg"
               >
                 Cambiar {plan.corregidas.length + plan.nuevas.length} casillas
               </button>
@@ -1117,7 +1117,7 @@ function ModalEliminarColumna({
         <button
           onClick={confirmar}
           disabled={!valida || trabajando}
-          className="mt-3 w-full rounded-lg bg-danger p-2 text-sm font-semibold text-on-accent disabled:opacity-40"
+          className="mt-3 w-full rounded-lg bg-danger p-2 text-sm font-semibold text-accent-fg disabled:opacity-40"
         >
           {trabajando ? 'Eliminando…' : 'Eliminar columna'}
         </button>

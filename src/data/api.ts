@@ -670,3 +670,29 @@ export async function listarSeguimientos(casoId?: string): Promise<SeguimientoCa
   );
   return res.seguimientos ?? [];
 }
+
+// ── Citaciones de la alerta académica (módulo de asistencia, 2026-10-02) ──────
+// La plantilla del correo la arma el Apps Script (enviarCitacionesAlerta): aquí
+// solo van los datos. POST porque 30-40 citaciones no caben en una URL de GET.
+export interface CitacionCorreo {
+  correo: string;
+  estudiante: string;
+  fecha: string;
+  hora: string;
+  general: boolean;
+  motivo: string;
+  director: string;
+  /** Segunda citación (seguimiento). El texto normativo lo pone el Apps Script, no el cliente. */
+  seguimiento?: { fechaEntrega: string; conFundamento: boolean };
+}
+
+export async function enviarCitacionesAlerta(
+  grupo: string,
+  citaciones: CitacionCorreo[],
+): Promise<{ ok: boolean; enviados?: string[]; fallidos?: { correo: string; error: string }[]; error?: string }> {
+  return callApiPost(await conIdToken({
+    action: 'enviarCitacionesAlerta',
+    grupo,
+    citaciones: JSON.stringify(citaciones),
+  }));
+}

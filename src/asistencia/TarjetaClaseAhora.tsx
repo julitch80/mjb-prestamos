@@ -78,7 +78,7 @@ export default function TarjetaClaseAhora({
               className={
                 ya
                   ? 'w-full rounded-xl border border-line p-2.5 text-sm font-semibold text-soft'
-                  : 'w-full rounded-xl bg-accent p-3 text-base font-bold text-on-accent'
+                  : 'w-full rounded-xl bg-accent p-3 text-base font-bold text-accent-fg'
               }
             >
               {ya ? `✓ Lista tomada${varias ? ` · ${a.nombre}` : ''} · Ver planilla` : `Pasar lista${varias ? ` · ${a.nombre}` : ''}`}

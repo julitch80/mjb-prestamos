@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FlechaNeon } from '../components/FlechaNeon';
 import Avatar from './Avatar';
 import Ayuda from './Ayuda';
 import EscanerQr from './EscanerQr';
@@ -1850,8 +1851,8 @@ function Cabecera({
   return (
     <div>
       {onVolver && (
-        <button onClick={onVolver} className="text-xs text-muted underline">
-          ← Volver a los centros de interés
+        <button onClick={onVolver} className="group inline-flex items-center gap-1 text-xs text-muted underline">
+          <FlechaNeon direccion="izquierda" tamano="sm" /> Volver a los centros de interés
         </button>
       )}
       <h2 className="text-base font-semibold text-strong">{grupo.nombre}</h2>

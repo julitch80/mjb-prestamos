@@ -855,3 +855,155 @@ export interface ValoracionEstudiante {
   modificadoPor: string | null;
   modificadoEn: number | null;
 }
+
+// ════════════════════════════════════════════════════════════════════════════════════
+//  Alerta academica (2026-10-02) — ver docs/modelo-alerta-academica.md
+// ════════════════════════════════════════════════════════════════════════════════════
+//
+//   asistenciaAlertaConvocatorias/{anio}_{periodo}_{sede}_{jornada}   (la abre coordinacion)
+//   asistenciaAlertas/{anio}_{periodo}_{sede}_{grado}_{subjectId}      (una por planilla)
+//   asistenciaCitacionesAlerta/{anio}_{periodo}_{sede}_{grado}         (agenda del director)
+//
+// No es asistencia ni nota: es un documento aparte que en la 7.ª semana dice quien esta en
+// alerta en cada asignatura. Con dos o mas, se cita al acudiente.
+
+/** `alerta` = ⚠️, `sin_alerta` = ✓. Sin clave en el mapa = el docente aun no lo marco. */
+export type MarcaAlerta = 'alerta' | 'sin_alerta';
+
+export interface ConvocatoriaAlerta {
+  convocatoriaId: string;
+  anio: number;
+  periodo: number;
+  sede: Sede;
+  jornada: Jornada;
+  /** Mientras este abierta y no pase `fechaLimite`, los docentes marcan y corrigen. */
+  abierta: boolean;
+  /** 'YYYY-MM-DD', inclusive. Es lo que se muestra. */
+  fechaLimite: string;
+  /**
+   * El mismo limite como instante (fin de ese dia, hora de Colombia), en ms. Es lo que
+   * compara la regla: las reglas solo conocen `request.time`, no una fecha en texto.
+   */
+  limite: number;
+  /** Dia de entrega de la alerta a las familias y su franja ('HH:MM'). Las pone coordinacion. */
+  fechaEntrega: string | null;
+  franjaInicio: string | null;
+  franjaFin: string | null;
+  /** Dias habiles para justificar la inasistencia a la entrega. Por defecto 3 (Julian, 2026-10-03). */
+  plazoExcusaDias?: number;
+  abiertaPor: string;
+  abiertaEn: number;
+  cerradaPor: string | null;
+  cerradaEn: number | null;
+}
+
+export interface PlanillaAlerta {
+  alertaId: string;
+  anio: number;
+  periodo: number;
+  sede: Sede;
+  jornada: Jornada;
+  /** Literal (`9.1` vs `6º1`). Es lo que deja leer al director: `asisIsDirectorOf(grado)`. */
+  grado: string;
+  subjectId: string;
+  /**
+   * Puesto del docente asignado (no su correo: el puesto sobrevive a un reemplazo). Con el
+   * se lee lo propio (`where('slotId','==',...)`) y la regla exige que sea el de quien escribe.
+   */
+  slotId: string;
+  /** Escrito con rutas de campo puntuales (`estudiantes.est_0412`), como las sesiones. */
+  estudiantes: Record<string, MarcaAlerta>;
+  entregada: boolean;
+  entregadaPor: string | null;
+  entregadaEn: number | null;
+  ultimaEscrituraPor: string;
+  ultimaEscrituraEn: number;
+}
+
+export type ModoAgenda = 'turnos' | 'general' | 'mixta';
+export type OrdenAgenda = 'mas_asignaturas' | 'alfabetico';
+
+export interface ParametrosAgenda {
+  /** Minutos fijos de cada turno individual. */
+  baseMin: number;
+  /** Minutos extra por cada asignatura en alerta. */
+  porAsignaturaMin: number;
+  /** Minutos entre un turno y el siguiente. */
+  intervaloMin: number;
+  /** Duracion de la reunion general (modos `general` y `mixta`). */
+  generalMin: number;
+  /** En `mixta`: desde cuantas asignaturas se da turno individual. */
+  umbralIndividual: number;
+  orden: OrdenAgenda;
+}
+
+export interface CitaAlerta {
+  /** 'HH:MM' */
+  hora: string;
+  duracionMin: number;
+  /** `true` si va a la reunion general. */
+  general: boolean;
+  enviadaCorreoEn: number | null;
+  enviadaSmsEn: number | null;
+  impresaEn: number | null;
+  // ── Dia de entrega y seguimiento (2026-10-03). Opcionales: las agendas viejas no los traen.
+  /** Lo marca el director el dia de la entrega. `null`/ausente = sin marcar. */
+  asistio?: boolean | null;
+  /** Si no vino: si justifico y como. */
+  justificacion?: JustificacionInasistencia | null;
+  /** La UNICA reprogramacion que puede hacer el director. */
+  reprogramacion?: ReprogramacionCita | null;
+  /** Remitida a coordinacion: a mano por el director, o porque se cumplio el plazo. */
+  remision?: RemisionCita | null;
+}
+
+export type TipoJustificacion = 'aviso_previo' | 'posterior';
+export type MedioJustificacion = 'escrito' | 'mensaje' | 'llamada' | 'en_persona';
+
+export interface JustificacionInasistencia {
+  tipo: TipoJustificacion;
+  medio: MedioJustificacion;
+  nota: string;
+  registradaPor: string;
+  registradaEn: number;
+}
+
+export interface ReprogramacionCita {
+  /** 'YYYY-MM-DD' y 'HH:MM'. */
+  fecha: string;
+  hora: string;
+  /** Sin justificacion: la citacion lleva el fundamento normativo. */
+  conFundamento: boolean;
+  creadaPor: string;
+  creadaEn: number;
+  enviadaCorreoEn: number | null;
+  enviadaSmsEn: number | null;
+  /** Lo marca el director despues de la nueva cita. */
+  asistio: boolean | null;
+}
+
+export interface RemisionCita {
+  motivo: string;
+  remitidaPor: string;
+  remitidaEn: number;
+  /** Lo que hizo coordinacion con el caso. */
+  atendidaPor?: string | null;
+  atendidaEn?: number | null;
+  notaCoordinacion?: string | null;
+}
+
+export interface AgendaCitaciones {
+  citacionId: string;
+  anio: number;
+  periodo: number;
+  sede: Sede;
+  jornada: Jornada;
+  grado: string;
+  modo: ModoAgenda;
+  parametros: ParametrosAgenda;
+  citas: Record<string, CitaAlerta>;
+  /** «Cerrar la entrega»: desde aqui, los no marcados cuentan como no asistieron. */
+  entregaCerradaEn?: number | null;
+  ultimaEscrituraPor: string;
+  ultimaEscrituraEn: number;
+}

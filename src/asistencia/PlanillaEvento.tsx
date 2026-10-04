@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FlechaNeon } from '../components/FlechaNeon';
 import Avatar from './Avatar';
 import EscanerQr from './EscanerQr';
 import VerificacionFoto from './VerificacionFoto';
@@ -197,8 +198,8 @@ export default function PlanillaEvento({
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <button onClick={onVolver} className="text-xs text-muted underline">
-            ← Volver a eventos
+          <button onClick={onVolver} className="group inline-flex items-center gap-1 text-xs text-muted underline">
+            <FlechaNeon direccion="izquierda" tamano="sm" /> Volver a eventos
           </button>
           <h2 className="text-base font-semibold text-strong">{evento.nombre}</h2>
           <p className="text-xs text-muted">

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FlechaNeon } from '../components/FlechaNeon';
 import Planilla, { CLASE_MARCA, SiglaMarca } from './Planilla';
 import EscanerQr from './EscanerQr';
 import VerificacionFoto from './VerificacionFoto';
@@ -64,6 +65,16 @@ import Evasiones from './Evasiones';
  * arrastra ExcelJS y se usa una vez al semestre.
  */
 const ResultadoCentros = lazy(() => import('./ResultadoCentros'));
+/**
+ * Interruptor de la alerta academica. APAGADA hasta que el colegio la autorice (Julian,
+ * 2026-10-03): el codigo se publica, pero nadie ve la pestaña ni la seccion. Para
+ * encenderla, antes: reglas desplegadas, `functions:asistencia` y Apps Script
+ * (docs/mensaje-alerta-academica.md del modulo). Despues, `true` y publicar.
+ */
+const ALERTA_ACADEMICA_ACTIVA = false;
+const AlertaAcademica = lazy(() => import('./AlertaAcademica'));
+const ReporteAlerta = lazy(() => import('./ReporteAlerta'));
+const AlertaCoordinacion = lazy(() => import('./AlertaCoordinacion'));
 import {
   abrirSesion,
   borrarSesionesDeCruce,
@@ -116,7 +127,8 @@ import { ASIGNATURAS, getAsignatura } from '../data/asignacionAcademica';
 import { exigirAutor } from './identidad';
 import { planCambioColumna, rolPuedeEliminarSesion } from './domain/columna';
 import { companeraEnLista, parejaDe } from './domain/bloques-clase';
-import { bloquesDeHoyEnGrado } from './horarioDelDia';
+import { asignaturasEnGrado, bloquesDeHoyEnGrado } from './horarioDelDia';
+import { nombreDirector } from './imprimirAlerta';
 import { observarSync, type EstadoSync } from './sincronizacion';
 import { atras, useNivelAtras } from './useNivelAtras';
 import type { Sede, StudentMark } from './domain/types';
@@ -134,7 +146,8 @@ type VistaAsistencia =
   | 'programas'
   | 'restaurante'
   | 'evasiones'
-  | 'permanencia';
+  | 'permanencia'
+  | 'alerta';
 
 /**
  * Componente raiz del modulo de asistencia. ESTE es el punto de pegado.
@@ -383,6 +396,13 @@ export default function Asistencia() {
     [cruces],
   );
   const mostrarFotos = esDirector || rol === 'coordinador';
+  // La alerta academica la marca el docente que DICTA esa asignatura en ese grado (Julian,
+  // 2026-10-02: «esto ya esta en la app»): la misma asignacion de «Mis grupos».
+  const dictaEsteCruce = useMemo(
+    () => !!cruce && !!slotId && asignaturasEnGrado(slotId, cruce.grado).some((a) => a.id === cruce.subjectId),
+    [cruce, slotId],
+  );
+  const hayPestanasGrupo = mostrarFotos || dictaEsteCruce;
 
   const gradosPermitidosFotos = rol === 'coordinador' ? gradosCoordinador : gradosDirector;
 
@@ -390,7 +410,7 @@ export default function Asistencia() {
   // fotos. Vuelve a "asistencia" al cambiar de grado, para no dejar abierto por accidente
   // el cuaderno o la carga de fotos de un grupo que ya no es este.
   const [vistaGrupo, setVistaGrupo] = useState<
-    'asistencia' | 'direccion' | 'fotos' | 'centros'
+    'asistencia' | 'direccion' | 'fotos' | 'centros' | 'alerta' | 'reporte_alerta'
   >('asistencia');
 
   /**
@@ -1017,6 +1037,18 @@ export default function Asistencia() {
     );
   }
 
+  // Alerta academica: la convocatoria y el avance de la jornada son de coordinacion.
+  if (ALERTA_ACADEMICA_ACTIVA && rol === 'coordinador' && vista === 'alerta') {
+    return (
+      <div className="space-y-3">
+        <Pestanas vista={vista} onCambiar={cambiarVista} rol={rol} />
+        <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando…</p>}>
+          <AlertaCoordinacion sede={sede} jornadaLimitada={alcanceUsuario.jornadaLimitada} directores={directores} />
+        </Suspense>
+      </div>
+    );
+  }
+
   // Las llegadas tarde a la institucion son autoridad exclusiva del coordinador.
   if (rol === 'coordinador' && vista === 'llegadas') {
     return (
@@ -1246,9 +1278,9 @@ export default function Asistencia() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setCruce(null)}
-              className="min-h-[36px] text-sm text-accent"
+              className="group inline-flex min-h-[36px] items-center gap-1 text-sm text-accent"
             >
-              ← Mis grupos
+              <FlechaNeon direccion="izquierda" tamano="sm" /> Mis grupos
             </button>
 
             {cruce && (esDirector || rol === 'coordinador' || rol === 'superusuario') && (
@@ -1262,8 +1294,8 @@ export default function Asistencia() {
             {/* El director ve el cuaderno paralelo Y la carga de fotos, en los demas
                 grupos que dicta no se ofrece ninguna de las dos. El coordinador solo ve
                 Fotos: el cuaderno de direccion es autoridad exclusiva del director. */}
-            {mostrarFotos && (
-              <div className="flex gap-1.5">
+            {hayPestanasGrupo && (
+              <div className="flex flex-wrap gap-1.5">
                 <Ayuda texto="Pasar lista de la asignatura: la asistencia de cada clase.">
                   <button
                     onClick={() => setVistaGrupo('asistencia')}
@@ -1277,6 +1309,36 @@ export default function Asistencia() {
                     Asistencia
                   </button>
                 </Ayuda>
+                {ALERTA_ACADEMICA_ACTIVA && dictaEsteCruce && (
+                  <Ayuda texto="Alerta académica de la 7.ª semana: señale quién está en alerta en esta asignatura y entregue. No es asistencia ni nota.">
+                    <button
+                      onClick={() => setVistaGrupo('alerta')}
+                      className={[
+                        'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                        vistaGrupo === 'alerta'
+                          ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                          : 'border-line text-soft',
+                      ].join(' ')}
+                    >
+                      Alerta académica
+                    </button>
+                  </Ayuda>
+                )}
+                {ALERTA_ACADEMICA_ACTIVA && esDirector && (
+                  <Ayuda texto="El resultado de la alerta académica de su grupo en todas las asignaturas: quién falta por entregar y a quién hay que citar.">
+                    <button
+                      onClick={() => setVistaGrupo('reporte_alerta')}
+                      className={[
+                        'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                        vistaGrupo === 'reporte_alerta'
+                          ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                          : 'border-line text-soft',
+                      ].join(' ')}
+                    >
+                      Reporte de alerta
+                    </button>
+                  </Ayuda>
+                )}
                 {esDirector && (
                   <Ayuda texto="Lo que sus estudiantes sacaron en su centro de interés, venga del centro que venga: la valoración y los indicadores listos para digitar en el Máster.">
                     <button
@@ -1307,6 +1369,7 @@ export default function Asistencia() {
                     </button>
                   </Ayuda>
                 )}
+                {mostrarFotos && (
                 <Ayuda texto="Subir las fotografías de los estudiantes de este grupo: la foto es el control de identidad al escanear el QR.">
                   <button
                     onClick={() => setVistaGrupo('fotos')}
@@ -1320,11 +1383,28 @@ export default function Asistencia() {
                     Fotos
                   </button>
                 </Ayuda>
+                )}
               </div>
             )}
           </div>
 
-          {cruce && esDirector && vistaGrupo === 'centros' ? (
+          {ALERTA_ACADEMICA_ACTIVA && cruce && dictaEsteCruce && vistaGrupo === 'alerta' ? (
+            <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando la alerta…</p>}>
+              <AlertaAcademica
+                grado={cruce.grado}
+                subjectId={cruce.subjectId}
+                nombreAsignatura={asignaturasEnGrado(slotId, cruce.grado).find((a) => a.id === cruce.subjectId)?.nombre ?? cruce.subjectId}
+                sede={sede}
+                slotId={slotId!}
+                estudiantes={estudiantes}
+                puedeRegistrar={puedeRegistrar}
+              />
+            </Suspense>
+          ) : ALERTA_ACADEMICA_ACTIVA && cruce && esDirector && vistaGrupo === 'reporte_alerta' ? (
+            <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando el reporte…</p>}>
+              <ReporteAlerta grado={cruce.grado} sede={sede} estudiantes={estudiantes} director={nombreDirector(directores[cruce.grado])} slotDirector={directores[cruce.grado] ?? null} esDirector onAbrirFicha={setFichaAbierta} />
+            </Suspense>
+          ) : cruce && esDirector && vistaGrupo === 'centros' ? (
             <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando el resultado…</p>}>
               <ResultadoCentros grado={cruce.grado} estudiantes={estudiantes} />
             </Suspense>
@@ -2052,6 +2132,13 @@ const SECCIONES: {
     soloCoordinador: true,
   },
   {
+    vista: 'alerta',
+    nombre: 'Alerta académica',
+    descripcion:
+      'La alerta de la 7.ª semana de cada periodo: abrirla con su fecha límite, cerrarla, poner el día y la franja de entrega a las familias, y ver qué grupos ya entregaron y a cuántos hay que citar.',
+    soloCoordinador: true,
+  },
+  {
     vista: 'eventos',
     nombre: 'Eventos',
     descripcion:
@@ -2083,6 +2170,7 @@ function Pestanas({
   rol: string | null;
 }) {
   const visibles = SECCIONES.filter((s) => {
+    if (s.vista === 'alerta' && !ALERTA_ACADEMICA_ACTIVA) return false;
     if (s.coordinacionYRectoria) return rol === 'coordinador' || rol === 'rectora';
     return !s.soloCoordinador || rol === 'coordinador';
   });

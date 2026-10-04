@@ -1,7 +1,7 @@
 // «Propón una escena» para la cartilla ilustrada del manual de convivencia (Julián, 2026-10-01).
 //
-// Es una PROPUESTA PARA CONSTRUIR, no una escena que entra: queda en el buzón como pendiente,
-// coordinación la revisa, se dibuja y después se incorpora al manual.
+// Es una PROPUESTA PARA CONSTRUIR, no una escena que entra: queda en el buzón de Sugerencias como pendiente
+// de revisión; después se dibuja y se incorpora al manual.
 //
 // Un docente que echa de menos un tema en las láminas de primaria la narra desde el manual
 // digital abierto DENTRO de la app (public/convivencia/manual-digital.html con ?desde=app).

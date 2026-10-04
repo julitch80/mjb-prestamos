@@ -88,7 +88,7 @@ export default function ModalPropuestaEscena({ despuesDe, onCerrar }: {
     try {
       const res = await crearSugerencia(userId || nombre || 'anónimo', textoSugerenciaEscena(propuesta));
       if (res.ok) {
-        setEstado({ tipo: 'ok', texto: '¡Gracias! Tu propuesta quedó en la lista de escenas por construir. Coordinación la revisará.' });
+        setEstado({ tipo: 'ok', texto: '¡Gracias! Tu propuesta quedó en la lista de escenas por construir, para revisión.' });
         setTimeout(onCerrar, 2200);
       } else {
         setEstado({ tipo: 'error', texto: res.error ?? 'No se pudo enviar la propuesta.' });
@@ -122,7 +122,7 @@ export default function ModalPropuestaEscena({ despuesDe, onCerrar }: {
 
         <p className="text-sm text-soft">
           Cuéntanos qué escena le falta al manual y cómo te la imaginas. No se agrega de inmediato:
-          queda en la lista de escenas por construir. Coordinación la revisa, se dibuja y después se
+          queda en la lista de escenas por construir para revisión; después se dibuja y se
           incorpora a la cartilla.
         </p>
 

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { FlechaNeon } from '../components/FlechaNeon';
 import PlanillaCentro from './PlanillaCentro';
 import PendientesPrograma from './PendientesPrograma';
 import PanelPrograma from './PanelPrograma';
@@ -609,8 +610,8 @@ function DetallePrograma({
   return (
     <div className="space-y-3">
       <div>
-        <button onClick={onVolver} className="text-xs text-muted underline">
-          ← Volver a los programas
+        <button onClick={onVolver} className="group inline-flex items-center gap-1 text-xs text-muted underline">
+          <FlechaNeon direccion="izquierda" tamano="sm" /> Volver a los programas
         </button>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>

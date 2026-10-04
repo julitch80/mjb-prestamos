@@ -807,6 +807,47 @@ export const onSessionUpdated = onDocumentUpdated(
   },
 );
 
+/**
+ * Historial de la alerta academica (2026-10-02): cada correccion de una marca (⚠️ ↔ ✓) y
+ * cada entrega, con quien y cuando. Las marcas son cadenas sueltas en el mapa, no objetos
+ * con autoria como en las sesiones, asi que el rastro vive solo aqui. La primera marca de
+ * un estudiante no es correccion y no se archiva: el documento ya dice quien escribio.
+ */
+export const onAlertaUpdated = onDocumentUpdated(
+  { region: REGION, document: 'asistenciaAlertas/{alertaId}' },
+  async (event) => {
+    const before = event.data?.before;
+    const after = event.data?.after;
+    if (!before || !after) return;
+
+    const antes = (before.data()?.estudiantes ?? {}) as Record<string, string>;
+    const despues = (after.data()?.estudiantes ?? {}) as Record<string, string>;
+    const autor = (after.data()?.ultimaEscrituraPor as string) ?? null;
+
+    const entradas: Record<string, unknown>[] = Object.entries(despues)
+      .filter(([id, m]) => antes[id] !== undefined && antes[id] !== m)
+      .map(([id, m]) => ({
+        studentId: id,
+        marcaAnterior: antes[id],
+        marcaNueva: m,
+        cambiadoPor: autor,
+        cambiadoEn: FieldValue.serverTimestamp(),
+      }));
+    if (before.data()?.entregada !== after.data()?.entregada) {
+      entradas.push({
+        evento: after.data()?.entregada ? 'entregada' : 'reabierta',
+        cambiadoPor: autor,
+        cambiadoEn: FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (entradas.length === 0) return;
+    const batch = db.batch();
+    for (const e of entradas) batch.set(before.ref.collection('historial').doc(), e);
+    await batch.commit();
+  },
+);
+
 function archivador(coleccion: string) {
   return onDocumentUpdated(
     { region: REGION, document: `${coleccion}/{docId}` },
