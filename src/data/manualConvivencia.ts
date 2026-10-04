@@ -56,14 +56,14 @@ export const OPCIONES_MANUAL: OpcionManual[] = [
   },
   {
     id: 'digital',
-    nombre: 'Versión digital',
+    nombre: 'Manual de convivencia digital',
     descripcion: 'Por preguntas, con rutas paso a paso y cartilla ilustrada para primaria.',
     tipo: 'digital',
     url: URL_MANUAL_DIGITAL,
   },
   {
     id: 'clasico',
-    nombre: 'Versión clásica',
+    nombre: 'Manual de convivencia clásico',
     descripcion: 'El documento oficial completo, en PDF o Word.',
     tipo: 'clasico',
     url: URL_MANUAL_PDF,
