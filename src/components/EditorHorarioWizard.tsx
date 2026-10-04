@@ -24,6 +24,7 @@ import type {
   TipoApoyo,
 } from '../data/horarioModificado';
 import { cn } from '@/lib/utils';
+import { FlechaNeon } from './FlechaNeon';
 
 interface Props {
   open: boolean;
@@ -520,9 +521,9 @@ export default function EditorHorarioWizard({ open, jornada, onClose, onCompleta
             <div className="px-6 py-4 border-t border-line flex items-center justify-between gap-3 bg-card/80">
               <button
                 onClick={() => paso > 1 ? setPaso((paso - 1) as Paso) : resetAndClose()}
-                className="px-4 py-2.5 rounded-xl bg-elevated text-soft hover:bg-hover text-sm transition font-medium"
+                className="px-4 py-2.5 rounded-xl bg-elevated text-soft hover:bg-hover text-sm transition font-medium group inline-flex items-center gap-1"
               >
-                {paso === 1 ? 'Cancelar' : '← Atrás'}
+                {paso === 1 ? 'Cancelar' : <><FlechaNeon direccion="izquierda" tamano="sm" /> Atrás</>}
               </button>
               <button
                 onClick={() => paso < 4 ? setPaso((paso + 1) as Paso) : finalizar()}

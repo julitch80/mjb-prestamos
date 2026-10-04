@@ -44,6 +44,7 @@ import { modificacionesProximas, jornadasReducidasProximas, formatearFechaLegibl
 import type { HorarioModificado, JornadaReducida } from '../data/horarioModificado';
 import { publicacionesPendientesDeRevisar } from '../data/publicacion';
 import type { PublicacionPendiente } from '../data/publicacion';
+import { FlechaNeon } from './FlechaNeon';
 
 type Modo         = 'aulas' | 'docente' | 'grupo' | 'acompanamiento';
 type VistaDetalle = 'semana' | 'dia';
@@ -1501,9 +1502,9 @@ function VistaHorarioContenido() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setDocenteSel('')}
-                    className="flex items-center gap-2 text-sm text-soft hover:text-strong transition px-3 py-1.5 rounded-xl bg-elevated border border-line flex-shrink-0"
+                    className="group inline-flex items-center gap-1 text-sm text-soft hover:text-strong transition px-3 py-1.5 rounded-xl bg-elevated border border-line flex-shrink-0"
                   >
-                    ← Todos los docentes
+                    <FlechaNeon direccion="izquierda" tamano="sm" /> Todos los docentes
                   </button>
                   {(() => {
                     const d = USUARIOS.find(u => u.id === docenteSel);
@@ -1531,9 +1532,9 @@ function VistaHorarioContenido() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setGrupoSel('')}
-                    className="flex items-center gap-2 text-sm text-soft hover:text-strong transition px-3 py-1.5 rounded-xl bg-elevated border border-line flex-shrink-0"
+                    className="group inline-flex items-center gap-1 text-sm text-soft hover:text-strong transition px-3 py-1.5 rounded-xl bg-elevated border border-line flex-shrink-0"
                   >
-                    ← Todos los grupos
+                    <FlechaNeon direccion="izquierda" tamano="sm" /> Todos los grupos
                   </button>
                   {(() => {
                     const directores = jornadaTab === 'manana' ? DIRECTORES_MANANA : DIRECTORES_TARDE;

@@ -24,6 +24,7 @@ import EditorManualAcompanamientos from './EditorManualAcompanamientos';
 import AlternativasAcompanamientos from './AlternativasAcompanamientos';
 import HistorialAcompanamientos from './HistorialAcompanamientos';
 import PublicarAcompanamientos from './PublicarAcompanamientos';
+import { FlechaNeon } from '../FlechaNeon';
 
 type Opcion = 'menu' | 'zonas' | 'carga' | 'alternativas' | 'manual' | 'historial' | 'publicar';
 
@@ -134,9 +135,9 @@ export default function PanelEditarAcompanamientos({
               {opcion !== 'menu' && (
                 <button
                   onClick={() => setOpcion('menu')}
-                  className="text-muted hover:text-strong text-xs font-medium mb-1 transition"
+                  className="group inline-flex items-center gap-1 text-muted hover:text-strong text-xs font-medium mb-1 transition"
                 >
-                  ← Volver al menú
+                  <FlechaNeon direccion="izquierda" tamano="sm" /> Volver al menú
                 </button>
               )}
               <h2 className="text-strong font-semibold text-base">{TITULOS[opcion]}</h2>

@@ -3,6 +3,7 @@
 // accesos rápidos por rol y un resumen de chat (solo modo google + Firebase).
 import { useEffect, useMemo, useRef, useState } from 'react';
 import MiDiaModificado from './MiDiaModificado';
+import { FlechaNeon } from './FlechaNeon';
 import TarjetaDatosSede from './sedeDatos/TarjetaDatosSede';
 import { motion } from 'motion/react';
 import { useAppStore } from '../data/store';
@@ -712,24 +713,9 @@ export function FilaConFlechas({ filaRef, children }: { filaRef: React.RefObject
     'group/flecha hidden [@media(pointer:fine)]:flex absolute top-1/2 -translate-y-1/2 z-10 ' +
     'w-10 h-14 items-center justify-center';
 
-  const Angulo = ({ haciaLaDerecha }: { haciaLaDerecha: boolean }) => {
-    const idDegradado = haciaLaDerecha ? 'flecha-neon-der' : 'flecha-neon-izq';
-    return (
-      <svg viewBox="0 0 24 24"
-        className="w-9 h-9 opacity-55 group-hover/flecha:opacity-100 transition-[transform,opacity] duration-200 group-hover/flecha:scale-110 [filter:drop-shadow(0_0_3px_rgba(34,211,238,0.45))_drop-shadow(0_0_6px_rgba(217,70,239,0.35))] group-hover/flecha:[filter:drop-shadow(0_0_5px_rgba(34,211,238,0.95))_drop-shadow(0_0_10px_rgba(217,70,239,0.8))]"
-        fill="none" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <defs>
-          <linearGradient id={idDegradado} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#22d3ee" />
-            <stop offset="100%" stopColor="#d946ef" />
-          </linearGradient>
-        </defs>
-        <path stroke={`url(#${idDegradado})`} strokeOpacity={0.85} d={haciaLaDerecha ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
-        {/* Reflejo interior fino: da el aspecto de vidrio */}
-        <path stroke="white" strokeOpacity={0.45} strokeWidth={0.8} d={haciaLaDerecha ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
-      </svg>
-    );
-  };
+  const Angulo = ({ haciaLaDerecha }: { haciaLaDerecha: boolean }) => (
+    <FlechaNeon direccion={haciaLaDerecha ? 'derecha' : 'izquierda'} tamano="lg" />
+  );
 
   return (
     <div className="relative">

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { canvasABase64, esquinasPorDefecto, recortarDocumento, type Esquinas, type Punto } from '../lib/scanner';
+import { FlechaNeon } from './FlechaNeon';
 
 /** Captura una foto (cámara trasera en celular) y deja ajustar las 4 esquinas
  * de la hoja antes de recortarla y enderezarla — como un escáner de bolsillo.
@@ -68,9 +69,9 @@ export function CapturaEscaner({ onListo, onCancelar }: {
         <div className="flex gap-2">
           <button
             onClick={() => setPrevisualizacion(null)}
-            className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition"
+            className="group flex-1 px-4 py-3 rounded-xl text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition inline-flex items-center justify-center gap-1"
           >
-            ← Ajustar de nuevo
+            <FlechaNeon direccion="izquierda" tamano="sm" /> Ajustar de nuevo
           </button>
           <button
             onClick={() => onListo(previsualizacion)}
@@ -124,9 +125,9 @@ export function CapturaEscaner({ onListo, onCancelar }: {
         <div className="flex gap-2">
           <button
             onClick={() => { setImgUrl(null); setImgEl(null); setEsquinas(null); }}
-            className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition"
+            className="group flex-1 px-4 py-3 rounded-xl text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition inline-flex items-center justify-center gap-1"
           >
-            ← Otra foto
+            <FlechaNeon direccion="izquierda" tamano="sm" /> Otra foto
           </button>
           <button
             onClick={confirmarRecorte}

@@ -23,6 +23,7 @@ import {
 } from '../data/chat';
 import { subirAdjunto, pesoLegible, TAMANO_MAXIMO_BYTES, type AdjuntoSubido } from '../data/adjuntos';
 import { crearGrabadora, grabadoraSoportada, type Grabadora } from '../data/audioVoz';
+import { FlechaNeon } from './FlechaNeon';
 
 function tsToDate(ts: any): Date | null {
   if (!ts) return null;
@@ -432,9 +433,9 @@ export default function Chat() {
             <header className="px-4 py-3 border-b border-line flex items-center gap-3">
               <button
                 onClick={() => useChatStore.setState({ canalActivo: null })}
-                className="md:hidden text-soft hover:text-strong text-sm"
+                className="md:hidden group text-soft hover:text-strong text-sm"
               >
-                ←
+                <FlechaNeon direccion="izquierda" tamano="sm" />
               </button>
               <span className="text-strong font-semibold text-sm">
                 {canalActual ? nombreCanal(canalActual) : ''}

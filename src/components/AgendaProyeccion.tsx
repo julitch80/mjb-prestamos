@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ChevronRight } from 'lucide-react';
 import { getAsignatura } from '../data/asignacionAcademica';
 import type { FechaISO, Tarea } from '../data/tareas/tipos';
 import type { Ancla } from '../data/tareas/habitos';
 import { lunesDe } from '../data/tareas/calendario';
+import { FlechaNeon } from './FlechaNeon';
 
 /**
  * Modo proyección: el director lo muestra al frente del salón.
@@ -99,9 +100,9 @@ export default function AgendaProyeccion({ grupo, dias, tareasDelDia, anclas, ur
         <button
           onClick={() => setPaso(p => Math.max(0, p - 1))}
           disabled={paso === 0}
-          className="flex items-center gap-1 rounded-full px-5 py-3 text-lg font-medium text-white/80 disabled:opacity-0"
+          className="group flex items-center gap-1 rounded-full px-5 py-3 text-lg font-medium text-white/80 disabled:opacity-0"
         >
-          <ChevronLeft size={22} /> Atrás
+          <FlechaNeon direccion="izquierda" tamano="md" /> Atrás
         </button>
         {paso < TOTAL - 1 ? (
           <div className="flex items-center gap-4">

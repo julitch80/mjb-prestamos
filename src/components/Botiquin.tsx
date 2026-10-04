@@ -10,6 +10,7 @@ import { Quemaduras } from './botiquin/Quemaduras';
 import { Ubicacion } from './botiquin/Ubicacion';
 import { Linterna } from './botiquin/Linterna';
 import { Instrucciones } from './botiquin/compartido';
+import { FlechaNeon } from './FlechaNeon';
 
 interface Herramienta {
   id: string;
@@ -85,12 +86,12 @@ export function Botiquin({ onVolver }: { onVolver?: () => void }) {
   return (
     <div className="flex flex-col gap-4">
       {onVolver && !h && (
-        <button onClick={onVolver} className="self-start px-3 py-2 rounded-lg text-xs font-semibold text-soft border border-line bg-elevated hover:bg-hover transition">← Volver</button>
+        <button onClick={onVolver} className="self-start px-3 py-2 rounded-lg text-xs font-semibold text-soft border border-line bg-elevated hover:bg-hover transition group inline-flex items-center gap-1"><FlechaNeon direccion="izquierda" tamano="sm" /> Volver</button>
       )}
 
       {h ? (
         <section aria-labelledby="botiquin-herr" className="flex flex-col gap-4">
-          <button onClick={() => setAbierta(null)} className="self-start min-h-[44px] px-4 rounded-lg text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition">← Botiquín</button>
+          <button onClick={() => setAbierta(null)} className="self-start min-h-[44px] px-4 rounded-lg text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition group inline-flex items-center gap-1"><FlechaNeon direccion="izquierda" tamano="sm" /> Botiquín</button>
           <h2 id="botiquin-herr" className="text-lg font-bold text-strong flex items-center gap-2"><span aria-hidden="true">{h.icono}</span>{h.nombre}</h2>
           <div className="rounded-xl border border-line bg-card px-4 py-3"><Instrucciones items={h.pasos} /></div>
           {h.render()}

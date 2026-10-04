@@ -20,6 +20,7 @@ import type { CasoResumen } from './SeguimientoCaso';
 import type { SeguimientoCaso as SeguimientoCasoTipo } from '../data/api';
 import { VistaImprimibleHistorial } from './HistorialCaso';
 import type { DatosHistorialCaso } from './HistorialCaso';
+import { FlechaNeon } from './FlechaNeon';
 
 // Un caso conserva el registro original (informe o remisión) para poder
 // mostrar los datos completos en el detalle — CasoResumen (el contrato del
@@ -207,9 +208,9 @@ function DetalleCaso({ caso, onVolver, onActualizado }: {
     <div className="flex flex-col gap-4">
       <button
         onClick={onVolver}
-        className="self-start px-3 py-2 rounded-lg text-xs font-semibold text-soft border border-line bg-elevated hover:bg-hover transition flex items-center gap-1.5"
+        className="self-start px-3 py-2 rounded-lg text-xs font-semibold text-soft border border-line bg-elevated hover:bg-hover transition group inline-flex items-center gap-1.5"
       >
-        ← Volver a la lista
+        <FlechaNeon direccion="izquierda" tamano="sm" /> Volver a la lista
       </button>
 
       <div className="rounded-2xl border border-line bg-card px-4 py-4 flex flex-col gap-2">

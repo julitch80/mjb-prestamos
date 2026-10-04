@@ -28,6 +28,7 @@ import { puedeCubrir, docentesDeLaJornada, esMixto } from '../../data/acompanami
 import { clasesEnDia, DIA_CARGADO } from '../../data/acompanamientos/clases';
 import { cargaPorDocente, revisar } from '../../data/acompanamientos/revision';
 import { textoCargaDesigual } from '../../data/acompanamientos/textos';
+import { FlechaNeon } from '../FlechaNeon';
 
 interface Props {
   jornada: JornadaAcomp;
@@ -471,11 +472,11 @@ export default function EditorManualAcompanamientos({ jornada, distribucion, onC
               <button
                 onClick={() => setVerSemanaMovil((v) => !v)}
                 className={cn(
-                  'flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition min-h-[40px]',
+                  'group flex-1 inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold transition min-h-[40px]',
                   verSemanaMovil ? 'border border-line text-soft' : 'bg-elevated text-strong',
                 )}
               >
-                {verSemanaMovil ? '← Volver a editar por día' : '👁 Vista completa de la semana'}
+                {verSemanaMovil ? <><FlechaNeon direccion="izquierda" tamano="sm" /> Volver a editar por día</> : '👁 Vista completa de la semana'}
               </button>
             </div>
 

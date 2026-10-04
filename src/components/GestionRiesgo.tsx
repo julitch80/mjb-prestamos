@@ -53,6 +53,7 @@ import {
   fichaPorId,
 } from '../data/fichasAuxilios';
 import type { BloqueFicha, FichaAuxilios, TonoFicha } from '../data/fichasAuxilios';
+import { FlechaNeon } from './FlechaNeon';
 
 const JORNADA_LABEL: Record<string, string> = {
   manana: 'Mañana', tarde: 'Tarde', ambas: 'Ambas', nocturna: 'Nocturna',
@@ -836,9 +837,9 @@ function BotonVolver({ onClick, children }: { onClick: () => void; children: Rea
   return (
     <button
       onClick={onClick}
-      className="self-start px-3 py-2 rounded-lg text-xs font-semibold text-soft border border-line bg-elevated hover:bg-hover transition flex items-center gap-1.5"
+      className="self-start px-3 py-2 rounded-lg text-xs font-semibold text-soft border border-line bg-elevated hover:bg-hover transition group inline-flex items-center gap-1.5"
     >
-      ← {children}
+      <FlechaNeon direccion="izquierda" tamano="sm" /> {children}
     </button>
   );
 }
@@ -1018,9 +1019,9 @@ function VisorFase({ fase, indice, total, mostrarNumero = true, textoBotonFinal 
         {indice > 0 && (
           <button
             onClick={onAnterior}
-            className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition"
+            className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold text-soft border border-line bg-elevated hover:bg-hover transition group inline-flex items-center justify-center gap-1"
           >
-            ← Anterior
+            <FlechaNeon direccion="izquierda" tamano="sm" /> Anterior
           </button>
         )}
         <button

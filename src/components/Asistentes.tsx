@@ -9,6 +9,7 @@ import { IconoConvivencia, IconoEvaluacion } from './IconosNeon';
 import DocumentoInstitucional from './DocumentoInstitucional';
 import ModalPropuestaEscena from './ModalPropuestaEscena';
 import { leerMensajeManual, type LaminaDeReferencia } from '../data/propuestaEscena';
+import { FlechaNeon } from './FlechaNeon';
 
 // Módulo «Manual de convivencia» (antes «Chatbot»). El id de la vista sigue
 // siendo 'asistentes' para no romper la navegación guardada.
@@ -140,7 +141,7 @@ function VistaOpcion({ opcion, onVolver }: { opcion: OpcionManual; onVolver: () 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3 flex-wrap">
-        <button onClick={onVolver} className={BOTON}>← Manual de convivencia</button>
+        <button onClick={onVolver} className={BOTON+' group inline-flex items-center gap-1'}><FlechaNeon direccion="izquierda" tamano="sm" /> Manual de convivencia</button>
         <h2 className="text-strong text-sm font-semibold flex-1">{opcion.nombre}</h2>
         {opcion.tipo === 'digital' && <button onClick={() => setQr(true)} className={BOTON}>Código QR</button>}
         {opcion.tipo !== 'clasico' && (

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Lock, ArrowLeft, Mail, ChevronRight } from 'lucide-react';
+import { Search, Lock, Mail, ChevronRight } from 'lucide-react';
 import { useAppStore } from '../data/store';
 import { recuperarPin } from '../data/api';
 import { USUARIOS } from '../data/maestros';
@@ -10,6 +10,7 @@ import { MODO_LOCAL } from '../data/config';
 import { AUTH_MODE } from '../data/authStore';
 import { loginConGoogle } from '../lib/auth';
 import ModalInstalar from './ModalInstalar';
+import { FlechaNeon } from './FlechaNeon';
 
 const normalizar = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -146,9 +147,9 @@ export default function LoginScreen() {
             <div className="rounded-2xl border border-line bg-card backdrop-blur-xl shadow-2xl p-8">
               <button
                 onClick={() => { setModoRecup(false); setMensajeRecup(''); }}
-                className="flex items-center gap-1.5 text-xs text-muted hover:text-soft transition mb-6"
+                className="group flex items-center gap-1.5 text-xs text-muted hover:text-soft transition mb-6"
               >
-                <ArrowLeft size={14} /> Volver al inicio de sesión
+                <FlechaNeon direccion="izquierda" tamano="sm" /> Volver al inicio de sesión
               </button>
 
               <div className="flex items-center gap-3 mb-6">

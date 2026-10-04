@@ -15,6 +15,7 @@ import {
   type EstadoCuentaRegresiva, type TipoPersonaAccidente,
 } from '../data/sst/accidenteLaboral';
 import { subirEvidencia, urlEvidencia } from '../data/sst/evidencias';
+import { FlechaNeon } from './FlechaNeon';
 
 function miEmail(): string {
   return auth?.currentUser?.email?.toLowerCase() ?? '';
@@ -870,7 +871,7 @@ export function AccidenteLaboral() {
       {paso === 'tipo' && (
         <div className="flex flex-col gap-3">
           <RutaInmediata tipo={tipo} contactos={contactos} onRegistrar={() => setPaso('registro')} />
-          <button onClick={() => setPaso('inicio')} className="self-start text-xs text-muted hover:text-soft">← Cambiar quién se accidentó</button>
+          <button onClick={() => setPaso('inicio')} className="self-start text-xs text-muted hover:text-soft group inline-flex items-center gap-1"><FlechaNeon direccion="izquierda" tamano="sm" /> Cambiar quién se accidentó</button>
         </div>
       )}
 
