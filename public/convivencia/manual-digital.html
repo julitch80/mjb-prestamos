@@ -476,6 +476,8 @@ details.oficial summary::before { font-family: var(--display); }
 .r-banda h4 { font-family: var(--display); font-size: 1rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--suave); }
 :focus-visible { outline-color: var(--verde); }
 .chips button.nueva-escena { background: var(--papel); color: var(--rojo-escudo); box-shadow: none; border: 2px dashed var(--rojo-escudo); font-weight: 600; }
+.cielo .leo { position: relative; z-index: 1; margin-top: 12px; }
+.cielo .leo > span { color: var(--verde); font-weight: 700; }
 </style>
 
 <header class="barra"><nav aria-label="Navegación del manual" id="nav">
@@ -496,17 +498,17 @@ details.oficial summary::before { font-family: var(--display); }
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="busqueda" type="search" placeholder="¿Qué quieres saber?" autocomplete="off" aria-label="¿Qué quieres saber?">
       </label>
+      <div class="leo"><span>Leo el manual como</span>
+        <div class="puertas" role="group" aria-label="¿Quién eres?">
+          <button type="button" data-puerta="estudiante" aria-pressed="true">Estudiante</button>
+          <button type="button" data-puerta="familia" aria-pressed="false">Familia</button>
+          <button type="button" data-puerta="docente" aria-pressed="false">Docente</button>
+        </div>
+      </div>
       <svg class="lomas" viewBox="0 0 400 90" preserveAspectRatio="none" aria-hidden="true"><path d="M0 58 C60 22 120 30 170 54 S290 20 400 44 V90 H0z" class="loma1"/><path d="M0 74 C80 50 150 64 220 71 S340 54 400 65 V90 H0z" class="loma2"/><path d="M0 84 C120 76 260 86 400 80 V90 H0z" class="loma3"/></svg>
     </header>
     <div class="vista" id="resultados" hidden aria-live="polite"></div>
     <nav class="tarjetas" id="tarjetas" aria-label="Secciones"></nav>
-    <div class="leo"><span>Leo el manual como</span>
-      <div class="puertas" role="group" aria-label="¿Quién eres?">
-        <button type="button" data-puerta="estudiante" aria-pressed="true">Estudiante</button>
-        <button type="button" data-puerta="familia" aria-pressed="false">Familia</button>
-        <button type="button" data-puerta="docente" aria-pressed="false">Docente</button>
-      </div>
-    </div>
     <p class="aviso"><b>Prototipo.</b> Los textos en lenguaje claro son una propuesta y no han sido revisados por coordinación. El texto oficial es el que vale.</p>
     <footer class="pie"><img class="escudo-pie" alt="" aria-hidden="true">
       <p>Textos oficiales tomados del Manual de Convivencia 2026 de la I.E. Manuel J. Betancur. Donde el manual no numera artículos, se cita el capítulo.</p>
