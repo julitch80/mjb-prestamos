@@ -1,6 +1,18 @@
-# Manual de usuario — Sistema MJB Préstamos
+# Manual de usuario — MJB · Sistema de Gestión Escolar
 
-**I.E. Manuel J. Betancur — Sistema de préstamo de recursos y gestión de horarios**
+**I.E. Manuel J. Betancur** (la aplicación se llamaba «MJB Préstamos» hasta octubre de 2026; la dirección y el ícono instalado no cambiaron)
+
+> **Última actualización: 3 de octubre de 2026.**
+>
+> Este documento es la **introducción general**: qué es la aplicación, cómo instalarla y cómo entrar. El detalle de cada sección vive en los **manuales ilustrados por rol**, que se mantienen al día:
+>
+> | Rol | Manual |
+> |---|---|
+> | Profesores | `public/manuales/profesores.html` — en línea: `https://julitch80.github.io/mjb-prestamos/manuales/profesores.html` |
+> | Coordinadores | `public/manuales/coordinadores.html` — en línea: `https://julitch80.github.io/mjb-prestamos/manuales/coordinadores.html` |
+> | Rectoría | `public/manuales/rectoria.html` — en línea: `https://julitch80.github.io/mjb-prestamos/manuales/rectoria.html` |
+>
+> Los manuales ilustrados explican, entre otras cosas, Asistencia (la clase de ahora, las clases de dos horas, corregir o eliminar una columna), Tareas y la agenda del estudiante, el Manual de convivencia, el Botiquín digital y el Accidente laboral en Gestión del Riesgo, la reserva de espacios desde la Agenda y «Datos de la sede». Si algo de esta página contradice a un manual por rol, vale el manual por rol.
 
 ---
 
@@ -37,11 +49,11 @@ La aplicación es una **PWA** (Progressive Web App), lo que significa que se ins
 
 1. Entra a `https://julitch80.github.io/mjb-prestamos/` desde el navegador.
 2. Espera que cargue la pantalla de inicio (vas a ver el escudo del colegio).
-3. **Mira la barra de direcciones** del navegador. Al lado derecho aparecerá un ícono pequeño con el dibujo de un monitor y una flecha hacia abajo (⬇️ o ⊕). Si pasas el cursor sobre él dirá **"Instalar MJB Préstamos"**.
+3. **Mira la barra de direcciones** del navegador. Al lado derecho aparecerá un ícono pequeño con el dibujo de un monitor y una flecha hacia abajo (⬇️ o ⊕). Si pasas el cursor sobre él dirá **"Instalar MJB"**.
 4. Clic en ese ícono → botón **"Instalar"**.
 5. La aplicación queda como un programa en tu escritorio y en el menú de inicio de Windows.
 
-> Si no ves el ícono de instalación, abre el menú del navegador (⋮ en la esquina superior derecha) → busca **"Instalar MJB Préstamos…"** y clica ahí.
+> Si no ves el ícono de instalación, abre el menú del navegador (⋮ en la esquina superior derecha) → busca **"Instalar MJB…"** y clica ahí.
 
 ### Con Firefox o Safari
 
@@ -63,34 +75,25 @@ Estos navegadores no soportan tan bien la instalación de PWAs en escritorio. **
 
 1. Abre Safari (no funciona con Chrome en iOS para esto) y entra a la dirección.
 2. Toca el botón de **compartir** (cuadrado con flecha hacia arriba, abajo en el centro).
-3. Desliza y elige **"Agregar a pantalla de inicio"**.
+3. Desliza y elige **"Agregar a inicio"** (o "Agregar a pantalla de inicio").
 4. Confirma con **"Agregar"**.
+
+> La **agenda de tareas del estudiante** se instala aparte, como un ícono llamado «Agenda MJB»: en iPhone se hace desde Safari, con la agenda del grupo a la vista (Compartir → «Agregar a inicio»), usando el QR o el enlace de «Compartir esta agenda». Ver el manual del profesor, sección Tareas.
 
 ---
 
 ## 5. Primera vez que entras: el inicio de sesión
 
-Al abrir la aplicación verás:
-
-- El escudo del colegio en el centro.
-- El título **I.E. Manuel J. Betancur**.
-- Un campo de búsqueda que dice **"¿Quién eres?"**.
+Se entra con tu **cuenta de correo del colegio** (`@iemanueljbetancur.edu.co`). No hay PIN ni contraseña aparte.
 
 ### Pasos
 
-1. **Escribe tu nombre o tu apellido** en el campo de búsqueda. No tienes que escribir el nombre completo: con dos o tres letras suele bastar.
-2. Selecciona tu nombre cuando aparezca en la lista.
-3. Aparecerá un campo para escribir tu **PIN** (clave numérica de 4 a 6 dígitos).
-4. **Tu PIN inicial es `11111`** (cinco unos). En la primera entrada, cámbialo desde la sección **Configuración** por uno personal.
-5. Toca **Ingresar**.
+1. Al abrir la aplicación verás el escudo del colegio y el botón **Continuar con Google**.
+2. Tócalo y elige tu correo `@iemanueljbetancur.edu.co`. Una cuenta personal (Gmail) no entra.
+3. Si algo te llegó mientras no estabas (una reserva aprobada, un cambio de horario, un mensaje), aparece arriba como aviso: márcalo con **✕ Listo** o usa **Descartar todas**.
+4. Para salir, usa el ícono de la puerta (**Cerrar sesión**), sobre todo en un computador que no sea tuyo.
 
-### Si olvidaste tu PIN
-
-1. En la pantalla de inicio de sesión, después de seleccionar tu nombre, toca **"¿Olvidaste tu PIN?"**.
-2. El sistema envía un **PIN temporal de 6 dígitos** a tu **correo institucional**.
-3. Revisa tu bandeja de entrada en `iemanueljbetancur.edu.co`.
-4. Vuelve a la aplicación y usa ese PIN temporal para entrar.
-5. Cámbialo inmediatamente por uno permanente.
+Si tu correo no aparece como autorizado, avisa a coordinación.
 
 ---
 
@@ -131,7 +134,7 @@ Tu centro de control. Tiene cuatro pestañas:
 - **Pendientes** — solicitudes que están esperando tu decisión. Las apruebas o rechazas con un toque.
 - **Hoy** — qué hay reservado hoy (para entregar llaves y registrar devolución).
 - **Historial** — todas las reservas pasadas, con filtros.
-- **Configuración** — donde cambias tu PIN y otras preferencias.
+- **Configuración** — el tema de la interfaz (oscuro o claro).
 
 ### Asignación (solo rectora)
 
@@ -178,16 +181,15 @@ La preferencia queda guardada para tu próxima sesión.
 
 En la esquina superior derecha, junto al ícono de tema, hay un ícono de **flecha saliendo de una puerta** (📤). Tócalo para cerrar tu sesión.
 
-Después tendrás que volver a buscar tu nombre y poner tu PIN para entrar de nuevo.
+Después tendrás que volver a tocar **Continuar con Google** para entrar de nuevo.
 
 ---
 
 ## 9. Recomendaciones
 
-- **Cambia tu PIN inicial** (`11111`) por uno personal en cuanto entres por primera vez.
 - **Instala la aplicación** en tu celular y en el PC del aula para tener acceso rápido.
 - **Revisa la sección Horario** al inicio del día por si hay modificaciones publicadas.
-- **No compartas tu PIN** con nadie. Cada usuario debe usar el suyo.
+- **Cierra sesión** en los computadores compartidos.
 - **Las solicitudes de aulas** requieren aprobación del coordinador — pídelas con anticipación.
 
 ---
@@ -197,12 +199,11 @@ Después tendrás que volver a buscar tu nombre y poner tu PIN para entrar de nu
 | Problema | Qué hacer |
 |---|---|
 | La aplicación no carga | Verifica tu conexión a internet. Si tiene mucho tiempo abierta, ciérrala y vuelve a abrir. |
-| No recibo el PIN temporal | Revisa tu carpeta de spam. Si no llega en 5 minutos, contacta a Julián. |
-| Mi nombre no aparece en la búsqueda | Probablemente el correo institucional no está registrado en el sistema. Avisa a coordinación. |
+| No puedo entrar con Google | Usa tu correo `@iemanueljbetancur.edu.co`, no uno personal. Si sigue sin entrar, probablemente tu correo no está autorizado: avisa a coordinación. |
 | La aplicación se ve diferente / con errores | Cierra la app, ábrela de nuevo. Si persiste, reinstálala. |
 | Otras dudas | Contactar a Julián David Medina Tamayo. |
 
 ---
 
-**Sistema MJB Préstamos** — Versión 2026
+**MJB · Sistema de Gestión Escolar** — Versión 2026
 Creador: **Julián David Medina Tamayo**, docente del área de física, I.E. Manuel J. Betancur
