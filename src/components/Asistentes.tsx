@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronRight, FileText, Smartphone, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import {
-  OPCIONES_MANUAL, URL_MANUAL_PDF, URL_MANUAL_WORD, urlAbsolutaManualDigital,
+  OPCIONES_MANUAL, URL_MANUAL_WORD, urlAbsolutaManualDigital,
 } from '../data/manualConvivencia';
 import type { OpcionManual } from '../data/manualConvivencia';
 import { IconoConvivencia, IconoEvaluacion } from './IconosNeon';
@@ -21,13 +21,15 @@ const ICONO_OPCION: Record<string, { Icono: IconoTarjeta; color: string }> = {
   evaluacion: { Icono: IconoEvaluacion as IconoTarjeta, color: '#60a5fa' },
   digital: { Icono: Smartphone as IconoTarjeta, color: '#f472b6' },
   clasico: { Icono: FileText as IconoTarjeta, color: '#fbbf24' },
+  'siepe-digital': { Icono: Smartphone as IconoTarjeta, color: '#38bdf8' },
+  'siepe-clasico': { Icono: FileText as IconoTarjeta, color: '#a3e635' },
 };
 
 const BOTON = 'text-xs font-medium px-3 py-1.5 rounded-lg bg-elevated border border-line text-soft hover:text-strong transition';
 const ENLACE = 'text-xs font-medium text-accent hover:underline';
 
 function TarjetaOpcion({ opcion, onAbrir }: { opcion: OpcionManual; onAbrir: () => void }) {
-  const { Icono, color } = ICONO_OPCION[opcion.id];
+  const { Icono, color } = ICONO_OPCION[opcion.id] ?? ICONO_OPCION.digital;
   return (
     <button
       type="button"
@@ -143,7 +145,7 @@ function VistaOpcion({ opcion, onVolver }: { opcion: OpcionManual; onVolver: () 
       <div className="flex items-center gap-3 flex-wrap">
         <button onClick={onVolver} className={BOTON+' group inline-flex items-center gap-1'}><FlechaNeon direccion="izquierda" tamano="sm" /> Manual de convivencia</button>
         <h2 className="text-strong text-sm font-semibold flex-1">{opcion.nombre}</h2>
-        {opcion.tipo === 'digital' && <button onClick={() => setQr(true)} className={BOTON}>Código QR</button>}
+        {opcion.id === 'digital' && <button onClick={() => setQr(true)} className={BOTON}>Código QR</button>}
         {opcion.tipo !== 'clasico' && (
           <a href={opcion.url} target="_blank" rel="noopener noreferrer" className={ENLACE}>Abrir en pestaña ↗</a>
         )}
@@ -152,17 +154,17 @@ function VistaOpcion({ opcion, onVolver }: { opcion: OpcionManual; onVolver: () 
       {opcion.tipo === 'clasico' ? (
         <>
           <div className="flex gap-3 flex-wrap">
-            <a href={URL_MANUAL_PDF} target="_blank" rel="noopener noreferrer"
+            <a href={opcion.url} target="_blank" rel="noopener noreferrer"
               className="min-h-[44px] px-4 rounded-xl bg-accent text-accent-fg text-sm font-semibold flex items-center">
               Ver PDF
             </a>
-            <a href={URL_MANUAL_WORD} download="manual-convivencia-2026.docx"
+            {opcion.id === 'clasico' && <a href={URL_MANUAL_WORD} download="manual-convivencia-2026.docx"
               className="min-h-[44px] px-4 rounded-xl border border-line text-strong text-sm font-semibold flex items-center hover:bg-elevated">
               Descargar Word
-            </a>
+            </a>}
           </div>
           {escritorio && (
-            <iframe src={URL_MANUAL_PDF} title="Manual de convivencia 2026 (PDF)"
+            <iframe src={opcion.url} title={`${opcion.nombre} (PDF)`}
               className="w-full rounded-2xl border border-line bg-card" style={ALTO_IFRAME} />
           )}
         </>

@@ -17,6 +17,8 @@ const urlChatbot = (id: string) => ASISTENTES.find(a => a.id === id)?.url ?? '';
 export const URL_MANUAL_DIGITAL = `${BASE}manual-digital.html`;
 export const URL_MANUAL_PDF = `${BASE}manual-convivencia-2026.pdf`;
 export const URL_MANUAL_WORD = `${BASE}manual-convivencia-2026.docx`;
+export const URL_SIEPE_DIGITAL = `${BASE}siepe-digital.html`;
+export const URL_SIEPE_PDF = `${BASE}siepe-2026.pdf`;
 
 /** URL absoluta de la versión digital, para el código QR. */
 export function urlAbsolutaManualDigital(): string {
@@ -37,6 +39,20 @@ export const OPCIONES_MANUAL: OpcionManual[] = [
     descripcion: 'Orientación sobre el sistema institucional de evaluación (SIEPE).',
     tipo: 'chatbot',
     url: urlChatbot('evaluacion'),
+  },
+  {
+    id: 'siepe-digital',
+    nombre: 'SIEPE digital (beta)',
+    descripcion: 'Por preguntas, con rutas y mapa de conexiones. Pendiente de verificación por las directivas.',
+    tipo: 'digital',
+    url: URL_SIEPE_DIGITAL,
+  },
+  {
+    id: 'siepe-clasico',
+    nombre: 'SIEPE clásico',
+    descripcion: 'El documento oficial completo, en PDF.',
+    tipo: 'clasico',
+    url: URL_SIEPE_PDF,
   },
   {
     id: 'digital',
