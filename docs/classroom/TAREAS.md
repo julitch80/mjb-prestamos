@@ -5,7 +5,7 @@ PRD y PLAN aprobados por Julián el 4-oct-2026. Una subtarea a la vez, con evide
 ## 1. Cimientos
 - [x] 1.1 Codebase `functions-classroom` (build, despliegue acotado, maxInstances) — **Hecho cuando:** `npm run build` del codebase pasa y `firebase.json` lo lista sin tocar los demás.
 - [x] 1.2 Acceso como profesor (firma sin clave, como el calendario) + función de prueba de solo lectura — **Hecho cuando:** con los permisos de consola puestos, la prueba lista los cursos de Julián (nombres) y sin ellos responde «sin autorización» sin romper nada.
-- [ ] 1.3 Datos y reglas (`classroomVinculos`, `classroomTareas`, `classroomPendientes`) — **Hecho cuando:** las pruebas de reglas en el simulador demuestran que cada profesor ve solo lo suyo, coordinación ve pendientes de su jornada y nadie escribe desde la app.
+- [x] 1.3 Datos y reglas (`classroomVinculos`, `classroomTareas`, `classroomPendientes`) — **Hecho cuando:** las pruebas de reglas en el simulador demuestran que cada profesor ve solo lo suyo, coordinación ve pendientes de su jornada y nadie escribe desde la app.
 - [ ] 1.4 Apps Script: columnas `origen` y `classroomUrl` en la tarea — **Hecho cuando:** Julián redespliega y una tarea creada desde MJB guarda esas columnas vacías sin afectar nada.
 
 ## 2. Vincular cursos

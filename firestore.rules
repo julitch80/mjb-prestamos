@@ -522,6 +522,30 @@ service cloud.firestore {
       allow delete: if !esSuplantacion() && (false);
     }
 
+    // ---------- Integracion con Google Classroom (docs/classroom/PLAN.md) ----------
+    //
+    // Escriben SOLO las Cloud Functions (admin SDK, que ignora las reglas): ningun
+    // cliente crea, edita ni borra, ni siquiera el superusuario.
+    // classroomVinculos/{correo}: grupo|asignatura -> curso. Lo lee su profesor.
+    // classroomTareas/{idTareaMjb}: campo `profesor` (correo). Lo lee su profesor.
+    // classroomPendientes/{idCourseWork}: campos `profesor`, `jornada`, `grupo`. Lo leen
+    // el profesor, el coordinador de esa jornada y la rectora. El superusuario lee todo.
+    match /classroomVinculos/{correo} {
+      allow read: if isActiveUser() && (isSuper() || callerEmail() == correo.lower());
+      allow write: if false;
+    }
+    match /classroomTareas/{idTarea} {
+      allow read: if isActiveUser() && (isSuper() || callerEmail() == resource.data.profesor.lower());
+      allow write: if false;
+    }
+    match /classroomPendientes/{idCourseWork} {
+      allow read: if isActiveUser() && (isSuper()
+        || callerEmail() == resource.data.profesor.lower()
+        || callerDoc().role == 'rectora'
+        || (callerDoc().role == 'coordinador' && callerDoc().jornada == resource.data.jornada));
+      allow write: if false;
+    }
+
     // =========================================================================
     //  BLOQUE DE REGLAS DEL MODULO DE ASISTENCIA
     //
