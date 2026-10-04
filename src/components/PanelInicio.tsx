@@ -316,7 +316,11 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
     const listener = (e: WheelEvent) => {
       const el = e.currentTarget as HTMLDivElement;
       if (el.scrollWidth <= el.clientWidth) return;
-      el.scrollLeft += e.deltaY;
+      // Touchpad: dos dedos hacia los lados manda deltaX (con deltaY ~0). Antes solo
+      // se sumaba deltaY y el preventDefault anulaba el lateral: en portátiles no había
+      // forma de mover las filas (lo reportó Julián, 2026-10-03). Se usa el eje dominante.
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      el.scrollLeft += delta;
       e.preventDefault();
     };
     const filas = [filaARef.current, filaBRef.current].filter((el): el is HTMLDivElement => el !== null);
@@ -343,11 +347,11 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       {avisos.length > 0 && (
         <section>
           <h2 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Tu día</h2>
-          <div ref={filaARef} className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0">
+          <FilaConFlechas filaRef={filaARef}>
             {avisos.map((a) => (
               <BannerAviso key={a.id} aviso={a} />
             ))}
-          </div>
+          </FilaConFlechas>
         </section>
       )}
 
@@ -355,7 +359,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       {accesos.length > 0 && (
         <section>
           <h2 className="text-base font-semibold text-strong mb-3">¿Qué deseas hacer?</h2>
-          <div ref={filaBRef} className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0">
+          <FilaConFlechas filaRef={filaBRef}>
             {accesos.map((item) => (
               <BaldosaNeon
                 key={item.id}
@@ -364,7 +368,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
                 onClick={() => setVistaActual(item.id as never)}
               />
             ))}
-          </div>
+          </FilaConFlechas>
         </section>
       )}
 
@@ -669,5 +673,57 @@ function ChatResumenActivo({ onIrAlChat }: { onIrAlChat: () => void }) {
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Fila con desplazamiento lateral y flechas ‹ › en pantallas con puntero fino (PC).
+ * En el celular no se muestran: ahí se desliza con el dedo. Cada flecha aparece solo
+ * si hay contenido hacia ese lado.
+ */
+function FilaConFlechas({ filaRef, children }: { filaRef: React.RefObject<HTMLDivElement | null>; children: React.ReactNode }) {
+  const [puedeIzq, setPuedeIzq] = useState(false);
+  const [puedeDer, setPuedeDer] = useState(false);
+
+  useEffect(() => {
+    const el = filaRef.current;
+    if (!el) return;
+    const medir = () => {
+      setPuedeIzq(el.scrollLeft > 4);
+      setPuedeDer(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+    };
+    medir();
+    el.addEventListener('scroll', medir, { passive: true });
+    window.addEventListener('resize', medir);
+    return () => {
+      el.removeEventListener('scroll', medir);
+      window.removeEventListener('resize', medir);
+    };
+  });
+
+  const mover = (sentido: 1 | -1) => {
+    const el = filaRef.current;
+    if (el) el.scrollBy({ left: sentido * el.clientWidth * 0.8, behavior: 'smooth' });
+  };
+
+  const claseFlecha =
+    'hidden [@media(pointer:fine)]:flex absolute top-1/2 -translate-y-1/2 z-10 w-9 h-9 items-center justify-center rounded-full bg-elevated border border-line text-strong shadow-lg hover:brightness-125 transition';
+
+  return (
+    <div className="relative">
+      <div ref={filaRef} className="scroll-lateral flex gap-3 -mx-4 px-4 pb-1 sm:mx-0 sm:px-0">
+        {children}
+      </div>
+      {puedeIzq && (
+        <button type="button" aria-label="Ver anteriores" onClick={() => mover(-1)} className={`${claseFlecha} -left-3`}>
+          ‹
+        </button>
+      )}
+      {puedeDer && (
+        <button type="button" aria-label="Ver más" onClick={() => mover(1)} className={`${claseFlecha} -right-3`}>
+          ›
+        </button>
+      )}
+    </div>
   );
 }
