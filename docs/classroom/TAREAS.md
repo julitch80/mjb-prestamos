@@ -4,7 +4,7 @@ PRD y PLAN aprobados por Julián el 4-oct-2026. Una subtarea a la vez, con evide
 
 ## 1. Cimientos
 - [x] 1.1 Codebase `functions-classroom` (build, despliegue acotado, maxInstances) — **Hecho cuando:** `npm run build` del codebase pasa y `firebase.json` lo lista sin tocar los demás.
-- [ ] 1.2 Acceso como profesor (firma sin clave, como el calendario) + función de prueba de solo lectura — **Hecho cuando:** con los permisos de consola puestos, la prueba lista los cursos de Julián (nombres) y sin ellos responde «sin autorización» sin romper nada.
+- [x] 1.2 Acceso como profesor (firma sin clave, como el calendario) + función de prueba de solo lectura — **Hecho cuando:** con los permisos de consola puestos, la prueba lista los cursos de Julián (nombres) y sin ellos responde «sin autorización» sin romper nada.
 - [ ] 1.3 Datos y reglas (`classroomVinculos`, `classroomTareas`, `classroomPendientes`) — **Hecho cuando:** las pruebas de reglas en el simulador demuestran que cada profesor ve solo lo suyo, coordinación ve pendientes de su jornada y nadie escribe desde la app.
 - [ ] 1.4 Apps Script: columnas `origen` y `classroomUrl` en la tarea — **Hecho cuando:** Julián redespliega y una tarea creada desde MJB guarda esas columnas vacías sin afectar nada.
 
@@ -31,3 +31,8 @@ PRD y PLAN aprobados por Julián el 4-oct-2026. Una subtarea a la vez, con evide
 - [ ] 6.1 Conteo de pendientes de Classroom por grupo en el panel de coordinación — **Hecho cuando:** coordinación ve el conteo del grupo de piloto.
 - [ ] 6.2 Piloto completo con Julián — **Hecho cuando:** los 8 criterios del PRD pasan con capturas de MJB y de Classroom; criterio 8 comprobado con una cuenta sin vínculos.
 - [ ] 6.3 Manuales (profesores y coordinadores) — **Hecho cuando:** las secciones nuevas están publicadas.
+
+## Hallazgos del piloto
+- 2026-10-04 (1.2): la cuenta de Julián tiene 32 cursos ACTIVOS, incluidos los de 2024 y 2025, con nombres
+  irregulares («Fisica 10°2», «FÍSICA 10°1 2026», «Física 10-°3 2025»). La sugerencia de 2.2 debe
+  normalizar acentos, «°/º/-» y preferir el año en curso (o sin año); los cursos viejos se muestran aparte.
