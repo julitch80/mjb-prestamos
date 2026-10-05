@@ -12,7 +12,7 @@ import { gruposAsignables, todosLosGrupos } from '../data/tareas/horario';
 import { claveVinculo, sugerirCurso } from '../data/classroomSugerencia';
 
 interface Curso { id: string; nombre: string; seccion?: string; anio?: number | null }
-interface Vinculo { courseId: string; nombre?: string }
+interface Vinculo { courseId: string; nombre?: string; registro?: { registrationId?: string; expiryTime?: string; error?: string } }
 interface Par { grupo: string; asignatura: string }
 type Resp = { ok: boolean; motivo?: string; detalle?: string; cursos?: Curso[]; desvinculado?: boolean; avisos?: boolean; registro?: { error?: string } };
 
@@ -207,7 +207,13 @@ function Panel({ esSuper, userId, onCerrar }: { esSuper: boolean; userId: string
                   <div className="text-sm font-semibold text-strong">{p.grupo} · <span className="font-normal text-soft">{p.asignatura}</span></div>
                   {v ? (
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-strong flex-1 min-w-[160px]">Vinculado: {v.nombre ?? cursos?.find(c => c.id === v.courseId)?.nombre ?? v.courseId}</span>
+                      <span className="text-xs text-strong flex-1 min-w-[160px]">Vinculado: {v.nombre ?? cursos?.find(c => c.id === v.courseId)?.nombre ?? v.courseId}
+                        <span className="block text-muted">
+                          {v.registro?.registrationId
+                            ? `Avisos activos${v.registro.expiryTime ? ` hasta ${new Date(v.registro.expiryTime).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}`
+                            : v.registro?.error ? `Avisos sin activar: ${v.registro.error}` : 'Avisos: sin registro'}
+                        </span>
+                      </span>
                       <button onClick={() => accion(p, null)} disabled={ocupado}
                         className="px-3 min-h-[36px] rounded-lg border border-line text-xs text-soft hover:bg-elevated disabled:opacity-50">
                         {ocupado ? '…' : 'Desvincular'}
