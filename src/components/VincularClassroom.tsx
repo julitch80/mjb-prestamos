@@ -1,5 +1,5 @@
 // «Vincular Classroom»: enlaza cada grupo+asignatura con un curso de Google Classroom.
-// Solo aparece para quienes están en config/classroom.piloto (o el superusuario); para el
+// Solo aparece para quienes tienen documento en classroomVinculos/{correo} (o el superusuario); para el
 // resto no se renderiza nada (criterio 8 del PRD). Backend: classroomCursos / classroomVincular.
 import { useEffect, useMemo, useState } from 'react';
 import { GraduationCap, Loader2, X } from 'lucide-react';
@@ -33,9 +33,10 @@ export default function VincularClassroom() {
       try {
         const correo = auth?.currentUser?.email?.toLowerCase();
         if (!correo) return;
-        const snap = await getDoc(doc(db, 'config', 'classroom'));
-        const piloto = snap.exists() ? snap.data().piloto : null;
-        const ok = Array.isArray(piloto) && piloto.some((p: unknown) => String(p).toLowerCase() === correo);
+        // Piloto: quien tiene documento en classroomVinculos/{su correo} (lo crea el sistema).
+        // Las reglas ya dejan a cada profesor leer el suyo; a los demás, la lectura falla o no existe.
+        const snap = await getDoc(doc(db, 'classroomVinculos', correo));
+        const ok = snap.exists();
         if (vivo && ok) setVisible(true);
       } catch { /* sin permiso o sin red: se oculta */ }
     })();
