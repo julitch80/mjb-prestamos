@@ -9,8 +9,8 @@ PRD y PLAN aprobados por Julián el 4-oct-2026. Una subtarea a la vez, con evide
 - [ ] 1.4 Apps Script: columnas `origen` y `classroomUrl` en la tarea — **Hecho cuando:** Julián redespliega y una tarea creada desde MJB guarda esas columnas vacías sin afectar nada.
 
 ## 2. Vincular cursos
-- [ ] 2.1 `classroomCursos` y `classroomVincular` (activa los avisos del curso) — **Hecho cuando:** Julián vincula su grupo de piloto y el vínculo aparece en Firestore con el curso correcto.
-- [ ] 2.2 Pantalla «Vincular Classroom» en Tareas con curso sugerido por nombre — **Hecho cuando:** Julián la ve con sus grupos y asignaturas y la sugerencia acierta; un profesor sin cursos no ve cambios.
+- [x] 2.1 `classroomCursos` y `classroomVincular` (activa los avisos del curso) — **Hecho cuando:** Julián vincula su grupo de piloto y el vínculo aparece en Firestore con el curso correcto.
+- [x] 2.2 Pantalla «Vincular Classroom» en Tareas con curso sugerido por nombre — **Hecho cuando:** Julián la ve con sus grupos y asignaturas y la sugerencia acierta; un profesor sin cursos no ve cambios.
 
 ## 3. MJB → Classroom
 - [ ] 3.1 Casilla «Publicar también en Classroom» + `classroomPublicar` — **Hecho cuando:** criterio 2 del PRD (la tarea aparece en Classroom con título, descripción, enlace y fecha).
