@@ -645,7 +645,23 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
   async function cancelar(id: string) {
     if (!userId) return;
     const r = await cancelarTarea(id, userId);
-    if (r.ok) qc.invalidateQueries({ queryKey: ['datosTareas'] });
+    if (!r.ok) return;
+    qc.invalidateQueries({ queryKey: ['datosTareas'] });
+    // Si la tarea estaba en Classroom, también se borra allá (sin cambios si nunca se publicó).
+    if (!firebaseConfigurado || !functions) return;
+    try {
+      const rc = await httpsCallable<unknown, { ok: boolean; nada?: boolean; motivo?: string; detalle?: string }>(functions, 'classroomBorrar')({ tareaId: id });
+      if (rc.data.ok && !rc.data.nada) {
+        setAviso({ tipo: 'ok', texto: 'Tarea cancelada. También se borró de Classroom.' });
+      } else if (!rc.data.ok) {
+        const causa = rc.data.motivo === 'sin-autorizacion' ? 'faltan permisos de Classroom'
+          : rc.data.motivo === 'no-creada-por-mjb' ? 'fue creada directamente en Classroom'
+          : (rc.data.detalle ?? 'error de Classroom');
+        setAviso({ tipo: 'error', texto: `La tarea se canceló en MJB, pero no se pudo borrar de Classroom: ${causa}` });
+      }
+    } catch (e) {
+      setAviso({ tipo: 'error', texto: `La tarea se canceló en MJB, pero no se pudo borrar de Classroom: ${e instanceof Error ? e.message : 'error de conexión'}` });
+    }
   }
 
   if (misGrupos.length === 0) return (

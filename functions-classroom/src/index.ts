@@ -269,3 +269,44 @@ export const classroomPublicar = onCall({ invoker: 'public' }, async (request) =
   });
   return { ok: true, alternateLink };
 });
+
+// ---------- 3.2: borrar de Classroom una tarea cancelada en MJB ----------
+
+/**
+ * Borra de Classroom la tarea que MJB publicó (solo si origen === 'mjb': Classroom solo deja
+ * borrar al proyecto que la creó). El documento se conserva con la marca borradoEnClassroom.
+ */
+export const classroomBorrar = onCall({ invoker: 'public' }, async (request) => {
+  const { cuenta } = await autenticar(request, true);
+  const d = (request.data ?? {}) as Record<string, unknown>;
+  const tareaId = typeof d.tareaId === 'string' ? d.tareaId.trim() : '';
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(tareaId)) throw new HttpsError('invalid-argument', 'tareaId inválido.');
+
+  const refTarea = db.doc(`classroomTareas/${tareaId}`);
+  const snap = await refTarea.get();
+  if (!snap.exists || !snap.get('courseWorkId')) return { ok: true, nada: true };
+  if (snap.get('profesor') !== cuenta) throw new HttpsError('permission-denied', 'Esta tarea no es de tu cuenta.');
+  if (snap.get('borradoEnClassroom') === true) return { ok: true, nada: true };
+  if (snap.get('origen') !== 'mjb') return { ok: false, motivo: 'no-creada-por-mjb' };
+
+  const courseId = String(snap.get('courseId') ?? '');
+  const courseWorkId = String(snap.get('courseWorkId'));
+  if (!/^\d{1,20}$/.test(courseId) || !/^[A-Za-z0-9_-]{1,40}$/.test(courseWorkId)) {
+    return { ok: false, motivo: 'error-classroom', detalle: 'Identificadores de Classroom inválidos.' };
+  }
+
+  const t = await pedirToken(cuenta, [ALCANCE_TAREAS]);
+  if ('fallo' in t) return t.fallo;
+  try {
+    await api<unknown>(t.token, 'DELETE', `/courses/${courseId}/courseWork/${courseWorkId}`);
+  } catch (e) {
+    // 404 = ya estaba borrada en Classroom: cuenta como borrada.
+    if (!(e instanceof ErrorApi && e.estado === 404)) {
+      const detalle = e instanceof Error ? e.message : String(e);
+      if (e instanceof ErrorApi && e.estado === 403) return { ok: false, motivo: 'sin-autorizacion', detalle };
+      return { ok: false, motivo: 'error-classroom', detalle };
+    }
+  }
+  await refTarea.update({ borradoEnClassroom: true, borrado: FieldValue.serverTimestamp() });
+  return { ok: true };
+});
