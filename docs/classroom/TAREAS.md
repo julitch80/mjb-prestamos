@@ -18,7 +18,7 @@ PRD y PLAN aprobados por Julián el 4-oct-2026. Una subtarea a la vez, con evide
 - [x] 3.3 «También en Classroom» con enlace en la tarea — **Hecho cuando:** el enlace abre la tarea correcta en Classroom.
 
 ## 4. Classroom → MJB
-- [ ] 4.1 `revisarClassroom` (programada cada 5 minutos): lee las tareas publicadas de los cursos vinculados creadas desde el vínculo, crea/actualiza el pendiente, ignora las creadas por MJB y detecta las borradas — **Hecho cuando:** criterio 4 del PRD y ningún duplicado al publicar desde MJB.
+- [x] 4.1 `revisarClassroom` (programada cada 5 minutos): lee las tareas publicadas de los cursos vinculados creadas desde el vínculo, crea/actualiza el pendiente, ignora las creadas por MJB y detecta las borradas — **Hecho cuando:** criterio 4 del PRD y ningún duplicado al publicar desde MJB.
 - [ ] 4.2 Aviso «Tarea de Classroom por completar» con momentos y validación de fecha — **Hecho cuando:** criterio 5 del PRD.
 - [ ] 4.3 Fecha no válida: fechas propuestas + «Abrir la tarea en Classroom» — **Hecho cuando:** criterio 6 del PRD (incluido que el aviso desaparece al corregirla allá).
 
