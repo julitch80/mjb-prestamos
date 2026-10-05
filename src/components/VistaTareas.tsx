@@ -28,7 +28,7 @@ import { diasDeClase, gruposAsignables, todosLosGrupos, esGrupoDeTarde } from '.
 import { cn } from '@/lib/utils';
 import DetalleTarea from './DetalleTarea';
 import { httpsCallable } from 'firebase/functions';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db, firebaseConfigurado, functions } from '../lib/firebase';
 import { claveVinculo } from '../data/classroomSugerencia';
 
@@ -468,18 +468,14 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
   // Classroom (piloto): vínculos propios, leídos una vez. Sin documento o sin permiso: no cambia nada.
   const [vinculosCr, setVinculosCr] = useState<Record<string, { courseId?: string; nombre?: string }>>({});
   const [publicarCr, setPublicarCr] = useState(true);
+  // Escucha en vivo: un curso recién vinculado aparece sin recargar la página.
   useEffect(() => {
-    let vivo = true;
-    (async () => {
-      if (!firebaseConfigurado || !db) return;
-      try {
-        const correo = auth?.currentUser?.email?.toLowerCase();
-        if (!correo) return;
-        const snap = await getDoc(doc(db, 'classroomVinculos', correo));
-        if (vivo && snap.exists()) setVinculosCr((snap.data()?.vinculos ?? {}) as Record<string, { courseId?: string; nombre?: string }>);
-      } catch { /* sin permiso o sin red: sin Classroom */ }
-    })();
-    return () => { vivo = false; };
+    if (!firebaseConfigurado || !db) return;
+    const correo = auth?.currentUser?.email?.toLowerCase();
+    if (!correo) return;
+    return onSnapshot(doc(db, 'classroomVinculos', correo),
+      snap => setVinculosCr((snap.data()?.vinculos ?? {}) as Record<string, { courseId?: string; nombre?: string }>),
+      () => { /* sin permiso o sin red: sin Classroom */ });
   }, []);
   const [mostrarCesion, setMostrarCesion] = useState(false);
   const [mostrarSolicitud, setMostrarSolicitud] = useState(false);
