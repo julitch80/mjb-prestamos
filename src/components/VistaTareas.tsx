@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, FolderOpen, Gift, ListChecks, Paperclip, HandCoins, Loader2, QrCode, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
 import AgendaGrupo from './AgendaGrupo';
 import ModalReplicarTarea from './ModalReplicarTarea';
+import VincularClassroom from './VincularClassroom';
 import { subirAdjuntoTarea } from '../data/tareas/adjuntos';
 import { useAppStore } from '../data/store';
 import {
@@ -616,6 +617,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
           <h2 className="font-bold text-strong">Asignar tarea</h2>
           {grupo && (
             <div className="ml-auto flex gap-2">
+              <VincularClassroom />
               {soyDirector && (
                 <button
                   onClick={() => setEditandoAnclas(true)}
