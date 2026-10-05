@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clasificarErrorToken, mapearCursos, urlCursosDelDocente } from './logica';
+import { claveVinculo, clasificarErrorToken, extraerAnio, extraerGrupo, mapearCursos, normalizarNombre, sugerirCurso, textoValido, urlCursosDelDocente } from './logica';
 
 describe('classroom logica', () => {
   it('arma la URL de cursos', () => {
@@ -7,12 +7,61 @@ describe('classroom logica', () => {
   });
   it('mapea solo id, nombre y seccion', () => {
     expect(mapearCursos([{ id: '1', name: '10.1 Fisica', section: 'A', extra: 'x' } as never, { name: 'sin id' }]))
-      .toEqual([{ id: '1', nombre: '10.1 Fisica', seccion: 'A' }]);
+      .toEqual([{ id: '1', nombre: '10.1 Fisica', seccion: 'A', anio: null, alternateLink: '' }]);
     expect(mapearCursos(undefined)).toEqual([]);
   });
   it('clasifica errores de token', () => {
     expect(clasificarErrorToken('token 401: unauthorized_client Client is unauthorized')).toBe('sin-autorizacion');
     expect(clasificarErrorToken('signJwt 403 forbidden')).toBe('sin-autorizacion');
     expect(clasificarErrorToken('ECONNRESET')).toBe('otro');
+  });
+});
+
+describe('normalizacion y sugerencia', () => {
+  it('unifica el grupo', () => {
+    for (const t of ['Física 10-°3 2025', 'FÍSICA 10°3', '10.3', '10º3', '10 3']) expect(extraerGrupo(t)).toBe('10.3');
+    expect(extraerGrupo('Fisica 6º1')).toBe('6.1');
+    expect(extraerGrupo('Matemáticas')).toBeNull();
+    expect(normalizarNombre('FÍSICA 10°1 2026')).toBe('fisica 10.1 2026');
+    expect(extraerGrupo('curso 2025')).toBeNull();
+  });
+  it('extrae el anio', () => {
+    expect(extraerAnio('Física 10-°3 2025')).toBe(2025);
+    expect(extraerAnio('FÍSICA 10°1', 'Ciencias 2026')).toBe(2026);
+    expect(extraerAnio('Fisica 10°2')).toBeNull();
+    expect(extraerAnio('Curso 1999')).toBeNull();
+  });
+  const cursos = [
+    { id: 'a', nombre: 'Fisica 10°2', seccion: '' },
+    { id: 'b', nombre: 'FISICA 11°3 2026', seccion: '' },
+    { id: 'c', nombre: 'Fisica 10°4 2026', seccion: '' },
+    { id: 'd', nombre: 'FÍSICA 10°1 2026', seccion: '' },
+    { id: 'e', nombre: 'Física 10°1 2025 · Media', seccion: '' },
+    { id: 'f', nombre: 'FÍSICA 10°1 2024', seccion: '' },
+    { id: 'g', nombre: 'FÍSICA 10°1', seccion: 'Ciencias Nuturales' },
+    { id: 'h', nombre: 'Matemáticas', seccion: 'GEO - Estadistica' },
+  ];
+  it('prefiere el anio actual y descarta los viejos', () => {
+    expect(sugerirCurso('10.1', 'Física', cursos, 2026)).toBe('d');
+    expect(sugerirCurso('10.1', 'Física', cursos.filter((c) => c.id !== 'd'), 2026)).toBe('g');
+    expect(sugerirCurso('10.1', 'Física', cursos.filter((c) => !['d', 'g'].includes(c.id)), 2026)).toBeNull();
+  });
+  it('otros grupos y sin coincidencia', () => {
+    expect(sugerirCurso('10.2', 'Física', cursos, 2026)).toBe('a');
+    expect(sugerirCurso('11.3', 'Física', cursos, 2026)).toBe('b');
+    expect(sugerirCurso('9.1', 'Física', cursos, 2026)).toBeNull();
+    expect(sugerirCurso('6º1', 'Matemáticas', [{ id: 'x', nombre: 'Mate 6°1', seccion: '' }], 2026)).toBe('x');
+    expect(sugerirCurso('10.1', 'Matemáticas', cursos, 2026)).toBeNull();
+  });
+  it('prefiere la asignatura', () => {
+    const c = [{ id: 'm', nombre: 'Matemáticas 10°1 2026', seccion: '' }, { id: 'f', nombre: 'Física 10°1 2026', seccion: '' }];
+    expect(sugerirCurso('10.1', 'Física', c, 2026)).toBe('f');
+  });
+  it('clave y validacion', () => {
+    expect(claveVinculo('10.1', 'Física')).toBe('10_1|Física');
+    expect(textoValido('10.1')).toBe(true);
+    expect(textoValido('')).toBe(false);
+    expect(textoValido('x'.repeat(41))).toBe(false);
+    expect(textoValido(5)).toBe(false);
   });
 });
