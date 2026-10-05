@@ -14,7 +14,7 @@ PRD y PLAN aprobados por Julián el 4-oct-2026. Una subtarea a la vez, con evide
 
 ## 3. MJB → Classroom
 - [x] 3.1 Casilla «Publicar también en Classroom» + `classroomPublicar` — **Hecho cuando:** criterio 2 del PRD (la tarea aparece en Classroom con título, descripción, enlace y fecha).
-- [ ] 3.2 Cancelar en MJB borra en Classroom (`classroomBorrar`) — **Hecho cuando:** criterio 3 del PRD.
+- [x] 3.2 Cancelar en MJB borra en Classroom (`classroomBorrar`) — **Hecho cuando:** criterio 3 del PRD.
 - [ ] 3.3 «También en Classroom» con enlace en la tarea — **Hecho cuando:** el enlace abre la tarea correcta en Classroom.
 
 ## 4. Classroom → MJB
