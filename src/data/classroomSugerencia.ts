@@ -40,17 +40,19 @@ export function sugerirCurso(
 ): string | null {
   const g = extraerGrupo(grupo);
   if (!g) return null;
-  const palabras = normalizarNombre(asignatura).split(/[^a-z0-9]+/).filter((w) => w.length >= 3);
+  const VACIAS = new Set(['del', 'las', 'los', 'con']);
+  const palabras = normalizarNombre(asignatura).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !VACIAS.has(w));
   let mejor: { id: string; puntos: number } | null = null;
   for (const c of cursos) {
     if (extraerGrupo(c.nombre) !== g) continue;
     const anio = c.anio !== undefined ? c.anio : extraerAnio(c.nombre, c.seccion ?? '');
     if (anio != null && anio < anioActual) continue;
-    const texto = normalizarNombre(`${c.nombre} ${c.seccion ?? ''}`);
-    // La asignatura debe coincidir (por las 4 primeras letras: «Mate» ≈ «Matemáticas»);
-    // sin coincidencia no se sugiere, para no proponer Física a un grupo de Matemáticas.
-    const tokens = texto.split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
-    if (!palabras.some((w) => tokens.some((t) => t.slice(0, 4) === w.slice(0, 4)))) continue;
+    // La asignatura se busca SOLO en el nombre del curso (la sección suele ser el área,
+    // p. ej. «Ciencias Naturales», y hacía coincidir «Ciencias Sociales» con Física).
+    // Deben coincidir TODAS sus palabras, por las 4 primeras letras («Mate» ≈ «Matemáticas»),
+    // así «Educación Física» no se confunde con un curso de Física.
+    const tokens = normalizarNombre(c.nombre).split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
+    if (!palabras.length || !palabras.every((w) => tokens.some((t) => t.slice(0, 4) === w.slice(0, 4)))) continue;
     const puntos = anio === anioActual ? 2 : anio == null ? 1 : 0;
     if (!mejor || puntos > mejor.puntos) mejor = { id: c.id, puntos };
   }

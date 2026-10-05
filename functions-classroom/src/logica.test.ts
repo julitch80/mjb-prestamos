@@ -65,3 +65,20 @@ describe('normalizacion y sugerencia', () => {
     expect(textoValido(5)).toBe(false);
   });
 });
+
+describe('sugerirCurso: confusiones vistas en el piloto', () => {
+  const cursos = [
+    { id: 'viejo', nombre: 'FÍSICA 10°1', seccion: 'Ciencias Nuturales' },
+    { id: 'nuevo', nombre: 'FÍSICA 10°1 2026', seccion: '' },
+  ];
+  it('no usa la sección para casar la asignatura', () => {
+    expect(sugerirCurso('10.1', 'Ciencias Sociales', cursos, 2026)).toBeNull();
+  });
+  it('exige todas las palabras de la asignatura', () => {
+    expect(sugerirCurso('10.1', 'Educación Física', cursos, 2026)).toBeNull();
+  });
+  it('Física prefiere el curso del año', () => {
+    expect(sugerirCurso('10.1', 'Física', cursos, 2026)).toBe('nuevo');
+  });
+});
+

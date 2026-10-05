@@ -70,6 +70,9 @@ function Panel({ esSuper, userId, onCerrar }: { esSuper: boolean; userId: string
 
   // Pares grupo+asignatura: del docente si se resuelve por asignación; el superusuario
   // elige entre todos los del plan de estudios (su login no es la cuenta de profesor).
+  // Superusuario: por defecto solo las filas con curso sugerido o ya vinculadas.
+  const [relevantes, setRelevantes] = useState<Set<string>>(new Set());
+  const [verTodos, setVerTodos] = useState(false);
   const pares: Par[] = useMemo(() => {
     if (!esSuper) {
       const propios = userId ? gruposAsignables(userId) : [];
@@ -115,6 +118,7 @@ function Panel({ esSuper, userId, onCerrar }: { esSuper: boolean; userId: string
         el[k] = v[k]?.courseId ?? sugerirCurso(p.grupo, p.asignatura, lista, anio) ?? '';
       }
       setElegidos(el);
+      setRelevantes(new Set(Object.keys(el).filter(k => el[k])));
       setCargado(true);
     } catch (e) {
       setMensaje({ tipo: 'error', texto: `La función no respondió: ${(e as Error).message}` });
@@ -187,7 +191,14 @@ function Panel({ esSuper, userId, onCerrar }: { esSuper: boolean; userId: string
 
         {cargado && (cursos?.length ?? 0) > 0 && (
           <ul className="space-y-2">
-            {pares.map(p => {
+            {esSuper && (
+              <li>
+                <button type="button" onClick={() => setVerTodos(t => !t)} className="text-xs text-accent underline">
+                  {verTodos ? 'Ver solo los grupos con curso sugerido o vinculado' : `Ver todos los grupos y asignaturas (${pares.length})`}
+                </button>
+              </li>
+            )}
+            {pares.filter(p => !esSuper || verTodos || relevantes.has(claveVinculo(p.grupo, p.asignatura))).map(p => {
               const k = claveVinculo(p.grupo, p.asignatura);
               const v = vinculos[k];
               const ocupado = trabajando === k;
