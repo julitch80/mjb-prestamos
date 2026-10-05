@@ -14,7 +14,7 @@ import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as logger from 'firebase-functions/logger';
 import { ALCANCE_CURSOS, ALCANCE_TAREAS, ErrorApi, api, tokenComo } from './acceso';
-import { RE_CORREO_DOMINIO, cambioReal, dentroDeVentana, urlCourseWorkPublicadas, claveVinculo, clasificarErrorToken, debeIgnorar, extraerMateriales, fechaDesdeClassroom, jornadaDeGrupo, type CourseWorkCrudo, fechaEntregaClassroom, mapearCursos, textoValido, urlCursosDelDocente, type CursoCrudo } from './logica';
+import { RE_CORREO_DOMINIO, cambioReal, dentroDeVentana, urlCourseWorkPublicadas, claveVinculo, clasificarErrorToken, debeIgnorar, extraerMateriales, fechaCambio, fechaDesdeClassroom, jornadaDeGrupo, type CourseWorkCrudo, fechaEntregaClassroom, mapearCursos, textoValido, urlCursosDelDocente, type CursoCrudo } from './logica';
 
 setGlobalOptions({ maxInstances: 10, region: 'us-central1' });
 
@@ -320,7 +320,17 @@ type Dueno = { profesor: string; grupo: string; asignatura: string; courseId: st
 async function procesarCourseWork(dueno: Dueno, cw: CourseWorkCrudo): Promise<'nuevo' | 'actualizado' | 'sin-cambios' | 'ignorada'> {
   const id = String(cw.id ?? '');
   if (!/^[A-Za-z0-9_-]{1,40}$/.test(id)) return 'ignorada';
-  const existeEnc = !(await db.collection('classroomTareas').where('courseWorkId', '==', id).limit(1).get()).empty;
+  const enlazada = await db.collection('classroomTareas').where('courseWorkId', '==', id).limit(1).get();
+  const existeEnc = !enlazada.empty;
+  if (existeEnc && cw.associatedWithDeveloper !== true) {
+    // 5.2: tarea de origen Classroom ya enlazada: solo se refresca la fecha de Classroom
+    // (sin crear pendientes) para que MJB avise si difiere de la fecha de entrega.
+    const ref = enlazada.docs[0].ref;
+    const nueva = fechaDesdeClassroom(cw.dueDate, cw.dueTime);
+    if (enlazada.docs[0].get('origen') === 'classroom' && fechaCambio(enlazada.docs[0].get('fechaClassroom'), nueva)) {
+      await ref.set({ fechaClassroom: nueva, actualizado: FieldValue.serverTimestamp() }, { merge: true });
+    }
+  }
   const motivo = debeIgnorar(cw, existeEnc);
   if (motivo) { logger.info('Tarea ignorada', { id, motivo }); return 'ignorada'; }
   const refPend = db.doc(`classroomPendientes/${id}`);
@@ -382,6 +392,34 @@ export const classroomConfirmarPendiente = onCall({ invoker: 'public' }, async (
   return { ok: true };
 });
 
+/**
+ * 5.1: el cliente ya canceló la tarea en MJB (cancelarTarea) tras ver que se borró en
+ * Classroom. Marca classroomTareas.canceladaEnMjb y el pendiente como 'cancelada' para no
+ * reintentar. Solo para tareas de origen Classroom detectadas como borradas. Idempotente.
+ */
+export const classroomMarcarCancelada = onCall({ invoker: 'public' }, async (request) => {
+  const { cuenta } = await autenticar(request, true);
+  const d = (request.data ?? {}) as Record<string, unknown>;
+  const tareaId = typeof d.tareaId === 'string' ? d.tareaId.trim() : '';
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(tareaId)) throw new HttpsError('invalid-argument', 'tareaId inválido.');
+  const refT = db.doc(`classroomTareas/${tareaId}`);
+  const snap = await refT.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'No existe esa tarea.');
+  if (String(snap.get('profesor') ?? '').toLowerCase() !== cuenta) throw new HttpsError('permission-denied', 'Esa tarea no es tuya.');
+  if (snap.get('origen') !== 'classroom' || snap.get('borradoEnClassroomOrigen') !== true) {
+    throw new HttpsError('failed-precondition', 'Esa tarea no se borró en Classroom.');
+  }
+  if (snap.get('canceladaEnMjb') === true) return { ok: true, ya: true };
+  const batch = db.batch();
+  batch.set(refT, { canceladaEnMjb: true, canceladaEn: FieldValue.serverTimestamp() }, { merge: true });
+  const cw = String(snap.get('courseWorkId') ?? '');
+  if (/^[A-Za-z0-9_-]{1,40}$/.test(cw)) {
+    batch.set(db.doc(`classroomPendientes/${cw}`), { estado: 'cancelada', actualizado: FieldValue.serverTimestamp() }, { merge: true });
+  }
+  await batch.commit();
+  return { ok: true };
+});
+
 /** Pendientes guardados de un curso cuya tarea ya no existe en Classroom. Devuelve cuántos trató. */
 async function revisarBorradas(token: string, courseId: string, publicadas: Set<string>): Promise<number> {
   let borrados = 0;
@@ -400,8 +438,16 @@ async function revisarBorradas(token: string, courseId: string, publicadas: Set<
     if (!borrada) continue;
     if (estado === 'pendiente') await doc.ref.delete(); // aún no se publicó nada en MJB
     else {
-      // TODO 5.1: cancelar la tarea en MJB y avisar al profesor. Por ahora solo se marca.
+      // 5.1: se marca el pendiente y, aparte, la tarea de MJB con `borradoEnClassroomOrigen`
+      // (distinta de `borradoEnClassroom`, que usa 3.2 para las tareas de MJB borradas en
+      // Classroom). La cancelación en MJB la hace el cliente al abrir Tareas (necesita idToken
+      // de Apps Script) y luego llama a classroomMarcarCancelada.
       await doc.ref.set({ borradoEnClassroom: true, actualizado: FieldValue.serverTimestamp() }, { merge: true });
+      const tareaId = String(doc.get('tareaId') ?? '');
+      if (/^[A-Za-z0-9_-]{1,80}$/.test(tareaId)) {
+        const refT = db.doc(`classroomTareas/${tareaId}`);
+        if ((await refT.get()).exists) await refT.set({ borradoEnClassroomOrigen: true, borradoDetectado: FieldValue.serverTimestamp() }, { merge: true });
+      }
     }
     borrados++;
   }

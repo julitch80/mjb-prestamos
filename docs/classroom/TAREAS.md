@@ -39,3 +39,4 @@ PRD y PLAN aprobados por Julián el 4-oct-2026. Una subtarea a la vez, con evide
 
 ## Desviaciones
 - 2026-10-04 (4.1 / 5.3): Classroom rechazó los avisos push con delegación de dominio (403 @MissingGrant; exigen OAuth por usuario). Opción A elegida por Julián: sondeo cada 5 minutos (`revisarClassroom`) en lugar de Pub/Sub `alAvisoClassroom`; 5.3 deja de aplicar y `classroomVincular` ya no registra suscripciones (campo `registro` retirado; se añade `vinculadoEn`).
+- 2026-10-05 (5.1): cancelar una tarea de MJB exige la acción de Apps Script `cancelarTarea`, que necesita el idToken del usuario; una Cloud Function no puede llamarla. Por eso `revisarClassroom` solo marca `classroomTareas.borradoEnClassroomOrigen` (separada de `borradoEnClassroom`, que es de 3.2) y la cancelación en MJB ocurre cuando el profesor abre Tareas (PanelDocente la ejecuta una vez y llama a `classroomMarcarCancelada`, que marca `canceladaEnMjb` y el pendiente `cancelada`).

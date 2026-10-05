@@ -190,3 +190,8 @@ export function urlCourseWorkPublicadas(courseId: string, pageSize = 30): string
 export function cambioReal(updateTimePrevio: string | undefined | null, updateTimeNuevo: string | undefined): boolean {
   return !updateTimePrevio || updateTimePrevio !== (updateTimeNuevo ?? '');
 }
+
+/** 5.2: ¿cambió la fecha de Classroom guardada respecto a la nueva? (null y undefined son lo mismo). */
+export function fechaCambio(previa: string | null | undefined, nueva: string | null | undefined): boolean {
+  return (previa ?? null) !== (nueva ?? null);
+}

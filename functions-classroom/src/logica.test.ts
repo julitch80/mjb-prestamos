@@ -150,3 +150,13 @@ describe('4.1 de Classroom a MJB', () => {
     expect(cambioReal('a', 'b')).toBe(true);
   });
 });
+
+import { fechaCambio } from './logica';
+describe('fechaCambio', () => {
+  it('detecta cambios y trata null/undefined igual', () => {
+    expect(fechaCambio('2026-10-10', '2026-10-11')).toBe(true);
+    expect(fechaCambio('2026-10-10', '2026-10-10')).toBe(false);
+    expect(fechaCambio(undefined, null)).toBe(false);
+    expect(fechaCambio(null, '2026-10-10')).toBe(true);
+  });
+});

@@ -485,6 +485,10 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
   }, []);
   // Tareas que también están en Classroom: idTareaMjb → enlace. En vivo; error o sin permiso: nada.
   const [enlacesCr, setEnlacesCr] = useState<Record<string, string>>({});
+  // 5.2: fecha de Classroom por tarea de origen Classroom (para avisar si difiere de la de MJB).
+  const [fechasCr, setFechasCr] = useState<Record<string, { fecha: string; enlace: string }>>({});
+  // 5.1: tareas de origen Classroom borradas allá y aún sin cancelar en MJB.
+  const [porCancelarCr, setPorCancelarCr] = useState<string[]>([]);
   useEffect(() => {
     if (!firebaseConfigurado || !db) return;
     const correo = auth?.currentUser?.email?.toLowerCase();
@@ -492,14 +496,46 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
     return onSnapshot(query(collection(db, 'classroomTareas'), where('profesor', '==', correo)),
       snap => {
         const m: Record<string, string> = {};
+        const f: Record<string, { fecha: string; enlace: string }> = {};
+        const c: string[] = [];
         snap.forEach(d => {
-          const x = d.data() as { alternateLink?: string; borradoEnClassroom?: boolean };
-          if (x.alternateLink && !x.borradoEnClassroom) m[d.id] = x.alternateLink;
+          const x = d.data() as {
+            alternateLink?: string; borradoEnClassroom?: boolean; origen?: string; fechaClassroom?: string | null;
+            borradoEnClassroomOrigen?: boolean; canceladaEnMjb?: boolean;
+          };
+          if (x.origen === 'classroom' && x.borradoEnClassroomOrigen && !x.canceladaEnMjb) c.push(d.id);
+          if (x.alternateLink && !x.borradoEnClassroom && !x.borradoEnClassroomOrigen) m[d.id] = x.alternateLink;
+          if (x.origen === 'classroom' && x.fechaClassroom && !x.borradoEnClassroomOrigen) {
+            f[d.id] = { fecha: x.fechaClassroom, enlace: x.alternateLink ?? '' };
+          }
         });
         setEnlacesCr(m);
+        setFechasCr(f);
+        setPorCancelarCr(c);
       },
       () => { /* sin permiso o sin red: sin enlaces */ });
   }, []);
+  // 5.1: cancelar en MJB (necesita el idToken de Apps Script, por eso lo hace el cliente) las
+  // tareas que se borraron en Classroom. Una sola vez por tarea y sesión; si cancelarTarea falla
+  // (p. ej. ya estaba cancelada) igual se marca para no reintentar.
+  const intentadasCr = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!userId || !firebaseConfigurado || !functions) return;
+    for (const id of porCancelarCr) {
+      if (intentadasCr.current.has(id)) continue;
+      intentadasCr.current.add(id);
+      const titulo = tareas.find(t => t.id === id)?.titulo ?? '';
+      (async () => {
+        let cancelada = false;
+        try { cancelada = (await cancelarTarea(id, userId)).ok; } catch { /* se marca igual */ }
+        try {
+          await httpsCallable(functions!, 'classroomMarcarCancelada')({ tareaId: id });
+        } catch { intentadasCr.current.delete(id); return; /* reintenta en el próximo cambio */ }
+        qc.invalidateQueries({ queryKey: ['datosTareas'] });
+        if (cancelada && titulo) setAviso({ tipo: 'ok', texto: `La tarea «${titulo}» se borró en Classroom y se canceló en MJB.` });
+      })();
+    }
+  }, [porCancelarCr, userId, tareas, qc]);
   // Tareas creadas directamente en Classroom, a la espera de definir momentos (4.2).
   const [pendientesCr, setPendientesCr] = useState<PendienteCr[]>([]);
   useEffect(() => {
@@ -1174,6 +1210,16 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
                   También en Classroom ↗
                 </a>
               )}
+              {fechasCr[t.id] && fechasCr[t.id].fecha !== t.fechaEntrega && (
+                <a
+                  href={fechasCr[t.id].enlace || undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 ml-1 inline-block rounded-full border border-line bg-warning-soft text-warning-soft-fg px-2 py-0.5 text-[11px] font-semibold hover:opacity-80 transition"
+                >
+                  La fecha en Classroom no coincide (Classroom: {fechaLegible(fechasCr[t.id].fecha as FechaISO)}) ↗
+                </a>
+              )}
             </div>
             <button
               onClick={() => setReplicando(t)}
@@ -1613,8 +1659,45 @@ function PanelDirectivo({ tareas, cesiones, cuposOverride, anclasPorGrupo }: {
     }
   }
 
+  // 6.1: tareas de Classroom aún sin completar. Coordinación: solo su jornada (lo exige la regla
+  // de lectura); rectora/superusuario: todas. Error o sin permiso: no se muestra nada.
+  const { rol } = useAppStore();
+  const [sinCompletarCr, setSinCompletarCr] = useState<{ grupo: string; asignatura: string; profesor: string }[]>([]);
+  useEffect(() => {
+    if (!firebaseConfigurado || !db) return;
+    const esCoord = rol === 'coordinador';
+    if (esCoord && jornada !== 'manana' && jornada !== 'tarde') return;
+    const q = esCoord
+      ? query(collection(db, 'classroomPendientes'), where('jornada', '==', jornada), where('estado', '==', 'pendiente'))
+      : query(collection(db, 'classroomPendientes'), where('estado', '==', 'pendiente'));
+    return onSnapshot(q,
+      snap => setSinCompletarCr(snap.docs.map(d => d.data() as { grupo: string; asignatura: string; profesor: string })),
+      () => setSinCompletarCr([]));
+  }, [rol, jornada]);
+  const conteoCr = useMemo(() => {
+    const m = new Map<string, { n: number; profes: Set<string> }>();
+    for (const p of sinCompletarCr) {
+      const e = m.get(p.grupo) ?? { n: 0, profes: new Set<string>() };
+      e.n++; e.profes.add(String(p.profesor ?? '').split('@')[0]);
+      m.set(p.grupo, e);
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es', { numeric: true }));
+  }, [sinCompletarCr]);
+
   return (
     <div className="space-y-5">
+      {conteoCr.length > 0 && (
+        <section className="rounded-2xl border border-line bg-info-soft text-info-soft-fg p-3 space-y-1.5">
+          <h3 className="text-sm font-bold">Tareas de Classroom sin completar</h3>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {conteoCr.map(([g, e]) => (
+              <span key={g} className="rounded-full border border-line bg-card px-2 py-0.5 text-strong" title={[...e.profes].join(', ')}>
+                <span className="font-bold" style={{ color: colorGrado(g) }}>{g}</span>: {e.n} ({[...e.profes].join(', ')})
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
       <div className="flex items-center gap-3 flex-wrap">
         <CalendarDays size={18} className="text-soft" />
         <h2 className="font-bold text-strong">Carga de tareas por grupo</h2>

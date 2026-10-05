@@ -69,6 +69,17 @@ describe('classroom: lectura', () => {
     await assertFails(getDocs(col(PROFE)));
     await assertFails(getDocs(query(col(OTRO), where('profesor', '==', PROFE))));
   });
+  it('pendientes: coordinador lista por su jornada y estado; otra jornada y sin filtro fallan; rectora lista sin jornada', async () => {
+    const col = (email: string) => collection(ctx(email), 'classroomPendientes');
+    const pend = where('estado', '==', 'pendiente');
+    await assertSucceeds(getDocs(query(col(COORD_M), where('jornada', '==', 'manana'), pend)));
+    await assertFails(getDocs(query(col(COORD_M), where('jornada', '==', 'tarde'), pend)));
+    await assertFails(getDocs(query(col(COORD_T), where('jornada', '==', 'manana'), pend)));
+    await assertFails(getDocs(query(col(COORD_M), pend)));
+    await assertSucceeds(getDocs(query(col(RECTORA), pend)));
+    await assertSucceeds(getDocs(query(col(SUPER), pend)));
+    await assertFails(getDocs(query(col(PROFE), pend)));
+  });
   it('el coordinador no lee vinculos ni tareas ajenos', async () => {
     await assertFails(getDoc(doc(ctx(COORD_M), 'classroomVinculos', PROFE)));
     await assertFails(getDoc(doc(ctx(COORD_M), 'classroomTareas', 't1')));
