@@ -144,7 +144,15 @@ function Panel({ esSuper, userId, onCerrar }: { esSuper: boolean; userId: string
       } else {
         const curso = cursos?.find(c => c.id === courseId);
         const sinAvisos = r.data.avisos === false || !!r.data.registro?.error;
-        setVinculos(v => ({ ...v, [k]: { courseId, nombre: curso?.nombre } }));
+        setVinculos(v => ({ ...v, [k]: { courseId, nombre: curso?.nombre, registro: sinAvisos ? { error: r.data.detalle ?? 'sin detalle' } : undefined } }));
+        // Relee el documento para mostrar el estado real de los avisos (id y caducidad).
+        const correoDoc = (esSuper && cuenta.trim() ? cuenta.trim() : auth?.currentUser?.email ?? '').toLowerCase();
+        if (db && correoDoc) {
+          try {
+            const real = ((await getDoc(doc(db, 'classroomVinculos', correoDoc))).data()?.vinculos ?? {}) as Record<string, Vinculo>;
+            if (real[k]) setVinculos(v => ({ ...v, [k]: real[k] }));
+          } catch { /* se queda con el estado local */ }
+        }
         setMensaje(sinAvisos
           ? { tipo: 'aviso', texto: 'Vinculado, pero los avisos de Classroom aún no están activos.' }
           : { tipo: 'ok', texto: `Vinculado: ${p.grupo} · ${p.asignatura}.` });
