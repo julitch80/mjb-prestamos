@@ -19,11 +19,10 @@ Base: docs/classroom/PRD.md (aprobado por Julián el 4-oct-2026).
 |---|---|---|
 | Codebase nuevo `functions-classroom` | Todas las funciones de Classroom, aparte de las demás | Se despliega solo, sin tocar préstamos, asistencia ni calendario |
 | `classroomCursos` (llamable) | Lista los cursos de Classroom del profesor | Para la pantalla «Vincular Classroom» |
-| `classroomVincular` (llamable) | Guarda grupo+asignatura → curso y activa los avisos de ese curso | Una vez por curso |
+| `classroomVincular` (llamable) | Guarda grupo+asignatura → curso (y desde cuándo está vinculado) | Una vez por curso |
 | `classroomPublicar` (llamable) | Crea la tarea en Classroom después de publicarla en MJB | Vía 1 |
 | `classroomBorrar` (llamable) | La borra de Classroom al cancelarla en MJB | Vía 1 |
-| `alAvisoClassroom` (Pub/Sub) | Recibe «se creó / cambió / borró una tarea» y actualiza los pendientes | Vía 2, en pocos minutos |
-| `renovarAvisosClassroom` (diaria) | Los avisos de Classroom caducan a los 7 días: los renueva y revisa si se perdió alguno | Nadie tiene que acordarse |
+| `revisarClassroom` (programada, cada 5 minutos) | Lee las tareas publicadas de los cursos vinculados (solo las creadas desde el vínculo), crea o actualiza los pendientes y detecta las borradas | Vía 2, en menos de 5 minutos; nadie tiene que acordarse |
 | Pantalla «Vincular Classroom» en Tareas | Lista de grupos y asignaturas del profesor con su curso sugerido | Vía 0 |
 | Casilla «Publicar también en Classroom» | Al crear una tarea | Vía 1 |
 | Aviso «Tarea de Classroom por completar» | Con momentos, verificación de fecha y botón «Abrir en Classroom» | Vía 2 |
@@ -44,14 +43,12 @@ cupo, los festivos y la agenda se validan igual que siempre.
 
 ## Permisos que Julián agrega (cuando el plan esté aprobado)
 
-1. **Google Cloud, proyecto mjb-prestamos:** activar *Google Classroom API* y *Cloud Pub/Sub API*.
+1. **Google Cloud, proyecto mjb-prestamos:** activar *Google Classroom API* (Pub/Sub ya no hace falta).
 2. **Consola de administración (admin.asistencia) → Seguridad → Controles de API → Delegación
    de todo el dominio:** editar la entrada que ya existe para el calendario y **agregar** estos permisos:
    - `https://www.googleapis.com/auth/classroom.courses.readonly`
    - `https://www.googleapis.com/auth/classroom.coursework.students`
-   - `https://www.googleapis.com/auth/classroom.push-notifications`
-3. El tema de avisos de Pub/Sub y su permiso para Classroom los creo yo con la consola de Firebase
-   o la línea de comandos; si el sistema lo bloquea, te paso dos clics.
+3. Ya no hay tema de Pub/Sub: la revisión es una función programada (Cloud Scheduler la crea el despliegue).
 
 ## Orden de construcción (tareas madre)
 
@@ -74,5 +71,9 @@ cupo, los festivos y la agenda se validan igual que siempre.
 
 - **Si la delegación no tiene los permisos**, las funciones responden «sin autorización» y no
   rompen nada; la pantalla de vincular lo dice.
-- **Avisos perdidos de Classroom:** la revisión diaria los recupera.
-- **Coste:** dentro del plan gratuito de Firebase y Pub/Sub para el volumen del colegio.
+- **Sin avisos push (hallazgo 2026-10-04):** `POST /registrations` respondió 403 «@MissingGrant … domain-wide
+  delegation is not supported»: los avisos push de Classroom exigen OAuth por usuario, no la delegación de
+  dominio. Julián decidió la **Opción A**: sustituir el push por sondeo cada 5 minutos (`revisarClassroom`).
+  Consecuencia: el retraso máximo es de ~5 minutos y no hay suscripciones que caduquen ni renovar.
+- **Tareas viejas:** solo se importan las creadas en Classroom desde que se vinculó el curso (`vinculadoEn`).
+- **Coste:** dentro del plan gratuito de Firebase para el volumen del colegio (unas pocas lecturas por curso cada 5 minutos).

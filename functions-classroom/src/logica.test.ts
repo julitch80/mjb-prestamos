@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claveVinculo, fechaEntregaClassroom, clasificarErrorToken, extraerAnio, extraerGrupo, mapearCursos, normalizarNombre, sugerirCurso, textoValido, urlCursosDelDocente } from './logica';
+import { cambioReal, dentroDeVentana, urlCourseWorkPublicadas, claveVinculo, fechaEntregaClassroom, clasificarErrorToken, extraerAnio, extraerGrupo, mapearCursos, normalizarNombre, sugerirCurso, textoValido, urlCursosDelDocente } from './logica';
 
 describe('classroom logica', () => {
   it('arma la URL de cursos', () => {
@@ -131,5 +131,22 @@ describe('4.1 de Classroom a MJB', () => {
     expect(r).toEqual([{ titulo: 'A', url: 'http://a' }, { titulo: 'D', url: 'http://d' }, { titulo: 'Y', url: 'http://y' }]);
     expect(extraerMateriales(Array.from({ length: 15 }, (_, i) => ({ link: { url: 'http://x' + i } })))).toHaveLength(10);
     expect(extraerMateriales(undefined)).toEqual([]);
+  });
+  it('ventana de vínculo', () => {
+    const v = Date.parse('2026-10-05T12:00:00Z');
+    expect(dentroDeVentana('2026-10-05T12:00:00.000Z', v)).toBe(true);
+    expect(dentroDeVentana('2026-10-05T12:30:00Z', v)).toBe(true);
+    expect(dentroDeVentana('2026-10-05T11:59:59Z', v)).toBe(false);
+    expect(dentroDeVentana(undefined, v)).toBe(false);
+    expect(dentroDeVentana('basura', v)).toBe(false);
+    expect(dentroDeVentana('2026-10-05T12:30:00Z', null)).toBe(false);
+  });
+  it('url de tareas publicadas', () => {
+    expect(urlCourseWorkPublicadas('123')).toBe('/courses/123/courseWork?courseWorkStates=PUBLISHED&orderBy=updateTime%20desc&pageSize=30');
+  });
+  it('detecta cambio real', () => {
+    expect(cambioReal(undefined, 'a')).toBe(true);
+    expect(cambioReal('a', 'a')).toBe(false);
+    expect(cambioReal('a', 'b')).toBe(true);
   });
 });

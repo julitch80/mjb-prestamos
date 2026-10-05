@@ -8,13 +8,13 @@
 // se comprueba dentro de la función.
 
 import { initializeApp } from 'firebase-admin/app';
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
-import { onMessagePublished } from 'firebase-functions/v2/pubsub';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as logger from 'firebase-functions/logger';
-import { ALCANCE_CURSOS, ALCANCE_PUSH, ALCANCE_TAREAS, ErrorApi, api, tokenComo } from './acceso';
-import { RE_CORREO_DOMINIO, claveVinculo, clasificarErrorToken, debeIgnorar, extraerMateriales, fechaDesdeClassroom, jornadaDeGrupo, type CourseWorkCrudo, fechaEntregaClassroom, mapearCursos, textoValido, urlCursosDelDocente, type CursoCrudo } from './logica';
+import { ALCANCE_CURSOS, ALCANCE_TAREAS, ErrorApi, api, tokenComo } from './acceso';
+import { RE_CORREO_DOMINIO, cambioReal, dentroDeVentana, urlCourseWorkPublicadas, claveVinculo, clasificarErrorToken, debeIgnorar, extraerMateriales, fechaDesdeClassroom, jornadaDeGrupo, type CourseWorkCrudo, fechaEntregaClassroom, mapearCursos, textoValido, urlCursosDelDocente, type CursoCrudo } from './logica';
 
 setGlobalOptions({ maxInstances: 10, region: 'us-central1' });
 
@@ -136,7 +136,7 @@ export const classroomCursos = onCall({ invoker: 'public' }, async (request) => 
  * Vincula (courseId) o desvincula (courseId null) un par grupo/asignatura con un curso.
  * Documento classroomVinculos/{correoCuenta}:
  *   { vinculos: { "<grupo con '.' cambiado a '_'>|<asignatura>": { grupo, asignatura, courseId,
- *       nombre, alternateLink, actualizado, registro: { registrationId, expiryTime } | { error } } },
+ *       nombre, alternateLink, actualizado, vinculadoEn } },
  *     actualizado }
  * La clave lleva '_' en vez de '.' porque Firestore interpreta '.' como ruta anidada.
  */
@@ -152,8 +152,7 @@ export const classroomVincular = onCall({ invoker: 'public' }, async (request) =
   const ref = db.doc(`classroomVinculos/${cuenta}`);
 
   if (d.courseId === null) {
-    // Desvincular: se quita la entrada. Las suscripciones (registrations) no se borran por API
-    // de forma fiable; caducan solas (~7 días) y se ignoran los avisos de cursos sin vínculo.
+    // Desvincular: se quita la entrada; la revisión periódica ya no mirará ese curso.
     await ref.set({ vinculos: { [clave]: FieldValue.delete() }, actualizado: FieldValue.serverTimestamp() }, { merge: true });
     return { ok: true, desvinculado: true };
   }
@@ -177,32 +176,23 @@ export const classroomVincular = onCall({ invoker: 'public' }, async (request) =
     throw new HttpsError('internal', e instanceof Error ? e.message : String(e));
   }
 
-  // Avisos push de Classroom (alcance aparte: si falla, el vínculo se guarda igual).
-  let registro: Record<string, unknown>;
-  let detalleAvisos = '';
-  try {
-    const tp = await tokenComo(cuenta, [ALCANCE_CURSOS, ALCANCE_TAREAS, ALCANCE_PUSH]);
-    const r = await api<{ registrationId?: string; expiryTime?: string }>(tp, 'POST', '/registrations', {
-      feed: { feedType: 'COURSE_WORK_CHANGES', courseWorkChangesInfo: { courseId } },
-      cloudPubsubTopic: { topicName: 'projects/mjb-prestamos/topics/classroom-avisos' },
-    });
-    registro = { registrationId: r.registrationId ?? '', expiryTime: r.expiryTime ?? '' };
-  } catch (e) {
-    detalleAvisos = e instanceof Error ? e.message : String(e);
-    registro = { error: detalleAvisos };
-  }
+  // `vinculadoEn` marca desde cuándo se traen tareas del curso (ver revisarClassroom): solo se
+  // fija al crear la entrada o al cambiar de curso; revincular el mismo curso lo conserva.
+  const previo = (await ref.get()).get('vinculos') as Record<string, { courseId?: string; vinculadoEn?: unknown }> | undefined;
+  const conservar = previo?.[clave]?.courseId === courseId && previo[clave].vinculadoEn;
+  const vinculadoEn = conservar ? previo![clave].vinculadoEn : FieldValue.serverTimestamp();
 
   await ref.set({
     vinculos: {
       [clave]: {
         grupo, asignatura, courseId, nombre: curso.name ?? '', alternateLink: curso.alternateLink ?? '',
-        actualizado: FieldValue.serverTimestamp(), registro,
+        actualizado: FieldValue.serverTimestamp(), vinculadoEn,
       },
     },
     actualizado: FieldValue.serverTimestamp(),
   }, { merge: true });
 
-  return detalleAvisos ? { ok: true, avisos: false, detalle: detalleAvisos } : { ok: true, avisos: true };
+  return { ok: true };
 });
 
 // ---------- 3.1: publicar una tarea de MJB en Classroom ----------
@@ -313,87 +303,113 @@ export const classroomBorrar = onCall({ invoker: 'public' }, async (request) => 
   return { ok: true };
 });
 
-// ---------- 4.1: avisos de Classroom -> classroomPendientes ----------
+// ---------- 4.1: revisión periódica de Classroom -> classroomPendientes ----------
+// Classroom solo permite avisos push con OAuth por usuario (la delegación de dominio da
+// 403 @MissingGrant), así que se sondea cada 5 minutos con la delegación de dominio.
+
+type Dueno = { profesor: string; grupo: string; asignatura: string; courseId: string };
 
 /**
- * Se dispara con cada aviso push de Classroom (tema Pub/Sub `classroom-avisos`, el mismo que
- * se registra en classroomVincular). Al desplegar, Firebase crea solo la suscripción del tema
- * (y el tema si no existe).
- *
  * Documento classroomPendientes/{courseWorkId}:
  *   { profesor, grupo, asignatura, jornada: 'manana'|'tarde', courseId, courseWorkId, titulo,
  *     descripcion (<=3000), alternateLink, fechaClassroom: 'YYYY-MM-DD'|null,
- *     materiales: [{titulo,url}] (<=10), estado: 'pendiente'|'publicada'|..., creado, actualizado,
- *     borradoEnClassroom?: true }
- *
- * retry:false a propósito: un fallo transitorio con reintento armaría tormentas de mensajes;
- * lo perdido lo recupera la renovación diaria con barrido (tarea 5.3).
+ *     materiales: [{titulo,url}] (<=10), updateTimeClassroom, estado: 'pendiente'|'publicada'|...,
+ *     creado, actualizado, borradoEnClassroom?: true }
+ * Devuelve 'nuevo' | 'actualizado' | 'sin-cambios' | 'ignorada'.
  */
-export const alAvisoClassroom = onMessagePublished({ topic: 'classroom-avisos', retry: false }, async (event) => {
-  let aviso: { collection?: string; eventType?: string; resourceId?: { courseId?: string; id?: string } };
-  try {
-    aviso = event.data.message.json ?? JSON.parse(Buffer.from(event.data.message.data ?? '', 'base64').toString('utf8'));
-  } catch {
-    logger.warn('Aviso de Classroom ilegible; se ignora.');
-    return;
-  }
-  if (aviso?.collection !== 'courses.courseWork') return;
-  const courseId = String(aviso.resourceId?.courseId ?? '');
-  const id = String(aviso.resourceId?.id ?? '');
-  const tipo = String(aviso.eventType ?? '');
-  if (!/^\d{1,20}$/.test(courseId) || !/^[A-Za-z0-9_-]{1,40}$/.test(id)) {
-    logger.warn('Aviso sin courseId/id válidos', { courseId, id });
-    return;
-  }
-
-  // Dueños del vínculo con ese curso (colección pequeña: se recorre completa).
-  const duenos: Array<{ profesor: string; grupo: string; asignatura: string }> = [];
-  for (const doc of (await db.collection('classroomVinculos').get()).docs) {
-    const vinc = (doc.get('vinculos') ?? {}) as Record<string, { courseId?: string; grupo?: string; asignatura?: string }>;
-    for (const v of Object.values(vinc)) {
-      if (v?.courseId === courseId && v.grupo && v.asignatura) duenos.push({ profesor: doc.id, grupo: v.grupo, asignatura: v.asignatura });
-    }
-  }
-  if (!duenos.length) { logger.info('Aviso de un curso sin vínculo; se ignora.', { courseId }); return; }
-
-  const refPend = db.doc(`classroomPendientes/${id}`);
-
-  if (tipo === 'DELETED') {
-    const snap = await refPend.get();
-    if (!snap.exists) return;
-    if (snap.get('estado') === 'pendiente') {
-      await refPend.delete(); // aún no se publicó nada en MJB
-    } else if (snap.get('estado') === 'publicada') {
-      // TODO 5.1: cancelar la tarea en MJB y avisar al profesor. Por ahora solo se marca.
-      await refPend.set({ borradoEnClassroom: true, actualizado: FieldValue.serverTimestamp() }, { merge: true });
-    }
-    return;
-  }
-  if (tipo !== 'CREATED' && tipo !== 'MODIFIED') return;
-
+async function procesarCourseWork(dueno: Dueno, cw: CourseWorkCrudo): Promise<'nuevo' | 'actualizado' | 'sin-cambios' | 'ignorada'> {
+  const id = String(cw.id ?? '');
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(id)) return 'ignorada';
   const existeEnc = !(await db.collection('classroomTareas').where('courseWorkId', '==', id).limit(1).get()).empty;
-  const dueno = duenos[0]; // normalmente uno: el profesor que vinculó el curso
-  try {
-    const token = await tokenComo(dueno.profesor, [ALCANCE_TAREAS]);
-    const cw = await api<CourseWorkCrudo>(token, 'GET', `/courses/${courseId}/courseWork/${id}`);
-    const motivo = debeIgnorar(cw, existeEnc);
-    if (motivo) { logger.info('Tarea ignorada', { id, motivo }); return; }
-    const datos = {
-      profesor: dueno.profesor, grupo: dueno.grupo, asignatura: dueno.asignatura,
-      jornada: jornadaDeGrupo(dueno.grupo), courseId, courseWorkId: id,
-      titulo: String(cw.title ?? '').slice(0, 200),
-      descripcion: String(cw.description ?? '').slice(0, 3000),
-      alternateLink: cw.alternateLink ?? '',
-      fechaClassroom: fechaDesdeClassroom(cw.dueDate, cw.dueTime),
-      materiales: extraerMateriales(cw.materials),
-      actualizado: FieldValue.serverTimestamp(),
-    };
-    await db.runTransaction(async (tx) => {
-      const previa = await tx.get(refPend);
-      // Existente: se conserva su estado y 'creado'; nuevo: queda pendiente.
-      tx.set(refPend, previa.exists ? datos : { ...datos, estado: 'pendiente', creado: FieldValue.serverTimestamp() }, { merge: true });
-    });
-  } catch (e) {
-    logger.error('Fallo al procesar el aviso de Classroom', { id, courseId, error: e instanceof Error ? e.message : String(e) });
+  const motivo = debeIgnorar(cw, existeEnc);
+  if (motivo) { logger.info('Tarea ignorada', { id, motivo }); return 'ignorada'; }
+  const refPend = db.doc(`classroomPendientes/${id}`);
+  const datos = {
+    profesor: dueno.profesor, grupo: dueno.grupo, asignatura: dueno.asignatura,
+    jornada: jornadaDeGrupo(dueno.grupo), courseId: dueno.courseId, courseWorkId: id,
+    titulo: String(cw.title ?? '').slice(0, 200),
+    descripcion: String(cw.description ?? '').slice(0, 3000),
+    alternateLink: cw.alternateLink ?? '',
+    fechaClassroom: fechaDesdeClassroom(cw.dueDate, cw.dueTime),
+    materiales: extraerMateriales(cw.materials),
+    updateTimeClassroom: cw.updateTime ?? '',
+    actualizado: FieldValue.serverTimestamp(),
+  };
+  return db.runTransaction(async (tx) => {
+    const previa = await tx.get(refPend);
+    if (previa.exists && !cambioReal(previa.get('updateTimeClassroom'), cw.updateTime)) return 'sin-cambios' as const;
+    // Existente: se conserva su estado y 'creado'; nuevo: queda pendiente.
+    tx.set(refPend, previa.exists ? datos : { ...datos, estado: 'pendiente', creado: FieldValue.serverTimestamp() }, { merge: true });
+    return previa.exists ? 'actualizado' as const : 'nuevo' as const;
+  });
+}
+
+/** Pendientes guardados de un curso cuya tarea ya no existe en Classroom. Devuelve cuántos trató. */
+async function revisarBorradas(token: string, courseId: string, publicadas: Set<string>): Promise<number> {
+  let borrados = 0;
+  const snap = await db.collection('classroomPendientes').where('courseId', '==', courseId).get();
+  for (const doc of snap.docs) {
+    if (publicadas.has(doc.id) || doc.get('borradoEnClassroom') === true) continue;
+    const estado = doc.get('estado');
+    if (estado !== 'pendiente' && estado !== 'publicada') continue;
+    let borrada = false;
+    try {
+      const cw = await api<CourseWorkCrudo>(token, 'GET', `/courses/${courseId}/courseWork/${doc.id}`);
+      borrada = cw.state === 'DELETED';
+    } catch (e) {
+      if (e instanceof ErrorApi && e.estado === 404) borrada = true; else throw e;
+    }
+    if (!borrada) continue;
+    if (estado === 'pendiente') await doc.ref.delete(); // aún no se publicó nada en MJB
+    else {
+      // TODO 5.1: cancelar la tarea en MJB y avisar al profesor. Por ahora solo se marca.
+      await doc.ref.set({ borradoEnClassroom: true, actualizado: FieldValue.serverTimestamp() }, { merge: true });
+    }
+    borrados++;
   }
-});
+  return borrados;
+}
+
+export const revisarClassroom = onSchedule(
+  { schedule: 'every 5 minutes', timeZone: 'America/Bogota', retryCount: 0 },
+  async () => {
+    const r = { cuentas: 0, cursos: 0, nuevos: 0, actualizados: 0, borrados: 0, errores: 0 };
+    const docs = (await db.collection('classroomVinculos').get()).docs;
+    for (const doc of docs) {
+      const vinc = (doc.get('vinculos') ?? {}) as Record<string, {
+        courseId?: string; grupo?: string; asignatura?: string; vinculadoEn?: Timestamp; actualizado?: Timestamp }>;
+      const entradas = Object.values(vinc).filter((v) => v?.courseId && v.grupo && v.asignatura);
+      if (!entradas.length) continue;
+      r.cuentas++;
+      let token: string;
+      try {
+        token = await tokenComo(doc.id, [ALCANCE_TAREAS]); // un token por cuenta
+      } catch (e) {
+        r.errores++;
+        logger.error('Revisión: sin token', { cuenta: doc.id, error: e instanceof Error ? e.message : String(e) });
+        continue;
+      }
+      for (const v of entradas) {
+        const courseId = String(v.courseId);
+        r.cursos++;
+        try {
+          const desde = (v.vinculadoEn ?? v.actualizado)?.toMillis?.() ?? null;
+          const dueno: Dueno = { profesor: doc.id, grupo: String(v.grupo), asignatura: String(v.asignatura), courseId };
+          const lista = await api<{ courseWork?: CourseWorkCrudo[] }>(token, 'GET', urlCourseWorkPublicadas(courseId, 30));
+          const publicadas = new Set<string>();
+          for (const cw of lista.courseWork ?? []) {
+            if (cw.id) publicadas.add(cw.id);
+            if (!dentroDeVentana(cw.creationTime, desde)) continue;
+            const res = await procesarCourseWork(dueno, cw);
+            if (res === 'nuevo') r.nuevos++; else if (res === 'actualizado') r.actualizados++;
+          }
+          r.borrados += await revisarBorradas(token, courseId, publicadas);
+        } catch (e) {
+          r.errores++;
+          logger.error('Revisión: fallo en un curso', { cuenta: doc.id, courseId, error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+    }
+    logger.info(`Revisión de Classroom: cuentas=${r.cuentas} cursos=${r.cursos} nuevos=${r.nuevos} actualizados=${r.actualizados} borrados=${r.borrados} errores=${r.errores}`);
+  },
+);

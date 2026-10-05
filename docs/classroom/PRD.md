@@ -22,7 +22,7 @@ volver a escribir la misma tarea en Classroom.
 - Una aplicación puede **leer** todas las tareas de los cursos de un profesor.
 - Una aplicación solo puede **modificar o borrar** las tareas que ella misma creó.
   Por eso, la fecha de una tarea creada a mano en Classroom solo la puede cambiar el profesor allá.
-- Classroom avisa en pocos minutos cuando se crea o cambia una tarea en un curso.
+- MJB revisa Classroom cada 5 minutos para detectar tareas nuevas, cambiadas o borradas en los cursos vinculados.
 - No hace falta licencia de pago para nada de lo que sigue.
 
 ## Qué hace
@@ -81,9 +81,9 @@ app sugiere el que tenga el grupo en el nombre). Puede desvincular cuando quiera
 
 ## Qué necesita Julián hacer (consola)
 
-1. En Google Cloud (proyecto mjb-prestamos): activar la **Google Classroom API** y la de **Pub/Sub**.
+1. En Google Cloud (proyecto mjb-prestamos): activar la **Google Classroom API**.
 2. En la consola de administración (admin.asistencia): agregar a la delegación de dominio
-   que ya existe para el calendario los permisos de Classroom para cursos, tareas y avisos.
+   que ya existe para el calendario los permisos de Classroom para cursos y tareas.
    Le paso la lista exacta de permisos cuando el plan esté aprobado.
 
 ## Esfuerzo

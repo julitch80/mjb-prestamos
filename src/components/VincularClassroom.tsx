@@ -12,9 +12,9 @@ import { gruposAsignables, todosLosGrupos } from '../data/tareas/horario';
 import { claveVinculo, sugerirCurso } from '../data/classroomSugerencia';
 
 interface Curso { id: string; nombre: string; seccion?: string; anio?: number | null }
-interface Vinculo { courseId: string; nombre?: string; registro?: { registrationId?: string; expiryTime?: string; error?: string } }
+interface Vinculo { courseId: string; nombre?: string }
 interface Par { grupo: string; asignatura: string }
-type Resp = { ok: boolean; motivo?: string; detalle?: string; cursos?: Curso[]; desvinculado?: boolean; avisos?: boolean; registro?: { error?: string } };
+type Resp = { ok: boolean; motivo?: string; detalle?: string; cursos?: Curso[]; desvinculado?: boolean };
 
 const MSG_SIN_AUTORIZACION = 'Sin autorización: faltan los permisos de Classroom en la delegación de dominio (consola de administración).';
 
@@ -143,9 +143,8 @@ function Panel({ esSuper, userId, onCerrar }: { esSuper: boolean; userId: string
         setMensaje({ tipo: 'ok', texto: `Desvinculado: ${p.grupo} · ${p.asignatura}.` });
       } else {
         const curso = cursos?.find(c => c.id === courseId);
-        const sinAvisos = r.data.avisos === false || !!r.data.registro?.error;
-        setVinculos(v => ({ ...v, [k]: { courseId, nombre: curso?.nombre, registro: sinAvisos ? { error: r.data.detalle ?? 'sin detalle' } : undefined } }));
-        // Relee el documento para mostrar el estado real de los avisos (id y caducidad).
+        setVinculos(v => ({ ...v, [k]: { courseId, nombre: curso?.nombre } }));
+        // Relee el documento para mostrar el vínculo tal como quedó guardado.
         const correoDoc = (esSuper && cuenta.trim() ? cuenta.trim() : auth?.currentUser?.email ?? '').toLowerCase();
         if (db && correoDoc) {
           try {
@@ -153,9 +152,7 @@ function Panel({ esSuper, userId, onCerrar }: { esSuper: boolean; userId: string
             if (real[k]) setVinculos(v => ({ ...v, [k]: real[k] }));
           } catch { /* se queda con el estado local */ }
         }
-        setMensaje(sinAvisos
-          ? { tipo: 'aviso', texto: 'Vinculado, pero los avisos de Classroom aún no están activos.' }
-          : { tipo: 'ok', texto: `Vinculado: ${p.grupo} · ${p.asignatura}.` });
+        setMensaje({ tipo: 'ok', texto: `Vinculado: ${p.grupo} · ${p.asignatura}.` });
       }
     } catch (e) {
       setMensaje({ tipo: 'error', texto: (e as Error).message });
@@ -174,7 +171,7 @@ function Panel({ esSuper, userId, onCerrar }: { esSuper: boolean; userId: string
           <h2 className="font-bold text-strong">Vincular Classroom</h2>
           <button onClick={onCerrar} aria-label="Cerrar" className="ml-auto p-1.5 rounded-lg text-soft hover:bg-elevated"><X size={16} /></button>
         </div>
-        <p className="text-xs text-muted leading-snug">Elige el curso de Classroom de cada grupo y asignatura. Al vincular se activan los avisos de ese curso.</p>
+        <p className="text-xs text-muted leading-snug">Elige el curso de Classroom de cada grupo y asignatura. MJB revisa esos cursos cada 5 minutos y trae las tareas nuevas.</p>
 
         {esSuper && (
           <div className="flex flex-wrap gap-2">
@@ -217,9 +214,7 @@ function Panel({ esSuper, userId, onCerrar }: { esSuper: boolean; userId: string
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs text-strong flex-1 min-w-[160px]">Vinculado: {v.nombre ?? cursos?.find(c => c.id === v.courseId)?.nombre ?? v.courseId}
                         <span className="block text-muted">
-                          {v.registro?.registrationId
-                            ? `Avisos activos${v.registro.expiryTime ? ` hasta ${new Date(v.registro.expiryTime).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}`
-                            : v.registro?.error ? `Avisos sin activar: ${v.registro.error}` : 'Avisos: sin registro'}
+                          Revisando Classroom cada 5 minutos
                         </span>
                       </span>
                       <button onClick={() => accion(p, null)} disabled={ocupado}

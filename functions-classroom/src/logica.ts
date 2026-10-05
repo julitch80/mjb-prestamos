@@ -155,7 +155,7 @@ export function extraerMateriales(materiales: MaterialCrudo[] | undefined): Arra
 
 export interface CourseWorkCrudo {
   id?: string; title?: string; description?: string; state?: string; workType?: string;
-  alternateLink?: string; associatedWithDeveloper?: boolean;
+  alternateLink?: string; associatedWithDeveloper?: boolean; creationTime?: string; updateTime?: string;
   dueDate?: { year?: number; month?: number; day?: number }; dueTime?: { hours?: number; minutes?: number };
   materials?: MaterialCrudo[];
 }
@@ -167,4 +167,26 @@ export function debeIgnorar(cw: CourseWorkCrudo, existeEnClassroomTareas: boolea
   if (cw.state !== 'PUBLISHED') return 'no-publicada';
   if (cw.workType && !['ASSIGNMENT', 'SHORT_ANSWER_QUESTION', 'MULTIPLE_CHOICE_QUESTION'].includes(cw.workType)) return 'tipo-no-soportado';
   return null;
+}
+
+// ---------- 4.1 (sondeo): revisión periódica de Classroom ----------
+
+/**
+ * ¿La tarea se creó en Classroom a partir del momento del vínculo? Evita traer tareas viejas
+ * del curso. `creationTime` es RFC 3339 de Classroom; sin fecha válida (o sin vínculo) no entra.
+ */
+export function dentroDeVentana(creationTime: string | undefined, vinculadoEnMillis: number | null | undefined): boolean {
+  if (!creationTime || vinculadoEnMillis == null || !Number.isFinite(vinculadoEnMillis)) return false;
+  const t = Date.parse(creationTime);
+  return Number.isFinite(t) && t >= vinculadoEnMillis;
+}
+
+/** Ruta de la lista de tareas publicadas de un curso, las modificadas más recientemente primero. */
+export function urlCourseWorkPublicadas(courseId: string, pageSize = 30): string {
+  return `/courses/${courseId}/courseWork?courseWorkStates=PUBLISHED&orderBy=${encodeURIComponent('updateTime desc')}&pageSize=${pageSize}`;
+}
+
+/** ¿Hay que reescribir el pendiente? Solo si no existe o su updateTime de Classroom cambió. */
+export function cambioReal(updateTimePrevio: string | undefined | null, updateTimeNuevo: string | undefined): boolean {
+  return !updateTimePrevio || updateTimePrevio !== (updateTimeNuevo ?? '');
 }
