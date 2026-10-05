@@ -28,7 +28,7 @@ import { diasDeClase, gruposAsignables, todosLosGrupos, esGrupoDeTarde } from '.
 import { cn } from '@/lib/utils';
 import DetalleTarea from './DetalleTarea';
 import { httpsCallable } from 'firebase/functions';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { auth, db, firebaseConfigurado, functions } from '../lib/firebase';
 import { claveVinculo } from '../data/classroomSugerencia';
 
@@ -476,6 +476,23 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
     return onSnapshot(doc(db, 'classroomVinculos', correo),
       snap => setVinculosCr((snap.data()?.vinculos ?? {}) as Record<string, { courseId?: string; nombre?: string }>),
       () => { /* sin permiso o sin red: sin Classroom */ });
+  }, []);
+  // Tareas que también están en Classroom: idTareaMjb → enlace. En vivo; error o sin permiso: nada.
+  const [enlacesCr, setEnlacesCr] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!firebaseConfigurado || !db) return;
+    const correo = auth?.currentUser?.email?.toLowerCase();
+    if (!correo) return;
+    return onSnapshot(query(collection(db, 'classroomTareas'), where('profesor', '==', correo)),
+      snap => {
+        const m: Record<string, string> = {};
+        snap.forEach(d => {
+          const x = d.data() as { alternateLink?: string; borradoEnClassroom?: boolean };
+          if (x.alternateLink && !x.borradoEnClassroom) m[d.id] = x.alternateLink;
+        });
+        setEnlacesCr(m);
+      },
+      () => { /* sin permiso o sin red: sin enlaces */ });
   }, []);
   const [mostrarCesion, setMostrarCesion] = useState(false);
   const [mostrarSolicitud, setMostrarSolicitud] = useState(false);
@@ -986,6 +1003,16 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
               {/* La misma descripción y adjunto que ve el estudiante en su agenda: el docente
                   tiene que poder revisar lo que publicó (antes solo lo veía al crearla). */}
               <DetalleTarea t={t} />
+              {enlacesCr[t.id] && (
+                <a
+                  href={enlacesCr[t.id]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-block rounded-full border border-line bg-card px-2 py-0.5 text-[11px] font-semibold text-accent hover:bg-elevated transition"
+                >
+                  También en Classroom ↗
+                </a>
+              )}
             </div>
             <button
               onClick={() => setReplicando(t)}

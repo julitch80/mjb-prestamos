@@ -9,7 +9,7 @@ import {
   assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
-import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 
 const D = 'iemanueljbetancur.edu.co';
 const PROFE = `profe@${D}`;
@@ -85,3 +85,13 @@ describe('classroom: escritura (nadie desde el cliente)', () => {
     }
   });
 });
+
+describe('classroomTareas: consulta de lista del profesor', () => {
+  it('el profesor lista sus tareas filtrando por su correo', async () => {
+    await assertSucceeds(getDocs(query(collection(ctx(PROFE), 'classroomTareas'), where('profesor', '==', PROFE))));
+  });
+  it('sin filtro, la lista se rechaza', async () => {
+    await assertFails(getDocs(collection(ctx(PROFE), 'classroomTareas')));
+  });
+});
+
