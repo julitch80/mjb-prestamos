@@ -31,6 +31,7 @@ import { httpsCallable } from 'firebase/functions';
 import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { auth, db, firebaseConfigurado, functions } from '../lib/firebase';
 import { claveVinculo } from '../data/classroomSugerencia';
+import { fechasMasCercanas } from '../data/classroomFechas';
 
 // Director de ese grupo: solo él (o coordinación/rectoría, ya cubiertos por
 // `esDirectivo` en cada panel) puede tocar sus anclas — ver
@@ -532,6 +533,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
     setAdjunto(null); setMomentos(1);
     setFechaEntrega((p.fechaClassroom as FechaISO | null) ?? null);
     setCompletando(p);
+    setAvisoFechaNueva(false);
     setAviso(null);
   }
   function cancelarCompletar() {
@@ -644,6 +646,40 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
       titulo: titulo || '·', momentos, fechaAsignacion: hoy, fechaEntrega, estado: 'activa',
     }, contexto);
   }, [grupo, fechaEntrega, userId, asignaturaActiva, momentos, titulo, contexto, hoy]);
+
+  // ── 4.3: ¿sirve la fecha de Classroom en MJB? Misma validarTarea que usa el calendario.
+  const fechaCr = completando?.fechaClassroom ?? null;
+  const validacionCr = useMemo(() => {
+    if (!completando || !grupo || !userId) return null;
+    if (!fechaCr) return { ok: false as const, mensaje: 'la tarea no tiene fecha de entrega en Classroom' };
+    return validarTarea({
+      id: '_previa', grupo, asignaturaId: asignaturaActiva, docenteId: userId,
+      titulo: titulo || '·', momentos, fechaAsignacion: hoy, fechaEntrega: fechaCr as FechaISO, estado: 'activa',
+    }, contexto);
+  }, [completando, fechaCr, grupo, userId, asignaturaActiva, titulo, momentos, hoy, contexto]);
+  const fechaCrInvalida = !!validacionCr && !validacionCr.ok;
+  const fechasPosibles = useMemo(() => {
+    if (!fechaCrInvalida || !ventanaOk) return [] as FechaISO[];
+    const ok: FechaISO[] = [];
+    for (let i = 1; i <= 60; i++) {
+      const f = addDias(hoy, i);
+      if (estadoDe(f) === 'ok') ok.push(f);
+    }
+    return fechasMasCercanas(ok, fechaCr, 3);
+  }, [fechaCrInvalida, ventanaOk, hoy, estadoDe, fechaCr]);
+
+  // Edición en vivo en Classroom: el snapshot trae otra fecha para el pendiente que se completa.
+  const [avisoFechaNueva, setAvisoFechaNueva] = useState(false);
+  useEffect(() => {
+    if (!completando) { setAvisoFechaNueva(false); return; }
+    const vivo = pendientesCr.find(p => p.courseWorkId === completando.courseWorkId);
+    if (!vivo || vivo.fechaClassroom === completando.fechaClassroom) return;
+    setCompletando(c => c ? { ...c, fechaClassroom: vivo.fechaClassroom, alternateLink: vivo.alternateLink ?? c.alternateLink } : c);
+    if (vivo.fechaClassroom) {
+      setFechaEntrega(vivo.fechaClassroom as FechaISO);
+      setAvisoFechaNueva(true);
+    }
+  }, [pendientesCr, completando]);
 
   const vinculoCr = grupo && asignaturaActiva
     ? vinculosCr[claveVinculo(grupo, getAsignatura(asignaturaActiva)?.nombre ?? asignaturaActiva)]
@@ -781,6 +817,39 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
             <button onClick={cancelarCompletar} className="ml-auto px-3 py-1 rounded-full border border-line text-soft hover:bg-elevated">
               Cancelar
             </button>
+          </div>
+        )}
+        {completando && avisoFechaNueva && !fechaCrInvalida && (
+          <div className="rounded-xl border border-success bg-success-soft px-3 py-2 text-xs text-success-soft-fg">
+            Classroom ya tiene la fecha nueva ({fechaCr ? fechaLegible(fechaCr as FechaISO) : ''}).
+          </div>
+        )}
+        {completando && fechaCrInvalida && validacionCr && (
+          <div className="rounded-xl border border-warning bg-warning-soft px-3 py-3 text-xs text-warning-soft-fg space-y-2">
+            <p className="font-semibold">
+              La fecha de Classroom ({fechaCr ? fechaLegible(fechaCr as FechaISO) : 'sin fecha'}) no sirve en MJB: {validacionCr.mensaje}
+            </p>
+            {fechasPosibles.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span>Fechas posibles:</span>
+                {fechasPosibles.map(f => (
+                  <button key={f} onClick={() => setFechaEntrega(f)}
+                    className={cn('px-3 py-1 rounded-full border border-line font-semibold hover:bg-elevated',
+                      fechaEntrega === f && 'bg-elevated underline')}>
+                    {fechaLegible(f)}
+                  </button>
+                ))}
+              </div>
+            )}
+            {completando.alternateLink && (
+              <div>
+                <a href={completando.alternateLink} target="_blank" rel="noreferrer"
+                  className="inline-block px-4 py-2 rounded-full border border-line bg-card text-strong font-bold hover:bg-elevated">
+                  Abrir la tarea en Classroom ↗
+                </a>
+                <p className="mt-1 text-[11px]">Cambie allá la fecha a la escogida; MJB lo notará en unos minutos.</p>
+              </div>
+            )}
           </div>
         )}
         <div className="flex items-center gap-2">
