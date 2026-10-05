@@ -11,8 +11,8 @@ import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
-import { ALCANCE_CURSOS, ALCANCE_PUSH, ErrorApi, api, tokenComo } from './acceso';
-import { RE_CORREO_DOMINIO, claveVinculo, clasificarErrorToken, mapearCursos, textoValido, urlCursosDelDocente, type CursoCrudo } from './logica';
+import { ALCANCE_CURSOS, ALCANCE_PUSH, ALCANCE_TAREAS, ErrorApi, api, tokenComo } from './acceso';
+import { RE_CORREO_DOMINIO, claveVinculo, clasificarErrorToken, fechaEntregaClassroom, mapearCursos, textoValido, urlCursosDelDocente, type CursoCrudo } from './logica';
 
 setGlobalOptions({ maxInstances: 10, region: 'us-central1' });
 
@@ -201,4 +201,71 @@ export const classroomVincular = onCall({ invoker: 'public' }, async (request) =
   }, { merge: true });
 
   return detalleAvisos ? { ok: true, avisos: false, detalle: detalleAvisos } : { ok: true, avisos: true };
+});
+
+// ---------- 3.1: publicar una tarea de MJB en Classroom ----------
+
+/**
+ * Publica en el curso vinculado una tarea ya creada en MJB. El enlace MJB↔Classroom vive en
+ * classroomTareas/{tareaId} (solo escribe esta función). Idempotente por tareaId.
+ */
+export const classroomPublicar = onCall({ invoker: 'public' }, async (request) => {
+  const { cuenta } = await autenticar(request, true);
+  const d = (request.data ?? {}) as Record<string, unknown>;
+  const tareaId = typeof d.tareaId === 'string' ? d.tareaId.trim() : '';
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(tareaId)) throw new HttpsError('invalid-argument', 'tareaId inválido.');
+  if (!textoValido(d.grupo) || !textoValido(d.asignatura)) {
+    throw new HttpsError('invalid-argument', 'Grupo y asignatura deben ser texto de hasta 40 caracteres.');
+  }
+  const titulo = typeof d.titulo === 'string' ? d.titulo.trim() : '';
+  if (titulo.length < 1 || titulo.length > 200) throw new HttpsError('invalid-argument', 'Título de 1 a 200 caracteres.');
+  const descripcion = typeof d.descripcion === 'string' ? d.descripcion.trim() : '';
+  if (descripcion.length > 3000) throw new HttpsError('invalid-argument', 'Descripción de hasta 3000 caracteres.');
+  const fechaEntrega = typeof d.fechaEntrega === 'string' ? d.fechaEntrega : '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaEntrega) || Number.isNaN(Date.parse(fechaEntrega))) {
+    throw new HttpsError('invalid-argument', 'fechaEntrega debe ser YYYY-MM-DD.');
+  }
+  const adjuntoUrl = typeof d.adjuntoUrl === 'string' ? d.adjuntoUrl.trim() : '';
+  if (adjuntoUrl && !/^https:\/\/\S+$/.test(adjuntoUrl)) throw new HttpsError('invalid-argument', 'El adjunto debe ser un enlace https.');
+  const adjuntoNombre = (typeof d.adjuntoNombre === 'string' ? d.adjuntoNombre.trim() : '').slice(0, 200) || 'Adjunto';
+  const grupo = d.grupo.trim();
+  const asignatura = d.asignatura.trim();
+
+  const refTarea = db.doc(`classroomTareas/${tareaId}`);
+  const previa = await refTarea.get();
+  if (previa.exists && previa.get('courseWorkId')) {
+    return { ok: true, ya: true, alternateLink: String(previa.get('alternateLink') ?? '') };
+  }
+
+  const vinc = (await db.doc(`classroomVinculos/${cuenta}`).get()).get('vinculos') as Record<string, { courseId?: string }> | undefined;
+  const courseId = vinc?.[claveVinculo(grupo, asignatura)]?.courseId;
+  if (!courseId) return { ok: false, motivo: 'sin-vinculo' };
+
+  const t = await pedirToken(cuenta, [ALCANCE_TAREAS]);
+  if ('fallo' in t) return t.fallo;
+  const { dueDate, dueTime } = fechaEntregaClassroom(fechaEntrega);
+  let creada: { id?: string; alternateLink?: string };
+  try {
+    creada = await api<{ id?: string; alternateLink?: string }>(t.token, 'POST', `/courses/${courseId}/courseWork`, {
+      title: titulo,
+      description: descripcion || undefined,
+      workType: 'ASSIGNMENT',
+      state: 'PUBLISHED',
+      materials: adjuntoUrl ? [{ link: { url: adjuntoUrl, title: adjuntoNombre } }] : undefined,
+      dueDate,
+      dueTime,
+    });
+  } catch (e) {
+    const detalle = e instanceof Error ? e.message : String(e);
+    if (e instanceof ErrorApi && e.estado === 403) return { ok: false, motivo: 'sin-autorizacion', detalle };
+    return { ok: false, motivo: 'error-classroom', detalle };
+  }
+  if (!creada.id) return { ok: false, motivo: 'error-classroom', detalle: 'Classroom no devolvió el id de la tarea.' };
+
+  const alternateLink = creada.alternateLink ?? '';
+  await refTarea.set({
+    profesor: cuenta, grupo, asignatura, courseId, courseWorkId: creada.id, alternateLink,
+    origen: 'mjb', fechaEntrega, creado: FieldValue.serverTimestamp(),
+  });
+  return { ok: true, alternateLink };
 });

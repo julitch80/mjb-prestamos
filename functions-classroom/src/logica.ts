@@ -94,3 +94,17 @@ export function textoValido(v: unknown): v is string {
 }
 
 export const RE_CORREO_DOMINIO = /^[^@\s]+@iemanueljbetancur\.edu\.co$/;
+
+/**
+ * Entrega a las 23:59 de Bogotá (UTC-5, sin horario de verano) expresada en UTC, que es lo
+ * que exige Classroom en dueDate/dueTime: siempre cae al día siguiente a las 04:59.
+ */
+export function fechaEntregaClassroom(fecha: string): { dueDate: { year: number; month: number; day: number }; dueTime: { hours: number; minutes: number } } {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha);
+  if (!m) throw new Error('Fecha inválida: ' + fecha);
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + 1));
+  return {
+    dueDate: { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() },
+    dueTime: { hours: 4, minutes: 59 },
+  };
+}

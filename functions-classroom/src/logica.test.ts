@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claveVinculo, clasificarErrorToken, extraerAnio, extraerGrupo, mapearCursos, normalizarNombre, sugerirCurso, textoValido, urlCursosDelDocente } from './logica';
+import { claveVinculo, fechaEntregaClassroom, clasificarErrorToken, extraerAnio, extraerGrupo, mapearCursos, normalizarNombre, sugerirCurso, textoValido, urlCursosDelDocente } from './logica';
 
 describe('classroom logica', () => {
   it('arma la URL de cursos', () => {
@@ -82,3 +82,17 @@ describe('sugerirCurso: confusiones vistas en el piloto', () => {
   });
 });
 
+
+describe('fechaEntregaClassroom', () => {
+  it('23:59 de Bogotá es el día siguiente 04:59 UTC', () => {
+    expect(fechaEntregaClassroom('2026-10-09')).toEqual({ dueDate: { year: 2026, month: 10, day: 10 }, dueTime: { hours: 4, minutes: 59 } });
+  });
+  it('cambia de mes y de año', () => {
+    expect(fechaEntregaClassroom('2026-10-31').dueDate).toEqual({ year: 2026, month: 11, day: 1 });
+    expect(fechaEntregaClassroom('2026-12-31').dueDate).toEqual({ year: 2027, month: 1, day: 1 });
+    expect(fechaEntregaClassroom('2028-02-28').dueDate).toEqual({ year: 2028, month: 2, day: 29 });
+  });
+  it('rechaza formatos raros', () => {
+    expect(() => fechaEntregaClassroom('9/10/2026')).toThrow();
+  });
+});

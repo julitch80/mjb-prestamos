@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, FolderOpen, Gift, ListChecks, Paperclip, HandCoins, Loader2, QrCode, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
@@ -27,6 +27,10 @@ import {
 import { diasDeClase, gruposAsignables, todosLosGrupos, esGrupoDeTarde } from '../data/tareas/horario';
 import { cn } from '@/lib/utils';
 import DetalleTarea from './DetalleTarea';
+import { httpsCallable } from 'firebase/functions';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db, firebaseConfigurado, functions } from '../lib/firebase';
+import { claveVinculo } from '../data/classroomSugerencia';
 
 // Director de ese grupo: solo él (o coordinación/rectoría, ya cubiertos por
 // `esDirectivo` en cada panel) puede tocar sus anclas — ver
@@ -461,6 +465,22 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
   const [fechaEntrega, setFechaEntrega] = useState<FechaISO | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+  // Classroom (piloto): vínculos propios, leídos una vez. Sin documento o sin permiso: no cambia nada.
+  const [vinculosCr, setVinculosCr] = useState<Record<string, { courseId?: string; nombre?: string }>>({});
+  const [publicarCr, setPublicarCr] = useState(true);
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      if (!firebaseConfigurado || !db) return;
+      try {
+        const correo = auth?.currentUser?.email?.toLowerCase();
+        if (!correo) return;
+        const snap = await getDoc(doc(db, 'classroomVinculos', correo));
+        if (vivo && snap.exists()) setVinculosCr((snap.data()?.vinculos ?? {}) as Record<string, { courseId?: string; nombre?: string }>);
+      } catch { /* sin permiso o sin red: sin Classroom */ }
+    })();
+    return () => { vivo = false; };
+  }, []);
   const [mostrarCesion, setMostrarCesion] = useState(false);
   const [mostrarSolicitud, setMostrarSolicitud] = useState(false);
   const [agendaAbierta, setAgendaAbierta] = useState(false);
@@ -568,6 +588,11 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
     }, contexto);
   }, [grupo, fechaEntrega, userId, asignaturaActiva, momentos, titulo, contexto, hoy]);
 
+  const vinculoCr = grupo && asignaturaActiva
+    ? vinculosCr[claveVinculo(grupo, getAsignatura(asignaturaActiva)?.nombre ?? asignaturaActiva)]
+    : undefined;
+  const hayVinculoCr = !!vinculoCr?.courseId && !!functions;
+
   const puedeGuardar = !!(titulo.trim() && fechaEntrega && validacion?.ok && !guardando);
 
   async function guardar() {
@@ -581,9 +606,34 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
       adjuntoUrl: adjunto?.url,
       adjuntoNombre: adjunto?.nombre,
     });
+    let textoCr = '';
+    let falloCr = false;
+    if (r.ok && hayVinculoCr && publicarCr && functions) {
+      if (!r.id) {
+        falloCr = true; textoCr = 'el servidor no devolvió el id de la tarea';
+      } else {
+        try {
+          const rc = await httpsCallable<unknown, { ok: boolean; motivo?: string; detalle?: string }>(functions, 'classroomPublicar')({
+            tareaId: r.id, grupo, asignatura: getAsignatura(asignaturaActiva)?.nombre ?? asignaturaActiva,
+            titulo: titulo.trim(), descripcion: descripcion.trim() || undefined,
+            adjuntoUrl: adjunto?.url, adjuntoNombre: adjunto?.nombre, fechaEntrega,
+          });
+          if (rc.data.ok) textoCr = ' También publicada en Classroom.';
+          else {
+            falloCr = true;
+            textoCr = rc.data.motivo === 'sin-autorizacion' ? 'faltan permisos de Classroom'
+              : rc.data.motivo === 'sin-vinculo' ? 'el curso ya no está vinculado' : (rc.data.detalle ?? 'error de Classroom');
+          }
+        } catch (e) {
+          falloCr = true; textoCr = e instanceof Error ? e.message : 'error de conexión';
+        }
+      }
+    }
     setGuardando(false);
     if (r.ok) {
-      setAviso({ tipo: 'ok', texto: 'Tarea publicada. La agenda del grupo ya se actualizó.' });
+      setAviso(falloCr
+        ? { tipo: 'error', texto: `La tarea quedó en MJB, pero no se pudo publicar en Classroom: ${textoCr}` }
+        : { tipo: 'ok', texto: 'Tarea publicada. La agenda del grupo ya se actualizó.' + textoCr });
       setTitulo(''); setFechaEntrega(null); setMomentos(1);
       setDescripcion(''); setAdjunto(null);
       qc.invalidateQueries({ queryKey: ['datosTareas'] });
@@ -702,6 +752,12 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
             </div>
           </div>
           <AdjuntoTarea adjunto={adjunto} onCambiar={setAdjunto} />
+          {hayVinculoCr && (
+            <label className="flex items-center gap-2 text-xs text-soft cursor-pointer">
+              <input type="checkbox" checked={publicarCr} onChange={e => setPublicarCr(e.target.checked)} />
+              Publicar también en Classroom{vinculoCr?.nombre ? ` (${vinculoCr.nombre})` : ''}
+            </label>
+          )}
           <div>
             <label className="text-[11px] text-muted block mb-1">
               Momentos ({momentos * config.duracionMomentoMin} min)
