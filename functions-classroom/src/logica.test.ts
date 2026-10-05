@@ -96,3 +96,40 @@ describe('fechaEntregaClassroom', () => {
     expect(() => fechaEntregaClassroom('9/10/2026')).toThrow();
   });
 });
+
+import { debeIgnorar, extraerMateriales, fechaDesdeClassroom, jornadaDeGrupo } from './logica';
+
+describe('4.1 de Classroom a MJB', () => {
+  it('jornada por grupo', () => {
+    expect(jornadaDeGrupo('6º1')).toBe('tarde');
+    expect(jornadaDeGrupo('10.1')).toBe('manana');
+  });
+  it('fecha desde Classroom es la inversa de fechaEntregaClassroom', () => {
+    for (const f of ['2026-10-09', '2026-12-31', '2028-02-28', '2026-03-01']) {
+      const e = fechaEntregaClassroom(f);
+      expect(fechaDesdeClassroom(e.dueDate, e.dueTime)).toBe(f);
+    }
+    expect(fechaDesdeClassroom({ year: 2027, month: 1, day: 1 }, { hours: 4, minutes: 59 })).toBe('2026-12-31');
+    expect(fechaDesdeClassroom(undefined, undefined)).toBeNull();
+  });
+  it('decide qué ignorar', () => {
+    const base = { state: 'PUBLISHED', workType: 'ASSIGNMENT' };
+    expect(debeIgnorar(base, false)).toBeNull();
+    expect(debeIgnorar({ ...base, associatedWithDeveloper: true }, false)).toBe('creada-por-mjb');
+    expect(debeIgnorar(base, true)).toBe('ya-enlazada');
+    expect(debeIgnorar({ ...base, state: 'DRAFT' }, false)).toBe('no-publicada');
+    expect(debeIgnorar({ ...base, workType: 'MATERIAL' }, false)).toBe('tipo-no-soportado');
+    expect(debeIgnorar({ state: 'PUBLISHED', workType: 'SHORT_ANSWER_QUESTION' }, false)).toBeNull();
+  });
+  it('extrae materiales', () => {
+    const r = extraerMateriales([
+      { link: { url: 'http://a', title: 'A' } },
+      { driveFile: { driveFile: { title: 'D', alternateLink: 'http://d' } } },
+      { youtubeVideo: { title: 'Y', alternateLink: 'http://y' } },
+      { link: {} },
+    ]);
+    expect(r).toEqual([{ titulo: 'A', url: 'http://a' }, { titulo: 'D', url: 'http://d' }, { titulo: 'Y', url: 'http://y' }]);
+    expect(extraerMateriales(Array.from({ length: 15 }, (_, i) => ({ link: { url: 'http://x' + i } })))).toHaveLength(10);
+    expect(extraerMateriales(undefined)).toEqual([]);
+  });
+});

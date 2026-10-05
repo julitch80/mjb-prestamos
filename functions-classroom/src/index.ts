@@ -11,8 +11,10 @@ import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
+import { onMessagePublished } from 'firebase-functions/v2/pubsub';
+import * as logger from 'firebase-functions/logger';
 import { ALCANCE_CURSOS, ALCANCE_PUSH, ALCANCE_TAREAS, ErrorApi, api, tokenComo } from './acceso';
-import { RE_CORREO_DOMINIO, claveVinculo, clasificarErrorToken, fechaEntregaClassroom, mapearCursos, textoValido, urlCursosDelDocente, type CursoCrudo } from './logica';
+import { RE_CORREO_DOMINIO, claveVinculo, clasificarErrorToken, debeIgnorar, extraerMateriales, fechaDesdeClassroom, jornadaDeGrupo, type CourseWorkCrudo, fechaEntregaClassroom, mapearCursos, textoValido, urlCursosDelDocente, type CursoCrudo } from './logica';
 
 setGlobalOptions({ maxInstances: 10, region: 'us-central1' });
 
@@ -309,4 +311,89 @@ export const classroomBorrar = onCall({ invoker: 'public' }, async (request) => 
   }
   await refTarea.update({ borradoEnClassroom: true, borrado: FieldValue.serverTimestamp() });
   return { ok: true };
+});
+
+// ---------- 4.1: avisos de Classroom -> classroomPendientes ----------
+
+/**
+ * Se dispara con cada aviso push de Classroom (tema Pub/Sub `classroom-avisos`, el mismo que
+ * se registra en classroomVincular). Al desplegar, Firebase crea solo la suscripción del tema
+ * (y el tema si no existe).
+ *
+ * Documento classroomPendientes/{courseWorkId}:
+ *   { profesor, grupo, asignatura, jornada: 'manana'|'tarde', courseId, courseWorkId, titulo,
+ *     descripcion (<=3000), alternateLink, fechaClassroom: 'YYYY-MM-DD'|null,
+ *     materiales: [{titulo,url}] (<=10), estado: 'pendiente'|'publicada'|..., creado, actualizado,
+ *     borradoEnClassroom?: true }
+ *
+ * retry:false a propósito: un fallo transitorio con reintento armaría tormentas de mensajes;
+ * lo perdido lo recupera la renovación diaria con barrido (tarea 5.3).
+ */
+export const alAvisoClassroom = onMessagePublished({ topic: 'classroom-avisos', retry: false }, async (event) => {
+  let aviso: { collection?: string; eventType?: string; resourceId?: { courseId?: string; id?: string } };
+  try {
+    aviso = event.data.message.json ?? JSON.parse(Buffer.from(event.data.message.data ?? '', 'base64').toString('utf8'));
+  } catch {
+    logger.warn('Aviso de Classroom ilegible; se ignora.');
+    return;
+  }
+  if (aviso?.collection !== 'courses.courseWork') return;
+  const courseId = String(aviso.resourceId?.courseId ?? '');
+  const id = String(aviso.resourceId?.id ?? '');
+  const tipo = String(aviso.eventType ?? '');
+  if (!/^\d{1,20}$/.test(courseId) || !/^[A-Za-z0-9_-]{1,40}$/.test(id)) {
+    logger.warn('Aviso sin courseId/id válidos', { courseId, id });
+    return;
+  }
+
+  // Dueños del vínculo con ese curso (colección pequeña: se recorre completa).
+  const duenos: Array<{ profesor: string; grupo: string; asignatura: string }> = [];
+  for (const doc of (await db.collection('classroomVinculos').get()).docs) {
+    const vinc = (doc.get('vinculos') ?? {}) as Record<string, { courseId?: string; grupo?: string; asignatura?: string }>;
+    for (const v of Object.values(vinc)) {
+      if (v?.courseId === courseId && v.grupo && v.asignatura) duenos.push({ profesor: doc.id, grupo: v.grupo, asignatura: v.asignatura });
+    }
+  }
+  if (!duenos.length) { logger.info('Aviso de un curso sin vínculo; se ignora.', { courseId }); return; }
+
+  const refPend = db.doc(`classroomPendientes/${id}`);
+
+  if (tipo === 'DELETED') {
+    const snap = await refPend.get();
+    if (!snap.exists) return;
+    if (snap.get('estado') === 'pendiente') {
+      await refPend.delete(); // aún no se publicó nada en MJB
+    } else if (snap.get('estado') === 'publicada') {
+      // TODO 5.1: cancelar la tarea en MJB y avisar al profesor. Por ahora solo se marca.
+      await refPend.set({ borradoEnClassroom: true, actualizado: FieldValue.serverTimestamp() }, { merge: true });
+    }
+    return;
+  }
+  if (tipo !== 'CREATED' && tipo !== 'MODIFIED') return;
+
+  const existeEnc = !(await db.collection('classroomTareas').where('courseWorkId', '==', id).limit(1).get()).empty;
+  const dueno = duenos[0]; // normalmente uno: el profesor que vinculó el curso
+  try {
+    const token = await tokenComo(dueno.profesor, [ALCANCE_TAREAS]);
+    const cw = await api<CourseWorkCrudo>(token, 'GET', `/courses/${courseId}/courseWork/${id}`);
+    const motivo = debeIgnorar(cw, existeEnc);
+    if (motivo) { logger.info('Tarea ignorada', { id, motivo }); return; }
+    const datos = {
+      profesor: dueno.profesor, grupo: dueno.grupo, asignatura: dueno.asignatura,
+      jornada: jornadaDeGrupo(dueno.grupo), courseId, courseWorkId: id,
+      titulo: String(cw.title ?? '').slice(0, 200),
+      descripcion: String(cw.description ?? '').slice(0, 3000),
+      alternateLink: cw.alternateLink ?? '',
+      fechaClassroom: fechaDesdeClassroom(cw.dueDate, cw.dueTime),
+      materiales: extraerMateriales(cw.materials),
+      actualizado: FieldValue.serverTimestamp(),
+    };
+    await db.runTransaction(async (tx) => {
+      const previa = await tx.get(refPend);
+      // Existente: se conserva su estado y 'creado'; nuevo: queda pendiente.
+      tx.set(refPend, previa.exists ? datos : { ...datos, estado: 'pendiente', creado: FieldValue.serverTimestamp() }, { merge: true });
+    });
+  } catch (e) {
+    logger.error('Fallo al procesar el aviso de Classroom', { id, courseId, error: e instanceof Error ? e.message : String(e) });
+  }
 });

@@ -108,3 +108,63 @@ export function fechaEntregaClassroom(fecha: string): { dueDate: { year: number;
     dueTime: { hours: 4, minutes: 59 },
   };
 }
+
+// ---------- 4.1: de Classroom a MJB ----------
+
+/** Jornada por la notación del grupo: ordinal («6º1») = tarde; punto («10.1») = mañana. */
+export function jornadaDeGrupo(grupo: string): 'tarde' | 'manana' {
+  return String(grupo ?? '').includes('º') ? 'tarde' : 'manana';
+}
+
+/**
+ * Inversa de fechaEntregaClassroom: dueDate+dueTime (UTC) -> 'YYYY-MM-DD' en hora de Bogotá
+ * (UTC-5). Sin dueDate devuelve null; sin dueTime se toma 00:00 UTC.
+ */
+export function fechaDesdeClassroom(
+  dueDate?: { year?: number; month?: number; day?: number } | null,
+  dueTime?: { hours?: number; minutes?: number } | null,
+): string | null {
+  if (!dueDate || !dueDate.year || !dueDate.month || !dueDate.day) return null;
+  const ms = Date.UTC(dueDate.year, dueDate.month - 1, dueDate.day, dueTime?.hours ?? 0, dueTime?.minutes ?? 0) - 5 * 3600 * 1000;
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+}
+
+export interface MaterialCrudo {
+  link?: { url?: string; title?: string };
+  driveFile?: { driveFile?: { title?: string; alternateLink?: string } };
+  youtubeVideo?: { title?: string; alternateLink?: string };
+  form?: { formUrl?: string; title?: string };
+}
+
+/** Materiales como {titulo,url} (enlace, Drive, YouTube, formulario), máximo 10. */
+export function extraerMateriales(materiales: MaterialCrudo[] | undefined): Array<{ titulo: string; url: string }> {
+  const salida: Array<{ titulo: string; url: string }> = [];
+  for (const m of materiales ?? []) {
+    const par = m?.link ? { titulo: m.link.title, url: m.link.url }
+      : m?.driveFile?.driveFile ? { titulo: m.driveFile.driveFile.title, url: m.driveFile.driveFile.alternateLink }
+      : m?.youtubeVideo ? { titulo: m.youtubeVideo.title, url: m.youtubeVideo.alternateLink }
+      : m?.form ? { titulo: m.form.title, url: m.form.formUrl }
+      : null;
+    if (par?.url) salida.push({ titulo: par.titulo || par.url, url: par.url });
+    if (salida.length >= 10) break;
+  }
+  return salida;
+}
+
+export interface CourseWorkCrudo {
+  id?: string; title?: string; description?: string; state?: string; workType?: string;
+  alternateLink?: string; associatedWithDeveloper?: boolean;
+  dueDate?: { year?: number; month?: number; day?: number }; dueTime?: { hours?: number; minutes?: number };
+  materials?: MaterialCrudo[];
+}
+
+/** Motivo para NO traer la tarea como pendiente, o null si se debe traer. */
+export function debeIgnorar(cw: CourseWorkCrudo, existeEnClassroomTareas: boolean): string | null {
+  if (cw.associatedWithDeveloper === true) return 'creada-por-mjb';
+  if (existeEnClassroomTareas) return 'ya-enlazada';
+  if (cw.state !== 'PUBLISHED') return 'no-publicada';
+  if (cw.workType && !['ASSIGNMENT', 'SHORT_ANSWER_QUESTION', 'MULTIPLE_CHOICE_QUESTION'].includes(cw.workType)) return 'tipo-no-soportado';
+  return null;
+}
