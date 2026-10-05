@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import VincularClassroom from './VincularClassroom';
 import { mapaDirectores, sincronizarAutoridadSede, sincronizarDirectores } from '../data/directoresSync';
 import { sincronizarCuentasUsuarios } from '../data/usuariosSync';
 import { useAppStore } from '../data/store';
@@ -930,6 +931,8 @@ function PruebaClassroom() {
         {estado === 'probando' ? 'Probando…' : 'Probar acceso a Classroom'}
       </button>
       {resultado && <p className="text-xs text-soft">{resultado}</p>}
+      {/* El superusuario no tiene Tareas: desde aquí vincula cursos de un profesor del piloto */}
+      <VincularClassroom />
       {cursos.length > 0 && (
         <ul className="text-xs text-muted list-disc pl-4 space-y-0.5">
           {cursos.map(c => <li key={c.id}>{c.nombre}{c.seccion ? ` · ${c.seccion}` : ''}</li>)}
