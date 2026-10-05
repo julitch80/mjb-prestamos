@@ -445,6 +445,11 @@ function colorCarga(ocupados: number, tope: number): string {
 
 // ── Panel del docente ─────────────────────────────────────────────────────────
 
+type PendienteCr = {
+  courseWorkId: string; grupo: string; asignatura: string; titulo: string; descripcion?: string;
+  alternateLink?: string; fechaClassroom: string | null; materiales?: { titulo: string; url: string }[];
+};
+
 function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorGrupo }: {
   tareas: Tarea[]; cesiones: Cesion[]; solicitudes: SolicitudCesion[]; cuposOverride: Record<string, number>;
   anclasPorGrupo: Record<string, Ancla[]>;
@@ -494,6 +499,45 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
       },
       () => { /* sin permiso o sin red: sin enlaces */ });
   }, []);
+  // Tareas creadas directamente en Classroom, a la espera de definir momentos (4.2).
+  const [pendientesCr, setPendientesCr] = useState<PendienteCr[]>([]);
+  useEffect(() => {
+    if (!firebaseConfigurado || !db) return;
+    const correo = auth?.currentUser?.email?.toLowerCase();
+    if (!correo) return;
+    return onSnapshot(
+      query(collection(db, 'classroomPendientes'), where('profesor', '==', correo), where('estado', '==', 'pendiente')),
+      snap => setPendientesCr(snap.docs.map(d => ({ ...(d.data() as Omit<PendienteCr, 'courseWorkId'>), courseWorkId: d.id }))
+        .sort((a, b) => (a.fechaClassroom ?? '9999').localeCompare(b.fechaClassroom ?? '9999'))),
+      () => { /* sin permiso o sin red: sin pendientes */ });
+  }, []);
+  // Pendiente que se está completando en el formulario (null = modo normal).
+  const [completando, setCompletando] = useState<PendienteCr | null>(null);
+  const [errorPendiente, setErrorPendiente] = useState<string | null>(null);
+
+  function completarPendiente(p: PendienteCr) {
+    setErrorPendiente(null);
+    const g = misGrupos.find(x => x.grupo === p.grupo);
+    const asigId = g?.asignaturaIds.find(id => getAsignatura(id)?.nombre === p.asignatura);
+    if (!g || !asigId) {
+      setErrorPendiente(`No se pudo ubicar «${p.grupo} · ${p.asignatura}» en tu asignación académica. Revisa el vínculo del curso.`);
+      return;
+    }
+    setGrupo(p.grupo); setAsignaturaId(asigId);
+    setTitulo(p.titulo.slice(0, 200));
+    // Los adjuntos de MJB son archivos subidos, no enlaces: los materiales de Classroom
+    // se agregan como enlaces al final de las indicaciones (máx. 500 caracteres).
+    const enlaces = (p.materiales ?? []).map(m => `${m.titulo}: ${m.url}`).join('\n');
+    setDescripcion([p.descripcion, enlaces].filter(Boolean).join('\n').slice(0, 500));
+    setAdjunto(null); setMomentos(1);
+    setFechaEntrega((p.fechaClassroom as FechaISO | null) ?? null);
+    setCompletando(p);
+    setAviso(null);
+  }
+  function cancelarCompletar() {
+    setCompletando(null);
+    setTitulo(''); setDescripcion(''); setAdjunto(null); setFechaEntrega(null); setMomentos(1);
+  }
   const [mostrarCesion, setMostrarCesion] = useState(false);
   const [mostrarSolicitud, setMostrarSolicitud] = useState(false);
   const [agendaAbierta, setAgendaAbierta] = useState(false);
@@ -621,7 +665,20 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
     });
     let textoCr = '';
     let falloCr = false;
-    if (r.ok && hayVinculoCr && publicarCr && functions) {
+    let textoPend = '';
+    let falloPend = false;
+    if (r.ok && completando) {
+      try {
+        if (!r.id || !functions) throw new Error('el servidor no devolvió el id de la tarea');
+        await httpsCallable(functions, 'classroomConfirmarPendiente')({
+          courseWorkId: completando.courseWorkId, tareaId: r.id, fechaEntrega,
+        });
+        textoPend = ' Publicada en MJB. Vinculada con la tarea de Classroom.';
+      } catch (e) {
+        falloPend = true; textoPend = e instanceof Error ? e.message : 'error de conexión';
+      }
+    }
+    if (r.ok && !completando && hayVinculoCr && publicarCr && functions) {
       if (!r.id) {
         falloCr = true; textoCr = 'el servidor no devolvió el id de la tarea';
       } else {
@@ -644,9 +701,12 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
     }
     setGuardando(false);
     if (r.ok) {
-      setAviso(falloCr
+      setAviso(falloPend
+        ? { tipo: 'error', texto: `La tarea quedó publicada en MJB, pero no se pudo vincular con Classroom: ${textoPend}` }
+        : falloCr
         ? { tipo: 'error', texto: `La tarea quedó en MJB, pero no se pudo publicar en Classroom: ${textoCr}` }
-        : { tipo: 'ok', texto: 'Tarea publicada. La agenda del grupo ya se actualizó.' + textoCr });
+        : { tipo: 'ok', texto: completando ? textoPend.trim() : 'Tarea publicada. La agenda del grupo ya se actualizó.' + textoCr });
+      setCompletando(null);
       setTitulo(''); setFechaEntrega(null); setMomentos(1);
       setDescripcion(''); setAdjunto(null);
       qc.invalidateQueries({ queryKey: ['datosTareas'] });
@@ -689,8 +749,40 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
 
   return (
     <div className="space-y-5">
+      {/* ── Tareas de Classroom por completar (4.2) ───────── */}
+      {pendientesCr.length > 0 && (
+        <section className="rounded-2xl border border-line bg-info-soft text-info-soft-fg p-4 space-y-2">
+          <p className="text-sm font-bold">Tarea de Classroom por completar: defina momentos y verifique la fecha</p>
+          {pendientesCr.map(p => (
+            <div key={p.courseWorkId} className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="flex-1 min-w-[200px]">
+                {p.grupo} · {p.asignatura} · {p.titulo} · {p.fechaClassroom ? fechaLegible(p.fechaClassroom as FechaISO) : 'sin fecha'}
+              </span>
+              <button
+                onClick={() => completarPendiente(p)}
+                className="px-3 py-1.5 rounded-full text-xs font-bold bg-accent text-accent-fg"
+              >
+                Completar
+              </button>
+            </div>
+          ))}
+          {errorPendiente && <p className="text-xs text-danger">{errorPendiente}</p>}
+        </section>
+      )}
+
       {/* ── Formulario ─────────────────────────────────────── */}
       <section className="rounded-2xl border border-line bg-card p-4 space-y-4">
+        {completando && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-info-soft text-info-soft-fg px-3 py-2 text-xs">
+            <span className="font-semibold">Completando tarea de Classroom: {completando.titulo}</span>
+            {completando.alternateLink && (
+              <a href={completando.alternateLink} target="_blank" rel="noreferrer" className="underline">Abrir en Classroom ↗</a>
+            )}
+            <button onClick={cancelarCompletar} className="ml-auto px-3 py-1 rounded-full border border-line text-soft hover:bg-elevated">
+              Cancelar
+            </button>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <ClipboardList size={18} className="text-soft" />
           <h2 className="font-bold text-strong">Asignar tarea</h2>
@@ -781,7 +873,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
             </div>
           </div>
           <AdjuntoTarea adjunto={adjunto} onCambiar={setAdjunto} />
-          {hayVinculoCr && (
+          {hayVinculoCr && !completando && (
             <label className="flex items-center gap-2 text-xs text-soft cursor-pointer">
               <input type="checkbox" checked={publicarCr} onChange={e => setPublicarCr(e.target.checked)} />
               Publicar también en Classroom{vinculoCr?.nombre ? ` (${vinculoCr.nombre})` : ''}

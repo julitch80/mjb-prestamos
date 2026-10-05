@@ -344,6 +344,44 @@ async function procesarCourseWork(dueno: Dueno, cw: CourseWorkCrudo): Promise<'n
   });
 }
 
+/**
+ * 4.2: el profesor completó una tarea de Classroom en MJB (definió momentos y publicó).
+ * Entrada: { correo?, courseWorkId, tareaId, fechaEntrega? 'YYYY-MM-DD' }.
+ * Marca el pendiente como publicado y enlaza classroomTareas/{tareaId}. Idempotente.
+ */
+export const classroomConfirmarPendiente = onCall({ invoker: 'public' }, async (request) => {
+  const { cuenta } = await autenticar(request, true);
+  const d = (request.data ?? {}) as Record<string, unknown>;
+  const courseWorkId = typeof d.courseWorkId === 'string' ? d.courseWorkId.trim() : '';
+  const tareaId = typeof d.tareaId === 'string' ? d.tareaId.trim() : '';
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(courseWorkId)) throw new HttpsError('invalid-argument', 'courseWorkId inválido.');
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(tareaId)) throw new HttpsError('invalid-argument', 'tareaId inválido.');
+  const fechaEntrega = typeof d.fechaEntrega === 'string' ? d.fechaEntrega : '';
+  if (fechaEntrega && (!/^\d{4}-\d{2}-\d{2}$/.test(fechaEntrega) || Number.isNaN(Date.parse(fechaEntrega)))) {
+    throw new HttpsError('invalid-argument', 'fechaEntrega debe ser YYYY-MM-DD.');
+  }
+  const refPend = db.doc(`classroomPendientes/${courseWorkId}`);
+  const pend = await refPend.get();
+  if (!pend.exists) throw new HttpsError('not-found', 'No existe esa tarea pendiente de Classroom.');
+  if (String(pend.get('profesor') ?? '').toLowerCase() !== cuenta) {
+    throw new HttpsError('permission-denied', 'Esa tarea de Classroom no es tuya.');
+  }
+  if (pend.get('estado') === 'publicada') {
+    if (pend.get('tareaId') === tareaId) return { ok: true, ya: true };
+    throw new HttpsError('failed-precondition', 'Esa tarea de Classroom ya se publicó con otra tarea de MJB.');
+  }
+  const batch = db.batch();
+  batch.set(refPend, { estado: 'publicada', tareaId, publicada: FieldValue.serverTimestamp() }, { merge: true });
+  batch.set(db.doc(`classroomTareas/${tareaId}`), {
+    profesor: cuenta, grupo: pend.get('grupo'), asignatura: pend.get('asignatura'),
+    courseId: pend.get('courseId'), courseWorkId, alternateLink: pend.get('alternateLink') ?? '',
+    origen: 'classroom', fechaClassroom: pend.get('fechaClassroom') ?? null,
+    fechaEntrega: fechaEntrega || null, creado: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  await batch.commit();
+  return { ok: true };
+});
+
 /** Pendientes guardados de un curso cuya tarea ya no existe en Classroom. Devuelve cuántos trató. */
 async function revisarBorradas(token: string, courseId: string, publicadas: Set<string>): Promise<number> {
   let borrados = 0;

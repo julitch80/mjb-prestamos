@@ -62,6 +62,13 @@ describe('classroom: lectura', () => {
     await assertFails(getDoc(doc(ctx(COORD_T), 'classroomPendientes', 'cw1')));
     await assertSucceeds(getDoc(doc(ctx(RECTORA), 'classroomPendientes', 'cw1')));
   });
+  it('pendientes: consulta list por profesor (y estado) funciona al dueno y falla sin filtro', async () => {
+    const col = (email: string) => collection(ctx(email), 'classroomPendientes');
+    await assertSucceeds(getDocs(query(col(PROFE), where('profesor', '==', PROFE))));
+    await assertSucceeds(getDocs(query(col(PROFE), where('profesor', '==', PROFE), where('estado', '==', 'pendiente'))));
+    await assertFails(getDocs(col(PROFE)));
+    await assertFails(getDocs(query(col(OTRO), where('profesor', '==', PROFE))));
+  });
   it('el coordinador no lee vinculos ni tareas ajenos', async () => {
     await assertFails(getDoc(doc(ctx(COORD_M), 'classroomVinculos', PROFE)));
     await assertFails(getDoc(doc(ctx(COORD_M), 'classroomTareas', 't1')));
