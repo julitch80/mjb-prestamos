@@ -181,7 +181,7 @@ export const classroomVincular = onCall({ invoker: 'public' }, async (request) =
   let registro: Record<string, unknown>;
   let detalleAvisos = '';
   try {
-    const tp = await tokenComo(cuenta, [ALCANCE_CURSOS, ALCANCE_PUSH]);
+    const tp = await tokenComo(cuenta, [ALCANCE_CURSOS, ALCANCE_TAREAS, ALCANCE_PUSH]);
     const r = await api<{ registrationId?: string; expiryTime?: string }>(tp, 'POST', '/registrations', {
       feed: { feedType: 'COURSE_WORK_CHANGES', courseWorkChangesInfo: { courseId } },
       cloudPubsubTopic: { topicName: 'projects/mjb-prestamos/topics/classroom-avisos' },
