@@ -32,6 +32,13 @@ export interface UsuarioFirestore {
   sede?: SedeId;
   /** Jornada del usuario (para segmentación del chat). Default 'manana'. */
   jornada?: 'manana' | 'tarde' | 'ambas';
+  /** Reemplazo temporal (docs/reemplazo-temporal): titular en incapacidad, solo lectura. */
+  soloLectura?: boolean;
+  soloLecturaHasta?: string;
+  reemplazadoPor?: string;
+  slotEnPausa?: string;
+  /** Reemplazo que ocupa temporalmente el puesto de un titular. */
+  reemplazoTemporal?: { titularEmail: string; hasta: string; id: string };
 }
 
 function reqDb() {

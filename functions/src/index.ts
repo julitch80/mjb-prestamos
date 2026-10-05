@@ -297,3 +297,6 @@ export const onMessageCreated = onDocumentCreated(
       lastMessageBy: m.authorName ?? m.authorEmail,
     });
   });
+
+// Reemplazo temporal (docs/reemplazo-temporal)
+export { reemplazoTemporal, finalizarReemplazosVencidos } from './reemplazoTemporal.js';

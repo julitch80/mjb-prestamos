@@ -177,6 +177,92 @@ function verifyFirebaseIdToken_(idToken) {
   }
 }
 
+// ── Reemplazo temporal: perfil dinámico y «Ver como» ──────────────────────
+// Perfil del que llama, leído de Firestore (users/{correo}) con SU PROPIO
+// idToken como Bearer: las reglas dejan a cualquier usuario activo leer
+// users/*, así que no hace falta credencial de servicio. Se cachea 120 s por
+// correo. Si falla (red/permiso) devuelve null y todo cae a los mapas
+// estáticos de arriba (comportamiento de siempre). Nunca lanza.
+const FIRESTORE_USERS_URL = 'https://firestore.googleapis.com/v1/projects/mjb-prestamos/databases/(default)/documents/users/';
+// Perfil de la petición en curso (una ejecución de Apps Script = una petición).
+var PERFIL_ACTUAL_ = null;
+
+function leerPerfilFirestore_(correo, idToken) {
+  const clave = 'perfil_' + correo;
+  try {
+    const cache = CacheService.getScriptCache();
+    const hit = cache.get(clave);
+    if (hit) return JSON.parse(hit);
+    const res = UrlFetchApp.fetch(FIRESTORE_USERS_URL + encodeURIComponent(correo), {
+      method: 'get',
+      headers: { Authorization: 'Bearer ' + idToken },
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() !== 200) {
+      console.log('perfil Firestore: HTTP ' + res.getResponseCode() + ' para ' + correo + ', se usan mapas estáticos');
+      return null;
+    }
+    const f = (JSON.parse(res.getContentText()).fields) || {};
+    const perfil = {
+      slotId: f.slotId && f.slotId.stringValue ? String(f.slotId.stringValue) : null,
+      active: f.active ? f.active.booleanValue === true : false,
+      soloLectura: f.soloLectura ? f.soloLectura.booleanValue === true : false,
+      role: f.role && f.role.stringValue ? String(f.role.stringValue) : null,
+    };
+    cache.put(clave, JSON.stringify(perfil), 120);
+    return perfil;
+  } catch (err) {
+    console.log('perfil Firestore: error ' + err + ', se usan mapas estáticos');
+    return null;
+  }
+}
+
+// «Ver como» (suplantación del superusuario): el idToken lleva el claim
+// suplantadoPor. La firma ya la validó accounts:lookup, aquí solo se lee.
+function esSuplantacion_(idToken) {
+  try {
+    const partes = String(idToken).split('.');
+    if (partes.length < 2) return false;
+    const json = Utilities.newBlob(Utilities.base64DecodeWebSafe(partes[1])).getDataAsString();
+    return !!JSON.parse(json).suplantadoPor;
+  } catch (err) {
+    return false;
+  }
+}
+
+// Slot (docenteId) de un correo: primero el perfil dinámico, luego el mapa fijo.
+function slotDeCorreo_(correo) {
+  const c = String(correo || '').toLowerCase();
+  if (PERFIL_ACTUAL_ && PERFIL_ACTUAL_.correo === c && PERFIL_ACTUAL_.slotId) return PERFIL_ACTUAL_.slotId;
+  return CORREO_A_DOCENTE_ID[c] || null;
+}
+
+// Acciones que CREAN, ACTUALIZAN, CANCELAN o ENVÍAN (todas protegidas). Una
+// sesión de «Ver como» o un perfil con soloLectura no puede ejecutarlas.
+// Lecturas (no listadas): listarInformesContencion, listarRemisionesSeguro,
+// listarSeguimientos, getReservas, getNotificaciones, getSugerencias, getSyncEditor.
+const ACCIONES_ESCRITURA = [
+  'guardarInformeContencion', 'guardarRemisionSeguro', 'guardarSeguimiento',
+  'guardarAnclasGrupo', 'actualizarReserva', 'actualizarSugerencia',
+  'borrarSyncEditor', 'cancelarTarea', 'crearCesion', 'crearNotificacionesLote',
+  'crearReserva', 'crearSolicitudCesion', 'crearSugerencia', 'crearTarea',
+  'enviarCorreo', 'enviarCorreoMasivo', 'guardarCupos', 'guardarSyncEditor',
+  'marcarLeida', 'marcarTodasLeidas', 'publicarAviso',
+  'responderSolicitudCesion', 'retirarAviso', 'enviarCitacionesAlerta',
+];
+
+// Un docente (role 'docente') solo puede actuar como SU slot. Coordinación,
+// rectora y superusuario no se tocan. Solo se aplica con perfil conocido.
+function suplantaSlotAjeno_(accion, p) {
+  const perfil = PERFIL_ACTUAL_;
+  if (!perfil || !perfil.slotId || perfil.role !== 'docente') return false;
+  var declarado = null;
+  if (accion === 'crearTarea' || accion === 'cancelarTarea') declarado = p.docenteId;
+  else if (accion === 'crearReserva') declarado = p.solicitante;
+  if (!declarado) return false;
+  return String(declarado) !== perfil.slotId;
+}
+
 // Acciones que exponen datos sensibles (salud mental de menores, remisiones
 // al seguro estudiantil) o escriben sobre ellos. Antes se autorizaban solo
 // SI el cliente mandaba idToken (opcional) — cualquiera podía llamar la URL
@@ -236,6 +322,19 @@ function manejar(e) {
     if (ACCIONES_PROTEGIDAS.indexOf(p.action) >= 0 && !correoAutenticado) {
       resultado = { ok: false, error: 'no-autorizado' };
       return responder_(resultado, callback);
+    }
+    // Perfil dinámico (reemplazo temporal) y «Ver como». Solo con sesión.
+    PERFIL_ACTUAL_ = null;
+    if (correoAutenticado) {
+      const perfil = leerPerfilFirestore_(correoAutenticado, p.idToken);
+      if (perfil) { perfil.correo = correoAutenticado; PERFIL_ACTUAL_ = perfil; }
+      if (ACCIONES_ESCRITURA.indexOf(p.action) >= 0 &&
+          (esSuplantacion_(p.idToken) || (perfil && perfil.soloLectura === true))) {
+        return responder_({ ok: false, error: 'solo-lectura' }, callback);
+      }
+      if (suplantaSlotAjeno_(p.action, p)) {
+        return responder_({ ok: false, error: 'no-autorizado' }, callback);
+      }
     }
     switch (p.action) {
       case 'login':              resultado = login(p);              break;
@@ -1510,7 +1609,7 @@ function resolverAcceso_(correoAutenticado) {
   });
   if (grados.length > 0) return { tipo: 'grados', grados: grados };
   // Cualquier otro correo institucional: solo ve lo que él mismo generó.
-  return { tipo: 'propio', docenteId: CORREO_A_DOCENTE_ID[correo] || null };
+  return { tipo: 'propio', docenteId: slotDeCorreo_(correo) };
 }
 
 // Conjunto de ids de caso que este acceso puede ver, mirando las DOS hojas de

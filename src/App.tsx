@@ -9,6 +9,7 @@ import { useNotificacionesSistema } from './hooks/useNotificacionesSistema';
 import { auth } from './lib/firebase';
 import { salirDeSuplantacion, quienSuplanta } from './lib/auth';
 import BarraSuplantacion from './components/BarraSuplantacion';
+import BarraReemplazoTemporal from './components/BarraReemplazoTemporal';
 import LoginScreen from './components/LoginScreen';
 import PanelInicio from './components/PanelInicio';
 import PanelAdmin from './components/PanelAdmin';
@@ -246,6 +247,7 @@ export default function App() {
           así la barra nunca se pierde de vista aunque se desplace la página. */}
       <div className="sticky top-0 z-40">
       {sesionSuplantada && <BarraSuplantacion nombre={nombre} onSalir={salirDeSuplantacion} />}
+      {!sesionSuplantada && <BarraReemplazoTemporal userId={userId} />}
       <header className="border-b border-line bg-card/85 backdrop-blur-xl shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
 

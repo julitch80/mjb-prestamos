@@ -71,8 +71,18 @@ service cloud.firestore {
     // presente. Sin esto, un acto quedaria firmado a nombre de alguien que no lo hizo,
     // que es justo la razon por la que el superusuario estaba excluido del modulo de
     // asistencia. Las LECTURAS no se tocan: verlas es el proposito.
+    function esSoloLecturaTemporal() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/users/$(callerEmail()))
+        && callerDoc().get('soloLectura', false) == true;
+    }
+    // Reemplazo temporal (docs/reemplazo-temporal): el titular en incapacidad queda con
+    // `soloLectura` en su users/{correo} y se le niega toda escritura, igual que en
+    // suplantacion. Por eso se suma aqui: asi TODAS las reglas de escritura existentes
+    // (que ya llaman a esta funcion) la heredan sin tocarlas una por una.
     function esSuplantacion() {
-      return request.auth != null && 'suplantadoPor' in request.auth.token;
+      return request.auth != null && ('suplantadoPor' in request.auth.token || esSoloLecturaTemporal());
     }
     // Valida el mapa `adjunto` opcional de un mensaje (imagen, audio o
     // archivo subido a Cloud Storage). El límite de 10 MB espeja el de
@@ -2147,6 +2157,14 @@ service cloud.firestore {
         && request.resource.data.citas is map);
 
       allow delete: if !esSuplantacion() && (false);
+    }
+
+    // Reemplazo temporal: solo lo escriben las Cloud Functions (admin SDK).
+    match /reemplazosTemporales/{id} {
+      allow read: if isActiveUser() && (isSuper()
+        || callerEmail() == resource.data.titularEmail
+        || callerEmail() == resource.data.reemplazoEmail);
+      allow write: if false;
     }
 
     match /{document=**} {
