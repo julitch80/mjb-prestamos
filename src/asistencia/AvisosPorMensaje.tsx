@@ -57,6 +57,8 @@ export default function AvisosPorMensaje({
   contactos,
   onContactoRegistrado,
   onRegistrarLlamada,
+  onEstados,
+  titulo = 'Avisos por mensaje de texto',
 }: {
   sede: string;
   fecha: string;
@@ -74,6 +76,12 @@ export default function AvisosPorMensaje({
   onContactoRegistrado: (studentId: string, resultado: ContactResult) => void;
   /** Abre el registro de llamada de la tercera hora para un pendiente de otro dia. */
   onRegistrarLlamada: (fila: { studentId: string; grado: string; telefonos: string[] }) => void;
+  /**
+   * El estado del aviso de HOY de cada estudiante. La tercera hora lo usa para saber a quien
+   * hay que llamar: mensaje que no salio, que vencio, o familia que pidio hablar (2026-10-05).
+   */
+  onEstados?: (estados: Map<string, EstadoVisible>) => void;
+  titulo?: string;
 }) {
   const [avisos, setAvisos] = useState<AvisoInasistencia[]>([]);
   const [cola, setCola] = useState<Extract<ResultadoAviso, { avisoId: string }>[] | null>(null);
@@ -103,6 +111,19 @@ export default function AvisosPorMensaje({
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  useEffect(() => {
+    if (!onEstados) return;
+    const ahoraMs = Date.now();
+    onEstados(
+      new Map(
+        avisos.map((a) => [
+          a.studentId,
+          estadoVisible(a, ahoraMs, avisosRegistrados.has(a.avisoId) || registradosAqui.has(a.avisoId)),
+        ]),
+      ),
+    );
+  }, [avisos, avisosRegistrados, registradosAqui, onEstados]);
 
   const nombres = useMemo(() => new Map(filas.map((f) => [f.studentId, f.nombreCompleto])), [filas]);
   const { candidatos, excluidos } = useMemo(
@@ -230,7 +251,7 @@ export default function AvisosPorMensaje({
   return (
     <section className="rounded-xl border border-line bg-card p-3">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-strong">
-        <MessageSquare size={16} aria-hidden /> Avisos por mensaje de texto
+        <MessageSquare size={16} aria-hidden /> {titulo}
       </h3>
       <p className="mt-1 text-xs text-muted">
         Cada mensaje sale desde el celular de coordinación con un enlace para que el acudiente
