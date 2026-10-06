@@ -270,6 +270,30 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
 .pie{max-width:1080px;margin:0 auto;padding:0 20px 56px;color:var(--muted);font-size:14.5px;display:grid;gap:6px}
 .pie b{color:var(--ink-2)}
 
+/* ── Nivel opcional «por dentro»: cajas plegadas al final de algunas secciones ── */
+.ampliar{margin-top:16px;max-width:min(72ch,calc(100vw - 60px));background:var(--a-info-soft);color:var(--a-info-ink);
+  border-left:5px solid var(--a-accent);border-radius:0 12px 12px 0;font-size:16px;line-height:1.55}
+.ampliar > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;min-height:48px;
+  padding:10px 16px;font-weight:700;border-radius:0 12px 12px 0}
+.ampliar > summary::-webkit-details-marker{display:none}
+.ampliar > summary::before{content:"▸";flex:none;transition:transform .15s}
+.ampliar[open] > summary::before{transform:rotate(90deg)}
+.ampliar > summary:focus-visible{outline:3px solid var(--pen);outline-offset:2px}
+.ampliar > :not(summary){margin:0 16px 12px}
+.ampliar ul,.ampliar ol{padding-left:22px;display:grid;gap:8px}
+.ampliar b{color:inherit}
+.ampliar-ctl{max-width:calc(100vw - 60px);display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;padding:6px 16px;
+  border:1px solid var(--rule);border-left:5px solid var(--a-accent);border-radius:0 12px 12px 0;background:var(--paper)}
+.ampliar-ctl label{display:inline-flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;font-weight:700}
+.ampliar-ctl input{width:22px;height:22px;accent-color:var(--a-accent);cursor:pointer}
+.ampliar-ctl span{color:var(--muted);font-size:15px}
+@media print{
+  .ampliar{break-inside:avoid;background:#fff;color:#000;border:1px solid #999;border-left:5px solid #444}
+  .ampliar > summary::before{content:none}
+  .ampliar:not([open])::details-content{content-visibility:visible;display:block}
+  .ampliar-ctl{display:none}
+}
+
 @media print{
   body{background:#fff;font-size:12pt}
   .nav,.pasa,.contenido{display:none}
@@ -306,6 +330,7 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
 
 <section class="contenido" id="contenido" aria-labelledby="contenido-t">
   <div class="cont-cab"><h2 id="contenido-t">¿Qué quiere aprender?</h2><p>Toque una sección para ir directo a ella. Están en el mismo orden del menú de la aplicación.</p></div>
+  <div class="ampliar-ctl"><label><input type="checkbox" id="ampliar-todo"> Mostrar todo lo ampliado</label><span>Abre todas las cajas «¿Quiere entender cómo funciona por dentro?». Cada una explica el porqué de una sección; sin esto, el manual sigue siendo el de siempre.</span></div>
   <ol class="ix"><li><a href="#rol"><span class="ix-t">Su rol</span><span class="ix-d">Qué consulta y dónde escribe</span></a></li><li><a href="#inicio"><span class="ix-t">Inicio</span><span class="ix-d">Su resumen del día</span><span class="ix-b">Nuevo</span></a></li><li><a href="#rectora"><span class="ix-t">Asignación</span><span class="ix-d">Asignar un espacio directamente</span><span class="ix-b">Su herramienta principal</span></a></li><li><a href="#agenda"><span class="ix-t">Agenda</span><span class="ix-d">Actividades de la semana y reserva de sus espacios</span><span class="ix-b">Nuevo</span></a></li><li><a href="#horario"><span class="ix-t">Horario</span><span class="ix-d">Mañana y tarde, por aulas, docente o grupo</span></a></li><li><a href="#asistencia"><span class="ix-t">Asistencia</span><span class="ix-d">Consulta de lo que pasa lista cada docente</span></a></li><li><a href="#tareas"><span class="ix-t">Tareas</span><span class="ix-d">Momentos de tarea por grupo y detalle de cada tarea</span></a></li><li><a href="#asistentes"><span class="ix-t">Manual de convivencia</span><span class="ix-d">Chatbots, versión digital con QR y versión clásica</span><span class="ix-b">Nuevo</span></a></li><li><a href="#riesgo"><span class="ix-t">Gestión del Riesgo</span><span class="ix-d">Botiquín digital, accidente laboral, brigadas y números</span><span class="ix-b">Nuevo</span></a></li><li><a href="#historial"><span class="ix-t">Mis reservas</span><span class="ix-d">Lo que usted misma ha asignado</span></a></li><li><a href="#asignacion"><span class="ix-t">Asignación 2026</span><span class="ix-d">Docentes y materias del año</span></a></li><li><a href="#chat"><span class="ix-t">Chat</span><span class="ix-d">Mensajería interna del colegio</span></a></li><li><a href="#no-hace"><span class="ix-t">Lo que no hace la rectora</span><span class="ix-d">Para no buscar un botón que no existe</span></a></li></ol>
 </section>
 
@@ -438,11 +463,37 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
   </div>
   <div class="bloque solo">
     <div class="grid-si">
-      <div class="si"><span class="quien">Consulta</span><h3>Planillas, eventos y restaurante</h3><p>Puede abrir cualquier planilla y ver quién pasó lista, y abrir la ficha de cualquier estudiante. No aparecen los botones de marcar asistencia ni de registrar en el restaurante.</p></div>
+      <div class="si"><span class="quien">Consulta</span><h3>Planillas, eventos y restaurante</h3><p>Puede abrir la lista de estudiantes de cualquier grupo y, desde ahí, la ficha de cualquier estudiante. No ve las marcas de asistencia de cada clase —son del docente que la dicta— y no aparecen los botones de marcar asistencia ni de registrar en el restaurante.</p></div>
       <div class="si"><span class="quien">La única excepción: escribe</span><h3>Casos de permanencia</h3><p>Dentro de Asistencia, en la pestaña de permanencia, su cuenta trabaja los casos igual que coordinación: agrega y <b>corrige</b> seguimientos (visita domiciliaria, diálogo, articulación interinstitucional, mesa de permanencia u observación), programa el próximo o cierra el caso, y puede remitirlo al director de grupo. Son los casos que deciden si un estudiante termina reportado a la Policía, y esa es una decisión tanto de rectoría como de coordinación. También ve los casos vencidos, el catálogo de motivos y la contactabilidad de las familias.</p></div>
     </div>
+    <details class="ampliar" id="a-consulta"><summary>¿Quiere entender cómo funciona por dentro?</summary>
+    <ul>
+    <li><b>Qué ve:</b> la lista de estudiantes de cada grupo y, desde ahí, su ficha. Arriba, «Todos los grupos del colegio»: los que están en gris todavía no tienen ninguna planilla, es decir, nadie ha pasado lista; no es un problema de permisos.</li>
+    <li><b>Qué no ve:</b> la cuadrícula de marcas de cada clase: su rol es de consulta, ver la ficha y los datos del estudiante. Tampoco se dibuja una tabla vacía, porque se leería como «nadie pasó lista», justo lo contrario de lo que pasa. Tampoco ve las pestañas Llegadas tarde, Tercera hora ni Evasiones: son solo de coordinación.</li>
+    <li><b>La ficha</b> se abre en consulta: no la edita ni registra llamadas. Eso es del director del grupo y de la coordinación.</li>
+    <li><b>Por qué no registra:</b> es una decisión institucional, y el servidor la hace cumplir, no solo la pantalla. Por eso tampoco abre sesiones de clase.</li>
+    </ul>
+    </details>
     <p class="sabias">Corregir un seguimiento no borra lo que escribió quien lo registró: agrega una versión nueva que se ve en su lugar, y la original queda en el historial con su autor.</p>
     <p class="sabias">Si dirige un grupo de director —no es su caso habitualmente—, la ficha de un estudiante también muestra su correo institucional y el botón para escribirle. Ver el manual del profesor, sección Correos.</p>
+    <details class="ampliar" id="a-permanencia"><summary>¿Quiere entender cómo funciona por dentro?</summary>
+    <ul>
+    <li><b>Cuándo se abre un caso:</b> con 5 días sin venir en una ventana de 15 días de clase, o 3 seguidos (usted los cambia en «Criterios»). «Días de clase» son los días con censo de tercera hora del grupo, no los del calendario; sin censo, «sin datos», no «sin faltas».</li>
+    <li><b>El orden importa:</b> un factor de riesgo escala de inmediato; una causa que justifica no escala nunca; con el teléfono malo queda en alerta, jamás como candidato a reporte, pues reportar a quien nunca se pudo llamar sería indefendible.</li>
+    <li><b>Vencido:</b> fecha programada sin seguimiento, o 8 días sin actuación.</li>
+    <li><b>La salvaguarda:</b> ningún caso se abre hasta que coordinación o rectoría guarden «Criterios» una vez. Un caso no se borra, y con umbrales sin aprobar quedaría un expediente permanente.</li>
+    <li><b>Su cuenta no ve</b> el cálculo «Estudiantes en riesgo» ni las llamadas; los días sin seguimiento pueden verse exagerados.</li>
+    </ul>
+    </details>
+    <details class="ampliar" id="a-motivos"><summary>¿Quiere entender cómo funciona por dentro?</summary>
+    <ul>
+    <li><b>El catálogo</b> es la lista que aparece al registrar una llamada a una familia. Sus dos casillas las decide quien crea la opción, porque es una decisión pedagógica.</li>
+    <li><b>Justifica:</b> explica la falta y el caso no escala (de entrada: incapacidad médica con soporte, calamidad familiar, traslado a otra institución).</li>
+    <li><b>Riesgo:</b> escala de inmediato, sin esperar umbrales (de entrada: dificultad económica, cuida a un familiar, está trabajando, no quiere volver, conflicto de convivencia, embarazo, maternidad o paternidad, consumo, seguridad en el barrio). Salieron del Excel del colegio y pueden haber cambiado.</li>
+    <li><b>Retirar no borra:</b> deja de ofrecerse, y los casos viejos la siguen mostrando. Cuenta el motivo más reciente desde que empezaron las faltas.</li>
+    <li><b>Contactabilidad:</b> un teléfono fijo no recibe mensajes de texto ni WhatsApp.</li>
+    </ul>
+    </details>
   </div>
   <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#horario"><small>Anterior</small>← Horario</a><a class="ps-next" href="#tareas"><small>Siguiente</small>Tareas →</a></nav>
 </section>
@@ -472,18 +523,20 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
   <div class="mod-cab">
     <p class="menu">Menú · Manual de convivencia</p>
     <h2>Manual de convivencia</h2>
-    <p class="para">Antes se llamaba «Chatbot». Ahora tiene cuatro opciones, las mismas que ven docentes y coordinación: el chatbot <b>El Jota</b> (manual de convivencia), el chatbot del <b>Sistema de Evaluación</b> (SIEPE), la <b>versión digital</b> con código QR y la <b>versión clásica</b> en PDF y Word.</p>
+    <p class="para">Antes se llamaba «Chatbot». Ahora tiene seis opciones, las mismas que ven docentes y coordinación: el chatbot <b>El Jota</b> (manual de convivencia), el chatbot del <b>Sistema de Evaluación</b> (SIEPE), el <b>SIEPE digital (beta)</b>, el <b>SIEPE clásico</b> en PDF, la <b>versión digital</b> del manual de convivencia con código QR y su <b>versión clásica</b> en PDF y Word.</p>
   </div>
   <div class="bloque">
     <div>
-      <div class="pantalla" role="img" aria-label="Pantalla del Manual de convivencia con cuatro opciones">
+      <div class="pantalla" role="img" aria-label="Pantalla del Manual de convivencia con seis opciones">
         <div class="scr">
           <div class="hd"><div class="tit">Manual de convivencia<div class="sub2">Escoja cómo quiere consultarlo</div></div></div>
           <div class="pad">
             <div class="cd"><span class="n tl">1</span><span class="h">Chatbot del manual de convivencia</span><span class="d">El Jota resuelve dudas sobre el manual de convivencia.</span></div>
             <div class="cd"><span class="h">Chatbot del Sistema Institucional de Evaluación</span><span class="d">Orientación sobre el sistema institucional de evaluación (SIEPE).</span></div>
-            <div class="cd"><span class="n tl">2</span><span class="h">Versión digital</span><span class="d">Por preguntas, con rutas paso a paso y cartilla ilustrada para primaria.</span></div>
-            <div class="cd"><span class="n tl">3</span><span class="h">Versión clásica</span><span class="d">El documento oficial completo, en PDF o Word.</span></div>
+            <div class="cd"><span class="h">SIEPE digital (beta)</span><span class="d">Por preguntas, con rutas y mapa de conexiones. Pendiente de verificación por las directivas.</span></div>
+            <div class="cd"><span class="h">SIEPE clásico</span><span class="d">El documento oficial completo, en PDF.</span></div>
+            <div class="cd"><span class="n tl">2</span><span class="h">Manual de convivencia digital</span><span class="d">Por preguntas, con rutas paso a paso y cartilla ilustrada para primaria.</span></div>
+            <div class="cd"><span class="n tl">3</span><span class="h">Manual de convivencia clásico</span><span class="d">El documento oficial completo, en PDF o Word.</span></div>
           </div>
         </div>
       </div>
@@ -494,10 +547,18 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
         <li><div><span class="t">Los chatbots</span><p>Toque el que necesite y escriba la pregunta. Lo que pregunta no lo ve nadie y requiere internet. Orientan, no reemplazan el documento.</p></div></li>
         <li><div><span class="t">La versión digital</span><p>Se consulta por preguntas y trae una cartilla ilustrada para primaria. El botón <span class="bt">Código QR</span> muestra un QR que puede proyectar, imprimir o descargar (<span class="bt">Descargar PNG</span>, <span class="bt">Descargar SVG</span>, <span class="bt">Imprimir</span>) para que cualquier persona abra el manual en su celular, sin cuenta.</p></div></li>
         <li><div><span class="t">La versión clásica</span><p><span class="bt">Ver PDF</span> o <span class="bt">Descargar Word</span>: el documento oficial completo.</p></div></li>
+        <li><div><span class="t">SIEPE, dos opciones nuevas</span><p>El <b>SIEPE digital (beta)</b> se consulta por preguntas, con rutas y un mapa de conexiones; las directivas todavía lo están verificando. El <b>SIEPE clásico</b> es el documento oficial en PDF.</p></div></li>
       </ol>
     </div>
   </div>
   <p class="sabias"><b>Propón una escena.</b> Desde la versión digital abierta en la aplicación, cualquier docente puede proponer una escena nueva para la cartilla de primaria. Es una propuesta por construir: llega al buzón de sugerencias y no se agrega de inmediato; después de revisarla se dibuja y se incorpora a la cartilla.</p>
+  <details class="ampliar" id="a-convivencia"><summary>¿Quiere entender cómo funciona por dentro?</summary>
+  <ul>
+  <li><b>«Beta»</b> significa que el SIEPE digital está pendiente de verificación por las directivas: es la etiqueta que muestra la propia aplicación, y mientras tanto el documento oficial es el SIEPE clásico.</li>
+  <li><b>El botón Código QR</b> existe solo en el manual de convivencia digital; el SIEPE digital no lo tiene.</li>
+  <li><b>Descargar Word</b> existe solo en el manual de convivencia clásico; el SIEPE clásico se ofrece únicamente en PDF.</li>
+  </ul>
+  </details>
   <nav class="pasa" aria-label="Pasar de sección"><a class="ps-prev" href="#tareas"><small>Anterior</small>← Tareas</a><a class="ps-next" href="#riesgo"><small>Siguiente</small>Gestión del Riesgo →</a></nav>
 </section>
 
@@ -615,5 +676,24 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
 </script>
 
 
+<script>
+(function () {
+  var caja = document.getElementById('ampliar-todo');
+  var todos = [].slice.call(document.querySelectorAll('details.ampliar'));
+  if (!caja || !todos.length) return;
+  function sincronizar() { caja.checked = todos.every(function (d) { return d.open; }); }
+  caja.addEventListener('change', function () { todos.forEach(function (d) { d.open = caja.checked; }); });
+  todos.forEach(function (d) { d.addEventListener('toggle', sincronizar); });
+  var cerradas = [];
+  window.addEventListener('beforeprint', function () {
+    cerradas = todos.filter(function (d) { return !d.open; });
+    cerradas.forEach(function (d) { d.open = true; });
+  });
+  window.addEventListener('afterprint', function () {
+    cerradas.forEach(function (d) { d.open = false; });
+    cerradas = [];
+  });
+})();
+</script>
 </body>
 </html>
