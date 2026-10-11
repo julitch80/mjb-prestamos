@@ -2054,6 +2054,153 @@ export const AGENDAS: AgendaSemanal[] = [
       },
     ],
   },
+  {
+    semana: 7,
+    periodo: 3,
+    desde: '2026-10-12',
+    hasta: '2026-10-16',
+    publicadaPor: 'Equipo Técnico Institucional',
+    notaFinal: 'La agenda de profesionales (orientación escolar y programa Escuela Entorno Protector, tutoras PTA/FI/3.0, y programa UAI) viene dentro del mismo documento esta semana, aparte de la agenda institucional.',
+    dias: [
+      {
+        fecha: '2026-10-12',
+        dia: 'lunes',
+        festivo: 'Día de la Raza y las Identidades',
+        notas: ['SEMANA DE LA CONVIVENCIA'],
+        actividades: [],
+      },
+      {
+        fecha: '2026-10-13',
+        dia: 'martes',
+        actividades: [
+          {
+            hora: '11am',
+            actividad: 'Formación en convivencia',
+            asisten: 'Líderes estudiantiles',
+            lugar: 'Sede Principal',
+            responsables: 'Natalia Rivas PEEP',
+          },
+          {
+            hora: '11am',
+            actividad: 'Reunión Equipo Directivo',
+            asisten: 'Rectora y coordinadores',
+            lugar: 'Sala de Innovación',
+            responsables: 'Rectora',
+          },
+          {
+            hora: '1PM a 4PM',
+            actividad: 'Semana de la convivencia: Actividad en aula',
+            asisten: 'Grados octavos',
+            lugar: 'Sede Principal',
+            responsables: 'Natalia Rivas PEEP',
+          },
+          {
+            hora: '11am a 12m',
+            actividad: 'Salida pedagógica del centro de interés Ágora de interés',
+            asisten: 'Estudiantes y docentes de centro',
+            lugar: 'Emisora Vive Prado Estereo',
+            responsables: 'Docente Ledis Laura Quintana Seguanes',
+          },
+        ],
+      },
+      {
+        fecha: '2026-10-14',
+        dia: 'miércoles',
+        notas: ['Anormalidad académica convocada por SINDICATOS'],
+        actividades: [
+          {
+            hora: '11am',
+            actividad: 'Sensibilización para la elección de media técnica en el desarrollo de software',
+            asisten: 'Estudiantes grado 9°',
+            lugar: 'Auditorio sede principal',
+            responsables: 'Instituto Universitaria Pascual Bravo',
+          },
+          {
+            hora: '9am',
+            actividad: 'Semana de la convivencia: Actividad en aula',
+            asisten: 'Grados primeros',
+            lugar: 'Sede finca',
+            responsables: 'Natalia Rivas PEEP',
+          },
+          {
+            hora: '10 am a 11:40 am',
+            actividad: 'Experiencia inmersiva de lectura alrededor de la saga de Harry Potter',
+            asisten: 'Grado T°3',
+            lugar: 'Aula de clase',
+            responsables: 'Gloria Yanet Gallego Vanessa Acosta',
+          },
+        ],
+      },
+      {
+        fecha: '2026-10-15',
+        dia: 'jueves',
+        actividades: [
+          {
+            hora: '11am a 12m',
+            actividad: 'Preparación simulacro de emergencia Nacional por sedes con integración de sedes primaria jornadas AM y PM',
+            asisten: 'Sede principal ambas jornadas am y pm - Directivos docentes y docentes de cada sede y jornada',
+            lugar: 'cada uno en su sede.',
+            responsables: 'Lides del simulacro de cada sede y jornada',
+          },
+          {
+            hora: '8 am a 11 am',
+            actividad: 'Semana de la convivencia; Actividad en aula .',
+            asisten: 'Grados novenos',
+            lugar: 'Sede Principal',
+            responsables: 'Estefania Bolivar MTQS Natalia Rivas PEEP',
+          },
+          {
+            hora: '10 am a 12:00 m',
+            actividad: 'Experiencia inmersiva de lectura alrededor de la saga de Harry Potter',
+            asisten: 'Grado 1°3',
+            lugar: 'Aula de clase',
+            responsables: 'Margarita María Bedoya Vanessa Acosta',
+          },
+        ],
+      },
+      {
+        fecha: '2026-10-16',
+        dia: 'viernes',
+        actividades: [
+          {
+            hora: '8am',
+            actividad: 'Socialización U. de Medellín: programa audiovisuales',
+            asisten: 'Estudiantes grado 11°',
+            lugar: 'Auditorio sede principal',
+            responsables: 'Egresada',
+          },
+          {
+            hora: '2:30PM',
+            actividad: 'Cierre PP Actividad liderazgo',
+            asisten: 'Estudiantes Grados 8',
+            lugar: 'principal',
+            responsables: 'Paola de PP',
+          },
+          {
+            hora: '11am a 12:30pm',
+            actividad: 'Consejo Académico: Centros de interés, asistencia, tareas, calendario académico de fin de año, análisis ICFES',
+            asisten: 'Integrantes',
+            lugar: 'Biblioteca',
+            responsables: 'Rectora',
+          },
+          {
+            hora: '12m a 3pm',
+            actividad: 'Semana de la convivencia: Actividad en aula',
+            asisten: 'Grados 4°',
+            lugar: 'Sede Gustavo Rodas',
+            responsables: 'Estefania Bolivar MTQS Natalia Rivas Lopera',
+          },
+          {
+            hora: '10 am a 12:00 m',
+            actividad: 'Experiencia inmersiva de lectura alrededor de la saga de Harry Potter',
+            asisten: 'Grado 2°3',
+            lugar: 'Aula de clase',
+            responsables: 'Mary Luz Hoyos Vanessa Acosta',
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 
