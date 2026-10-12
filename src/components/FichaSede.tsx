@@ -171,7 +171,7 @@ function FichaGustavoRodas() {
           sede y de cada jornada, y sus docentes entran solos.{' '}
           La <strong className="text-soft">agenda semanal</strong> y la{' '}
           <strong className="text-soft">gestión del riesgo</strong> también son de toda la
-          institución — las brigadas de esta sede ya están cargadas desde la Resolución 33.{' '}
+          institución — las brigadas de esta sede ya están cargadas desde la Resolución 06 de 2026.{' '}
           Y el módulo <strong className="text-soft">Manual de convivencia</strong> (chatbots,
           versión digital y versión clásica) también está disponible: no depende de datos
           académicos de la sede, así que ya funciona igual que en central.
@@ -262,7 +262,7 @@ function FichaLaFinquita() {
         <p className="text-xs text-muted leading-relaxed">
           El <strong className="text-soft">chat</strong>, la{' '}
           <strong className="text-soft">agenda semanal</strong>, la{' '}
-          <strong className="text-soft">gestión del riesgo</strong> (brigadas de la Resolución 33)
+          <strong className="text-soft">gestión del riesgo</strong> (brigadas de la Resolución 06 de 2026)
           y el <strong className="text-soft">Manual de convivencia</strong> son institucionales y
           ya sirven a esta sede. El coordinador de la sede es Juan Diego Salazar.
         </p>

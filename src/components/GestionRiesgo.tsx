@@ -1258,7 +1258,7 @@ export default function GestionRiesgo() {
             {!yaTieneEvacuacion && rol === 'docente' && (
               <TarjetaPertenencia
                 titulo="Brigada de evacuación (todos los docentes en aula)"
-                sub="Artículo 3 de la resolución — aplica a todo docente presente en el aula."
+                sub="Artículo 5 de la resolución — aplica a todo docente presente en el aula."
                 funciones={BRIGADA_EVACUACION.funciones}
               />
             )}

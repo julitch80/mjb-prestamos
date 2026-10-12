@@ -1,12 +1,13 @@
 // Brigadas de gestión del riesgo — transcritas de la Resolución Rectoral
-// N.º 33 (07 de septiembre de 2023), "Por medio de la cual se conforma las
-// Brigadas para la atención de emergencias en la Institución Educativa
-// Manuel J Betancur".
+// N.º 06 de 2026 (borrador sin fecha de expedición), "Por medio de la cual se
+// conforman y reglamentan las Brigadas Escolares para la Prevención,
+// Preparación y Respuesta ante Emergencias en la Institución Educativa
+// Manuel J. Betancur". Reemplaza a la Resolución N.º 33 de 2023.
 //
 // Mapeo de sedes del documento → SedeId:
-//   'Principal' / 'principal'                 → 'central'
-//   'GRI' / 'Gustavo Rodas'                    → 'gustavo_rodas'
-//   'FINCA' / 'La Finca' / 'Sede Alterna'      → 'la_finquita'
+//   'Sede Principal'                → 'central'
+//   'Sede Gustavo Rodas Isaza'      → 'gustavo_rodas'
+//   'Sede La Finca'                 → 'la_finquita'
 
 import type { SedeId } from './maestros';
 
@@ -27,71 +28,63 @@ export interface Brigada {
 }
 
 export const RESOLUCION_BRIGADAS = {
-  numero: 33,
-  fecha: '2023-09-07',
-  titulo: 'Resolución Rectoral N.º 33 — Conformación de brigadas para la atención de emergencias',
+  numero: 6,
+  fecha: '2026',
+  titulo: 'Resolución Rectoral N.º 06 de 2026 — Conformación y reglamentación de las brigadas escolares',
 };
 
-// ── Líderes de gestión del riesgo por sede (Artículo 1) ──────────────────────
+// ── Líderes de gestión del riesgo (Artículo 4; La Finca: Artículo 12) ───────
 
 export const LIDERES_GESTION_RIESGO: IntegranteBrigada[] = [
-  // Directivos docentes
-  { nombre: 'Nancy Adriana Herrera López', sede: 'todas', jornada: 'ambas', docenteId: 'rectora' },
-  { nombre: 'Juan Diego Salazar Rendón', sede: 'central', jornada: 'tarde', docenteId: 'coord_tarde' },
-  { nombre: 'Juan Diego Salazar Rendón', sede: 'la_finquita', jornada: 'tarde', docenteId: 'coord_tarde' },
-  { nombre: 'Janeth Astrid Ocampo Carvajal', sede: 'central', jornada: 'manana', docenteId: 'coord_manana' },
-  { nombre: 'Janeth Astrid Ocampo Carvajal', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'coord_manana' },
+  // Comité Escolar de Gestión del Riesgo (directivos docentes)
+      { nombre: 'Nancy Adriana Herrera López', sede: 'todas', jornada: 'ambas', docenteId: 'rectora', nota: '  ' },
+      { nombre: 'Juan Diego Salazar Rendón', sede: 'la_finquita', jornada: 'tarde', docenteId: 'coord_tarde', nota: '  ' },
+      { nombre: 'Janeth Astrid Ocampo Carvajal', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'coord_manana', nota: '  ' },
 
-  // Docentes líderes por sede
-  { nombre: 'Gloria Yanet Gallego Rendón', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_gloria' },
-  { nombre: 'Paula Andrea Zapata M', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_paula' },
-  { nombre: 'Claudia Patricia Henao', sede: 'central', jornada: 'manana', docenteId: 'claudia' },
-  { nombre: 'Hugo Armando Yepes', sede: 'central', jornada: 'tarde', docenteId: 'hugo' },
-  { nombre: 'Leidy Yadira Atehortua', sede: 'gustavo_rodas', jornada: 'manana' },
-  { nombre: 'Dolly Gutiérrez Guevara', sede: 'gustavo_rodas', jornada: 'tarde' },
-  { nombre: 'Luz Marina Zapata', sede: 'central', jornada: 'tarde', docenteId: 'marina' },
+  // Docentes líderes: Sede Principal y Gustavo Rodas (Art. 4) y La Finca (Art. 12)
+      { nombre: 'Carlos Alberto Cárdenas', sede: 'central', jornada: 'manana', docenteId: 'carlos', nota: '  ' },
+      { nombre: 'Hugo Armando Yepes', sede: 'central', jornada: 'tarde', docenteId: 'hugo', nota: '  ' },
+      { nombre: 'Luz Marina Zapata', sede: 'central', jornada: 'tarde', docenteId: 'marina', nota: '  ' },
+      { nombre: 'Leidy Yadira Atehortúa', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_leidy_a', nota: '  ' },
+      { nombre: 'Dolly Gutiérrez Guevara', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_dolly', nota: '  ' },
+      { nombre: 'Gloria Yanet Gallego Rendón', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_gloria', nota: '  ' },
+      { nombre: 'Paula Andrea Zapata Martínez', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_paula', nota: '  ' },
 ];
 
-// ── Brigadas (Artículos 3 a 7) ────────────────────────────────────────────────
+// ── Brigadas (Artículos 5 a 12) ───────────────────────────────────────────────
+// Ningún brigadista ejecuta funciones operativas simultáneas (Art. 3):
+// Fase 1 todos evacúan; Fase 2 se activan las funciones especializadas.
+// La Finca no tiene brigadas separadas: sus docentes forman la Brigada Integral.
 
 export const BRIGADAS: Brigada[] = [
   {
     id: 'evacuacion',
     nombre: 'Brigada de evacuación',
     descripcion:
-      'Conformada por todos los docentes y/o profesionales de apoyo que se encuentren en las aulas en cada sede, en caso de presentarse una emergencia real o simulacro de evacuación. Cada docente debe identificar en cada aula al estudiante del grupo que es brigadista de apoyo en la evacuación.',
+      'Integrada por todos los docentes, directivos docentes y profesionales de apoyo a cargo de un grupo de estudiantes al momento de una emergencia o simulacro (deber de todo el personal en aula, figure o no en el listado). Los relacionados aquí son Líderes de Evacuación de bloque o piso en la Sede Gustavo Rodas Isaza y en la Sede Principal. La Sede La Finca se rige por la Brigada Integral. La docente Doris Castrillón Álvarez (Sede Principal) requiere acompañamiento por movilidad reducida: el Líder de Evacuación del bloque asigna a un integrante de la Brigada de Apoyo Inmediato para acompañarla hasta el punto de encuentro.',
     funciones: [
-      'Conocer de forma amplia el plan de atención de emergencias de cada sede donde presta sus servicios.',
-      'Identificar las rutas de evacuación y puntos de encuentro de la sede; seguir señalización.',
-      'Realizar con sus estudiantes de forma permanente sensibilización frente a la prevención de riesgos y la importancia de conservar la calma en caso de una emergencia.',
-      'Actuar de forma adecuada y bajo directrices del plan de gestión del riesgo institucional en caso de requerirse una evacuación del aula y llevar de forma tranquila y organizada al grupo de estudiantes al punto de encuentro, siguiendo la ruta correcta de evacuación.',
-      'Con apoyo de brigadistas escolares realizar informe de la presencia o ausencia de alguno de los estudiantes e informar al líder de gestión de riesgo de la sede para activar otra brigada.',
-      'En caso de sismo el brigadista de evacuación debe conservar la calma y animar a los demás a que también la conserven durante los primeros 40 segundos y hacer que adopten una posición segura sin salir del aula; solo en caso de escuchar alarma se realizará la evacuación de forma ordenada y segura. Si se presentan en los primeros 40 segundos fisuras estructurales o caída de objetos peligrosos, debe realizarse la evacuación de forma controlada aún sin escuchar la alarma. Se recomienda para las tres sedes permanecer con la puerta del aula abierta ya que no cuentan con dispositivos de seguridad que permitan en la evacuación la apertura hacia afuera de forma ágil.',
+      'Evacuar el aula, conducir al grupo por la ruta señalizada hasta el punto de encuentro y verificar allí el conteo completo de los estudiantes: deber inherente e ineludible de todo el personal en aula, figure o no en el listado.',
+      'Verificar que ningún salón, baño o área común de su bloque o piso quede rezagado durante la evacuación.',
+      'Reportar el estado de su sector al Puesto de Mando Unificado o a quien haga sus veces.',
+      'Conocer el plan de atención de emergencias de la sede, las rutas de evacuación, la señalización y los puntos de encuentro.',
+      'Adelantar de forma permanente con sus estudiantes la sensibilización frente a la prevención de riesgos y a la importancia de conservar la calma.',
+      'Reportar al líder de gestión del riesgo de la sede la ausencia de cualquier estudiante en el punto de encuentro, para activar la brigada que corresponda.',
+      'En caso de sismo, conservar la calma durante los primeros cuarenta (40) segundos y hacer que el grupo adopte una posición segura sin salir del aula. La evacuación se realiza al escuchar la alarma; no obstante, si dentro de esos primeros segundos se presentan fisuras estructurales o caída de objetos peligrosos, se evacúa de forma controlada aun sin alarma.',
+      'Mantener la puerta del aula abierta durante toda la jornada. Las puertas de las tres sedes no cuentan con dispositivos de apertura hacia afuera, por lo que esta medida es de obligatorio cumplimiento.',
     ],
     integrantes: [
-      // Jornada AM: Sede FINCA
-      { nombre: 'Margarita María Bedoya Bedoya', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_margarita' },
-      { nombre: 'Gloria Yanet Gallego Rendón', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_gloria' },
-      { nombre: 'Mary Luz Hoyos Hoyos', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_mary' },
-      // Jornada PM: Sede FINCA
-      { nombre: 'Soraya Bother', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_soraya' },
-      { nombre: 'Leidy Viviana Zapata Corrales', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_leidy_v' },
-      { nombre: 'Paula Andrea Zapata Martínez', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_paula' },
-      // Jornada AM: Sede GRI
-      { nombre: 'Leidy Yadira Atehortua Rojas', sede: 'gustavo_rodas', jornada: 'manana' },
-      { nombre: 'María Victoria Henao Toro', sede: 'gustavo_rodas', jornada: 'manana' },
-      { nombre: 'Lourdes Uparela Imbeth', sede: 'gustavo_rodas', jornada: 'manana' },
-      { nombre: 'Jaqueline Arevalo Alzate', sede: 'gustavo_rodas', jornada: 'manana' },
-      { nombre: 'Edison Alejandro Sánchez Angel', sede: 'gustavo_rodas', jornada: 'manana' },
-      // Jornada PM: Sede GRI
-      { nombre: 'Sandra García García', sede: 'gustavo_rodas', jornada: 'tarde' },
-      { nombre: 'Edwin Alexis Toro', sede: 'gustavo_rodas', jornada: 'tarde' },
-      { nombre: 'Delcy Johana Rivera', sede: 'gustavo_rodas', jornada: 'tarde' },
-      { nombre: 'Leonardo Acevedo Suárez', sede: 'gustavo_rodas', jornada: 'tarde' },
-      { nombre: 'Diego Alejandro Mejía Merino', sede: 'gustavo_rodas', jornada: 'tarde' },
-      { nombre: 'Dolly Marley Gutiérrez Guevara', sede: 'gustavo_rodas', jornada: 'tarde' },
-      { nombre: 'Beatriz Elena Zapata Vásquez', sede: 'gustavo_rodas', jornada: 'tarde' },
-      // Jornada AM: Sede principal
+      { nombre: 'Leidy Yadira Atehortúa Rojas', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_leidy_a' },
+      { nombre: 'María Victoria Henao Toro', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_maria_v' },
+      { nombre: 'Lourdes Uparela Imbeth', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_lourdes' },
+      { nombre: 'Jaqueline Arévalo Alzate', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_jaqueline' },
+      { nombre: 'Edison Alejandro Sánchez Ángel', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_edison' },
+      { nombre: 'Sandra García García', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_sandra' },
+      { nombre: 'Edwin Alexis Toro', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_edwin' },
+      { nombre: 'Delcy Johana Rivera', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_johana_r' },
+      { nombre: 'Leonardo Acevedo Suárez', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_leonardo' },
+      { nombre: 'Diego Alejandro Mejía Merino', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_diego' },
+      { nombre: 'Dolly Marley Gutiérrez Guevara', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_dolly' },
+      { nombre: 'Laura Catalina Medina', sede: 'gustavo_rodas', jornada: 'tarde' },
       { nombre: 'Jorge Iván Acevedo Tabares', sede: 'central', jornada: 'manana', docenteId: 'jorge' },
       { nombre: 'Juan Carlos Blandón Vargas', sede: 'central', jornada: 'manana', docenteId: 'yoguis' },
       { nombre: 'Gloria Estella Álvarez López', sede: 'central', jornada: 'manana', docenteId: 'gloria_a' },
@@ -103,119 +96,151 @@ export const BRIGADAS: Brigada[] = [
       { nombre: 'Julián David Medina Tamayo', sede: 'central', jornada: 'manana', docenteId: 'julian' },
       { nombre: 'Margarita María Montoya Olaya', sede: 'central', jornada: 'manana', docenteId: 'margara' },
       { nombre: 'Beatriz Elena Montoya Valdés', sede: 'central', jornada: 'manana', docenteId: 'beatriz' },
-      { nombre: 'José Uriel López Arias', sede: 'central', jornada: 'manana', docenteId: 'uriel' },
+      { nombre: 'José Uriel López', sede: 'central', jornada: 'manana', docenteId: 'uriel' },
       { nombre: 'Ledis Laura Quintana Seguanes', sede: 'central', jornada: 'manana', docenteId: 'ledis' },
-      { nombre: 'Doris Castrillón Álvarez', sede: 'central', jornada: 'manana', docenteId: 'doris', nota: 'Requiere apoyo: movilidad reducida' },
-      { nombre: 'Martha Lucía Úsuga Sepúlveda', sede: 'central', jornada: 'manana', docenteId: 'marta' },
-      // Jornada PM: Sede principal
+      { nombre: 'Martha Lucía Úsuga', sede: 'central', jornada: 'manana', docenteId: 'marta' },
       { nombre: 'Luis Javier Rojas García', sede: 'central', jornada: 'tarde', docenteId: 'luis_javier' },
-      { nombre: 'Carolina Medina', sede: 'central', jornada: 'tarde', docenteId: 'carolina' },
+      { nombre: 'Julieth Carolina Medina', sede: 'central', jornada: 'tarde', docenteId: 'carolina' },
       { nombre: 'Juan Pablo Bettin Tapia', sede: 'central', jornada: 'tarde', docenteId: 'juan_pablo' },
-      { nombre: 'Víctor Hugo Giraldo', sede: 'central', jornada: 'tarde' },
+      { nombre: 'Víctor Giraldo', sede: 'central', jornada: 'tarde' },
       { nombre: 'Edgar Alexis Pérez', sede: 'central', jornada: 'tarde', docenteId: 'edgar' },
-      { nombre: 'Jonathan Felipe Piedrahita Nieto', sede: 'central', jornada: 'tarde', docenteId: 'felipe' },
+      { nombre: 'Jonathan Felipe Piedrahíta Nieto', sede: 'central', jornada: 'tarde', docenteId: 'felipe' },
       { nombre: 'Mónica Alexandra Rave Velásquez', sede: 'central', jornada: 'tarde', docenteId: 'monica_rave' },
-      { nombre: 'Harold Meyit Gómez Lopera', sede: 'central', jornada: 'tarde', docenteId: 'harol' },
-      { nombre: 'Luis Ángel Quiceno Quiceno', sede: 'central', jornada: 'tarde', docenteId: 'luis_angel' },
+      { nombre: 'Harol Meyid Gómez López', sede: 'central', jornada: 'tarde', docenteId: 'harol' },
+      { nombre: 'Luis Ángel Quiceno', sede: 'central', jornada: 'tarde', docenteId: 'luis_angel' },
       { nombre: 'Hugo Armando Yepes Franco', sede: 'central', jornada: 'tarde', docenteId: 'hugo' },
+      { nombre: 'Yaneth Moscote', sede: 'central', jornada: 'tarde', docenteId: 'yanet' },
+      { nombre: 'Luz Marina Zapata Vásquez', sede: 'central', jornada: 'tarde', docenteId: 'marina' },
+      { nombre: 'Jhon Fredy García Arrubla', sede: 'central', jornada: 'tarde', docenteId: 'fredy_garcia' },
+      { nombre: 'Valentina Jaramillo', sede: 'central', jornada: 'tarde', docenteId: 'valentina' },
     ],
   },
   {
     id: 'primeros_auxilios',
     nombre: 'Brigada de primeros auxilios',
     descripcion:
-      'Conformada por docentes que tengan conocimiento de primer respondiente o la IE abrirá espacios de capacitación para ellos; mínimo un docente por sede y jornada.',
+      'Docentes formados como primer respondiente de la Sede Principal y la Sede Gustavo Rodas Isaza, mínimo un integrante por sede y jornada.',
     funciones: [
-      'Capacitarse como primer respondiente e implementar sus conocimientos cada vez que se presente un evento en la sede.',
-      'Activar alerta a organismos de apoyo cuando se requiera atender una emergencia.',
-      'Identificar plenamente los sitios donde se encuentran ubicados los botiquines y camillas para su fácil acceso.',
-      'Hacer revisión e informe al líder de gestión del riesgo de las necesidades de dotación de los botiquines.',
-      'En caso de emergencia, valorar a los afectados, brindar los primeros auxilios con apoyo de estudiantes brigadistas y derivar a salud y a organismos de apoyo los casos que así lo ameriten, informando de su actuación al líder de atención de emergencias de la sede quien informa a las familias de los menores.',
-      'Activar la póliza de accidentes escolares siempre que se remita un paciente a centro hospitalario o se entregue a la familia para hacerlo (diligenciar formato).',
-      'En caso de emergencia debe esperar a ser relevado de su cargo de brigadista de evacuación, para dirigirse a cumplir sus funciones como brigadista de primeros auxilios.',
+      'Mantener vigente su formación como primer respondiente y aplicarla en cada evento que se presente en la sede.',
+      'Activar la alerta a los organismos de apoyo cuando la atención del caso lo exija.',
+      'Conocer la ubicación de los botiquines y camillas de la sede, e informar al líder de gestión del riesgo las necesidades de dotación.',
+      'Valorar a los afectados, prestar los primeros auxilios con el apoyo de los estudiantes brigadistas y remitir a los servicios de salud u organismos de socorro los casos que lo ameriten, informando de su actuación al líder de gestión del riesgo de la sede, quien informa a las familias.',
+      'Activar la póliza de accidentes escolares y diligenciar el formato correspondiente siempre que se remita un estudiante a un centro hospitalario o se entregue a su familia para que lo traslade.',
+      'Aplicar el protocolo de relevo de custodia del artículo 8 antes de abandonar su función de evacuación para atender su función de primeros auxilios.',
     ],
     integrantes: [
-      { nombre: 'Juan Pablo Bettin', sede: 'central', jornada: 'tarde', docenteId: 'juan_pablo' },
-      { nombre: 'Mónica Rave', sede: 'central', jornada: 'tarde', docenteId: 'monica_rave' },
       { nombre: 'Julián David Medina', sede: 'central', jornada: 'manana', docenteId: 'julian' },
       { nombre: 'Carlos Alberto Cárdenas', sede: 'central', jornada: 'manana', docenteId: 'carlos' },
-      { nombre: 'Dolly Marley Gutiérrez', sede: 'gustavo_rodas', jornada: 'tarde' },
-      { nombre: 'Lourdes Uparela', sede: 'gustavo_rodas', jornada: 'manana' },
-      { nombre: 'Mary Luz Hoyos', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_mary' },
-      { nombre: 'Soraya Bother', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_soraya' },
+      { nombre: 'Juan Pablo Bettin', sede: 'central', jornada: 'tarde', docenteId: 'juan_pablo' },
+      { nombre: 'Mónica Rave', sede: 'central', jornada: 'tarde', docenteId: 'monica_rave' },
+      { nombre: 'Lourdes Uparela', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_lourdes' },
+      { nombre: 'Dolly Marley Gutiérrez', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_dolly' },
     ],
   },
   {
     id: 'contra_incendios',
     nombre: 'Brigada contra incendios',
     descripcion:
-      'Conformada por docentes que tengan conocimiento del tema o la IE abrirá espacios de capacitación para ellos; mínimo un docente por sede y jornada.',
+      'Docentes formados en el manejo de equipos de extinción de la Sede Principal y la Sede Gustavo Rodas Isaza, mínimo un integrante por sede y jornada.',
     funciones: [
-      'Capacitarse en el manejo de elementos de seguridad y contra incendios.',
-      'Tener plenamente identificados los lugares donde se encuentran ubicados los extintores según su uso, además de verificar su vigencia e informar novedades que se presenten.',
-      'Informar novedades al líder de gestión del riesgo cuando se identifiquen elementos, eventos o aspectos de infraestructura que puedan representar riesgo de conato de incendio o electrocución en cada sede.',
-      'Identificar de forma rápida el conato de incendio, dar alerta y/o activar alarma para evacuación segura si se requiere.',
-      'Atender de forma ágil el conato de incendio siempre que esté a su alcance; de lo contrario debe activar alerta a organismos de apoyo del corregimiento de forma rápida y oportuna.',
+      'Mantener vigente su formación en el manejo de elementos de seguridad y de extinción de incendios.',
+      'Tener identificados los extintores de la sede según su clase de uso, verificar su vigencia e informar las novedades que se presenten.',
+      'Informar al líder de gestión del riesgo sobre elementos, eventos o condiciones de infraestructura que representen riesgo de conato de incendio o de electrocución.',
+      'Identificar el conato de incendio, dar la alerta y activar la alarma de evacuación cuando se requiera.',
+      'Atender el conato de incendio cuando esté a su alcance y, en caso contrario, activar de inmediato la alerta a los organismos de socorro del corregimiento.',
+      'Voluntariedad y aptitud: quien manifieste temor insuperable frente al manejo directo del fuego será reasignado, dentro de la misma brigada, a funciones logísticas de bajo riesgo (corte de electricidad y gas, voz de alerta, inspección de extintores, orientación de organismos de socorro). Si el impedimento es absoluto, la Rectoría tramita su traslado y designa reemplazo, sin que la sede y jornada queden sin brigadista de incendios.',
     ],
     integrantes: [
       { nombre: 'Juan Carlos Vargas', sede: 'central', jornada: 'manana', docenteId: 'yoguis' },
       { nombre: 'Jhon Fredy García', sede: 'central', jornada: 'tarde', docenteId: 'fredy_garcia' },
-      { nombre: 'Dolly Gutiérrez Guevara', sede: 'gustavo_rodas', jornada: 'tarde' },
-      { nombre: 'María Victoria Henao', sede: 'gustavo_rodas', jornada: 'manana' },
-      { nombre: 'Margarita Bedoya', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_margarita' },
-      { nombre: 'Paula Andrea Zapata', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_paula' },
+      { nombre: 'María Victoria Henao', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_maria_v' },
+      { nombre: 'Dolly Gutiérrez Guevara', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_dolly' },
     ],
   },
   {
     id: 'transito_movilidad',
     nombre: 'Brigada de tránsito y movilidad',
     descripcion:
-      'Conformada por docentes que tengan conocimiento del tema o la IE abrirá espacios de capacitación para ellos; mínimo un docente por sede y jornada.',
+      'Servidores y personal de apoyo de la Sede Principal y la Sede Gustavo Rodas Isaza, mínimo un integrante por sede y jornada. Se articula al Plan Estratégico de Seguridad Vial (Ley 1503 de 2011).',
     funciones: [
-      'Identificar las amenazas, riesgos y vulnerabilidad relacionadas con el tránsito y la movilidad en el sector de cada sede e informar al líder de gestión del riesgo.',
-      'Proponer alternativas de mitigación del riesgo de atropello vehicular y/o estampida por la movilidad o en caso de evacuación.',
-      'Sensibilizar de forma permanente a la comunidad educativa y aledaña frente a los riesgos con el tránsito vehicular y solicitar señalización a entidades competentes y a Rectoría.',
-      'Actuar de forma consciente y adecuada según el plan de gestión del riesgo cuando se presenta una emergencia y se deba evacuar la IE hacia el exterior de la misma.',
-      'Identificar los sitios donde se encuentra la señalización móvil de pare y siga, facilitando su acceso y uso.',
+      'Identificar las amenazas, riesgos y vulnerabilidades de tránsito y movilidad en el entorno de su sede e informarlas al líder de gestión del riesgo.',
+      'Proponer medidas de mitigación del riesgo de atropello vehicular y de estampida en el ingreso, la salida y la evacuación.',
+      'Sensibilizar de forma permanente a la comunidad educativa y al vecindario frente a los riesgos del tránsito vehicular, y solicitar la señalización requerida a las entidades competentes y a Rectoría.',
+      'Actuar conforme al plan de gestión del riesgo cuando la evacuación deba dirigirse hacia el exterior de la sede.',
+      'Conocer la ubicación de la señalización móvil de pare y siga y garantizar su disponibilidad y uso.',
+      'El personal de las empresas contratistas de aseo y del PAE actúa como apoyo secundario y preventivo dentro del perímetro de la sede, y no asume el control del tráfico en la vía pública.',
     ],
     integrantes: [
-      { nombre: 'Claudia Patricia Henao', sede: 'central', jornada: 'manana', docenteId: 'claudia' },
-      { nombre: 'Harold Meyit Gómez Lopera', sede: 'central', jornada: 'tarde', docenteId: 'harol' },
-      { nombre: 'Beatriz Elena Zapata', sede: 'gustavo_rodas', jornada: 'tarde' },
-      { nombre: 'Lourdes Uparella', sede: 'gustavo_rodas', jornada: 'manana' },
-      { nombre: 'Mary Luz Hoyos', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_mary' },
-      { nombre: 'Leidy Viviana Zapata', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_leidy_v' },
-      { nombre: 'Luis Ángel Quiceno Quiceno', sede: 'central', jornada: 'nocturna', docenteId: 'luis_angel' },
-      { nombre: 'Personal de aseo', sede: 'todas', jornada: 'ambas' },
-      { nombre: 'Beatriz Marín Marín', sede: 'gustavo_rodas', jornada: 'ambas' },
-      { nombre: 'Milena Badel', sede: 'gustavo_rodas', jornada: 'ambas' },
+      { nombre: 'Claudia Patricia Henao', sede: 'central', jornada: 'manana', docenteId: 'claudia', nota: 'Docente' },
+      { nombre: 'Harold Meyid Gómez López', sede: 'central', jornada: 'tarde', docenteId: 'harol', nota: 'Docente' },
+      { nombre: 'Luis Ángel Quiceno', sede: 'central', jornada: 'tarde', docenteId: 'luis_angel', nota: 'Docente' },
+      { nombre: 'Lourdes Uparella', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_lourdes', nota: 'Docente' },
+      { nombre: 'Beatriz Elena Zapata', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_beatriz_z', nota: 'Docente' },
+      { nombre: 'Beatriz Marín Marín', sede: 'gustavo_rodas', jornada: 'ambas', nota: 'Personal de apoyo — dos jornadas' },
+      { nombre: 'Milena Badel', sede: 'gustavo_rodas', jornada: 'ambas', nota: 'Personal de apoyo — dos jornadas' },
     ],
   },
   {
     id: 'apoyo_inmediato',
     nombre: 'Brigada de apoyo inmediato a brigadistas de base',
     descripcion:
-      'Conformada por personal no docente que labora en cada sede o se encuentre presente en la misma en caso de emergencia o simulacro.',
+      'Personal no docente que labora en cada sede o se encuentre presente en ella al momento de una emergencia o simulacro. Ejecuta el protocolo de relevo de custodia (Art. 8): el docente permanece con su grupo hasta que el integrante de esta brigada llegue y asuma la supervisión.',
     funciones: [
-      'Conocer de forma amplia el plan de atención de emergencias de cada sede para servir de apoyo efectivo en la evacuación reemplazando al brigadista de base (primeros auxilios, incendios, tránsito) en el momento que pueda presentarse una emergencia o simulacro.',
-      'Identificar en cada jornada y sede a los docentes que pertenecen a brigadas diferentes a evacuación, para reemplazarlos en esta función cuando se requiera y se esté presente en ese momento en la sede en caso de emergencia o simulacro.',
-      'Nota: el apoyo podrá prestarlo solo en caso de no ser brigadista de evacuación en ese momento.',
+      'Conocer el plan de atención de emergencias de cada sede para servir de apoyo efectivo en la evacuación y relevar al brigadista de base de primeros auxilios, incendios o tránsito cuando este deba activarse.',
+      'Identificar, en cada jornada y sede, a los docentes que pertenecen a brigadas distintas a la de evacuación, para asumir su grupo cuando estos deban cumplir su función especializada.',
+      'Ejecutar el protocolo de relevo de custodia del artículo 8, asumiendo de manera efectiva la supervisión del grupo antes de que el docente de aula se retire.',
+      'Acompañar durante todo el desplazamiento al personal y a los estudiantes que requieran apoyo por movilidad reducida.',
+      'Nota: el relevo solo procede cuando el integrante no se encuentre, en ese mismo momento, cumpliendo su propia función de evacuación.',
     ],
     integrantes: [
       { nombre: 'John Alexander Sánchez', sede: 'todas', jornada: 'ambas', docenteId: 'alexander', nota: 'Docente orientador' },
-      { nombre: 'Paula González', sede: 'todas', jornada: 'ambas', nota: 'Psicóloga EEP' },
-      { nombre: 'Karen Bohórquez', sede: 'todas', jornada: 'ambas', nota: 'Profesional de apoyo UAI' },
+      { nombre: 'Natalia Rivas', sede: 'todas', jornada: 'ambas', nota: 'Psicóloga EEP' },
+      { nombre: 'Diana Ramírez', sede: 'todas', jornada: 'ambas', nota: 'Profesional de apoyo UAI' },
       { nombre: 'Paola Andrea Vélez', sede: 'central', jornada: 'ambas', nota: 'Auxiliar administrativa' },
-      { nombre: 'Adrián', sede: 'central', jornada: 'ambas', nota: 'Auxiliar administrativa' },
+      { nombre: 'Román Serna', sede: 'central', jornada: 'ambas', nota: 'Auxiliar administrativa' },
       { nombre: 'Yaneth Hurtado', sede: 'central', jornada: 'ambas', nota: 'Auxiliar administrativo' },
-      { nombre: 'Janneth Ocampo', sede: 'central', jornada: 'manana', docenteId: 'coord_manana', nota: 'Coordinadora — Principal/GRI' },
-      { nombre: 'Janneth Ocampo', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'coord_manana', nota: 'Coordinadora — Principal/GRI' },
-      { nombre: 'Juan Diego Salazar', sede: 'central', jornada: 'tarde', docenteId: 'coord_tarde', nota: 'Coordinador — Principal/Sede Finca' },
-      { nombre: 'Juan Diego Salazar', sede: 'la_finquita', jornada: 'tarde', docenteId: 'coord_tarde', nota: 'Coordinador — Principal/Sede Finca' },
-      { nombre: 'Personal de aseo', sede: 'todas', jornada: 'ambas', nota: 'Aseadoras — sede y jornada de turno' },
-      { nombre: 'Personal de PAE', sede: 'todas', jornada: 'ambas', nota: 'Manipuladoras PAE — sede y jornada' },
-      { nombre: 'Martha Isabel Granda', sede: 'central', jornada: 'ambas', nota: 'Bibliotecaria' },
-      { nombre: 'Yuri Catalina Gómez', sede: 'central', jornada: 'ambas', docenteId: 'yuri', nota: 'Docente PTA' },
+      { nombre: 'Janneth Ocampo', sede: 'central', jornada: 'manana', docenteId: 'coord_manana', nota: 'Coordinadora — Sede Principal y Gustavo Rodas' },
+      { nombre: 'Janneth Ocampo', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'coord_manana', nota: 'Coordinadora — Sede Principal y Gustavo Rodas' },
+      { nombre: 'Juan Diego Salazar', sede: 'central', jornada: 'tarde', docenteId: 'coord_tarde', nota: 'Coordinador — Sede Principal y La Finca' },
+      { nombre: 'Juan Diego Salazar', sede: 'la_finquita', jornada: 'tarde', docenteId: 'coord_tarde', nota: 'Coordinador — Sede Principal y La Finca' },
+    ],
+  },
+  {
+    id: 'integral_finca',
+    nombre: 'Brigada integral — Sede La Finca',
+    descripcion:
+      'Régimen especial de la Sede La Finca (tres docentes por jornada, Art. 12): una única brigada con formación cruzada en evacuación, primeros auxilios y manejo de extintores. La función de Fase 2 de cada docente figura junto a su nombre.',
+    funciones: [
+      'Fase 1: los tres docentes de la jornada evacúan cada uno su grupo hasta el punto de encuentro y reportan el conteo al líder de gestión del riesgo de la sede. Ninguno se desplaza a su función prioritaria antes de completar ese reporte.',
+      'Concluida la Fase 1, el líder de gestión del riesgo de la sede asume la custodia de todos los estudiantes en el punto de encuentro y libera a los otros dos docentes para que ejecuten su función prioritaria (sustituye aquí a la Brigada de Apoyo Inmediato).',
+      'Si concurren primeros auxilios y tránsito y movilidad, prevalecen los primeros auxilios. Tránsito se activa solo si la evacuación debe ir al exterior y no hay lesionados por atender.',
+      'Ante un conato de incendio que exceda la capacidad del extintor, suspender la intervención, dar la voz de alerta y activar a los organismos de socorro. No se intenta el control directo del fuego sin respaldo externo.',
+      'Cuando el coordinador asignado a la sede se encuentre en ella, asume la coordinación general y releva al líder en la custodia del punto de encuentro.',
+      'Todos los docentes mantienen formación cruzada en evacuación, primeros auxilios y manejo de extintores, para poder asumir la función de otro ante su ausencia.',
+      'El líder informa a Rectoría toda ausencia de un docente, para redistribuir funciones. La sede nunca opera sin al menos un docente presente formado en primeros auxilios.',
+    ],
+    integrantes: [
+      { nombre: 'Margarita María Bedoya Bedoya', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_margarita', nota: 'Fase 2: control de incendios' },
+      { nombre: 'Gloria Yanet Gallego Rendón', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_gloria', nota: 'Fase 2: líder de gestión del riesgo de la sede y coordinación de la evacuación' },
+      { nombre: 'Mary Luz Hoyos Hoyos', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_mary', nota: 'Fase 2: primeros auxilios y, subsidiariamente, tránsito y movilidad' },
+      { nombre: 'Soraya Bodther', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_soraya', nota: 'Fase 2: primeros auxilios' },
+      { nombre: 'Leidy Viviana Zapata Corrales', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_leidy_v', nota: 'Fase 2: tránsito y movilidad' },
+      { nombre: 'Paula Andrea Zapata Martínez', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_paula', nota: 'Fase 2: líder de gestión del riesgo de la sede y control de incendios' },
+    ],
+  },
+  {
+    id: 'porteria_vigilancia',
+    nombre: 'Portería y vigilancia',
+    descripcion:
+      'El personal de portería, vigilancia y control de accesos de cada sede hace parte del plan de emergencias (Art. 6).',
+    funciones: [
+      'Suspender de inmediato el ingreso de acudientes y particulares a la sede.',
+      'Abrir y asegurar la apertura total de los portones vehiculares y peatonales que sirven de ruta de salida, e impedir que permanezcan cerrados u obstruidos mientras dure la emergencia.',
+      'Recibir y orientar a los organismos de socorro (Bomberos, ambulancias y Policía) desde su llegada hasta el punto donde se requiera su intervención.',
+      'Informar al líder de gestión del riesgo de la sede sobre el ingreso y salida de vehículos de emergencia.',
+    ],
+    integrantes: [
+      { nombre: 'Personal de portería, vigilancia y control de accesos', sede: 'todas', jornada: 'ambas', nota: 'Sin nombres en la resolución; cada sede' },
     ],
   },
 ];
