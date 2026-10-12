@@ -9,7 +9,8 @@
     { "source": "functions-asistencia", "codebase": "asistencia", "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"] },
     { "source": "functions-calendario", "codebase": "calendario", "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"] },
     { "source": "functions-classroom", "codebase": "classroom", "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"] },
-    { "source": "functions-notificaciones", "codebase": "notificaciones", "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"] }
+    { "source": "functions-notificaciones", "codebase": "notificaciones", "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"] },
+    { "source": "functions-simulacros", "codebase": "simulacros", "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"] }
   ],
   "hosting": {
     "public": "src/asistencia/publico",

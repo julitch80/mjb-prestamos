@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import VistaSimulacros from './simulacros/VistaSimulacros';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../data/store';
@@ -1155,7 +1156,7 @@ function EmergenciaEscolar({ onIrANumeros }: { onIrANumeros: () => void }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-type Pestana = 'brigadas' | 'emergencias' | 'protocolo' | 'casos';
+type Pestana = 'brigadas' | 'emergencias' | 'protocolo' | 'casos' | 'simulacros';
 
 export default function GestionRiesgo() {
   const userId = useAppStore(s => s.userId);
@@ -1177,7 +1178,7 @@ export default function GestionRiesgo() {
       </div>
 
       {/* Pestañas */}
-      <div className="flex items-center gap-1.5 border-b border-line pb-2">
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-line pb-2">
         <button
           onClick={() => setPestana('brigadas')}
           className={cn(
@@ -1222,6 +1223,17 @@ export default function GestionRiesgo() {
         >
           📁 Casos
         </button>
+        <button
+          onClick={() => setPestana('simulacros')}
+          className={cn(
+            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+            pestana === 'simulacros'
+              ? 'bg-accent-soft border-accent text-accent'
+              : 'border-info text-info hover:bg-elevated'
+          )}
+        >
+          🚨 Simulacros
+        </button>
       </div>
 
       {pestana === 'protocolo' ? (
@@ -1230,6 +1242,8 @@ export default function GestionRiesgo() {
         <NumerosEmergencia />
       ) : pestana === 'casos' ? (
         <TableroCasos />
+      ) : pestana === 'simulacros' ? (
+        <VistaSimulacros />
       ) : (
         <>
           {/* Tus brigadas */}

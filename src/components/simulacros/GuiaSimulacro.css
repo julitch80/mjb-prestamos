@@ -1,0 +1,276 @@
+/* Estilos de la guía del simulacro, encapsulados bajo .simu-guia (portados de la guía HTML original). */
+
+.simu-guia{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --hoja:#f2f4f3; --panel:#ffffff; --suave:#e6ebe9; --tinta:#14231d; --apagado:#56655e; --linea:#d3dbd7;
+  --salida:#00774a; --placa-salida:#00774a;
+  --info:#1d5fa6; --placa-info:#1d5fa6;
+  --cierre:#4b5a6b; --placa-cierre:#37424f;
+  --atencion:#f4b400; --atencion-tinta:#2b2000; --atencion-fondo:#fff2c2; --atencion-borde:#b88700; --atencion-texto:#5c4200;
+}
+@media (prefers-color-scheme: dark){
+  .simu-guia:not([data-theme="light"]){
+    --hoja:#0e1613; --panel:#16201c; --suave:#202c27; --tinta:#e8efeb; --apagado:#9fb0a7; --linea:#2c3a34;
+    --salida:#37c88b; --placa-salida:#0b6a44;
+    --info:#7fb2f2; --placa-info:#1c4f88;
+    --cierre:#b3bfce; --placa-cierre:#3a4757;
+    --atencion:#f4b400; --atencion-tinta:#2b2000; --atencion-fondo:#3a2d08; --atencion-borde:#e0a800; --atencion-texto:#f4c542;
+  }
+}
+.simu-guia[data-theme="dark"]{
+  --hoja:#0e1613; --panel:#16201c; --suave:#202c27; --tinta:#e8efeb; --apagado:#9fb0a7; --linea:#2c3a34;
+  --salida:#37c88b; --placa-salida:#0b6a44;
+  --info:#7fb2f2; --placa-info:#1c4f88;
+  --cierre:#b3bfce; --placa-cierre:#3a4757;
+  --atencion:#f4b400; --atencion-tinta:#2b2000; --atencion-fondo:#3a2d08; --atencion-borde:#e0a800; --atencion-texto:#f4c542;
+}
+
+@media (prefers-reduced-motion:no-preference){}
+.simu-guia *,.simu-guia *::before,.simu-guia *::after{box-sizing:inherit}
+.simu-guia [hidden]{display:none !important}
+.simu-guia{margin:0;background:var(--hoja);color:var(--tinta);font:400 17px/1.5 "Barlow",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.simu-guia h1,.simu-guia h2,.simu-guia h3,.simu-guia p,.simu-guia ul,.simu-guia ol,.simu-guia dl,.simu-guia dd,.simu-guia blockquote{margin:0}
+.simu-guia button,.simu-guia select,.simu-guia input{font:inherit;color:inherit}
+.simu-guia button{cursor:pointer}
+.simu-guia :focus-visible{outline:3px solid var(--info);outline-offset:2px}
+.simu-guia .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.simu-guia .wrap{max-width:720px;margin:0 auto;padding:0 16px}
+.simu-guia .cond{font-family:"Barlow Condensed","Barlow",system-ui,sans-serif}
+
+/* barra superior */
+.simu-guia .appbar{position:relative;z-index:1;background:var(--hoja);border-bottom:1px solid var(--linea)}
+.simu-guia .bar1{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0 8px}
+.simu-guia .brand b{display:block;font:700 27px/1 "Barlow Condensed","Barlow",sans-serif;letter-spacing:.01em}
+.simu-guia .brand span{display:block;color:var(--apagado);font-size:14.5px;margin-top:2px}
+.simu-guia .tools{display:flex;gap:8px}
+.simu-guia .iconbtn{width:44px;height:44px;border-radius:12px;border:1px solid var(--linea);background:var(--panel);display:grid;place-items:center}
+.simu-guia .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 0 10px}
+.simu-guia .seg button{border:1px solid var(--linea);background:var(--panel);border-radius:12px;min-height:52px;padding:6px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15}
+.simu-guia .seg button b{font:700 20px/1 "Barlow Condensed","Barlow",sans-serif}
+.simu-guia .seg button span{font-size:14px;color:var(--apagado)}
+.simu-guia .seg button[aria-pressed="true"]{background:var(--tinta);border-color:var(--tinta);color:var(--hoja)}
+.simu-guia .seg button[aria-pressed="true"] span{color:var(--hoja);opacity:.85}
+
+.simu-guia main.app{padding-bottom:24px}
+.simu-guia section[data-panel]{padding-top:18px}
+
+/* placas de señal */
+.simu-guia [data-f="antes"]{--pc:var(--placa-info);--fc:var(--info)}
+.simu-guia [data-f="durante"]{--pc:var(--placa-salida);--fc:var(--salida)}
+.simu-guia [data-f="despues"]{--pc:var(--placa-cierre);--fc:var(--cierre)}
+.simu-guia .placa{background:var(--pc,var(--placa-salida));border-radius:16px;padding:6px}
+.simu-guia .placa-in{border:2px solid rgba(255,255,255,.92);border-radius:11px;padding:16px;color:#fff}
+.simu-guia .hero-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.simu-guia .hero-fecha{font-weight:600;font-size:18px}
+.simu-guia .cuenta{background:#fff;color:#14231d;font-weight:700;font-size:15px;border-radius:999px;padding:2px 12px}
+.simu-guia .hero-main{display:flex;align-items:flex-end;gap:14px;margin:10px 0 8px}
+.simu-guia .hero-hora{font:700 74px/.85 "Barlow Condensed","Barlow",sans-serif;letter-spacing:-.01em}
+.simu-guia .hero-hora small{font-size:24px;margin-left:4px;font-weight:600}
+.simu-guia .hero-txt{font-size:18px;line-height:1.2;padding-bottom:3px}
+.simu-guia .hero-pie{font-size:15.5px;opacity:.95}
+
+.simu-guia .duo{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 4px}
+.simu-guia .duo .placa{border-radius:14px;padding:5px}
+.simu-guia .duo .placa-in{border-width:2px;border-radius:9px;padding:12px;min-height:128px;display:flex;flex-direction:column;justify-content:space-between;gap:8px}
+.simu-guia .duo b{font:700 31px/1 "Barlow Condensed","Barlow",sans-serif}
+.simu-guia .duo span{font-size:15.5px;line-height:1.3}
+.simu-guia .recuerda{list-style:none;padding:0;margin:14px 0 0}
+.simu-guia .recuerda li{padding:9px 0 9px 14px;border-left:4px solid var(--salida);margin-bottom:6px;background:var(--panel)}
+
+.simu-guia .cta{display:flex;align-items:center;justify-content:flex-start;gap:14px;width:100%;min-height:62px;margin-top:14px;padding:8px 18px;border:0;border-radius:12px;background:var(--tinta);color:var(--hoja);text-align:left}
+.simu-guia .cta .tx{display:flex;flex-direction:column;line-height:1.2}
+.simu-guia .cta .tx b{font-weight:700;font-size:19px}
+.simu-guia .cta .tx small{font-weight:500;font-size:14.5px;opacity:.82}
+
+.simu-guia .yo{margin:14px 0 0;padding:14px 16px;background:var(--panel);border:2px solid var(--salida);border-radius:12px}
+.simu-guia .yo-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.simu-guia .yo-top b{font:700 28px/1.1 "Barlow Condensed","Barlow",sans-serif}
+.simu-guia .yo-t{margin:10px 0 2px;color:var(--apagado);font-size:15px}
+.simu-guia .yo-l{list-style:none;padding:0;margin:0}
+.simu-guia .yo-l li{padding:8px 0;border-top:1px solid var(--linea)}
+.simu-guia .yo-l b{display:block;font-weight:600}
+.simu-guia .yo-l span{display:block;color:var(--apagado);font-size:14.5px;line-height:1.3}
+.simu-guia .yo .chips{margin-top:6px}
+.simu-guia .chipbtn[aria-pressed="true"]{background:var(--salida);color:#fff}
+.simu-guia .yo .btn2{margin-top:12px;width:100%}
+.simu-guia .alerta{margin-top:12px;padding:12px 14px;border-left:6px solid var(--atencion);background:var(--atencion-fondo);color:var(--atencion-texto);border-radius:0 10px 10px 0}
+.simu-guia .alerta b{display:block;font:700 22px/1.15 "Barlow Condensed","Barlow",sans-serif;margin-bottom:2px}
+.simu-guia .rolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:22px 0 6px;padding:10px 12px;background:var(--suave);border-radius:10px}
+.simu-guia .rolbar span{font-size:15.5px;color:var(--apagado)}
+.simu-guia .rolbar b{color:var(--tinta);font-weight:700}
+.simu-guia .linkbtn{background:none;border:0;padding:8px 4px;color:var(--info);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+
+/* línea de ruta */
+.simu-guia .ruta{list-style:none;margin:14px 0 0;padding:0}
+.simu-guia .ruta > li{position:relative;display:grid;grid-template-columns:42px 1fr;column-gap:6px}
+.simu-guia .ruta > li::before{content:"";position:absolute;left:19px;top:0;bottom:0;width:5px;background:var(--fc);border-radius:2px}
+.simu-guia .ruta > li:last-child::before{bottom:auto;height:30px}
+.simu-guia .cap .cap-t{grid-column:2;padding:16px 0 6px;font:700 26px/1.1 "Barlow Condensed","Barlow",sans-serif;color:var(--fc)}
+.simu-guia .nodo{position:relative;z-index:1;grid-column:1;margin:6px 0 0 1px;width:36px;height:36px;border-radius:50%;background:var(--panel);border:4px solid var(--fc);display:grid;place-items:center;font:700 17px/1 "Barlow Condensed","Barlow",sans-serif;color:var(--fc)}
+.simu-guia .parada.ahora .nodo{background:var(--atencion);border-color:var(--atencion);color:var(--atencion-tinta)}
+.simu-guia .p-body{grid-column:2;padding:2px 0 18px}
+.simu-guia .p-head{display:block;width:100%;text-align:left;background:none;border:0;padding:4px 0}
+.simu-guia .p-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.simu-guia .p-time{font:700 24px/1.1 "Barlow Condensed","Barlow",sans-serif;color:var(--fc)}
+.simu-guia .p-time small{font-size:15px;font-weight:600;margin-left:2px}
+.simu-guia .p-dur{font-size:14px;color:var(--apagado)}
+.simu-guia .badge-now{background:var(--atencion);color:var(--atencion-tinta);font-weight:700;font-size:13.5px;border-radius:6px;padding:0 8px}
+.simu-guia .p-tit{display:block;font-weight:600;font-size:19px;line-height:1.25;margin-top:1px}
+.simu-guia .p-prev{display:block;color:var(--apagado);font-size:16px;margin-top:3px}
+.simu-guia .p-head[aria-expanded="true"] .p-prev{display:none}
+.simu-guia .p-det{padding:8px 0 0}
+.simu-guia .q{color:var(--apagado);margin-bottom:4px}
+.simu-guia .oye{display:flex;gap:10px;align-items:flex-start;background:var(--suave);border-radius:10px;padding:10px 12px;margin:0 0 10px}
+.simu-guia .oye svg{flex:none;margin-top:3px}
+.simu-guia .oye b{display:block;font-size:14.5px;color:var(--apagado);font-weight:600}
+.simu-guia .oye span{font-style:italic}
+.simu-guia .grp{font-weight:700;font-size:15.5px;margin:10px 0 2px}
+.simu-guia .acts{list-style:none;padding:0;margin:0}
+.simu-guia .acts li{position:relative;padding:5px 0 5px 20px}
+.simu-guia .acts li::before{content:"";position:absolute;left:3px;top:14px;width:9px;height:9px;border-radius:50%;background:var(--fc,var(--salida))}
+.simu-guia .sin{color:var(--apagado);font-style:italic}
+.simu-guia .medio{margin-top:10px;font-size:14.5px;color:var(--apagado)}
+
+/* mi rol */
+.simu-guia .lbl{display:block;font-weight:700;margin-bottom:6px}
+.simu-guia .buscar{width:100%;min-height:52px;padding:10px 14px;border:2px solid var(--linea);border-radius:12px;background:var(--panel);font-size:18px}
+.simu-guia .buscar:focus{border-color:var(--info);outline:none}
+.simu-guia .res{margin-top:10px}
+.simu-guia .res-item{padding:12px 0;border-top:1px solid var(--linea)}
+.simu-guia .res-item b{display:block;font-size:18px}
+.simu-guia .res-item small{color:var(--apagado)}
+.simu-guia .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.simu-guia .chipbtn{border:2px solid var(--salida);background:transparent;color:var(--salida);font-weight:700;border-radius:999px;padding:6px 14px;min-height:40px}
+.simu-guia .chipbtn:hover{background:var(--suave)}
+.simu-guia .nota-vacio{padding:12px;background:var(--suave);border-radius:10px}
+.simu-guia h2.sec{font:700 28px/1.1 "Barlow Condensed","Barlow",sans-serif;margin:26px 0 8px}
+.simu-guia .ops{list-style:none;margin:0;padding:0;border-top:1px solid var(--linea)}
+.simu-guia .op{position:relative;display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:58px;padding:10px 12px 10px 16px;border:0;border-bottom:1px solid var(--linea);background:transparent;text-align:left}
+.simu-guia .op b{display:block;font-weight:600}
+.simu-guia .op span{display:block;color:var(--apagado);font-size:14.5px;line-height:1.25}
+.simu-guia .op[aria-pressed="true"]{background:var(--suave)}
+.simu-guia .op[aria-pressed="true"]::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--salida)}
+.simu-guia .op svg{flex:none;color:var(--salida);opacity:0}
+.simu-guia .op[aria-pressed="true"] svg{opacity:1}
+.simu-guia .rd h2{font:700 34px/1.05 "Barlow Condensed","Barlow",sans-serif;margin-top:28px}
+.simu-guia .mision{margin:6px 0 4px;font-size:18px}
+.simu-guia .rd h3{font:700 24px/1.1 "Barlow Condensed","Barlow",sans-serif;margin:24px 0 6px}
+.simu-guia .prog{color:var(--apagado);font-size:15px;margin-bottom:4px}
+.simu-guia .chk{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--linea);cursor:pointer}
+.simu-guia .chk input{flex:none;width:24px;height:24px;margin:1px 0 0;accent-color:var(--salida)}
+.simu-guia .chk input:checked + span{color:var(--apagado)}
+.simu-guia .mini{list-style:none;padding:0;margin:0;border-top:1px solid var(--linea)}
+.simu-guia .mini li{border-bottom:1px solid var(--linea)}
+.simu-guia .mini button{display:grid;grid-template-columns:78px 1fr;gap:8px;width:100%;text-align:left;background:none;border:0;padding:11px 0}
+.simu-guia .mini .t{font:700 20px/1.15 "Barlow Condensed","Barlow",sans-serif;color:var(--fc)}
+.simu-guia .mini .t small{font-size:13px;font-weight:600}
+.simu-guia .mini b{display:block;font-weight:600}
+.simu-guia .mini span.d{display:block;color:var(--apagado);font-size:15.5px}
+.simu-guia details.fn{margin-top:20px;border-top:1px solid var(--linea)}
+.simu-guia details.fn summary{cursor:pointer;padding:14px 0;font-weight:700}
+.simu-guia details.fn .acts{padding-bottom:6px}
+.simu-guia .evita{margin-top:22px;padding:12px 14px;border-left:5px solid var(--atencion);background:var(--atencion-fondo);color:var(--atencion-texto);border-radius:0 10px 10px 0}
+.simu-guia .evita b{display:block;margin-bottom:2px}
+
+/* encargados */
+.simu-guia .resumen{padding:12px 14px;border-left:6px solid var(--atencion);background:var(--atencion-fondo);color:var(--atencion-texto);border-radius:0 10px 10px 0}
+.simu-guia .resumen.ok{border-left-color:var(--salida);background:var(--suave);color:var(--tinta)}
+.simu-guia .resumen b{font-weight:700}
+.simu-guia .acciones{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+.simu-guia .btn2{min-height:44px;padding:8px 16px;border-radius:10px;border:2px solid var(--tinta);background:transparent;font-weight:700}
+.simu-guia .btn2[aria-pressed="true"]{background:var(--tinta);color:var(--hoja)}
+.simu-guia .grupo h3{font:700 26px/1.1 "Barlow Condensed","Barlow",sans-serif;margin:26px 0 4px}
+.simu-guia .fila{padding:12px 0;border-top:1px solid var(--linea)}
+.simu-guia .cargo{font-weight:600}
+.simu-guia .nota{display:block;color:var(--apagado);font-size:14.5px;line-height:1.3}
+.simu-guia .quien{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.simu-guia .nom{background:var(--suave);border-radius:999px;padding:3px 12px;font-weight:500;font-size:16px}
+.simu-guia .nom small{color:var(--apagado);font-size:13.5px;margin-left:2px}
+.simu-guia .pend{display:inline-flex;align-items:center;padding:3px 12px;border:2px dashed var(--atencion-borde);background:var(--atencion-fondo);color:var(--atencion-texto);border-radius:999px;font-weight:700;font-size:15px}
+.simu-guia .opc{display:inline-flex;align-items:center;padding:3px 12px;border:2px dashed var(--linea);color:var(--apagado);border-radius:999px;font-weight:600;font-size:15px}
+.simu-guia .tagc{font-size:13px;font-weight:700;background:var(--atencion);color:var(--atencion-tinta);border-radius:6px;padding:0 7px}
+.simu-guia details.ver summary{cursor:pointer;color:var(--info);font-weight:700;padding:4px 0}
+.simu-guia details.ver .quien{margin-top:6px}
+
+/* rutas */
+.simu-guia .sel{width:100%;min-height:52px;padding:10px 12px;border:2px solid var(--linea);border-radius:12px;background:var(--panel);font-size:17px}
+.simu-guia .salon-res{margin-top:12px;padding:12px 14px;background:var(--suave);border-radius:10px}
+.simu-guia .salon-res b{font-weight:700}
+.simu-guia .lane{margin-top:26px}
+.simu-guia .lane h3{font:700 26px/1.1 "Barlow Condensed","Barlow",sans-serif}
+.simu-guia .lane .cuando{color:var(--apagado);font-size:15px;margin-top:2px}
+.simu-guia .lane ol{list-style:none;padding:0;margin:10px 0 0}
+.simu-guia .stop{position:relative;display:grid;grid-template-columns:42px 1fr;align-items:center;padding:9px 0}
+.simu-guia .stop::before{content:"";position:absolute;left:19px;top:0;bottom:0;width:5px;background:var(--salida);border-radius:2px}
+.simu-guia .stop:first-child::before{top:50%}
+.simu-guia .stop:last-child::before{bottom:50%}
+.simu-guia .stop .n{position:relative;z-index:1;margin-left:1px;width:34px;height:34px;border-radius:50%;background:var(--panel);border:4px solid var(--salida);display:grid;place-items:center;font:700 16px/1 "Barlow Condensed","Barlow",sans-serif;color:var(--salida)}
+.simu-guia .stop .nm{font-weight:500;font-size:18px;padding-left:4px}
+.simu-guia .stop.me .n{background:var(--salida);color:#fff}
+.simu-guia .stop.me .nm{font-weight:700}
+.simu-guia .dest{margin-top:26px}
+.simu-guia .dest .placa-in{display:flex;align-items:center;gap:12px;padding:14px}
+.simu-guia .dest b{font:700 30px/1 "Barlow Condensed","Barlow",sans-serif;display:block}
+.simu-guia .dest span{font-size:15.5px}
+.simu-guia .lane.por-definir .box{margin-top:8px;padding:12px 14px;border:2px dashed var(--atencion-borde);background:var(--atencion-fondo);color:var(--atencion-texto);border-radius:10px}
+.simu-guia dl.puntos{margin-top:8px;border-top:1px solid var(--linea)}
+.simu-guia dl.puntos div{padding:11px 0;border-bottom:1px solid var(--linea)}
+.simu-guia dl.puntos dt{font-weight:700}
+.simu-guia dl.puntos dd{color:var(--apagado)}
+
+.simu-guia footer.pie{margin-top:34px;padding-top:14px;border-top:1px solid var(--linea);color:var(--apagado);font-size:14.5px}
+
+/* navegación inferior */
+.simu-guia .nav{position:sticky;bottom:0;z-index:30;margin-top:18px;border-radius:12px 12px 0 0;background:var(--panel);border-top:1px solid var(--linea);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px))}
+.simu-guia .nav-in{max-width:720px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.simu-guia .nav button{border:0;background:transparent;border-radius:10px;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:13.5px;font-weight:600;color:var(--apagado)}
+.simu-guia .nav button[aria-current="page"]{color:var(--salida);background:var(--suave)}
+
+/* paso a paso */
+.simu-guia .live{position:fixed;inset:0;z-index:60;background:var(--hoja)}
+.simu-guia .live-in{max-width:720px;height:100%;margin:0 auto;display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px calc(12px + env(safe-area-inset-bottom,0px))}
+.simu-guia .live-top{display:flex;align-items:center;gap:10px}
+.simu-guia .live-top .sel{min-height:44px;padding:6px 10px;font-size:16px;flex:1;min-width:0}
+.simu-guia .live-prog{display:flex;gap:3px;margin:10px 0 12px}
+.simu-guia .live-prog button{flex:1;height:10px;padding:0;border:0;border-radius:5px;background:var(--linea)}
+.simu-guia .live-prog button.hecho{background:var(--tinta);opacity:.55}
+.simu-guia .live-prog button.act{background:var(--fc);height:14px;margin-top:-2px}
+.simu-guia .live-body{flex:1;overflow:auto;padding-bottom:12px}
+.simu-guia .live .placa-in{padding:16px 16px 18px}
+.simu-guia .l-top{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.simu-guia .l-time{font:700 72px/.85 "Barlow Condensed","Barlow",sans-serif}
+.simu-guia .l-time small{font-size:24px;font-weight:600;margin-left:4px}
+.simu-guia .l-fase{font-size:15.5px;text-align:right;line-height:1.25}
+.simu-guia .l-tit{font:700 40px/1.02 "Barlow Condensed","Barlow",sans-serif;margin-top:14px}
+.simu-guia .l-oye{display:flex;gap:10px;margin-top:14px;padding:10px 12px;background:rgba(255,255,255,.16);border-radius:8px;font-style:italic;font-size:17px}
+.simu-guia .live .q{margin-top:14px;font-size:17px}
+.simu-guia .live .grp{font-size:17px;margin-top:16px}
+.simu-guia .live .acts li{font-size:21px;line-height:1.3;padding:8px 0 8px 26px}
+.simu-guia .live .acts li::before{top:17px;width:12px;height:12px}
+.simu-guia .live .medio{font-size:15px}
+.simu-guia .live-sync{margin-top:12px}
+.simu-guia .live-nav{display:grid;grid-template-columns:1fr 2fr;gap:10px;padding-top:8px}
+.simu-guia .live-nav button{min-height:60px;border-radius:12px;font-weight:700;font-size:19px;border:2px solid var(--tinta);background:transparent}
+.simu-guia .live-nav button.go{background:var(--tinta);color:var(--hoja)}
+.simu-guia .live-nav button:disabled{opacity:.35}
+
+.simu-guia .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:80;background:var(--tinta);color:var(--hoja);padding:10px 16px;border-radius:10px;font-weight:600;max-width:90%}
+
+@media (min-width:600px){
+  .simu-guia .hero-hora{font-size:96px}
+  .simu-guia .l-time{font-size:96px}
+  .simu-guia .l-tit{font-size:52px}
+}
+@media print{
+  .simu-guia .appbar .tools,.simu-guia .nav,.simu-guia .cta,.simu-guia .live,.simu-guia .toast{display:none !important}
+  .simu-guia .p-det[hidden]{display:block !important}
+}
+
+/* Añadidos de la versión integrada */
+.simu-guia{position:relative;border-radius:14px;overflow:clip}
+.simu-guia .wrap{padding:0 14px}
+.simu-guia .reprog{margin-top:14px;padding:12px 14px;border-left:6px solid var(--atencion);background:var(--atencion-fondo);color:var(--atencion-texto);border-radius:0 10px 10px 0}
+.simu-guia .reprog b{display:block;font:700 22px/1.15 "Barlow Condensed","Barlow",sans-serif;margin-bottom:2px}
+.simu-guia .estado-chip{display:inline-block;margin-left:8px;font:600 13px/1.4 "Barlow",sans-serif;padding:0 8px;border-radius:6px;background:var(--atencion);color:var(--atencion-tinta)}

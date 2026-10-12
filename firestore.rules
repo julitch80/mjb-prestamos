@@ -2167,6 +2167,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Simulacros (docs/simulacros/PLAN.md): lo leen los usuarios activos; SOLO escribe la
+    // callable `simulacroCambiar` (admin SDK). El registro de cambios lo lee cualquier activo.
+    match /simulacros/{id} {
+      allow read: if isActiveUser();
+      allow write: if false;
+      match /cambios/{c} {
+        allow read: if isActiveUser();
+        allow write: if false;
+      }
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
