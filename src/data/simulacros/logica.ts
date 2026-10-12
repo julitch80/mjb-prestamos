@@ -16,6 +16,20 @@ export interface JornadaSimulacro {
   llamada123?: { hecho?: boolean; por?: string; cuando?: unknown };
 }
 
+export type JornadaAviso = JornadaId | 'ambas';
+export type TipoAviso = 'info' | 'importante';
+
+export interface AvisoSimulacro {
+  texto: string;
+  jornada: JornadaAviso;
+  tipo: TipoAviso;
+  automatico?: boolean;
+  por?: string;
+  porSlot?: string | null;
+  cuando?: string; // ISO
+  editado?: boolean;
+}
+
 export interface SimulacroDoc {
   titulo: string;
   sede: string;
@@ -26,6 +40,7 @@ export interface SimulacroDoc {
   editores: Partial<Record<JornadaId, string[]>>;
   jornadas: Partial<Record<JornadaId, JornadaSimulacro>>;
   asignaciones: Asignaciones;
+  avisos?: Record<string, AvisoSimulacro>;
 }
 
 export interface CambioSimulacro {
@@ -207,4 +222,55 @@ export function normalizar(s: string): string {
 /** Cargo agrupador: «Cronometradores 2» → «Cronometradores» (los puestos numerados salen de una misma fila de la guía). */
 export function cargoDe(p: Puesto): string {
   return /_\d+$/.test(p.id) ? p.nombre.replace(/ \d+$/, '') : p.nombre;
+}
+
+// ── Avisos ────────────────────────────────────────────────────────────────────
+
+export const MAX_TEXTO_AVISO = 500;
+
+/** Avisos que ve quien mira `jornada` (los de esa jornada y los de «ambas»): importantes primero, luego info; los más nuevos arriba. */
+export function avisosDeJornada(
+  avisos: Record<string, AvisoSimulacro> | undefined | null,
+  jornada: JornadaId,
+): (AvisoSimulacro & { id: string })[] {
+  return Object.entries(avisos ?? {})
+    .map(([id, a]) => ({ ...a, id }))
+    .filter(a => a.jornada === jornada || a.jornada === 'ambas')
+    .sort((a, b) => {
+      if (a.tipo !== b.tipo) return a.tipo === 'importante' ? -1 : 1;
+      return (b.cuando ?? '').localeCompare(a.cuando ?? '');
+    });
+}
+
+/** Todos los avisos (para el panel de edición), los más nuevos primero. */
+export function avisosOrdenados(avisos: Record<string, AvisoSimulacro> | undefined | null): (AvisoSimulacro & { id: string })[] {
+  return Object.entries(avisos ?? {})
+    .map(([id, a]) => ({ ...a, id }))
+    .sort((a, b) => (b.cuando ?? '').localeCompare(a.cuando ?? ''));
+}
+
+/** Jornadas de aviso que puede elegir quien edita las `editables` (para «ambas» basta editar alguna). */
+export function jornadasDeAvisoPermitidas(editables: JornadaId[], esSuper: boolean): JornadaAviso[] {
+  if (esSuper) return ['manana', 'tarde', 'ambas'];
+  return editables.length ? [...editables, 'ambas'] : [];
+}
+
+/** Puede editar/borrar el aviso: superusuario; editor de su jornada; los de «ambas» solo su autor. */
+export function puedeTocarAviso(
+  a: Pick<AvisoSimulacro, 'jornada' | 'porSlot'>,
+  editables: JornadaId[],
+  esSuper: boolean,
+  miSlot: string | null | undefined,
+): boolean {
+  if (esSuper) return true;
+  if (a.jornada === 'ambas') return editables.length > 0 && !!miSlot && a.porSlot === miSlot;
+  return editables.includes(a.jornada);
+}
+
+/** '2026-10-12T15:04:00.000Z' → '12/10/2026, 10:04 a. m.' (hora de Bogotá). */
+export function fechaAviso(iso: string | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Bogota' });
 }

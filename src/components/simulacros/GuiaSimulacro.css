@@ -95,8 +95,14 @@
 .simu-guia .yo .chips{margin-top:6px}
 .simu-guia .chipbtn[aria-pressed="true"]{background:var(--salida);color:#fff}
 .simu-guia .yo .btn2{margin-top:12px;width:100%}
-.simu-guia .alerta{margin-top:12px;padding:12px 14px;border-left:6px solid var(--atencion);background:var(--atencion-fondo);color:var(--atencion-texto);border-radius:0 10px 10px 0}
-.simu-guia .alerta b{display:block;font:700 22px/1.15 "Barlow Condensed","Barlow",sans-serif;margin-bottom:2px}
+/* Avisos del simulacro (importante = rojo, info = azul) */
+.simu-guia .avisos{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.simu-guia .aviso{padding:10px 14px;border-left:6px solid var(--info);background:#e4effb;color:#12385f;border-radius:0 10px 10px 0}
+.simu-guia .aviso[data-t="importante"]{border-left-color:#c0262d;background:#fde7e7;color:#7a1015}
+.simu-guia .aviso p{margin:0;font-size:15px;line-height:1.35;white-space:pre-wrap}
+.simu-guia .aviso small{display:block;margin-top:4px;font-size:12px;opacity:.8}
+.simu-guia[data-theme="dark"] .aviso{background:#14283f;color:#cfe4fb}
+.simu-guia[data-theme="dark"] .aviso[data-t="importante"]{background:#3d1618;color:#ffc9c9;border-left-color:#ff6b6b}
 .simu-guia .rolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:22px 0 6px;padding:10px 12px;background:var(--suave);border-radius:10px}
 .simu-guia .rolbar span{font-size:15.5px;color:var(--apagado)}
 .simu-guia .rolbar b{color:var(--tinta);font-weight:700}

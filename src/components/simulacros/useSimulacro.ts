@@ -66,6 +66,8 @@ export type AccionSimulacro =
   | { accion: 'hora'; jornada: string; hora: string; fecha: string; motivo?: string }
   | { accion: 'asignar'; jornada: string; puestoId: string; slot: string | null; porConfirmar?: boolean; puestoNombre?: string }
   | { accion: 'llamada123'; jornada: string }
+  | { accion: 'avisoGuardar'; avisoId?: string; texto: string; jornada: string; tipo: string }
+  | { accion: 'avisoBorrar'; avisoId: string }
   | { accion: 'estado'; estado: string };
 
 /** Llama a la función del servidor. Devuelve null si salió bien o el texto del error. */

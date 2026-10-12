@@ -10,7 +10,7 @@ import type { Fase, JornadaId, Puesto, RolClave } from '../../data/simulacros/pl
 import { PORTADA_SISMO, PUNTOS_ESPACIOS, SOTANO_NOTA } from '../../data/simulacros/portadaSismo2026';
 import {
   JORNADA_NOMBRE, accionesDelPaso, asignacionDe, cargoDe, cronograma, diasRestantes, fechaLarga,
-  formatoMinutos, horaAMinutos, nombreDeSlot, normalizar, partesDeHora, pasosAhora, puestosDeJornada,
+  avisosDeJornada, fechaAviso, formatoMinutos, horaAMinutos, nombreDeSlot, normalizar, partesDeHora, pasosAhora, puestosDeJornada,
   resumenPendientes,
 } from '../../data/simulacros/logica';
 import type { SimulacroConId } from './useSimulacro';
@@ -344,6 +344,7 @@ export default function GuiaSimulacro({ sim }: { sim: SimulacroConId }) {
   const hechos = itemsAntes.filter(x => checks[x.k]).length;
 
   const reprogramado = !!cfg.motivo;
+  const avisosJ = useMemo(() => avisosDeJornada(sim.avisos, j), [sim.avisos, j]);
 
   // ── Render ──
   const miAsignacion = persona?.puestos[j] ?? [];
@@ -379,6 +380,16 @@ export default function GuiaSimulacro({ sim }: { sim: SimulacroConId }) {
       </header>
 
       <main className="wrap app">
+        {avisosJ.length > 0 && (
+          <div className="avisos" aria-label="Avisos del simulacro">
+            {avisosJ.map(a => (
+              <div key={a.id} className="aviso" data-t={a.tipo} role={a.tipo === 'importante' ? 'alert' : 'note'}>
+                <p>{a.texto}</p>
+                <small>{[fechaAviso(a.cuando), a.porSlot ? nombreDeSlot(a.porSlot) : ''].filter(Boolean).join(' · ')}</small>
+              </div>
+            ))}
+          </div>
+        )}
         {/* ── Guion ── */}
         <section data-panel="guion" aria-label="Guion" hidden={tab !== 'guion'}>
           {reprogramado && (
@@ -396,10 +407,6 @@ export default function GuiaSimulacro({ sim }: { sim: SimulacroConId }) {
               </div>
               <div className="hero-pie">El timbre largo suena a las {clockH} {PORTADA_SISMO.resumen}</div>
             </div>
-          </div>
-          <div className="alerta" role="note">
-            <b>Coincide con la hora del descanso</b>
-            El timbre largo de las {clockH} no es el descanso: es el inicio del simulacro. El descanso empieza cuando termina el ejercicio.
           </div>
 
           {persona && !ocultarYo && (

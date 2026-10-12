@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   horaDePaso, cronograma, requiereAviso123, miRol, docentesDeJornada, personasDeJornada,
   resumenPendientes, accionesDelPaso, pasosAhora, fechaLarga, puestosDeJornada,
+  avisosDeJornada, jornadasDeAvisoPermitidas, puedeTocarAviso,
 } from './logica';
 import { PASOS, PUESTOS, ASIGNACIONES_2026, ROLES, MISION } from './plantillaSismo2026';
 import type { Asignaciones } from './plantillaSismo2026';
@@ -128,5 +129,31 @@ describe('acciones y tiempo', () => {
   });
   it('fecha larga', () => {
     expect(fechaLarga('2026-10-21')).toBe('Miércoles 21 de octubre');
+  });
+});
+
+describe('avisos', () => {
+  const avisos = {
+    a: { texto: 'a', jornada: 'manana' as const, tipo: 'info' as const, cuando: '2026-10-12T10:00:00Z' },
+    b: { texto: 'b', jornada: 'ambas' as const, tipo: 'info' as const, cuando: '2026-10-13T10:00:00Z' },
+    c: { texto: 'c', jornada: 'tarde' as const, tipo: 'importante' as const, cuando: '2026-10-14T10:00:00Z' },
+    d: { texto: 'd', jornada: 'manana' as const, tipo: 'importante' as const, cuando: '2026-10-11T10:00:00Z' },
+  };
+  it('filtra por jornada, importantes primero y más nuevos arriba', () => {
+    expect(avisosDeJornada(avisos, 'manana').map(a => a.id)).toEqual(['d', 'b', 'a']);
+    expect(avisosDeJornada(avisos, 'tarde').map(a => a.id)).toEqual(['c', 'b']);
+    expect(avisosDeJornada(undefined, 'tarde')).toEqual([]);
+  });
+  it('jornadas permitidas', () => {
+    expect(jornadasDeAvisoPermitidas(['manana'], false)).toEqual(['manana', 'ambas']);
+    expect(jornadasDeAvisoPermitidas([], false)).toEqual([]);
+    expect(jornadasDeAvisoPermitidas([], true)).toEqual(['manana', 'tarde', 'ambas']);
+  });
+  it('quién puede tocar un aviso', () => {
+    expect(puedeTocarAviso({ jornada: 'manana', porSlot: 'x' }, ['manana'], false, 'julian')).toBe(true);
+    expect(puedeTocarAviso({ jornada: 'tarde', porSlot: 'julian' }, ['manana'], false, 'julian')).toBe(false);
+    expect(puedeTocarAviso({ jornada: 'ambas', porSlot: 'otro' }, ['manana'], false, 'julian')).toBe(false);
+    expect(puedeTocarAviso({ jornada: 'ambas', porSlot: 'julian' }, ['manana'], false, 'julian')).toBe(true);
+    expect(puedeTocarAviso({ jornada: 'ambas', porSlot: 'otro' }, [], true, null)).toBe(true);
   });
 });

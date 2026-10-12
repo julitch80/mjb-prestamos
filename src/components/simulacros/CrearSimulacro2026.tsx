@@ -23,6 +23,13 @@ export default function CrearSimulacro2026() {
         tarde: { fecha: '2026-10-21', hora: '16:00' },
       },
       asignaciones: ASIGNACIONES_2026,
+      avisos: {
+        descanso: {
+          texto: 'Coincide con la hora del descanso: el timbre largo de la hora del descanso no es el descanso, es el inicio del simulacro. El descanso empieza cuando termina el ejercicio.',
+          jornada: 'manana',
+          tipo: 'info',
+        },
+      },
     };
     const err = await simulacroCambiar('2026-principal', { accion: 'crear', id: '2026-principal', datos });
     setOcupado(false);

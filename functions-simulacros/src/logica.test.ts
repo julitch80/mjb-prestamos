@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { EDITORES_DEFAULT, fechaValida, horaValida, puedeCambiarEstado, puedeEditar, puestoIdValido, textoAsignacion } from './logica';
+import {
+  EDITORES_DEFAULT, avisoIdValido, esDestinatarioAviso, fechaValida, horaTexto, horaValida, normalizarAvisos, puedeCambiarEstado,
+  puedeCrearAviso, puedeEditar, puedeModificarAviso, puestoIdValido, textoAsignacion, textoAvisoValido, textoCambioHorario, truncar,
+} from './logica';
 
 const act = { active: true };
 describe('puedeEditar', () => {
@@ -40,5 +43,57 @@ describe('validaciones', () => {
   it('texto de notificación', () => {
     expect(textoAsignacion('Cronometrador 1', 'manana', true).cuerpo).toBe('Te asignaron Cronometrador 1 (mañana)');
     expect(textoAsignacion('X', 'tarde', false).cuerpo).toContain('Ya no tienes el rol');
+  });
+});
+
+describe('avisos', () => {
+  const mana = { ...act, role: 'docente', slotId: 'julian' };
+  const tarde = { ...act, role: 'coordinador', slotId: 'coord_tarde' };
+  const sup = { ...act, role: 'superusuario', slotId: 'x' };
+  it('texto de cambio de horario', () => {
+    expect(textoCambioHorario('manana', '2026-10-21', '10:00', 'Lluvia'))
+      .toBe('⚠️ Cambio: el simulacro de la mañana pasa al miércoles 21 de octubre a las 10:00 a. m. — motivo: Lluvia');
+    expect(textoCambioHorario('tarde', '2026-11-05', '16:05')).toBe('⚠️ Cambio: el simulacro de la tarde pasa al jueves 5 de noviembre a las 4:05 p. m.');
+    expect(horaTexto('00:30')).toBe('12:30 a. m.');
+    expect(horaTexto('12:00')).toBe('12:00 p. m.');
+    expect(textoCambioHorario('tarde', '2026-11-05', '16:05', 'x'.repeat(900)).length).toBeLessThanOrEqual(500);
+  });
+  it('permisos: crear', () => {
+    expect(puedeCrearAviso(mana, EDITORES_DEFAULT, 'manana')).toBe(true);
+    expect(puedeCrearAviso(mana, EDITORES_DEFAULT, 'tarde')).toBe(false);
+    expect(puedeCrearAviso(mana, EDITORES_DEFAULT, 'ambas')).toBe(true);
+    expect(puedeCrearAviso(tarde, EDITORES_DEFAULT, 'manana')).toBe(false);
+    expect(puedeCrearAviso(sup, EDITORES_DEFAULT, 'tarde')).toBe(true);
+    expect(puedeCrearAviso({ ...act, slotId: 'otro' }, EDITORES_DEFAULT, 'ambas')).toBe(false);
+  });
+  it('permisos: modificar/borrar', () => {
+    expect(puedeModificarAviso(mana, EDITORES_DEFAULT, { jornada: 'manana', porSlot: 'otro' })).toBe(true);
+    expect(puedeModificarAviso(mana, EDITORES_DEFAULT, { jornada: 'tarde', porSlot: 'julian' })).toBe(false);
+    expect(puedeModificarAviso(mana, EDITORES_DEFAULT, { jornada: 'ambas', porSlot: 'coord_tarde' })).toBe(false);
+    expect(puedeModificarAviso(mana, EDITORES_DEFAULT, { jornada: 'ambas', porSlot: 'julian' })).toBe(true);
+    expect(puedeModificarAviso(sup, EDITORES_DEFAULT, { jornada: 'ambas', porSlot: 'julian' })).toBe(true);
+  });
+  it('validadores y destinatarios', () => {
+    expect(textoAvisoValido('hola')).toBe(true);
+    expect(textoAvisoValido('   ')).toBe(false);
+    expect(textoAvisoValido('x'.repeat(501))).toBe(false);
+    expect(avisoIdValido('cambio_manana')).toBe(true);
+    expect(avisoIdValido('a.b')).toBe(false);
+    expect(truncar('a'.repeat(200), 120).length).toBe(120);
+    expect(esDestinatarioAviso({ active: true, jornada: 'manana' }, 'manana', 'principal')).toBe(true);
+    expect(esDestinatarioAviso({ active: true, jornada: 'ambas', sede: 'central' }, 'tarde', 'principal')).toBe(true);
+    expect(esDestinatarioAviso({ active: true, jornada: 'tarde' }, 'manana', 'principal')).toBe(false);
+    expect(esDestinatarioAviso({ active: true, jornada: 'manana', sede: 'primaria' }, 'manana', 'principal')).toBe(false);
+    expect(esDestinatarioAviso({ active: false, jornada: 'manana' }, 'ambas', 'principal')).toBe(false);
+  });
+  it('normalizarAvisos', () => {
+    const autor = { por: 'a@b.c', porSlot: 'julian', ahoraISO: '2026-10-12T00:00:00.000Z' };
+    const ok = normalizarAvisos({ descanso: { texto: ' hola ', jornada: 'manana', tipo: 'info' } }, autor);
+    expect(ok.ok && ok.avisos.descanso).toMatchObject({ texto: 'hola', por: 'a@b.c', cuando: autor.ahoraISO });
+    expect(normalizarAvisos(undefined, autor)).toEqual({ ok: true, avisos: {} });
+    expect(normalizarAvisos({ A: { texto: 'x', jornada: 'manana', tipo: 'info' } }, autor).ok).toBe(false);
+    expect(normalizarAvisos({ a: { texto: 'x', jornada: 'nadie', tipo: 'info' } }, autor).ok).toBe(false);
+    expect(normalizarAvisos({ a: { texto: 'x', jornada: 'ambas', tipo: 'raro' } }, autor).ok).toBe(false);
+    expect(normalizarAvisos([], autor).ok).toBe(false);
   });
 });

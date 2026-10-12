@@ -4,10 +4,11 @@ import { useAppStore } from '../../data/store';
 import { PUESTOS } from '../../data/simulacros/plantillaSismo2026';
 import type { JornadaId, Puesto } from '../../data/simulacros/plantillaSismo2026';
 import {
-  JORNADA_NOMBRE, asignacionDe, fechaLarga, formatoMinutos, horaAMinutos, nombreDeSlot,
-  personasDeJornada, puestosDeJornada, requiereAviso123, resumenPendientes,
+  JORNADA_NOMBRE, MAX_TEXTO_AVISO, asignacionDe, avisosOrdenados, fechaAviso, fechaLarga, formatoMinutos, horaAMinutos,
+  jornadasDeAvisoPermitidas, nombreDeSlot, personasDeJornada, puedeTocarAviso, puestosDeJornada, requiereAviso123,
+  resumenPendientes,
 } from '../../data/simulacros/logica';
-import type { EstadoSimulacro } from '../../data/simulacros/logica';
+import type { EstadoSimulacro, JornadaAviso, TipoAviso } from '../../data/simulacros/logica';
 import { simulacroCambiar, useCambios } from './useSimulacro';
 import type { SimulacroConId } from './useSimulacro';
 
@@ -37,6 +38,7 @@ function valor(v: unknown): string {
   if (typeof v === 'object') {
     const o = v as Record<string, unknown>;
     if ('slot' in o) return o.slot ? nombreDeSlot(String(o.slot)) : 'sin asignar';
+    if ('texto' in o) return `«${String(o.texto).slice(0, 60)}${String(o.texto).length > 60 ? '…' : ''}»`;
     if ('hora' in o || 'fecha' in o) return `${o.fecha ? String(o.fecha) : ''} ${o.hora ? String(o.hora) : ''}`.trim();
     return JSON.stringify(v);
   }
@@ -55,6 +57,8 @@ export default function PanelDiaSimulacro({ sim }: { sim: SimulacroConId }) {
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [pendiente, setPendiente] = useState<Pendiente | null>(null);
   const [estadoNuevo, setEstadoNuevo] = useState<EstadoSimulacro | null>(null);
+  const [avisoForm, setAvisoForm] = useState<{ id: string | null; texto: string; jornada: JornadaAviso; tipo: TipoAviso } | null>(null);
+  const [avisoBorrando, setAvisoBorrando] = useState<string | null>(null);
   const [reprog, setReprog] = useState<{ jornada: JornadaId; fecha: string; hora: string; motivo: string } | null>(null);
 
   // Borradores del formulario de cada jornada
@@ -117,6 +121,26 @@ export default function PanelDiaSimulacro({ sim }: { sim: SimulacroConId }) {
     void confirmarAsignacion(nuevo);
   }
 
+  const jornadasAviso = jornadasDeAvisoPermitidas(editables, esSuper);
+  const avisos = avisosOrdenados(sim.avisos);
+  const AVISO_J_NOMBRE: Record<JornadaAviso, string> = { manana: 'Mañana', tarde: 'Tarde', ambas: 'Ambas jornadas' };
+
+  async function guardarAviso() {
+    if (!avisoForm) return;
+    const ok = await ejecutar(
+      () => simulacroCambiar(sim.id, {
+        accion: 'avisoGuardar', ...(avisoForm.id ? { avisoId: avisoForm.id } : {}),
+        texto: avisoForm.texto.trim(), jornada: avisoForm.jornada, tipo: avisoForm.tipo,
+      }),
+      avisoForm.tipo === 'importante' ? 'Aviso guardado. Los importantes llegan también como notificación.' : 'Aviso guardado.',
+    );
+    if (ok) setAvisoForm(null);
+  }
+  async function borrarAviso(id: string) {
+    const ok = await ejecutar(() => simulacroCambiar(sim.id, { accion: 'avisoBorrar', avisoId: id }), 'Aviso borrado.');
+    if (ok) setAvisoBorrando(null);
+  }
+
   const cajaInput = 'bg-elevated border border-line rounded-lg px-2 py-1.5 text-sm text-strong';
 
   return (
@@ -156,6 +180,78 @@ export default function PanelDiaSimulacro({ sim }: { sim: SimulacroConId }) {
           {msg.t}
         </p>
       )}
+
+      {/* Avisos */}
+      <div className="rounded-xl border border-line bg-card p-3 flex flex-col gap-2">
+        <h4 className="text-strong text-sm font-semibold">Avisos</h4>
+        <p className="text-muted text-xs">
+          Aparecen arriba de la guía. Los «importantes» salen en rojo y además llegan como notificación a los docentes de la jornada.
+        </p>
+        {avisos.length === 0 && <p className="text-muted text-xs">No hay avisos.</p>}
+        <ul className="flex flex-col divide-y divide-line">
+          {avisos.map(a => {
+            const puede = puedeTocarAviso(a, editables, esSuper, userId);
+            return (
+              <li key={a.id} className="py-2 flex flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className={cn('px-2 py-0.5 rounded-full font-medium', a.tipo === 'importante' ? 'bg-danger-soft text-danger-soft-fg' : 'bg-accent-soft text-accent')}>
+                    {a.tipo === 'importante' ? 'Importante' : 'Informativo'}
+                  </span>
+                  <span className="text-muted">{AVISO_J_NOMBRE[a.jornada]}</span>
+                  {a.automatico && <span className="px-2 py-0.5 rounded-full bg-elevated text-soft">Automático</span>}
+                  {a.editado && <span className="text-muted">(editado)</span>}
+                  <span className="text-muted">· {fechaAviso(a.cuando)}{a.porSlot ? ` · ${nombreDeSlot(a.porSlot)}` : ''}</span>
+                </div>
+                <p className="text-soft text-sm whitespace-pre-wrap">{a.texto}</p>
+                {puede && avisoBorrando !== a.id && (
+                  <div className="flex gap-2">
+                    <button type="button" disabled={ocupado} onClick={() => { setMsg(null); setAvisoBorrando(null); setAvisoForm({ id: a.id, texto: a.texto, jornada: a.jornada, tipo: a.tipo }); }} className="px-2.5 py-1 rounded-lg border border-line text-soft text-xs">Editar</button>
+                    <button type="button" disabled={ocupado} onClick={() => { setAvisoForm(null); setAvisoBorrando(a.id); }} className="px-2.5 py-1 rounded-lg border border-line text-danger text-xs">Borrar</button>
+                  </div>
+                )}
+                {avisoBorrando === a.id && (
+                  <div className="flex flex-wrap items-center gap-2 bg-warning-soft rounded-lg px-3 py-2">
+                    <span className="text-warning-soft-fg text-xs">¿Borrar este aviso? Dejará de verse en la guía.</span>
+                    <button type="button" disabled={ocupado} onClick={() => void borrarAviso(a.id)} className="px-2.5 py-1 rounded-lg bg-danger text-white text-xs font-semibold disabled:opacity-50">Sí, borrar</button>
+                    <button type="button" onClick={() => setAvisoBorrando(null)} className="px-2.5 py-1 rounded-lg border border-line text-soft text-xs">Cancelar</button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        {avisoForm ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-line p-2">
+            <label className="flex flex-col gap-0.5 text-xs text-muted">
+              Texto ({avisoForm.texto.trim().length}/{MAX_TEXTO_AVISO})
+              <textarea className={cn(cajaInput, 'min-h-[5rem]')} maxLength={MAX_TEXTO_AVISO} value={avisoForm.texto} onChange={e => setAvisoForm(p => p && ({ ...p, texto: e.target.value }))} />
+            </label>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-0.5 text-xs text-muted">
+                Jornada
+                <select className={cajaInput} value={avisoForm.jornada} onChange={e => setAvisoForm(p => p && ({ ...p, jornada: e.target.value as JornadaAviso }))}>
+                  {jornadasAviso.map(k => <option key={k} value={k}>{AVISO_J_NOMBRE[k]}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-0.5 text-xs text-muted">
+                Tipo
+                <select className={cajaInput} value={avisoForm.tipo} onChange={e => setAvisoForm(p => p && ({ ...p, tipo: e.target.value as TipoAviso }))}>
+                  <option value="info">Informativo (azul)</option>
+                  <option value="importante">Importante (rojo + notificación)</option>
+                </select>
+              </label>
+              <button type="button" disabled={ocupado || !avisoForm.texto.trim() || !jornadasAviso.includes(avisoForm.jornada)} onClick={() => void guardarAviso()} className="px-3 py-1.5 rounded-lg bg-accent text-accent-fg text-sm font-semibold disabled:opacity-40">
+                {avisoForm.id ? 'Guardar cambios' : 'Publicar aviso'}
+              </button>
+              <button type="button" onClick={() => setAvisoForm(null)} className="px-3 py-1.5 rounded-lg border border-line text-soft text-sm">Cancelar</button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" disabled={ocupado} onClick={() => { setMsg(null); setAvisoBorrando(null); setAvisoForm({ id: null, texto: '', jornada: jornadasAviso[0], tipo: 'info' }); }} className="self-start px-3 py-1.5 rounded-lg bg-accent text-accent-fg text-sm font-semibold disabled:opacity-40">
+            Nuevo aviso
+          </button>
+        )}
+      </div>
 
       {/* Estado */}
       <div className="rounded-xl border border-line bg-card p-3 flex flex-col gap-2">
