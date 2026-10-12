@@ -2178,6 +2178,13 @@ service cloud.firestore {
       }
     }
 
+    // Visibilidad temporal de las brigadas 2026 (riesgoConfig/visibilidad.brigadasPublicas):
+    // lo leen los activos; solo el superusuario (sin suplantación) lo cambia.
+    match /riesgoConfig/{doc} {
+      allow read: if isActiveUser();
+      allow write: if !esSuplantacion() && isSuper();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

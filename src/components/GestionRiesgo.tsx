@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useBrigadasVisibles } from '../data/brigadasVisibilidad';
 import VistaSimulacros from './simulacros/VistaSimulacros';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
@@ -1163,6 +1166,20 @@ export default function GestionRiesgo() {
   const rol = useAppStore(s => s.rol);
   const sedeActual = useAppStore(s => s.sedeActual);
   const [pestana, setPestana] = useState<Pestana>('brigadas');
+  const { visible: brigadasVisibles, publicas, privilegiado } = useBrigadasVisibles();
+  const [confirmando, setConfirmando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+
+  const alternarPublicacion = async () => {
+    if (!db) return;
+    setGuardando(true);
+    try {
+      await setDoc(doc(db, 'riesgoConfig', 'visibilidad'), { brigadasPublicas: !publicas }, { merge: true });
+      setConfirmando(false);
+    } catch (e) {
+      window.alert('No se pudo cambiar la visibilidad: ' + (e instanceof Error ? e.message : String(e)));
+    } finally { setGuardando(false); }
+  };
 
   const pertenencias = userId ? brigadasDeDocente(userId) : [];
   const liderazgos = userId ? liderazgosDeDocente(userId) : [];
@@ -1244,8 +1261,44 @@ export default function GestionRiesgo() {
         <TableroCasos />
       ) : pestana === 'simulacros' ? (
         <VistaSimulacros />
+      ) : !brigadasVisibles ? (
+        <div className="rounded-xl border border-line bg-elevated p-5 text-center text-sm text-soft">
+          🔒 Las brigadas 2026 están en revisión. Se publicarán cuando la rectoría lo indique.
+        </div>
       ) : (
         <>
+          {/* Visibilidad temporal de las brigadas */}
+          {rol === 'superusuario' && (
+            <div className="flex flex-col gap-2 items-start">
+              <button
+                onClick={() => setConfirmando(true)}
+                className="text-xs font-medium px-3 py-1.5 rounded-full border border-line bg-elevated text-strong hover:opacity-80"
+              >
+                Brigadas: {publicas ? 'Publicadas para todos' : 'En revisión'} ⇄ {publicas ? 'En revisión' : 'Publicadas para todos'}
+              </button>
+              {confirmando && (
+                <div className="rounded-lg border border-line bg-elevated p-3 text-xs text-soft flex flex-col gap-2">
+                  <span>
+                    {publicas
+                      ? '¿Volver las brigadas a «En revisión»? Solo directivos y líderes las verán.'
+                      : '¿Publicar las brigadas para todos los usuarios?'}
+                  </span>
+                  <div className="flex gap-2">
+                    <button disabled={guardando} onClick={alternarPublicacion} className="px-3 py-1 rounded-md bg-elevated border border-line text-strong font-medium">
+                      {guardando ? 'Guardando…' : 'Confirmar'}
+                    </button>
+                    <button disabled={guardando} onClick={() => setConfirmando(false)} className="px-3 py-1 rounded-md text-muted">Cancelar</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {privilegiado && !publicas && (
+            <span className="self-start text-[10px] font-medium px-2 py-0.5 rounded-full bg-elevated border border-line text-muted">
+              En revisión: solo directivos y líderes
+            </span>
+          )}
+
           {/* Tus brigadas */}
           <div className="flex flex-col gap-3">
             <h3 className="text-strong text-sm font-semibold">🧑‍🚒 Tus brigadas</h3>
