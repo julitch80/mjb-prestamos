@@ -4,6 +4,7 @@ import { useAppStore } from '../../data/store';
 import { JORNADA_NOMBRE, fechaLarga, formatoMinutos, horaAMinutos } from '../../data/simulacros/logica';
 import type { JornadaId } from '../../data/simulacros/plantillaSismo2026';
 import GuiaSimulacro from './GuiaSimulacro';
+import CrearSimulacro2026 from './CrearSimulacro2026';
 import PanelDiaSimulacro from './PanelDiaSimulacro';
 import { useListaSimulacros, useSimulacro } from './useSimulacro';
 import type { SimulacroConId } from './useSimulacro';
@@ -80,7 +81,11 @@ export default function VistaSimulacros() {
       <h3 className="text-strong text-sm font-semibold">🚨 Simulacros</h3>
       {error && <p className="text-danger text-xs">No se pudo leer la lista: {error}</p>}
       {visibles.length === 0 ? (
-        <p className="text-muted text-sm">Todavía no hay simulacros publicados. Cuando coordinación publique la guía, aparecerá aquí.</p>
+        <>
+          <p className="text-muted text-sm">Todavía no hay simulacros publicados. Cuando coordinación publique la guía, aparecerá aquí.</p>
+          {/* El superusuario puede crear aquí mismo el simulacro 2026 (también está en su panel) */}
+          {rol === 'superusuario' && <CrearSimulacro2026 />}
+        </>
       ) : (
         visibles.map(s => (
           <button
