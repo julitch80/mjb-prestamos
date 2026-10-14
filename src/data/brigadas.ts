@@ -38,8 +38,10 @@ export const RESOLUCION_BRIGADAS = {
 export const LIDERES_GESTION_RIESGO: IntegranteBrigada[] = [
   // Comité Escolar de Gestión del Riesgo (directivos docentes)
       { nombre: 'Nancy Adriana Herrera López', sede: 'todas', jornada: 'ambas', docenteId: 'rectora', nota: '  ' },
-      { nombre: 'Juan Diego Salazar Rendón', sede: 'la_finquita', jornada: 'tarde', docenteId: 'coord_tarde', nota: '  ' },
-      { nombre: 'Janeth Astrid Ocampo Carvajal', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'coord_manana', nota: '  ' },
+      { nombre: 'Juan Diego Salazar Rendón', sede: 'central', jornada: 'tarde', docenteId: 'coord_tarde', nota: 'Coordinador' },
+      { nombre: 'Juan Diego Salazar Rendón', sede: 'la_finquita', jornada: 'tarde', docenteId: 'coord_tarde', nota: 'Coordinador' },
+      { nombre: 'Janeth Astrid Ocampo Carvajal', sede: 'central', jornada: 'manana', docenteId: 'coord_manana', nota: 'Coordinadora' },
+      { nombre: 'Janeth Astrid Ocampo Carvajal', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'coord_manana', nota: 'Coordinadora' },
       { nombre: 'Julián David Medina Tamayo', sede: 'todas', jornada: 'ambas', docenteId: 'julian', nota: 'Docente AM' },
       { nombre: 'Gloria Yaneth Gallego Rendón', sede: 'todas', jornada: 'ambas', docenteId: 'fin_gloria', nota: 'Docente AM' },
 
