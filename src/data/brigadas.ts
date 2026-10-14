@@ -1,5 +1,5 @@
 // Brigadas de gestión del riesgo — transcritas de la Resolución Rectoral
-// N.º 06 de 2026 (borrador sin fecha de expedición), "Por medio de la cual se
+// N.º 06 de 2026 (versión final firmada, expedida el 10 de junio de 2026), "Por medio de la cual se
 // conforman y reglamentan las Brigadas Escolares para la Prevención,
 // Preparación y Respuesta ante Emergencias en la Institución Educativa
 // Manuel J. Betancur". Reemplaza a la Resolución N.º 33 de 2023.
@@ -29,7 +29,7 @@ export interface Brigada {
 
 export const RESOLUCION_BRIGADAS = {
   numero: 6,
-  fecha: '2026',
+  fecha: '2026-06-10',
   titulo: 'Resolución Rectoral N.º 06 de 2026 — Conformación y reglamentación de las brigadas escolares',
 };
 
@@ -40,14 +40,14 @@ export const LIDERES_GESTION_RIESGO: IntegranteBrigada[] = [
       { nombre: 'Nancy Adriana Herrera López', sede: 'todas', jornada: 'ambas', docenteId: 'rectora', nota: '  ' },
       { nombre: 'Juan Diego Salazar Rendón', sede: 'la_finquita', jornada: 'tarde', docenteId: 'coord_tarde', nota: '  ' },
       { nombre: 'Janeth Astrid Ocampo Carvajal', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'coord_manana', nota: '  ' },
+      { nombre: 'Julián David Medina Tamayo', sede: 'todas', jornada: 'ambas', docenteId: 'julian', nota: 'Docente AM' },
+      { nombre: 'Gloria Yaneth Gallego Rendón', sede: 'todas', jornada: 'ambas', docenteId: 'fin_gloria', nota: 'Docente AM' },
 
   // Docentes líderes: Sede Principal y Gustavo Rodas (Art. 4) y La Finca (Art. 12)
       { nombre: 'Carlos Alberto Cárdenas', sede: 'central', jornada: 'manana', docenteId: 'carlos', nota: '  ' },
       { nombre: 'Hugo Armando Yepes', sede: 'central', jornada: 'tarde', docenteId: 'hugo', nota: '  ' },
-      { nombre: 'Luz Marina Zapata', sede: 'central', jornada: 'tarde', docenteId: 'marina', nota: '  ' },
       { nombre: 'Leidy Yadira Atehortúa', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_leidy_a', nota: '  ' },
       { nombre: 'Dolly Gutiérrez Guevara', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_dolly', nota: '  ' },
-      { nombre: 'Gloria Yanet Gallego Rendón', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_gloria', nota: '  ' },
       { nombre: 'Paula Andrea Zapata Martínez', sede: 'la_finquita', jornada: 'tarde', docenteId: 'fin_paula', nota: '  ' },
 ];
 
@@ -68,12 +68,13 @@ export const BRIGADAS: Brigada[] = [
       'Reportar el estado de su sector al Puesto de Mando Unificado o a quien haga sus veces.',
       'Conocer el plan de atención de emergencias de la sede, las rutas de evacuación, la señalización y los puntos de encuentro.',
       'Adelantar de forma permanente con sus estudiantes la sensibilización frente a la prevención de riesgos y a la importancia de conservar la calma.',
+      'Parágrafo: en cada sede se nombra un líder por jornada (Líder AM / Líder PM); ellos conforman la brigada principal de evacuación y toman las decisiones que orienten a los brigadistas de la sede.',
       'Reportar al líder de gestión del riesgo de la sede la ausencia de cualquier estudiante en el punto de encuentro, para activar la brigada que corresponda.',
       'En caso de sismo, conservar la calma durante los primeros cuarenta (40) segundos y hacer que el grupo adopte una posición segura sin salir del aula. La evacuación se realiza al escuchar la alarma; no obstante, si dentro de esos primeros segundos se presentan fisuras estructurales o caída de objetos peligrosos, se evacúa de forma controlada aun sin alarma.',
       'Mantener la puerta del aula abierta durante toda la jornada. Las puertas de las tres sedes no cuentan con dispositivos de apertura hacia afuera, por lo que esta medida es de obligatorio cumplimiento.',
     ],
     integrantes: [
-      { nombre: 'Leidy Yadira Atehortúa Rojas', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_leidy_a' },
+      { nombre: 'Leidy Yadira Atehortúa Rojas', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_leidy_a', nota: 'Líder AM' },
       { nombre: 'María Victoria Henao Toro', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_maria_v' },
       { nombre: 'Lourdes Uparela Imbeth', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_lourdes' },
       { nombre: 'Jaqueline Arévalo Alzate', sede: 'gustavo_rodas', jornada: 'manana', docenteId: 'gri_jaqueline' },
@@ -83,13 +84,13 @@ export const BRIGADAS: Brigada[] = [
       { nombre: 'Delcy Johana Rivera', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_johana_r' },
       { nombre: 'Leonardo Acevedo Suárez', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_leonardo' },
       { nombre: 'Diego Alejandro Mejía Merino', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_diego' },
-      { nombre: 'Dolly Marley Gutiérrez Guevara', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_dolly' },
-      { nombre: 'Laura Catalina Medina', sede: 'gustavo_rodas', jornada: 'tarde' },
+      { nombre: 'Dolly Marley Gutiérrez Guevara', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_dolly', nota: 'Líder PM' },
+      { nombre: 'Beatriz Elena Zapata Vásquez', sede: 'gustavo_rodas', jornada: 'tarde', docenteId: 'gri_beatriz_z' },
       { nombre: 'Jorge Iván Acevedo Tabares', sede: 'central', jornada: 'manana', docenteId: 'jorge' },
       { nombre: 'Juan Carlos Blandón Vargas', sede: 'central', jornada: 'manana', docenteId: 'yoguis' },
       { nombre: 'Gloria Estella Álvarez López', sede: 'central', jornada: 'manana', docenteId: 'gloria_a' },
       { nombre: 'Adolfo León Arango Arroyave', sede: 'central', jornada: 'manana', docenteId: 'adolfo' },
-      { nombre: 'Carlos Alberto Cárdenas', sede: 'central', jornada: 'manana', docenteId: 'carlos' },
+      { nombre: 'Carlos Alberto Cárdenas', sede: 'central', jornada: 'manana', docenteId: 'carlos', nota: 'Líder AM' },
       { nombre: 'Leidy Johana Cano Ruiz', sede: 'central', jornada: 'manana', docenteId: 'johana' },
       { nombre: 'Mónica Tatiana Córdoba Zapata', sede: 'central', jornada: 'manana', docenteId: 'monica_c' },
       { nombre: 'Claudia Patricia Henao Bermúdez', sede: 'central', jornada: 'manana', docenteId: 'claudia' },
@@ -108,7 +109,7 @@ export const BRIGADAS: Brigada[] = [
       { nombre: 'Mónica Alexandra Rave Velásquez', sede: 'central', jornada: 'tarde', docenteId: 'monica_rave' },
       { nombre: 'Harol Meyid Gómez López', sede: 'central', jornada: 'tarde', docenteId: 'harol' },
       { nombre: 'Luis Ángel Quiceno', sede: 'central', jornada: 'tarde', docenteId: 'luis_angel' },
-      { nombre: 'Hugo Armando Yepes Franco', sede: 'central', jornada: 'tarde', docenteId: 'hugo' },
+      { nombre: 'Hugo Armando Yepes Franco', sede: 'central', jornada: 'tarde', docenteId: 'hugo', nota: 'Líder PM' },
       { nombre: 'Yaneth Moscote', sede: 'central', jornada: 'tarde', docenteId: 'yanet' },
       { nombre: 'Luz Marina Zapata Vásquez', sede: 'central', jornada: 'tarde', docenteId: 'marina' },
       { nombre: 'Jhon Fredy García Arrubla', sede: 'central', jornada: 'tarde', docenteId: 'fredy_garcia' },
@@ -184,11 +185,11 @@ export const BRIGADAS: Brigada[] = [
     id: 'apoyo_inmediato',
     nombre: 'Brigada de apoyo inmediato a brigadistas de base',
     descripcion:
-      'Personal no docente que labora en cada sede o se encuentre presente en ella al momento de una emergencia o simulacro. Ejecuta el protocolo de relevo de custodia (Art. 8): el docente permanece con su grupo hasta que el integrante de esta brigada llegue y asuma la supervisión.',
+      'Personal no docente que labora en cada sede o se encuentre presente en ella al momento de una emergencia o simulacro. Ejecuta el protocolo de relevo de custodia (Art. 8): se permanece con el grupo hasta que el integrante de esta brigada llegue y asuma la supervisión.',
     funciones: [
       'Conocer el plan de atención de emergencias de cada sede para servir de apoyo efectivo en la evacuación y relevar al brigadista de base de primeros auxilios, incendios o tránsito cuando este deba activarse.',
       'Identificar, en cada jornada y sede, a los docentes que pertenecen a brigadas distintas a la de evacuación, para asumir su grupo cuando estos deban cumplir su función especializada.',
-      'Ejecutar el protocolo de relevo de custodia del artículo 8, asumiendo de manera efectiva la supervisión del grupo antes de que el docente de aula se retire.',
+      'Ejecutar el protocolo de relevo de custodia del artículo 8, asumiendo de manera efectiva la supervisión del grupo hasta que el docente de aula retorne.',
       'Acompañar durante todo el desplazamiento al personal y a los estudiantes que requieran apoyo por movilidad reducida.',
       'Nota: el relevo solo procede cuando el integrante no se encuentre, en ese mismo momento, cumpliendo su propia función de evacuación.',
     ],
@@ -217,7 +218,7 @@ export const BRIGADAS: Brigada[] = [
       'Ante un conato de incendio que exceda la capacidad del extintor, suspender la intervención, dar la voz de alerta y activar a los organismos de socorro. No se intenta el control directo del fuego sin respaldo externo.',
       'Cuando el coordinador asignado a la sede se encuentre en ella, asume la coordinación general y releva al líder en la custodia del punto de encuentro.',
       'Todos los docentes mantienen formación cruzada en evacuación, primeros auxilios y manejo de extintores, para poder asumir la función de otro ante su ausencia.',
-      'El líder informa a Rectoría toda ausencia de un docente, para redistribuir funciones. La sede nunca opera sin al menos un docente presente formado en primeros auxilios.',
+      'El líder informa a Rectoría toda ausencia de un docente, para redistribuir funciones. Cada sede opera al menos con un docente formado en primeros auxilios.',
     ],
     integrantes: [
       { nombre: 'Margarita María Bedoya Bedoya', sede: 'la_finquita', jornada: 'manana', docenteId: 'fin_margarita', nota: 'Fase 2: control de incendios' },
@@ -238,6 +239,8 @@ export const BRIGADAS: Brigada[] = [
       'Abrir y asegurar la apertura total de los portones vehiculares y peatonales que sirven de ruta de salida, e impedir que permanezcan cerrados u obstruidos mientras dure la emergencia.',
       'Recibir y orientar a los organismos de socorro (Bomberos, ambulancias y Policía) desde su llegada hasta el punto donde se requiera su intervención.',
       'Informar al líder de gestión del riesgo de la sede sobre el ingreso y salida de vehículos de emergencia.',
+      'Suspender el suministro de servicios públicos (gas, energía, agua) según la emergencia que responda al simulacro o al evento presentado. Para esto debe pedir apoyo inmediato de brigadista líder que supla su ausencia temporal en portería.',
+      'Parágrafo: es necesario que el personal de PAE y de servicios generales conozca la ubicación de las llaves de paso de los servicios públicos, para que sean ellos quienes apoyen esta última función.',
     ],
     integrantes: [
       { nombre: 'Personal de portería, vigilancia y control de accesos', sede: 'todas', jornada: 'ambas', nota: 'Sin nombres en la resolución; cada sede' },
