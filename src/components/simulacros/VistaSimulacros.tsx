@@ -4,6 +4,7 @@ import { useAppStore } from '../../data/store';
 import { JORNADA_NOMBRE, fechaLarga, formatoMinutos, horaAMinutos } from '../../data/simulacros/logica';
 import type { JornadaId } from '../../data/simulacros/plantillaSismo2026';
 import GuiaSimulacro from './GuiaSimulacro';
+import ImprimirGuion from './ImprimirGuion';
 import CrearSimulacro2026 from './CrearSimulacro2026';
 import PanelDiaSimulacro from './PanelDiaSimulacro';
 import { useListaSimulacros, useSimulacro } from './useSimulacro';
@@ -49,6 +50,7 @@ function Detalle({ id, volver }: { id: string; volver: () => void }) {
           {verPanel && <PanelDiaSimulacro sim={sim} />}
         </div>
       )}
+      <ImprimirGuion sim={sim} />
       <GuiaSimulacro sim={sim} />
     </div>
   );
