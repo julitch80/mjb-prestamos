@@ -1231,7 +1231,11 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
 
 function VistaHorarioContenido() {
   const { jornada, rol, userId, nombre, horariosModificados, jornadasReducidas, publicacionesPendientes, eliminarHorarioModificado } = useAppStore();
-  const defaultJornada: 'manana' | 'tarde' = jornada === 'tarde' ? 'tarde' : 'manana';
+  // Docentes mixtos (mañana y tarde): ven ambas jornadas y abren en la que les toca hoy
+  const esMixto = rol === 'docente' && !!userId && userId in MIXTOS_TARDE;
+  const diaHoy = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'][new Date().getDay()];
+  const defaultJornada: 'manana' | 'tarde' =
+    jornada === 'tarde' || (esMixto && docenteEnTarde(userId!, diaHoy)) ? 'tarde' : 'manana';
 
   const [modo, setModo]               = useState<Modo>('docente');
   const [jornadaTab, setJornadaTab]   = useState<'manana' | 'tarde'>(defaultJornada);
@@ -1278,7 +1282,7 @@ function VistaHorarioContenido() {
   // El superusuario ve las dos jornadas en SOLO LECTURA: no tiene horario
   // propio, asi que sin esto veria una jornada arbitraria. Editar sigue
   // reservado al coordinador ('puedeEditar', abajo), que es lo pedido.
-  const puedeVerAmbas = rol === 'rectora' || rol === 'coordinador' || rol === 'superusuario';
+  const puedeVerAmbas = rol === 'rectora' || rol === 'coordinador' || rol === 'superusuario' || esMixto;
 
   // Botón "Editar": solo el coordinador, en su propia jornada, en vistas docente/grupo
   const jornadaPropia: 'manana' | 'tarde' | null =
