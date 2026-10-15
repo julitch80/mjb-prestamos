@@ -1232,7 +1232,8 @@ function TablaGruposOverview({ jornadaTab, onSelect, vistaDetalle, diaSelecciona
 function VistaHorarioContenido() {
   const { jornada, rol, userId, nombre, horariosModificados, jornadasReducidas, publicacionesPendientes, eliminarHorarioModificado } = useAppStore();
   // Docentes mixtos (mañana y tarde): ven ambas jornadas y abren en la que les toca hoy
-  const esMixto = rol === 'docente' && !!userId && userId in MIXTOS_TARDE;
+  const esMixto = rol === 'docente' && !!userId &&
+    (userId in MIXTOS_TARDE || USUARIOS.find(u => u.id === userId)?.jornada === 'ambas');
   const diaHoy = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'][new Date().getDay()];
   const defaultJornada: 'manana' | 'tarde' =
     jornada === 'tarde' || (esMixto && docenteEnTarde(userId!, diaHoy)) ? 'tarde' : 'manana';
