@@ -23,6 +23,10 @@ export const CONFIG_NIVEL: Record<Nivel, ConfigNivel> = {
   mt:       { topeDiario: 4, estudioMin: 20, duracionMomentoMin: 25, periodoCupo: 'quincena' },
 };
 
+// Política de tareas 2026: la entrega debe ser al menos 7 días calendario después
+// de la asignación, para todos los niveles.
+export const PLAZO_MINIMO_DIAS = 7;
+
 export const GRUPOS_MT = Object.keys(CONTRAJORNADAS_MT);
 
 export function nivelDeGrupo(grupo: string): Nivel {

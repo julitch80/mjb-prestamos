@@ -22,7 +22,7 @@ import {
 import { CONFIG_NIVEL, nivelDeGrupo, cupoDeAsignatura, CUPOS_DEFAULT, NIVELES_CUPO, MAX_MOMENTOS_NIVEL } from '../data/tareas/config';
 import {
   planificarAgenda, ocupacionPorDia, validarTarea, ventanaValida, cupoDisponible,
-  clavePeriodo, fechaLegible,
+  clavePeriodo, fechaLegible, primeraEntregaPermitida, mensajePlazoMinimo,
 } from '../data/tareas/motor';
 import { diasDeClase, gruposAsignables, todosLosGrupos, esGrupoDeTarde } from '../data/tareas/horario';
 import { cn } from '@/lib/utils';
@@ -625,7 +625,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
     if (hoyD === 'sabado' || hoyD === 'domingo') {
       return { titulo: 'Hoy es fin de semana', cuerpo: `La ventana de asignacion solo se abre en dias de clase.${cuando}` };
     }
-    return { titulo: `Hoy no puedes asignarle tarea a ${grupo}`, cuerpo: `La tarea debe asignarse el dia de la clase o, a mas tardar, dentro de los dos dias siguientes.${cuando}` };
+    return { titulo: `Hoy no puedes asignarle tarea a ${grupo}`, cuerpo: `La tarea debe asignarse el dia de la clase o, a mas tardar, dentro de los dos dias siguientes. Recuerda que la entrega debe ser al menos 7 dias despues de la asignacion.${cuando}` };
   }, [ventanaOk, hoy, contexto.diasClase, grupo]);
 
   const tareaPrevia = useCallback((fecha: FechaISO): Tarea => ({
@@ -636,7 +636,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
   // Estado de un día para el calendario-semáforo
   type EstadoDia = 'ok' | 'parcial' | 'lleno' | 'off';
   const estadoDe = useCallback((fecha: FechaISO): EstadoDia => {
-    if (!grupo || !userId || !ventanaOk || fecha <= hoy || !esDiaHabil(fecha)) return 'off';
+    if (!grupo || !userId || !ventanaOk || fecha <= hoy || fecha < primeraEntregaPermitida(hoy) || !esDiaHabil(fecha)) return 'off';
     const r = validarTarea(tareaPrevia(fecha), contexto);
     if (r.ok) return 'ok';
     if (!r.ok && r.alternativas?.maxMomentosParaFecha) return 'parcial';
@@ -1084,6 +1084,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
                   key={fecha}
                   onClick={() => estado !== 'off' && setFechaEntrega(fecha)}
                   disabled={estado === 'off'}
+                  title={fecha > hoy && fecha < primeraEntregaPermitida(hoy) && esDiaHabil(fecha) ? mensajePlazoMinimo(hoy) : undefined}
                   className={cn(
                     'h-9 rounded-lg border text-sm font-bold transition-all',
                     activa ? 'border-line-strong ring-1 ring-[var(--color-line-strong)]' : 'border-transparent',

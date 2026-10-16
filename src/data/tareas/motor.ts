@@ -16,7 +16,7 @@ import type {
 import {
   addDias, claveQuincena, claveSemana, diaSemana, esDiaEjecutable, esDiaHabil,
 } from './calendario';
-import { CONFIG_NIVEL, cupoDeAsignatura, nivelDeGrupo } from './config';
+import { CONFIG_NIVEL, PLAZO_MINIMO_DIAS, cupoDeAsignatura, nivelDeGrupo } from './config';
 
 export function clavePeriodo(grupo: string, fecha: FechaISO): string {
   const periodo = CONFIG_NIVEL[nivelDeGrupo(grupo)].periodoCupo;
@@ -159,6 +159,16 @@ function periodoExcedido(
   return null;
 }
 
+/** Primera fecha de entrega permitida por la política de plazo mínimo. */
+export function primeraEntregaPermitida(fechaAsignacion: FechaISO): FechaISO {
+  return addDias(fechaAsignacion, PLAZO_MINIMO_DIAS);
+}
+
+/** Texto de la razón de plazo mínimo (para validación y calendario). */
+export function mensajePlazoMinimo(fechaAsignacion: FechaISO): string {
+  return `Plazo mínimo de entrega: ${PLAZO_MINIMO_DIAS} días (desde el ${fechaLegible(primeraEntregaPermitida(fechaAsignacion))})`;
+}
+
 // ── Validación completa de una tarea nueva ────────────────────────────────────
 
 export function fechaLegible(f: FechaISO): string {
@@ -214,6 +224,9 @@ export function validarTarea(nueva: Tarea, ctx: ContextoValidacion): ResultadoVa
   }
   if (nueva.momentos < 1) {
     return { ok: false, filtro: 'entrega', mensaje: 'La tarea debe tener al menos 1 momento.' };
+  }
+  if (nueva.fechaEntrega < primeraEntregaPermitida(nueva.fechaAsignacion)) {
+    return { ok: false, filtro: 'plazo', mensaje: mensajePlazoMinimo(nueva.fechaAsignacion) + '.' };
   }
 
   // 1. Ventana de asignación: día de la clase + 2 días

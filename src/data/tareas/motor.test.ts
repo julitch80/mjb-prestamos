@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   esDiaHabil, esDiaEjecutable, esFestivo, diaSemana, claveSemana, claveQuincena,
 } from './calendario';
-import { nivelDeGrupo, CONFIG_NIVEL } from './config';
-import { planificarAgenda, ocupacionPorDia, validarTarea, ventanaValida } from './motor';
+import { nivelDeGrupo, CONFIG_NIVEL, PLAZO_MINIMO_DIAS } from './config';
+import { planificarAgenda, ocupacionPorDia, validarTarea, ventanaValida, primeraEntregaPermitida } from './motor';
 import type { Tarea, ContextoValidacion } from './tipos';
 
 // Semana de referencia: lunes 6 a viernes 10 de julio de 2026.
@@ -129,11 +129,33 @@ describe('validarTarea — filtros', () => {
     if (!r.ok) expect(r.filtro).toBe('entrega');
   });
 
+  it('plazo mínimo: 6 días se rechaza, 7 días se acepta', () => {
+    expect(PLAZO_MINIMO_DIAS).toBe(7);
+    // asigna lun 6-jul: 6 días = dom 12 (no hábil) → usamos vie 10 (4 días) y también 6 días exactos en otro día
+    const seis = validarTarea(tarea({ fechaAsignacion: '2026-07-07', fechaEntrega: '2026-07-13' }), contexto({ hoy: '2026-07-07' }));
+    expect(seis.ok).toBe(false);
+    if (!seis.ok) {
+      expect(seis.filtro).toBe('plazo');
+      expect(seis.mensaje).toContain('Plazo mínimo de entrega: 7 días (desde el martes 14 de jul)');
+    }
+    const siete = validarTarea(tarea({ fechaAsignacion: '2026-07-07', fechaEntrega: '2026-07-14' }), contexto({ hoy: '2026-07-07' }));
+    expect(siete.ok).toBe(true);
+  });
+
+  it('plazo mínimo: la sugerencia de entrega viable nunca es anterior a 7 días', () => {
+    const t1 = tarea({ id: 'a', asignaturaId: 'ingles', momentos: 8, fechaEntrega: '2026-07-13' });
+    const t2 = tarea({ id: 'b', asignaturaId: 'lengua', momentos: 8, fechaEntrega: '2026-07-13' });
+    const nueva = tarea({ asignaturaId: 'sociales', momentos: 2, fechaEntrega: '2026-07-13' });
+    const r = validarTarea(nueva, contexto({ tareas: [t1, t2] }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.alternativas!.primeraEntregaViable! >= primeraEntregaPermitida('2026-07-06')).toBe(true);
+  });
+
   it('filtro 1: ventana de asignación de clase + 2 días', () => {
     expect(ventanaValida('2026-07-08', ['lunes'])).toBe(true);  // clase lunes 6, asigna miércoles 8
     expect(ventanaValida('2026-07-09', ['lunes'])).toBe(false); // jueves: 3 días después
     const r = validarTarea(
-      tarea({ fechaAsignacion: '2026-07-09', fechaEntrega: '2026-07-15' }),
+      tarea({ fechaAsignacion: '2026-07-09', fechaEntrega: '2026-07-16' }),
       contexto({ diasClase: ['lunes'] })
     );
     expect(r.ok).toBe(false);
@@ -143,7 +165,7 @@ describe('validarTarea — filtros', () => {
   it('filtro 2: cupo por semana de ejecución agotado, y cesión que lo amplía', () => {
     // Matemáticas (cupo 2/semana). Dos tareas cuya ejecución cae en la semana del 6-jul.
     const existente = tarea({ id: 'x', momentos: 2, fechaEntrega: '2026-07-10' });
-    const nueva = tarea({ momentos: 1, fechaEntrega: '2026-07-09' });
+    const nueva = tarea({ momentos: 1, fechaEntrega: '2026-07-13' });
     const sinCesion = validarTarea(nueva, contexto({ tareas: [existente] }));
     expect(sinCesion.ok).toBe(false);
     if (!sinCesion.ok) expect(sinCesion.filtro).toBe('cupo');
@@ -165,7 +187,7 @@ describe('validarTarea — filtros', () => {
     const ctx = contexto({});
     // entrega esta misma semana → 4 momentos en una semana → excede cupo
     const corta = validarTarea(
-      tarea({ momentos: 4, fechaEntrega: '2026-07-10' }), ctx);
+      tarea({ momentos: 4, fechaEntrega: '2026-07-13' }), ctx);
     expect(corta.ok).toBe(false);
     if (!corta.ok) expect(corta.filtro).toBe('cupo');
     // entrega en tres semanas → ~1-2 por semana → cabe
@@ -176,14 +198,15 @@ describe('validarTarea — filtros', () => {
 
   it('filtro 3: bloqueo por capacidad con alternativa de fecha', () => {
     // Dos tareas llenan mar 7 y mié 8 (tope 4 c/u); la nueva no cabe antes del jue 9
-    const t1 = tarea({ id: 'a', asignaturaId: 'ingles', momentos: 4, fechaEntrega: '2026-07-09' });
-    const t2 = tarea({ id: 'b', asignaturaId: 'lengua', momentos: 4, fechaEntrega: '2026-07-09' });
-    const nueva = tarea({ asignaturaId: 'sociales', momentos: 2, fechaEntrega: '2026-07-09' });
+    // (con plazo mínimo de 7 días, la entrega más temprana es el lun 13: se llena toda la semana del 6)
+    const t1 = tarea({ id: 'a', asignaturaId: 'ingles', momentos: 8, fechaEntrega: '2026-07-13' });
+    const t2 = tarea({ id: 'b', asignaturaId: 'lengua', momentos: 8, fechaEntrega: '2026-07-13' });
+    const nueva = tarea({ asignaturaId: 'sociales', momentos: 2, fechaEntrega: '2026-07-13' });
     const r = validarTarea(nueva, contexto({ tareas: [t1, t2] }));
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.filtro).toBe('capacidad');
-      expect(r.alternativas?.primeraEntregaViable).toBe('2026-07-10');
+      expect(r.alternativas?.primeraEntregaViable).toBe('2026-07-14');
     }
   });
 
@@ -191,11 +214,11 @@ describe('validarTarea — filtros', () => {
     const ctx = contexto({});
     // 1 momento en la quincena → cabe (cupo MT = 1)
     const uno = validarTarea(
-      tarea({ grupo: '10.1', momentos: 1, fechaEntrega: '2026-07-13' }), ctx);
+      tarea({ grupo: '10.1', momentos: 1, fechaEntrega: '2026-07-14' }), ctx);
     expect(uno.ok).toBe(true);
     // 2 momentos que se ejecutan en la misma quincena → excede cupo
     const dos = validarTarea(
-      tarea({ grupo: '10.1', momentos: 2, fechaEntrega: '2026-07-13' }), ctx);
+      tarea({ grupo: '10.1', momentos: 2, fechaEntrega: '2026-07-14' }), ctx);
     expect(dos.ok).toBe(false);
     if (!dos.ok) expect(dos.filtro).toBe('cupo');
   });

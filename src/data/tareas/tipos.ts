@@ -76,7 +76,7 @@ export type ResultadoValidacion =
   | { ok: true }
   | {
       ok: false;
-      filtro: 'entrega' | 'ventana' | 'cupo' | 'capacidad';
+      filtro: 'entrega' | 'plazo' | 'ventana' | 'cupo' | 'capacidad';
       mensaje: string;
       alternativas?: Alternativas;
     };
