@@ -6,7 +6,7 @@ import type { JornadaId, Puesto } from '../../data/simulacros/plantillaSismo2026
 import {
   JORNADA_NOMBRE, MAX_TEXTO_AVISO, asignacionDe, avisosOrdenados, fechaAviso, fechaLarga, formatoMinutos, horaAMinutos,
   jornadasDeAvisoPermitidas, nombreDeSlot, personasDeJornada, puedeTocarAviso, puestosDeJornada, requiereAviso123,
-  resumenPendientes,
+  resumenPendientes, esFechaNacional, horaReportePrevio,
 } from '../../data/simulacros/logica';
 import type { EstadoSimulacro, JornadaAviso, TipoAviso } from '../../data/simulacros/logica';
 import { simulacroCambiar, useCambios } from './useSimulacro';
@@ -158,7 +158,7 @@ export default function PanelDiaSimulacro({ sim }: { sim: SimulacroConId }) {
         return (
           <div key={j} role="alert" className="rounded-xl border-2 border-danger bg-danger-soft p-3 flex flex-col gap-2">
             <p className="text-danger-soft-fg text-sm font-semibold">
-              Recuerde llamar al 123 para informar el ejercicio (hora nueva: {v ? `${fechaLarga(v.fecha)}, ${formatoMinutos(horaAMinutos(v.hora))}` : ''}).
+              Recuerde llamar al 123 para informar el ejercicio (fecha nueva: {v ? fechaLarga(v.fecha) : ''}).
             </p>
             <p className="text-danger-soft-fg text-xs">
               Jornada de la {JORNADA_NOMBRE[j].toLowerCase()}. El simulacro nacional es el {fechaLarga(sim.nacional.fecha)} a las {formatoMinutos(horaAMinutos(sim.nacional.hora))}.
@@ -171,6 +171,24 @@ export default function PanelDiaSimulacro({ sim }: { sim: SimulacroConId }) {
             >
               Ya llamé
             </button>
+          </div>
+        );
+      })}
+
+      {/* Reportes en la plataforma (el día nacional no se llama al 123) */}
+      {editables.filter(j => esFechaNacional(sim.jornadas?.[j], sim.nacional)).map(j => {
+        const v = sim.jornadas![j]!;
+        return (
+          <div key={j} role="note" className="rounded-xl border border-warning-soft bg-warning-soft p-3 flex flex-col gap-1">
+            <p className="text-warning-soft-fg text-sm font-semibold">
+              Reporte previo: informe el ejercicio en la plataforma al menos 30 minutos antes (antes de {horaReportePrevio(v.hora)}).
+            </p>
+            <p className="text-warning-soft-fg text-sm font-semibold">
+              Reporte final: informe la finalización y las novedades (participantes, organizadores y tiempos).
+            </p>
+            <p className="text-warning-soft-fg text-xs">
+              Jornada de la {JORNADA_NOMBRE[j].toLowerCase()}. El 21 de octubre no es necesario reportar al 123 (orientación del Distrito de Medellín).
+            </p>
           </div>
         );
       })}

@@ -4,7 +4,7 @@
 // SIN teléfonos: el repositorio es público.
 
 export type RolClave =
-  | 'docente' | 'evac' | 'pa' | 'inc' | 'tra' | 'apoyo' | 'port' | 'coord' | 'crono' | 'foto' | 'eval';
+  | 'docente' | 'evac' | 'pa' | 'inc' | 'tra' | 'apoyo' | 'port' | 'coord' | 'crono' | 'foto' | 'eval' | 'obs';
 export type Fase = 'antes' | 'durante' | 'despues';
 export type JornadaId = 'manana' | 'tarde';
 /** Clave corta usada en la guía original. */
@@ -35,6 +35,7 @@ export interface Paso {
   crono?: string[];
   foto?: string[];
   eval?: string[];
+  obs?: string[];
 }
 
 export interface Ruta { k: string; t: string; w: string; o: string[] }
@@ -119,6 +120,12 @@ export const ROLES: RolInfo[] = [
   "n": "Evaluación",
   "c": "evaluador",
   "d": "Observación con el formato oficial"
+ },
+ {
+  "k": "obs",
+  "n": "Observación",
+  "c": "observador",
+  "d": "Documenta lo que ocurre, sin calificar"
  }
 ];
 export const ROLES_DOCENTE: RolClave[] = [
@@ -139,7 +146,8 @@ export const MISION: Record<RolClave, string> = {
  "coord": "Diriges el ejercicio: das las alertas, mantienes el Puesto de Mando, consolidas los reportes y decides el regreso a las aulas.",
  "crono": "Mides el tiempo de evacuación de cada grupo, desde la sirena hasta que levanta la paleta verde.",
  "foto": "Documentas el ejercicio en los puntos asignados para que la evaluación tenga evidencia.",
- "eval": "Observas el ejercicio y lo evalúas con el formato oficial: objetivos, estructura, flujo de información, suministros, guion y Puesto de Mando."
+ "eval": "Observas el ejercicio y lo evalúas con el formato oficial: objetivos, estructura, flujo de información, suministros, guion y Puesto de Mando.",
+ "obs": "Documentar lo que ocurre sin calificar: qué se hizo, cuándo y cómo; registrar hechos para el informe final."
 };
 export const PASOS: Paso[] = [
  {
@@ -266,6 +274,17 @@ export const PASOS: Paso[] = [
   ]
  },
  {
+  "f": "antes",
+  "a": -30,
+  "b": -5,
+  "t": "Reporte previo del ejercicio en la plataforma (mínimo 30 minutos antes)",
+  "q": "Según la orientación oficial, el ejercicio se informa en la plataforma al menos 30 minutos antes de la alarma: institución y tipo de ejercicio. El 21 de octubre no es necesario llamar al 123.",
+  "medio": "Plataforma de reporte",
+  "coord": [
+   "Reportar en la plataforma el inicio del ejercicio: institución y tipo de ejercicio."
+  ]
+ },
+ {
   "f": "durante",
   "a": -5,
   "b": 0,
@@ -323,6 +342,9 @@ export const PASOS: Paso[] = [
   ],
   "eval": [
    "Observa la reacción de los grupos."
+  ],
+  "obs": [
+   "Anotar la hora de la alarma y lo observado: cómo reacciona la comunidad."
   ]
  },
  {
@@ -371,6 +393,9 @@ export const PASOS: Paso[] = [
   ],
   "eval": [
    "Observa el orden y la fluidez de la salida."
+  ],
+  "obs": [
+   "Anotar la hora y lo observado durante la evacuación: orden, rutas y obstáculos."
   ]
  },
  {
@@ -404,6 +429,9 @@ export const PASOS: Paso[] = [
   ],
   "eval": [
    "Observa la ubicación y el orden en el punto de encuentro."
+  ],
+  "obs": [
+   "Anotar la hora y lo observado en el punto de encuentro."
   ]
  },
  {
@@ -439,6 +467,9 @@ export const PASOS: Paso[] = [
   ],
   "eval": [
    "Observa si el método de conteo funciona."
+  ],
+  "obs": [
+   "Anotar la hora y lo observado durante el conteo."
   ]
  },
  {
@@ -570,6 +601,23 @@ export const PASOS: Paso[] = [
   "eval": [
    "Integras el equipo evaluador: diligencia el formato de evaluación y preséntalo en la reunión."
   ]
+ },
+ {
+  "f": "despues",
+  "a": 70,
+  "b": 80,
+  "t": "Reporte final: finalización y novedades",
+  "q": "Se informa en la plataforma la finalización del ejercicio y sus novedades: número de participantes, número de organizadores y tiempos.",
+  "medio": "Plataforma de reporte",
+  "coord": [
+   "Reportar la finalización y las novedades: n.º de participantes, n.º de organizadores y tiempos."
+  ],
+  "crono": [
+   "Entregar los tiempos registrados al coordinador del reporte."
+  ],
+  "obs": [
+   "Anotar la hora y lo observado; entregar tus registros para el informe final."
+  ]
  }
 ];
 export const ANTES_BASE: string[] = [
@@ -579,7 +627,9 @@ export const ANTES_BASE: string[] = [
  "Explícale al grupo qué hacer con el timbre largo y con la sirena (puedes aprovechar la dirección de grupo).",
  "Ten lista la tarjeta de conteo y la lista del grupo.",
  "Comprueba que la puerta del aula abra y que las salidas estén despejadas.",
- "Ubica el botiquín y el extintor más cercanos a tu salón."
+ "Ubica el botiquín y el extintor más cercanos a tu salón.",
+ "Avisar con anticipación a familias y visitantes que el 21 de octubre habrá simulacro.",
+ "Mensaje para la casa: “La resiliencia empieza en casa” — conversar en familia el plan de emergencia."
 ];
 export const ANTES_EX: Partial<Record<RolClave, string[]>> = {
  "evac": [
@@ -625,6 +675,9 @@ export const ANTES_EX: Partial<Record<RolClave, string[]>> = {
  ],
  "eval": [
   "Lee el formato de evaluación: objetivos, estructura, flujo de información, suministros, guion y Puesto de Mando."
+ ],
+ "obs": [
+  "Recuerda tu papel: documentar lo que ocurre sin calificar (qué se hizo, cuándo y cómo)."
  ]
 };
 export const FN: Partial<Record<RolClave, string[]>> = {
@@ -822,9 +875,18 @@ export const PUESTOS: Puesto[] = [
   "id": "equipo_evaluador_invitado_externo",
   "nombre": "Equipo evaluador: invitado externo",
   "grupo": "Evaluación y registro",
-  "rol": "eval",
+  "rol": "obs",
   "jornadas": "both",
   "nota": "Opcional, pero muy deseable",
+  "opcional": true
+ },
+ {
+  "id": "observador_1",
+  "nombre": "Observador 1",
+  "grupo": "Evaluación y registro",
+  "rol": "obs",
+  "jornadas": "both",
+  "nota": "Documenta sin calificar",
   "opcional": true
  },
  {
@@ -1241,6 +1303,14 @@ export const ASIGNACIONES_2026: Asignaciones = {
    "slot": null
   }
  },
+ "observador_1": {
+  "manana": {
+   "slot": null
+  },
+  "tarde": {
+   "slot": null
+  }
+ },
  "equipo_evaluador_invitado_externo": {
   "manana": {
    "slot": null
@@ -1582,7 +1652,7 @@ export const ASIGNACIONES_2026: Asignaciones = {
 };
 
 /** Orden de prioridad de roles al mostrar «Ver el guion como». */
-export const ROL_PRIORIDAD: RolClave[] = ['coord','eval','crono','foto','port','apoyo','evac','pa','inc','tra'];
+export const ROL_PRIORIDAD: RolClave[] = ['coord','eval','crono','foto','obs','port','apoyo','evac','pa','inc','tra'];
 
 export const FASES_ROTULO: Record<Fase, string> = { antes: 'Antes', durante: 'Durante', despues: 'Después' };
 export const FASES_CAPITULO: Record<Fase, string> = {

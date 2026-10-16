@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  horaDePaso, cronograma, requiereAviso123, miRol, docentesDeJornada, personasDeJornada,
+  horaDePaso, cronograma, requiereAviso123, esFechaNacional, horaReportePrevio, miRol, docentesDeJornada, personasDeJornada,
   resumenPendientes, accionesDelPaso, pasosAhora, fechaLarga, puestosDeJornada,
   avisosDeJornada, jornadasDeAvisoPermitidas, puedeTocarAviso,
 } from './logica';
@@ -21,25 +21,49 @@ describe('cronograma', () => {
   it('recalcula todo al cambiar la hora', () => {
     const a = cronograma(PASOS, { hora: '10:00' });
     const b = cronograma(PASOS, { hora: '11:30' });
-    expect(a).toHaveLength(15);
-    expect(a[5].hora).toBe('10:00 a. m.');
-    expect(b[5].hora).toBe('11:30 a. m.');
+    expect(a).toHaveLength(17);
+    expect(a[6].hora).toBe('10:00 a. m.');
+    expect(b[6].hora).toBe('11:30 a. m.');
     expect(b[0].hora).toBe('10:30 a. m.');
-    expect(a[14].duracion).toBe('30 a 40 min');
+    expect(a[15].duracion).toBe('30 a 40 min');
   });
 });
 
 describe('requiereAviso123', () => {
   const nac = { fecha: '2026-10-21', hora: '10:00' };
-  it('no avisa si coincide con el nacional', () => {
+  it('no avisa si la fecha coincide, cambie o no la hora', () => {
     expect(requiereAviso123({ fecha: '2026-10-21', hora: '10:00' }, nac)).toBe(false);
+    expect(requiereAviso123({ fecha: '2026-10-21', hora: '16:00' }, nac)).toBe(false);
+    expect(requiereAviso123({ fecha: '2026-10-21', hora: '11:30' }, nac)).toBe(false);
   });
-  it('avisa si difiere la hora o la fecha', () => {
-    expect(requiereAviso123({ fecha: '2026-10-21', hora: '11:30' }, nac)).toBe(true);
+  it('avisa solo si cambia la fecha', () => {
     expect(requiereAviso123({ fecha: '2026-10-22', hora: '10:00' }, nac)).toBe(true);
+    expect(esFechaNacional({ fecha: '2026-10-21', hora: '11:30' }, nac)).toBe(true);
+    expect(esFechaNacional({ fecha: '2026-10-22', hora: '10:00' }, nac)).toBe(false);
+  });
+  it('hora del reporte previo: 30 min antes', () => {
+    expect(horaReportePrevio('10:00')).toBe('9:30 a. m.');
+    expect(horaReportePrevio('16:00')).toBe('3:30 p. m.');
   });
   it('se apaga con «Ya llamé»', () => {
     expect(requiereAviso123({ fecha: '2026-10-21', hora: '11:30', llamada123: { hecho: true } }, nac)).toBe(false);
+    expect(requiereAviso123({ fecha: '2026-10-22', hora: '10:00', llamada123: { hecho: true } }, nac)).toBe(false);
+  });
+});
+
+describe('alineación oficial', () => {
+  it('guion con reporte previo (-30) y reporte final, en orden', () => {
+    const t = PASOS.map(p => p.t);
+    expect(t.some(x => x.startsWith('Reporte previo'))).toBe(true);
+    expect(PASOS[PASOS.length - 1].t).toMatch(/^Reporte final/);
+    const a = PASOS.map(p => p.a);
+    expect([...a].sort((x, y) => x - y)).toEqual(a);
+  });
+  it('rol Observación y puestos', () => {
+    expect(ROLES.some(r => r.k === 'obs')).toBe(true);
+    expect(MISION.obs).toMatch(/sin calificar/);
+    expect(PUESTOS.find(p => p.id === 'observador_1')?.rol).toBe('obs');
+    expect(PUESTOS.find(p => p.id === 'equipo_evaluador_invitado_externo')?.rol).toBe('obs');
   });
 });
 
@@ -88,9 +112,9 @@ describe('miRol', () => {
 });
 
 describe('plantilla', () => {
-  it('tiene 15 pasos, 11 roles con misión y puestos con ids seguros', () => {
-    expect(PASOS).toHaveLength(15);
-    expect(ROLES).toHaveLength(11);
+  it('tiene 17 pasos, 12 roles con misión y puestos con ids seguros', () => {
+    expect(PASOS).toHaveLength(17);
+    expect(ROLES).toHaveLength(12);
     for (const r of ROLES) expect(MISION[r.k]).toBeTruthy();
     for (const p of PUESTOS) expect(p.id).toMatch(/^[a-z0-9_]+$/);
     expect(new Set(PUESTOS.map(p => p.id)).size).toBe(PUESTOS.length);
@@ -116,7 +140,7 @@ describe('plantilla', () => {
 
 describe('acciones y tiempo', () => {
   it('docente de aula solo ve las suyas; brigadista suma las de docente', () => {
-    const p = PASOS[6];
+    const p = PASOS[7];
     expect(accionesDelPaso(p, 'docente').own).toHaveLength(0);
     expect(accionesDelPaso(p, 'pa').own.length).toBeGreaterThan(0);
     expect(accionesDelPaso(p, 'pa').base).toEqual(p.doc);
@@ -125,7 +149,7 @@ describe('acciones y tiempo', () => {
   it('pasosAhora solo el día del simulacro', () => {
     const j = { fecha: '2026-10-21', hora: '10:00' };
     expect(pasosAhora(PASOS, j, new Date(2026, 9, 20, 10, 0))).toEqual([]);
-    expect(pasosAhora(PASOS, j, new Date(2026, 9, 21, 10, 0))).toContain(5);
+    expect(pasosAhora(PASOS, j, new Date(2026, 9, 21, 10, 0))).toContain(6);
   });
   it('fecha larga', () => {
     expect(fechaLarga('2026-10-21')).toBe('Miércoles 21 de octubre');

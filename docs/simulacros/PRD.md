@@ -74,3 +74,16 @@ del módulo Gestión del riesgo.
 5. Juan Diego o Hugo no pueden cambiar encargados ni la hora de la mañana; sí los de la tarde.
 6. Sin sesión, la guía no se puede abrir.
 7. El registro muestra cada cambio con quién, cuándo y motivo.
+
+## Alineación con orientaciones oficiales (16-oct-2026)
+
+Fuentes: Circular 079 de 2026 de la UNGRD y presentación del Distrito de Medellín (p. 31).
+
+- **Hora nacional:** 10:00 a. m. La jornada de la tarde (4:00 p. m.) es una adaptación institucional.
+- **Reporte previo:** informar el ejercicio en la plataforma al menos 30 minutos antes de la alarma (institución y tipo de ejercicio). Está en el guion (minuto −30) y como recordatorio ámbar a los editores.
+- **Reporte final:** informar la finalización y las novedades (n.º de participantes, n.º de organizadores y tiempos). Es el último paso del guion; el cronometrador entrega los tiempos al coordinador del reporte.
+- **123:** el 21 de octubre NO es necesario reportar al 123. Solo se llama al 123 si cambia la FECHA respecto a la nacional (cambiar solo la hora ya no lo exige). Se mantiene «Ya llamé».
+- **Observador vs. evaluador:** rol nuevo «Observación» (`obs`): documenta hechos sin calificar, para el informe final. El evaluador sigue calificando con el formato oficial. El puesto «invitado externo» pasa a rol observador y se agrega «Observador 1» (opcional, ambas jornadas).
+- **Familias y visitantes:** avisar con anticipación que el 21 de octubre habrá simulacro, y mensaje «La resiliencia empieza en casa» (conversar en familia el plan de emergencia). Ambos están en la lista de preparación.
+- **Evacuar no es obligatorio** según la orientación oficial; la institución mantiene la evacuación al patio central como ejercicio.
+- **Simulación de las 2:00 p. m.:** es solo de las alcaldías; no aplica a las instituciones educativas.

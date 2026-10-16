@@ -138,14 +138,26 @@ export function pasosAhora(pasos: Paso[], jornada: { fecha: string; hora: string
 
 // ── Aviso al 123 ──────────────────────────────────────────────────────────────
 
-/** Hay que avisar si fecha u hora difieren del simulacro nacional y la llamada no se ha hecho. */
+/** Solo se llama al 123 si la FECHA cambia respecto a la nacional (orientación del Distrito de Medellín, oct-2026) y la llamada no se ha hecho. */
 export function requiereAviso123(
   jornada: JornadaSimulacro | undefined | null,
   nacional: { fecha: string; hora: string } | undefined | null,
 ): boolean {
   if (!jornada || !nacional) return false;
-  const difiere = jornada.fecha !== nacional.fecha || jornada.hora !== nacional.hora;
-  return difiere && jornada.llamada123?.hecho !== true;
+  return jornada.fecha !== nacional.fecha && jornada.llamada123?.hecho !== true;
+}
+
+/** La jornada se hace el día nacional: no se llama al 123, se reporta en la plataforma (previo y final). */
+export function esFechaNacional(
+  jornada: JornadaSimulacro | undefined | null,
+  nacional: { fecha: string; hora: string } | undefined | null,
+): boolean {
+  return !!jornada && !!nacional && jornada.fecha === nacional.fecha;
+}
+
+/** Hora límite del reporte previo en la plataforma: 30 minutos antes de la alarma. '10:00' → '9:30 a. m.' */
+export function horaReportePrevio(alarmaHHMM: string): string {
+  return horaDePaso(alarmaHHMM, -30);
 }
 
 // ── Personas y puestos ────────────────────────────────────────────────────────
