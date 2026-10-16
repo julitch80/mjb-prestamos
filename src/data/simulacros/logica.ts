@@ -147,7 +147,7 @@ export function requiereAviso123(
   return jornada.fecha !== nacional.fecha && jornada.llamada123?.hecho !== true;
 }
 
-/** La jornada se hace el día nacional: no se llama al 123, se reporta en la plataforma (previo y final). */
+/** La jornada se hace el día nacional: no se avisa al 123; aviso previo solo si lo piden; reporte final por el mecanismo de la UNGRD. */
 export function esFechaNacional(
   jornada: JornadaSimulacro | undefined | null,
   nacional: { fecha: string; hora: string } | undefined | null,
@@ -155,7 +155,7 @@ export function esFechaNacional(
   return !!jornada && !!nacional && jornada.fecha === nacional.fecha;
 }
 
-/** Hora límite del reporte previo en la plataforma: 30 minutos antes de la alarma. '10:00' → '9:30 a. m.' */
+/** Hora límite del aviso previo (si lo piden): 30 minutos antes de la alarma. '10:00' → '9:30 a. m.' */
 export function horaReportePrevio(alarmaHHMM: string): string {
   return horaDePaso(alarmaHHMM, -30);
 }

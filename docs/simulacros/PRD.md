@@ -80,7 +80,7 @@ del módulo Gestión del riesgo.
 Fuentes: Circular 079 de 2026 de la UNGRD y presentación del Distrito de Medellín (p. 31).
 
 - **Hora nacional:** 10:00 a. m. La jornada de la tarde (4:00 p. m.) es una adaptación institucional.
-- **Reporte previo:** informar el ejercicio en la plataforma al menos 30 minutos antes de la alarma (institución y tipo de ejercicio). Está en el guion (minuto −30) y como recordatorio ámbar a los editores.
+- **Aviso previo (corregido 16-oct):** el 21-oct no se avisa al 123; los documentos no fijan otro canal. Solo si la Secretaría o el Distrito lo piden, avisar mínimo 30 minutos antes (institución y tipo de ejercicio). Reporte final: por el mecanismo de registro que dará a conocer la UNGRD. Está en el guion (minuto −30) y como recordatorio ámbar a los editores.
 - **Reporte final:** informar la finalización y las novedades (n.º de participantes, n.º de organizadores y tiempos). Es el último paso del guion; el cronometrador entrega los tiempos al coordinador del reporte.
 - **123:** el 21 de octubre NO es necesario reportar al 123. Solo se llama al 123 si cambia la FECHA respecto a la nacional (cambiar solo la hora ya no lo exige). Se mantiene «Ya llamé».
 - **Observador vs. evaluador:** rol nuevo «Observación» (`obs`): documenta hechos sin calificar, para el informe final. El evaluador sigue calificando con el formato oficial. El puesto «invitado externo» pasa a rol observador y se agrega «Observador 1» (opcional, ambas jornadas).

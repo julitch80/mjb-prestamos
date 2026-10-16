@@ -175,19 +175,19 @@ export default function PanelDiaSimulacro({ sim }: { sim: SimulacroConId }) {
         );
       })}
 
-      {/* Reportes en la plataforma (el día nacional no se llama al 123) */}
+      {/* Día nacional: no se avisa al 123; aviso previo solo si lo piden; reporte final por el mecanismo de la UNGRD */}
       {editables.filter(j => esFechaNacional(sim.jornadas?.[j], sim.nacional)).map(j => {
         const v = sim.jornadas![j]!;
         return (
           <div key={j} role="note" className="rounded-xl border border-warning-soft bg-warning-soft p-3 flex flex-col gap-1">
             <p className="text-warning-soft-fg text-sm font-semibold">
-              Reporte previo: informe el ejercicio en la plataforma al menos 30 minutos antes (antes de {horaReportePrevio(v.hora)}).
+              El 21 de octubre no es necesario avisar al 123. Si la Secretaría o el Distrito piden un aviso previo, hágalo mínimo 30 minutos antes (antes de las {horaReportePrevio(v.hora)}).
             </p>
             <p className="text-warning-soft-fg text-sm font-semibold">
-              Reporte final: informe la finalización y las novedades (participantes, organizadores y tiempos).
+              Reporte final: registrar participantes, organizadores y tiempos en el mecanismo que indique la UNGRD.
             </p>
             <p className="text-warning-soft-fg text-xs">
-              Jornada de la {JORNADA_NOMBRE[j].toLowerCase()}. El 21 de octubre no es necesario reportar al 123 (orientación del Distrito de Medellín).
+              Jornada de la {JORNADA_NOMBRE[j].toLowerCase()}. (Orientación del Distrito de Medellín y Circular UNGRD 079.)
             </p>
           </div>
         );

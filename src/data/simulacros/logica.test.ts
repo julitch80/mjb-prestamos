@@ -52,9 +52,9 @@ describe('requiereAviso123', () => {
 });
 
 describe('alineación oficial', () => {
-  it('guion con reporte previo (-30) y reporte final, en orden', () => {
+  it('guion con aviso previo (-30) y reporte final, en orden', () => {
     const t = PASOS.map(p => p.t);
-    expect(t.some(x => x.startsWith('Reporte previo'))).toBe(true);
+    expect(t.some(x => x.startsWith('Aviso previo'))).toBe(true);
     expect(PASOS[PASOS.length - 1].t).toMatch(/^Reporte final/);
     const a = PASOS.map(p => p.a);
     expect([...a].sort((x, y) => x - y)).toEqual(a);

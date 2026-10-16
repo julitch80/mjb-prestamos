@@ -277,11 +277,11 @@ export const PASOS: Paso[] = [
   "f": "antes",
   "a": -30,
   "b": -5,
-  "t": "Reporte previo del ejercicio en la plataforma (mínimo 30 minutos antes)",
-  "q": "Según la orientación oficial, el ejercicio se informa en la plataforma al menos 30 minutos antes de la alarma: institución y tipo de ejercicio. El 21 de octubre no es necesario llamar al 123.",
-  "medio": "Plataforma de reporte",
+  "t": "Aviso previo del ejercicio, solo si lo piden (mínimo 30 minutos antes)",
+  "q": "El 21 de octubre no es necesario avisar al 123. Si la Secretaría de Educación o el Distrito piden un aviso previo, se hace mínimo 30 minutos antes de la alarma: institución y tipo de ejercicio.",
+  "medio": "El que indiquen la Secretaría o el Distrito",
   "coord": [
-   "Reportar en la plataforma el inicio del ejercicio: institución y tipo de ejercicio."
+   "Si la Secretaría o el Distrito lo piden, avisar el ejercicio (institución y tipo) mínimo 30 minutos antes."
   ]
  },
  {
@@ -607,8 +607,8 @@ export const PASOS: Paso[] = [
   "a": 70,
   "b": 80,
   "t": "Reporte final: finalización y novedades",
-  "q": "Se informa en la plataforma la finalización del ejercicio y sus novedades: número de participantes, número de organizadores y tiempos.",
-  "medio": "Plataforma de reporte",
+  "q": "Registrar la finalización del ejercicio y sus novedades —número de participantes, número de organizadores y tiempos— en el mecanismo que indique la UNGRD.",
+  "medio": "Mecanismo de registro que indique la UNGRD",
   "coord": [
    "Reportar la finalización y las novedades: n.º de participantes, n.º de organizadores y tiempos."
   ],
