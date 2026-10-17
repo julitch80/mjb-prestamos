@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BadgeBeta from './BadgeBeta';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertTriangle, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, Link2, Plus, FolderOpen, Gift, ListChecks, Paperclip, HandCoins, Loader2, QrCode, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, Link2, Gift, Image as ImageIcon, ListChecks, Paperclip, HandCoins, Loader2, QrCode, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
 import AgendaGrupo from './AgendaGrupo';
 import ModalReplicarTarea from './ModalReplicarTarea';
 import VincularClassroom from './VincularClassroom';
@@ -38,6 +38,14 @@ import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { auth, db, firebaseConfigurado, functions } from '../lib/firebase';
 import { claveVinculo } from '../data/classroomSugerencia';
 import { fechasMasCercanas } from '../data/classroomFechas';
+
+// Pastillas de adjuntar: solo el ícono, con el color neón de la paleta de la app
+// (mismo tratamiento que las baldosas del inicio: fondo tintado + resplandor).
+const NEON_ADJ = { foto: '#f472b6', galeria: '#a78bfa', archivo: '#22d3ee', enlace: '#a3e635' } as const;
+const PASTILLA_NEON = 'inline-flex items-center justify-center rounded-xl border w-11 h-11 transition hover:brightness-125';
+const estiloNeon = (c: string) => ({ background: `${c}1a`, borderColor: `${c}40`, color: c });
+const brilloNeon = (c: string) => ({ filter: `drop-shadow(0 0 6px ${c}80)` });
+
 
 // Director de ese grupo: solo él (o coordinación/rectoría, ya cubiertos por
 // `esDirectivo` en cada panel) puede tocar sus anclas — ver
@@ -223,9 +231,11 @@ function gridMes(year: number, month: number): (FechaISO | null)[][] {
  * Hasta 3 enlaces (dirección + nombre opcional) para una tarea o un recordatorio.
  * Solo http/https: cualquier otra cosa muestra «Ese enlace no es válido» y no deja guardar.
  */
-function EnlacesTarea({ enlaces, onCambiar }: {
+function EnlacesTarea({ enlaces, onCambiar, sinBoton = false }: {
   enlaces: EnlaceTarea[];
   onCambiar: (e: EnlaceTarea[]) => void;
+  /** El botón va en la fila de pastillas de AdjuntoTarea cuando no hay archivo. */
+  sinBoton?: boolean;
 }) {
   function cambiar(i: number, parcial: Partial<EnlaceTarea>) {
     onCambiar(enlaces.map((e, j) => (j === i ? { ...e, ...parcial } : e)));
@@ -265,15 +275,16 @@ function EnlacesTarea({ enlaces, onCambiar }: {
           </div>
         );
       })}
-      {enlaces.length < MAX_ENLACES && (
+      {!sinBoton && enlaces.length < MAX_ENLACES && (
         <button
           type="button"
           onClick={() => onCambiar([...enlaces, { url: '' }])}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-elevated px-3 py-2.5 text-xs text-soft hover:text-strong transition min-h-[40px]"
+          aria-label={`Agregar enlace (${enlaces.length}/${MAX_ENLACES})`}
+          title={`Agregar enlace (${enlaces.length}/${MAX_ENLACES})`}
+          className={PASTILLA_NEON}
+          style={estiloNeon(NEON_ADJ.enlace)}
         >
-          <Plus size={14} />
-          Agregar enlace
-          <span className="opacity-70">({enlaces.length}/{MAX_ENLACES})</span>
+          <Link2 size={20} style={brilloNeon(NEON_ADJ.enlace)} />
         </button>
       )}
     </div>
@@ -297,9 +308,12 @@ type AdjuntoTareaDato = { url: string; nombre: string; esImagen?: boolean };
 function AdjuntoTarea({
   adjunto,
   onCambiar,
+  extra,
 }: {
   adjunto: AdjuntoTareaDato | null;
   onCambiar: (a: AdjuntoTareaDato | null) => void;
+  /** Pastilla adicional en la misma fila (p. ej. «Agregar enlace»). */
+  extra?: React.ReactNode;
 }) {
   const [subiendo, setSubiendo] = useState(false);
   const [pct, setPct] = useState(0);
@@ -350,7 +364,7 @@ function AdjuntoTarea({
   return (
     <div className="w-full">
       <label className="text-[11px] text-muted block mb-1">
-        Archivo adjunto <span className="opacity-70">(opcional, máx. 10 MB)</span>
+        Adjuntos y enlaces <span className="opacity-70">(opcional, archivo máx. 10 MB)</span>
       </label>
       {adjunto ? (
         <div className="rounded-xl border border-line bg-elevated p-2 space-y-2">
@@ -384,10 +398,12 @@ function AdjuntoTarea({
             type="button"
             onClick={() => setConfirmandoFoto(true)}
             disabled={subiendo}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-elevated px-3 py-2.5 text-xs text-soft hover:text-strong transition min-h-[40px] disabled:opacity-40"
+            aria-label="Tomar foto"
+            title="Tomar foto"
+            className={cn(PASTILLA_NEON, 'disabled:opacity-40')}
+            style={estiloNeon(NEON_ADJ.foto)}
           >
-            <Camera size={14} />
-            Tomar foto
+            <Camera size={20} style={brilloNeon(NEON_ADJ.foto)} />
           </button>
           <input
             ref={inputCamara}
@@ -398,16 +414,15 @@ function AdjuntoTarea({
             disabled={subiendo}
             onChange={elegir}
           />
-          <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-xl border border-line bg-elevated px-3 py-2.5 text-xs text-soft hover:text-strong transition min-h-[40px]">
-            <FolderOpen size={14} />
-            Galería
+          <label aria-label="Galería" title="Galería" className={cn(PASTILLA_NEON, 'cursor-pointer')} style={estiloNeon(NEON_ADJ.galeria)}>
+            <ImageIcon size={20} style={brilloNeon(NEON_ADJ.galeria)} />
             <input type="file" hidden accept="image/*" disabled={subiendo} onChange={elegir} />
           </label>
-          <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-xl border border-line bg-elevated px-3 py-2.5 text-xs text-soft hover:text-strong transition min-h-[40px]">
-            <Paperclip size={14} />
-            Archivo
+          <label aria-label="Archivo" title="Archivo" className={cn(PASTILLA_NEON, 'cursor-pointer')} style={estiloNeon(NEON_ADJ.archivo)}>
+            <Paperclip size={20} style={brilloNeon(NEON_ADJ.archivo)} />
             <input type="file" hidden disabled={subiendo} onChange={elegir} />
           </label>
+          {extra}
         </div>
       )}
       {subiendo && <p className="text-[11px] text-muted mt-1">Subiendo… {pct}%</p>}
@@ -1106,8 +1121,23 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
               <span className="text-[10px] text-muted">{descripcion.length}/500</span>
             </div>
           </div>
-          <AdjuntoTarea adjunto={adjunto} onCambiar={setAdjunto} />
-          <EnlacesTarea enlaces={enlaces} onCambiar={setEnlaces} />
+          <AdjuntoTarea
+            adjunto={adjunto}
+            onCambiar={setAdjunto}
+            extra={enlaces.length < MAX_ENLACES && (
+              <button
+                type="button"
+                onClick={() => setEnlaces([...enlaces, { url: '' }])}
+                aria-label={`Agregar enlace (${enlaces.length}/${MAX_ENLACES})`}
+                title={`Agregar enlace (${enlaces.length}/${MAX_ENLACES})`}
+                className={PASTILLA_NEON}
+                style={estiloNeon(NEON_ADJ.enlace)}
+              >
+                <Link2 size={20} style={brilloNeon(NEON_ADJ.enlace)} />
+              </button>
+            )}
+          />
+          <EnlacesTarea enlaces={enlaces} onCambiar={setEnlaces} sinBoton={!adjunto} />
           {!esRec && hayVinculoCr && !completando && (
             <label className="flex items-center gap-2 text-xs text-soft cursor-pointer">
               <input type="checkbox" checked={publicarCr} onChange={e => setPublicarCr(e.target.checked)} />
