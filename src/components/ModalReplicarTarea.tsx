@@ -117,8 +117,9 @@ export default function ModalReplicarTarea({
         ) : (
           <>
             <p className="text-[11px] text-muted leading-snug">
-              Cada grupo recibe la tarea en su próxima clase con usted y conserva los mismos días
-              de trabajo. La entrega también cae en una clase, para que pueda recibirla en persona.
+              {original.tipo === 'recordatorio'
+                ? 'Cada grupo recibe el recordatorio para la misma fecha. Si un grupo ya tiene 3 ese día, no se puede.'
+                : 'Cada grupo recibe la tarea en su próxima clase con usted y conserva los mismos días de trabajo. La entrega también cae en una clase, para que pueda recibirla en persona.'}
             </p>
 
             <div className="space-y-1.5">
@@ -143,8 +144,10 @@ export default function ModalReplicarTarea({
                     <div className="text-strong font-semibold text-xs">{p.grupo}</div>
                     {p.viable ? (
                       <div className="text-[11px] text-muted">
-                        Se asigna el {fechaLegible(p.fechaAsignacion!)} · entrega{' '}
-                        {fechaLegible(p.fechaEntrega!)}
+                        {original.tipo === 'recordatorio'
+                          ? <>Para el {fechaLegible(p.fechaEntrega!)}</>
+                          : <>Se asigna el {fechaLegible(p.fechaAsignacion!)} · entrega{' '}
+                            {fechaLegible(p.fechaEntrega!)}</>}
                       </div>
                     ) : (
                       <div className="text-[11px] text-warning-soft-fg leading-snug">{p.motivo}</div>

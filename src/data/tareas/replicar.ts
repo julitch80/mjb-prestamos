@@ -90,6 +90,18 @@ export function planificarReplica(
     viable: false,
   };
 
+  // Un recordatorio es para una fecha concreta: va a todos los grupos el MISMO día
+  // (no se corre a la próxima clase ni se conserva un lapso de trabajo).
+  if (original.tipo === 'recordatorio') {
+    const candidata: Tarea = {
+      ...original, id: `${original.id}-r-${grupoDestino}`, grupo: grupoDestino, fechaAsignacion: ctx.hoy,
+    };
+    const veredicto = validarTarea(candidata, ctx);
+    return veredicto.ok
+      ? { grupo: grupoDestino, fechaAsignacion: ctx.hoy, fechaEntrega: original.fechaEntrega, viable: true }
+      : { ...base, fechaEntrega: original.fechaEntrega, motivo: veredicto.mensaje };
+  }
+
   if (ctx.diasClase.length === 0) {
     return { ...base, motivo: 'No hay horario cargado para este grupo, así que no se sabe qué día tiene clase con ellos.' };
   }
@@ -166,5 +178,11 @@ export function tareaDesdePlan(
     momentos: original.momentos,
     fechaAsignacion: plan.fechaAsignacion,
     fechaEntrega: plan.fechaEntrega,
+    // El contenido viaja con la réplica: lo que ve el estudiante debe ser lo mismo en todos los grupos.
+    ...(original.descripcion ? { descripcion: original.descripcion } : {}),
+    ...(original.adjuntoUrl ? { adjuntoUrl: original.adjuntoUrl, adjuntoNombre: original.adjuntoNombre } : {}),
+    ...(original.tipo ? { tipo: original.tipo } : {}),
+    ...(original.tipoRecordatorio ? { tipoRecordatorio: original.tipoRecordatorio } : {}),
+    ...(original.enlaces?.length ? { enlaces: original.enlaces } : {}),
   };
 }

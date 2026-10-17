@@ -129,7 +129,7 @@ const SEGUIMIENTOS_HEADERS = ['id','casoId','casoTipo','fecha','autorId','autorN
 // Las tres ultimas columnas se agregaron en agosto de 2026 (descripcion y
 // adjunto). Van AL FINAL a proposito: asegurarEncabezados_ solo anade lo que
 // falta, asi que las filas viejas siguen leyendose sin tocar la hoja a mano.
-const TAREAS_HEADERS      = ['id','grupo','asignaturaId','docenteId','titulo','momentos','fechaAsignacion','fechaEntrega','estado','timestamp','descripcion','adjuntoUrl','adjuntoNombre'];
+const TAREAS_HEADERS      = ['id','grupo','asignaturaId','docenteId','titulo','momentos','fechaAsignacion','fechaEntrega','estado','timestamp','descripcion','adjuntoUrl','adjuntoNombre','tipo','tipoRecordatorio','enlaces'];
 const CESIONES_HEADERS    = ['id','grupo','periodo','asignaturaOrigenId','asignaturaDestinoId','docenteOrigenId','momentos','timestamp'];
 const SOLICITUDES_HEADERS = ['id','grupo','periodo','asignaturaCedenteId','asignaturaDestinoId','docenteCedenteId','docenteSolicitanteId','momentos','estado','timestamp'];
 const CUPOS_HEADERS       = ['nivel','asignaturaId','momentos','timestamp'];
@@ -1052,7 +1052,8 @@ function getDatosTareas_(p) {
         asignaturaId: String(t.asignaturaId),
         docenteId: String(t.docenteId),
         titulo: String(t.titulo),
-        momentos: Number(t.momentos) || 1,
+        // Un recordatorio guarda momentos = 0 (no consume cupo); no se debe convertir en 1.
+        momentos: String(t.tipo) === 'recordatorio' ? 0 : (Number(t.momentos) || 1),
         fechaAsignacion: normalizarFecha(t.fechaAsignacion),
         fechaEntrega: normalizarFecha(t.fechaEntrega),
         estado: String(t.estado),
@@ -1061,6 +1062,11 @@ function getDatosTareas_(p) {
         descripcion: String(t.descripcion || ''),
         adjuntoUrl: String(t.adjuntoUrl || ''),
         adjuntoNombre: String(t.adjuntoNombre || ''),
+        // Octubre 2026 (docs/tareas-enlaces-recordatorios): tipo ('tarea' | 'recordatorio'),
+        // tipoRecordatorio y hasta 3 enlaces. Filas viejas: tipo vacio = tarea.
+        tipo: String(t.tipo) === 'recordatorio' ? 'recordatorio' : 'tarea',
+        tipoRecordatorio: String(t.tipo) === 'recordatorio' ? String(t.tipoRecordatorio || '') : '',
+        enlaces: parsearEnlacesTarea_(t.enlaces),
       };
     });
   const cesiones = hojaAObjetos(getSheet('Cesiones', CESIONES_HEADERS))
@@ -1272,22 +1278,87 @@ function fijarGrupoComoTexto(sheet, colGrupo, valor) {
   sheet.getRange(fila, colGrupo).setNumberFormat('@').setValue(valor);
 }
 
+// ── Recordatorios y enlaces de tareas (docs/tareas-enlaces-recordatorios/PRD.md) ──
+// Las reglas se repiten en src/data/tareas/recordatorios.ts: si cambian, cambiar ambos.
+const MAX_RECORDATORIOS_POR_DIA = 3;
+const MAX_ENLACES_TAREA = 3;
+const TIPOS_RECORDATORIO = ['evaluacion', 'materiales', 'documentos', 'aviso'];
+
+// Lee la columna 'enlaces' (texto JSON) y devuelve solo enlaces http/https, maximo 3.
+function parsearEnlacesTarea_(crudo) {
+  if (!crudo) return [];
+  var lista;
+  try { lista = JSON.parse(String(crudo)); } catch (e) { return []; }
+  if (!Array.isArray(lista)) return [];
+  return lista.filter(function(e) { return e && typeof e.url === 'string' && /^https?:\/\/\S+$/i.test(e.url); })
+    .slice(0, MAX_ENLACES_TAREA)
+    .map(function(e) { return e.nombre ? { url: e.url, nombre: String(e.nombre).slice(0, 60) } : { url: e.url }; });
+}
+
+// Valida el parametro 'enlaces' (texto JSON) al crear. Devuelve {ok, json} o {ok:false, error}.
+function validarEnlacesTarea_(crudo) {
+  if (!crudo) return { ok: true, json: '' };
+  var lista;
+  try { lista = JSON.parse(String(crudo)); } catch (e) { return { ok: false, error: 'Ese enlace no es válido' }; }
+  if (!Array.isArray(lista)) return { ok: false, error: 'Ese enlace no es válido' };
+  if (lista.length > MAX_ENLACES_TAREA) return { ok: false, error: 'Máximo ' + MAX_ENLACES_TAREA + ' enlaces por publicación' };
+  var limpios = [];
+  for (var i = 0; i < lista.length; i++) {
+    var e = lista[i];
+    if (!e || typeof e.url !== 'string' || !/^https?:\/\/\S+$/i.test(e.url.trim()) || e.url.length > 2000) {
+      return { ok: false, error: 'Ese enlace no es válido' };
+    }
+    limpios.push(e.nombre ? { url: e.url.trim(), nombre: String(e.nombre).slice(0, 60) } : { url: e.url.trim() });
+  }
+  return { ok: true, json: limpios.length ? JSON.stringify(limpios) : '' };
+}
+
 function crearTarea(p) {
   if (!p.grupo || !p.asignaturaId || !p.docenteId || !p.titulo || !p.fechaEntrega) {
     return { ok: false, error: 'Faltan datos de la tarea' };
   }
+  const esRec = String(p.tipo) === 'recordatorio';
+  const enlaces = validarEnlacesTarea_(p.enlaces);
+  if (!enlaces.ok) return { ok: false, error: enlaces.error };
+  if (esRec) {
+    if (TIPOS_RECORDATORIO.indexOf(String(p.tipoRecordatorio)) === -1) {
+      return { ok: false, error: 'Elige el tipo de recordatorio' };
+    }
+    const hoy = Utilities.formatDate(new Date(), 'America/Bogota', 'yyyy-MM-dd');
+    if (String(p.fechaEntrega) <= hoy) return { ok: false, error: 'La fecha del recordatorio debe ser posterior a hoy' };
+    const dow = Utilities.formatDate(new Date(String(p.fechaEntrega) + 'T12:00:00-05:00'), 'America/Bogota', 'u');
+    if (dow === '6' || dow === '7') return { ok: false, error: 'La fecha debe caer en un día hábil' };
+  }
   const sheet = getSheet('Tareas', TAREAS_HEADERS);
   asegurarEncabezados_(sheet, TAREAS_HEADERS);
-  const id = 'TAR-' + new Date().getTime();
-  sheet.appendRow([
-    id, p.grupo, p.asignaturaId, p.docenteId, p.titulo,
-    Number(p.momentos) || 1, p.fechaAsignacion || '', p.fechaEntrega,
-    'activa', new Date().toISOString(),
-    p.descripcion || '', p.adjuntoUrl || '', p.adjuntoNombre || '',
-  ]);
-  fijarGrupoComoTexto(sheet, 2, p.grupo);
-  invalidarCacheTareas();
-  return { ok: true, id: id };
+  // El limite de 3 por dia se cuenta y se escribe bajo candado: dos publicaciones
+  // simultaneas no deben colarse cuatro.
+  const candado = LockService.getScriptLock();
+  if (esRec) { try { candado.waitLock(10000); } catch (e) { return { ok: false, error: 'El sistema está ocupado, intenta de nuevo' }; } }
+  try {
+    if (esRec) {
+      const yaHay = hojaAObjetos(sheet).filter(function(t) {
+        return String(t.tipo) === 'recordatorio' && String(t.estado) === 'activa' &&
+          String(t.grupo) === String(p.grupo) && normalizarFecha(t.fechaEntrega) === String(p.fechaEntrega);
+      }).length;
+      if (yaHay >= MAX_RECORDATORIOS_POR_DIA) {
+        return { ok: false, error: 'Este grupo ya tiene ' + MAX_RECORDATORIOS_POR_DIA + ' recordatorios ese día' };
+      }
+    }
+    const id = 'TAR-' + new Date().getTime();
+    sheet.appendRow([
+      id, p.grupo, p.asignaturaId, p.docenteId, p.titulo,
+      esRec ? 0 : (Number(p.momentos) || 1), p.fechaAsignacion || '', p.fechaEntrega,
+      'activa', new Date().toISOString(),
+      p.descripcion || '', p.adjuntoUrl || '', p.adjuntoNombre || '',
+      esRec ? 'recordatorio' : 'tarea', esRec ? String(p.tipoRecordatorio) : '', enlaces.json,
+    ]);
+    fijarGrupoComoTexto(sheet, 2, p.grupo);
+    invalidarCacheTareas();
+    return { ok: true, id: id };
+  } finally {
+    if (esRec) { try { candado.releaseLock(); } catch (e) {} }
+  }
 }
 
 function cancelarTarea(p) {

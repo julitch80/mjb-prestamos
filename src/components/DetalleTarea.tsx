@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ChevronDown, Paperclip } from 'lucide-react';
+import { ChevronDown, ExternalLink, Paperclip } from 'lucide-react';
 import type { Tarea } from '../data/tareas/tipos';
 import { esUrlSegura, partirEnlaces } from '../data/tareas/textoEnlaces';
+import { enlacesVisibles, nombreDeEnlace } from '../data/tareas/recordatorios';
 import { cn } from '@/lib/utils';
 
 /** Texto con saltos de línea y enlaces clicables, sin HTML crudo. */
@@ -29,7 +30,8 @@ export default function DetalleTarea({ t, abiertoInicial = false }: { t: Tarea; 
   const [abierto, setAbierto] = useState(abiertoInicial);
   const desc = (t.descripcion ?? '').trim();
   const adjunto = t.adjuntoUrl && esUrlSegura(t.adjuntoUrl) ? t.adjuntoUrl : '';
-  if (!desc && !adjunto) return null;
+  const enlaces = enlacesVisibles(t);
+  if (!desc && !adjunto && enlaces.length === 0) return null;
   return (
     <div className="mt-1">
       <button
@@ -40,7 +42,7 @@ export default function DetalleTarea({ t, abiertoInicial = false }: { t: Tarea; 
       >
         <ChevronDown size={14} className={cn('transition-transform', abierto && 'rotate-180')} />
         {abierto ? 'Ocultar detalle' : 'Ver detalle'}
-        {adjunto && !abierto && <Paperclip size={12} />}
+        {(adjunto || enlaces.length > 0) && !abierto && <Paperclip size={12} />}
       </button>
       {abierto && (
         <div className="space-y-2 pb-1">
@@ -56,6 +58,19 @@ export default function DetalleTarea({ t, abiertoInicial = false }: { t: Tarea; 
               Ver archivo adjunto{t.adjuntoNombre ? ` · ${t.adjuntoNombre}` : ''}
             </a>
           )}
+          {/* Enlaces que compartió el docente: un botón por enlace, en otra pestaña. */}
+          {enlaces.map((e, i) => (
+            <a
+              key={i}
+              href={e.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg border border-accent text-xs font-medium text-accent"
+            >
+              <ExternalLink size={14} className="shrink-0" />
+              <span className="truncate">{nombreDeEnlace(e)}</span>
+            </a>
+          ))}
         </div>
       )}
     </div>

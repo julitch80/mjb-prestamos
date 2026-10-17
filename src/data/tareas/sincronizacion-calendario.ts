@@ -15,7 +15,14 @@ export interface TareaRemota {
   fechaEntrega: string; // AAAA-MM-DD
   estado: string;       // 'activa' | 'cancelada'
   momentos: number;
+  /** 'recordatorio' (docs/tareas-enlaces-recordatorios) o ausente = tarea. */
+  tipo?: string;
+  tipoRecordatorio?: string;
 }
+
+const ICONOS_RECORDATORIO: Record<string, string> = {
+  evaluacion: '📝', materiales: '🎒', documentos: '📄', aviso: '📢',
+};
 
 /** Un evento tal como debería quedar en el calendario del estudiante. */
 export interface EventoDeseado {
@@ -70,14 +77,20 @@ export function eventoDeseado(
   nombreAsignatura: string,
   urlAgenda: string,
 ): EventoDeseado {
-  const resumen = `${nombreAsignatura} — ${tarea.titulo}`;
+  const esRec = tarea.tipo === 'recordatorio';
+  const icono = ICONOS_RECORDATORIO[tarea.tipoRecordatorio ?? ''] ?? '📢';
+  const resumen = esRec
+    ? `${icono} ${nombreAsignatura} — ${tarea.titulo}`
+    : `${nombreAsignatura} — ${tarea.titulo}`;
   const minutos = Math.max(1, tarea.momentos) * 25;
-  const descripcion = [
-    `Entrega de la tarea de ${nombreAsignatura}.`,
-    `Tiempo estimado: ${minutos} minutos.`,
-    '',
-    `Agenda de tu grupo: ${urlAgenda}`,
-  ].join('\n');
+  const descripcion = (esRec
+    ? [`Recordatorio de ${nombreAsignatura}.`, '', `Agenda de tu grupo: ${urlAgenda}`]
+    : [
+        `Entrega de la tarea de ${nombreAsignatura}.`,
+        `Tiempo estimado: ${minutos} minutos.`,
+        '',
+        `Agenda de tu grupo: ${urlAgenda}`,
+      ]).join('\n');
   const avisoMin = avisoMinutosAntes(tarea.grupo);
   return {
     tareaId: tarea.id,

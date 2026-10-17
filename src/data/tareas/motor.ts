@@ -16,6 +16,7 @@ import type {
 import {
   addDias, claveQuincena, claveSemana, diaSemana, esDiaEjecutable, esDiaHabil,
 } from './calendario';
+import { validarRecordatorio, validarEnlaces } from './recordatorios';
 import { CONFIG_NIVEL, PLAZO_MINIMO_DIAS, cupoDeAsignatura, nivelDeGrupo } from './config';
 
 export function clavePeriodo(grupo: string, fecha: FechaISO): string {
@@ -33,7 +34,8 @@ export function clavePeriodo(grupo: string, fecha: FechaISO): string {
 export function planificarAgenda(tareas: Tarea[], grupo: string, hoy: FechaISO): AgendaGrupo {
   const tope = CONFIG_NIVEL[nivelDeGrupo(grupo)].topeDiario;
   const activas = tareas
-    .filter(t => t.estado === 'activa' && t.grupo === grupo && t.fechaEntrega > hoy)
+    // Los recordatorios no ocupan momentos: no entran en la agenda ni en el cupo.
+    .filter(t => t.estado === 'activa' && t.tipo !== 'recordatorio' && t.grupo === grupo && t.fechaEntrega > hoy)
     .sort((a, b) =>
       a.fechaEntrega !== b.fechaEntrega
         ? a.fechaEntrega.localeCompare(b.fechaEntrega)
@@ -212,6 +214,12 @@ function buscarAlternativas(nueva: Tarea, ctx: ContextoValidacion): Alternativas
 }
 
 export function validarTarea(nueva: Tarea, ctx: ContextoValidacion): ResultadoValidacion {
+  // Un recordatorio no pasa por plazo mínimo, ventana ni cupo: reglas propias.
+  if (nueva.tipo === 'recordatorio') return validarRecordatorio(nueva, ctx);
+  {
+    const e = validarEnlaces(nueva.enlaces);
+    if (!e.ok) return { ok: false, filtro: 'entrega', mensaje: e.error };
+  }
   const nivel = nivelDeGrupo(nueva.grupo);
   const config = CONFIG_NIVEL[nivel];
 

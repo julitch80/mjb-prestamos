@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import BadgeBeta from './BadgeBeta';
 import { Check, Lock, Printer, QrCode as QrIcon, Tv } from 'lucide-react';
 import QRCode from 'qrcode';
 import { colorGrado, DIRECTORES_MANANA, DIRECTORES_TARDE, USUARIOS } from '../data/maestros';
@@ -15,6 +16,8 @@ import AgendaImprimible from './AgendaImprimible';
 import AgendaProyeccion from './AgendaProyeccion';
 import PildoraEstudio from './PildoraEstudio';
 import DetalleTarea from './DetalleTarea';
+import RecordatorioItem from './RecordatorioItem';
+import { esRecordatorio, recordatoriosDelDia, recordatoriosProximos } from '../data/tareas/recordatorios';
 import { cn } from '@/lib/utils';
 
 const DIAS_LABEL = ['lun', 'mar', 'mié', 'jue', 'vie'];
@@ -134,9 +137,11 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
   const [vista, setVista] = useState<'semana' | 'dia'>('dia');
 
   const activas = useMemo(
-    () => tareas.filter(t => t.estado === 'activa' && t.grupo === grupo),
+    // Los recordatorios no entran en la agenda de momentos: se muestran aparte.
+    () => tareas.filter(t => t.estado === 'activa' && t.grupo === grupo && !esRecordatorio(t)),
     [tareas, grupo],
   );
+  const recordatoriosProx = useMemo(() => recordatoriosProximos(tareas, grupo, hoy), [tareas, grupo, hoy]);
 
   const plan = useMemo(() => planificarAgenda(activas, grupo, addDias(hoy, -1)), [activas, grupo, hoy]);
   const ocupacion = useMemo(() => ocupacionPorDia(plan), [plan]);
@@ -418,6 +423,9 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
             <span className="text-sm font-semibold text-strong">{diaLegibleLargo(diaSel)}</span>
             <span className="text-[11px] text-muted">{ocupacion[diaSel] ?? 0} de {config.topeDiario} momentos</span>
           </div>
+          {recordatoriosDelDia(tareas, grupo, diaSel).map(r => (
+            <RecordatorioItem key={r.id} t={r} abierto />
+          ))}
           {tareasDelDia(diaSel).length > 0 && tareasDelDia(diaSel).some(({ t }) => !etiquetaMomento(grupo, momentos[t.id], anclasPorGrupo)) && (
             <p className="text-[11px] text-muted -mt-1">Toca "¿Cuándo la vas a hacer?" para escoger en qué momento del día la harás.</p>
           )}
@@ -484,6 +492,11 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
                   <div className="text-[10px] text-muted">{f.slice(8)}/{f.slice(5, 7)}</div>
                 </div>
                 <div className="flex-1 min-w-0">
+                  {recordatoriosDelDia(tareas, grupo, f).length > 0 && (
+                    <div className="space-y-1.5 mb-1.5">
+                      {recordatoriosDelDia(tareas, grupo, f).map(r => <RecordatorioItem key={r.id} t={r} />)}
+                    </div>
+                  )}
                   {!ejecutable ? (
                     <span className="text-[11px] text-muted">Sin tareas (festivo o contrajornada)</span>
                   ) : items.length === 0 ? (
@@ -538,6 +551,14 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
         </div>
       )}
       </>
+      )}
+
+      {/* Lo que viene: recordatorios (exámenes, materiales, documentos, avisos) con cuenta regresiva */}
+      {recordatoriosProx.length > 0 && (
+        <div className="rounded-2xl border border-line bg-card p-4 space-y-2">
+          <span className="text-sm font-semibold text-strong block">Lo que viene<BadgeBeta /></span>
+          {recordatoriosProx.map(r => <RecordatorioItem key={r.id} t={r} hoy={hoy} mostrarFecha />)}
+        </div>
       )}
 
       {/* Próximas entregas */}

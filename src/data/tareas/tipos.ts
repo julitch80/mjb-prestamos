@@ -5,6 +5,14 @@ export type FechaISO = string; // 'YYYY-MM-DD'
 
 export type DiaSemana = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes';
 
+export type TipoRecordatorio = 'evaluacion' | 'materiales' | 'documentos' | 'aviso';
+
+/** Enlace web que el docente comparte con una tarea o recordatorio (máx. 3). */
+export interface EnlaceTarea {
+  url: string;
+  nombre?: string;
+}
+
 export interface Tarea {
   id: string;
   grupo: string;          // notación del horario: '9.1' mañana, '6º1' tarde
@@ -27,6 +35,16 @@ export interface Tarea {
   adjuntoUrl?: string;
   /** Nombre original del archivo, para mostrarlo en la agenda. */
   adjuntoNombre?: string;
+  /**
+   * 'tarea' (por omisión) o 'recordatorio'. Ausente = 'tarea': las filas viejas
+   * siguen funcionando. Un recordatorio no consume cupo de momentos (momentos = 0),
+   * no tiene plazo mínimo y no se entrega: su fechaEntrega es la fecha del aviso.
+   */
+  tipo?: 'tarea' | 'recordatorio';
+  /** Solo para recordatorios. */
+  tipoRecordatorio?: TipoRecordatorio;
+  /** Hasta 3 enlaces http/https. */
+  enlaces?: EnlaceTarea[];
 }
 
 // Cesión de momentos entre asignaturas: directa entre docentes,

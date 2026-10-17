@@ -312,6 +312,24 @@ export interface DatosTareas {
   error?: string;
 }
 
+/**
+ * Un backend viejo no manda tipo/enlaces; uno nuevo puede mandar `enlaces` como texto JSON.
+ * Aquí se deja siempre el mismo formato (tipo ausente = tarea, enlaces = lista).
+ */
+function normalizarTareaRecibida(t: Tarea): Tarea {
+  const crudo = t as unknown as { enlaces?: unknown; tipo?: unknown };
+  let enlaces: Tarea['enlaces'];
+  if (Array.isArray(crudo.enlaces)) enlaces = crudo.enlaces;
+  else if (typeof crudo.enlaces === 'string' && crudo.enlaces.trim()) {
+    try { const j = JSON.parse(crudo.enlaces); if (Array.isArray(j)) enlaces = j; } catch { /* sin enlaces */ }
+  }
+  const out: Tarea = { ...t };
+  if (crudo.tipo === 'recordatorio') out.tipo = 'recordatorio'; else delete out.tipo;
+  if (!out.tipoRecordatorio) delete out.tipoRecordatorio;
+  if (enlaces?.length) out.enlaces = enlaces; else delete out.enlaces;
+  return out;
+}
+
 export async function getDatosTareas(grupo?: string): Promise<DatosTareas> {
   const res = await callApi<DatosTareas>({
     action: 'getDatosTareas',
@@ -319,7 +337,7 @@ export async function getDatosTareas(grupo?: string): Promise<DatosTareas> {
   });
   return {
     ok: res.ok,
-    tareas: res.tareas ?? [],
+    tareas: (res.tareas ?? []).map(normalizarTareaRecibida),
     cesiones: res.cesiones ?? [],
     solicitudes: res.solicitudes ?? [],
     cupos: res.cupos ?? [],
@@ -357,12 +375,16 @@ export async function crearTarea(
     asignaturaId: t.asignaturaId,
     docenteId: t.docenteId,
     titulo: t.titulo,
-    momentos: String(t.momentos),
+    momentos: String(t.tipo === 'recordatorio' ? 0 : t.momentos),
     fechaAsignacion: t.fechaAsignacion,
     fechaEntrega: t.fechaEntrega,
     descripcion: t.descripcion ?? '',
     adjuntoUrl: t.adjuntoUrl ?? '',
     adjuntoNombre: t.adjuntoNombre ?? '',
+    // Recordatorios y enlaces (docs/tareas-enlaces-recordatorios). El servidor repite las validaciones.
+    tipo: t.tipo === 'recordatorio' ? 'recordatorio' : 'tarea',
+    tipoRecordatorio: t.tipo === 'recordatorio' ? (t.tipoRecordatorio ?? '') : '',
+    enlaces: t.enlaces?.length ? JSON.stringify(t.enlaces) : '',
   }));
 }
 
