@@ -532,6 +532,29 @@ service cloud.firestore {
       allow delete: if !esSuplantacion() && (false);
     }
 
+    // ---------- Calendario academico (docs/calendario-academico/PRD.md) ----------
+    //
+    // calendarioAcademico/{anio}: { eventos: map id->evento, actualizado, porCorreo }.
+    // Lo lee cualquier usuario activo; lo edita SOLO coordinador, rectora o superusuario.
+    // La subcoleccion `cambios` es un registro: solo se agrega (nadie edita ni borra).
+    function calendarioEdita() {
+      return isActiveUser() && callerDoc().role in ['coordinador', 'rectora', 'superusuario'];
+    }
+    match /calendarioAcademico/{anio} {
+      allow read: if isActiveUser();
+      allow create, update: if !esSuplantacion() && (calendarioEdita()
+        && request.resource.data.keys().hasOnly(['eventos', 'actualizado', 'porCorreo'])
+        && request.resource.data.eventos is map
+        && request.resource.data.porCorreo == callerEmail());
+      allow delete: if !esSuplantacion() && (false);
+      match /cambios/{cambioId} {
+        allow read: if isActiveUser();
+        allow create: if !esSuplantacion() && (calendarioEdita()
+          && request.resource.data.por == callerEmail());
+        allow update, delete: if !esSuplantacion() && (false);
+      }
+    }
+
     // ---------- Integracion con Google Classroom (docs/classroom/PLAN.md) ----------
     //
     // Escriben SOLO las Cloud Functions (admin SDK, que ignora las reglas): ningun

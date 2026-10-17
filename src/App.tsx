@@ -17,7 +17,8 @@ import PanelRectora from './components/PanelRectora';
 import Reservas from './components/Reservas';
 import VistaHorario from './components/VistaHorario';
 import PanelHorarios from './components/horarios/PanelHorarios';
-import AsignacionAcademica from './components/AsignacionAcademica';
+import PanelAcademico from './components/calendarioAcademico/PanelAcademico';
+import AlertasCalendario from './components/calendarioAcademico/AlertasCalendario';
 import VistaTareas from './components/VistaTareas';
 import AgendaPublica from './components/AgendaPublica';
 import MiHistorial from './components/MiHistorial';
@@ -70,7 +71,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'riesgo',         label: 'Gestión del Riesgo', descripcion: 'Emergencia escolar, brigadas y números', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'disponibilidad', label: 'Reservas',        descripcion: 'Solicita un aula o recurso',        roles: ['docente', 'coordinador'] },
   { id: 'historial',      label: 'Mis reservas',    descripcion: 'Tus solicitudes y su estado',       roles: ['rectora'] },
-  { id: 'asignacion',     label: 'Asignación 2026', descripcion: 'Docentes y materias del año',       roles: ['docente', 'coordinador', 'rectora'] },
+  { id: 'asignacion',     label: 'Académico',       descripcion: 'Calendario académico y asignación', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'chat',           label: 'Chat',            descripcion: 'Mensajería interna',                roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',          roles: ['superusuario'] },
   { id: 'sugerencias',    label: 'Sugerencias',     descripcion: 'Lo que reportan los docentes',      roles: ['superusuario'] },
@@ -88,6 +89,7 @@ const ROL_COLOR: Record<string, string> = {
 // (TAREAS.md § D). `import.meta.env.DEV` hace que Vite excluya esta rama
 // completa (y el lazy import) del build de producción.
 const BancoAcompanamientos = import.meta.env.DEV ? lazy(() => import('./dev/BancoAcompanamientos')) : null;
+const BancoCalendario = import.meta.env.DEV ? lazy(() => import('./dev/BancoCalendario')) : null;
 
 export default function App() {
   const [sugerenciaAbierta, setSugerenciaAbierta] = useState(false);
@@ -222,6 +224,13 @@ export default function App() {
     return (
       <Suspense fallback={null}>
         <BancoAcompanamientos />
+      </Suspense>
+    );
+  }
+  if (import.meta.env.DEV && BancoCalendario && hash === '#/dev/calendario') {
+    return (
+      <Suspense fallback={null}>
+        <BancoCalendario />
       </Suspense>
     );
   }
@@ -387,6 +396,7 @@ export default function App() {
 
       {/* ── Banner notificaciones ─────────────────────────────────── */}
       {rol === 'docente' && <BannerNotificaciones />}
+      {(rol === 'docente' || rol === 'coordinador') && <AlertasCalendario />}
 
       {/* ── Contenido ────────────────────────────────────────────── */}
       {/* overflow-x-hidden como red de seguridad: las tablas anchas ya tienen su
@@ -423,7 +433,7 @@ export default function App() {
                   {vistaActual === 'rectora'        && rol === 'rectora'     && <PanelRectora />}
                   {vistaActual === 'horario'        && <VistaHorario />}
                   {vistaActual === 'generar_horario' && (rol === 'coordinador' || rol === 'superusuario') && <PanelHorarios />}
-                  {vistaActual === 'asignacion'     && <AsignacionAcademica />}
+                  {vistaActual === 'asignacion'     && <PanelAcademico />}
                   {vistaActual === 'tareas'         && <VistaTareas />}
                   {vistaActual === 'chat'           && AUTH_MODE === 'google' && <Chat />}
                   {vistaActual === 'agenda'         && <AgendaSemanal />}
