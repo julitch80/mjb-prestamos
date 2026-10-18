@@ -87,8 +87,11 @@ export async function enviarAhora(
   await Promise.all(resp.responses.map(async (r, i) => {
     if (r.success) return;
     const code = r.error?.code ?? '';
-    if (code === 'messaging/registration-token-not-registered'
-      || code === 'messaging/invalid-argument') {
+    logger.warn('push fallido', { correo, code, mensaje: r.error?.message });
+    // Solo se borra el token que FCM declara muerto. 'invalid-argument' también
+    // sale por errores de la carga útil, y borrar ahí dejaba sin registro a
+    // dispositivos sanos.
+    if (code === 'messaging/registration-token-not-registered') {
       await tokens[i].ref.delete().catch(() => {});
     }
   }));
@@ -147,9 +150,9 @@ export async function enviarPrueba(
   await Promise.all(resp.responses.map(async (r, i) => {
     if (r.success) { detalles.push({ dispositivo: items[i].nombre }); return; }
     const code = r.error?.code ?? 'desconocido';
-    detalles.push({ dispositivo: items[i].nombre, error: code });
-    if (code === 'messaging/registration-token-not-registered'
-      || code === 'messaging/invalid-argument') {
+    detalles.push({ dispositivo: items[i].nombre, error: `${code}: ${r.error?.message ?? ''}` });
+    logger.warn('prueba push fallida', { correo, code, mensaje: r.error?.message });
+    if (code === 'messaging/registration-token-not-registered') {
       await items[i].ref.delete().catch(() => {});
     }
   }));
