@@ -17,7 +17,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
-import { onRequest } from 'firebase-functions/v2/https';
+import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { destinatariosDeCanal, type CanalParaDestinatarios, type TipoNotificacion, type UsuarioParaDestinatarios } from '../../src/data/notificacionesPushLogica';
@@ -25,7 +25,7 @@ import { parseHorarioModificadoDeNotificacion } from '../../src/data/horarioModi
 import {
   debeAlertarInvestigacion, destinatariosAccidente, horaLimiteFurat,
 } from '../../src/data/sst/accidenteLaboral';
-import { agruparPendientes, enviarAhora, enviarAUsuarios, type EnviarOpciones } from './enviar';
+import { agruparPendientes, enviarAhora, enviarAUsuarios, enviarPrueba, type EnviarOpciones } from './enviar';
 
 // Techo de copias simultáneas (mismo patrón que `calendario`, 23-sep-2026).
 setGlobalOptions({ maxInstances: 10 });
@@ -345,3 +345,15 @@ export const alertasAccidentes = onSchedule(
       if (Object.keys(patch).length > 0) await doc.ref.update(patch);
     }
   });
+
+// Diagnóstico «Enviarme una notificación de prueba» (Mis notificaciones).
+// `invoker: 'public'` es OBLIGATORIO en callables nuevos (trampa del 403 de
+// Cloud Run); la autenticación real se exige abajo con request.auth.
+export const notifPrueba = onCall(
+  { region: REGION, cors: true, invoker: 'public' },
+  async (request) => {
+    const correo = request.auth?.token?.email?.toLowerCase();
+    if (!correo) throw new HttpsError('unauthenticated', 'Inicia sesión primero.');
+    return await enviarPrueba(db, correo);
+  },
+);

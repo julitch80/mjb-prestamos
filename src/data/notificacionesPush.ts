@@ -2,7 +2,8 @@
 // Firebase-only, no-op si `db`/`auth` no están configurados (modo PIN).
 import { doc, getDoc, serverTimestamp, setDoc, deleteDoc } from 'firebase/firestore';
 import { getMessaging, getToken, deleteToken, isSupported, type Messaging } from 'firebase/messaging';
-import { app, auth, db } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { app, auth, db, functions } from '../lib/firebase';
 import { PREFERENCIAS_DEFAULT, type PreferenciasNotif } from './notificacionesPushLogica';
 
 // Clave pública VAPID del proyecto (docs/notificaciones-push/PLAN.md — no es
@@ -159,4 +160,36 @@ export async function guardarPreferencias(prefs: PreferenciasNotif): Promise<voi
 export function limpiarBadge(): void {
   const nav = navigator as unknown as { clearAppBadge?: () => Promise<void> };
   nav.clearAppBadge?.().catch(() => {});
+}
+
+export interface ResultadoPrueba {
+  ok: boolean;
+  motivo?: 'sin-dispositivos';
+  enviados: number;
+  fallidos: number;
+  detalles: { dispositivo: string; error?: string }[];
+}
+
+/** Pide al servidor una notificación de prueba a todos mis dispositivos. */
+export async function enviarPruebaNotificacion(): Promise<ResultadoPrueba> {
+  if (!functions) throw new Error('Functions no disponible');
+  const r = await httpsCallable<unknown, ResultadoPrueba>(functions, 'notifPrueba')({});
+  return r.data;
+}
+
+/** true si ESTE navegador tiene un token guardado en Firestore. */
+export async function esteDispositivoTieneToken(): Promise<boolean> {
+  const correo = miEmail();
+  if (!db || !correo || typeof Notification === 'undefined' || Notification.permission !== 'granted') return false;
+  const messaging = await obtenerMessaging();
+  if (!messaging) return false;
+  try {
+    const registro = await navigator.serviceWorker.ready;
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: registro });
+    if (!token) return false;
+    const snap = await getDoc(doc(db, 'notifDispositivos', correo, 'items', await hashToken(token)));
+    return snap.exists();
+  } catch {
+    return false;
+  }
 }

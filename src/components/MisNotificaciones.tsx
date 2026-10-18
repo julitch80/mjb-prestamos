@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../data/store';
 import {
-  activar, desactivarEsteDispositivo, guardarPreferencias, leerPreferencias, soportado,
+  activar, desactivarEsteDispositivo, enviarPruebaNotificacion, esteDispositivoTieneToken, guardarPreferencias, leerPreferencias, soportado,
 } from '../data/notificacionesPush';
 import { PREFERENCIAS_DEFAULT, type CategoriaNotificacion, type PreferenciasNotif } from '../data/notificacionesPushLogica';
 import { IconoCampana } from './IconosNeon';
@@ -50,6 +50,42 @@ export default function MisNotificaciones() {
       setPrefs(await leerPreferencias());
     })();
   }, []);
+
+  const [tieneToken, setTieneToken] = useState<boolean | null>(null);
+  const [probando, setProbando] = useState(false);
+  const [resultadoPrueba, setResultadoPrueba] = useState<{ ok: boolean; texto: string; detalle?: string } | null>(null);
+
+  useEffect(() => {
+    void esteDispositivoTieneToken().then(setTieneToken);
+  }, [permiso]);
+
+  async function alProbar() {
+    setProbando(true);
+    setResultadoPrueba(null);
+    try {
+      const r = await enviarPruebaNotificacion();
+      if (r.motivo === 'sin-dispositivos') {
+        setResultadoPrueba({ ok: false, texto: 'Este celular no está registrado: activa las notificaciones aquí primero.' });
+      } else if (r.enviados > 0) {
+        const fallos = r.detalles.filter(d => d.error).map(d => `${d.dispositivo}: ${d.error}`).join('; ');
+        setResultadoPrueba({
+          ok: true,
+          texto: `Enviada a ${r.enviados} dispositivo(s). Cierra la app: debería llegarte en segundos.`,
+          detalle: fallos ? `Fallaron: ${fallos}` : undefined,
+        });
+      } else {
+        setResultadoPrueba({
+          ok: false,
+          texto: 'No se pudo entregar a ningún dispositivo.',
+          detalle: r.detalles.map(d => `${d.dispositivo}: ${d.error}`).join('; '),
+        });
+      }
+    } catch (e) {
+      setResultadoPrueba({ ok: false, texto: 'No se pudo enviar la prueba.', detalle: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setProbando(false);
+    }
+  }
 
   async function alActivar() {
     setCargando(true);
@@ -134,6 +170,27 @@ export default function MisNotificaciones() {
               </p>
             )}
           </>
+        )}
+      </div>
+
+      <div className="bg-card rounded-xl p-4 border border-line space-y-2">
+        <p className="text-strong text-sm font-semibold">Probar notificaciones</p>
+        <p className="text-muted text-xs">
+          Permiso en este navegador: {permiso === 'granted' ? 'concedido' : permiso === 'denied' ? 'bloqueado' : 'sin pedir'}
+          {' · '}Token guardado: {tieneToken === null ? 'comprobando…' : tieneToken ? 'sí' : 'no'}
+        </p>
+        <button
+          onClick={alProbar}
+          disabled={probando}
+          className="px-3 py-2 rounded-lg bg-elevated text-soft hover:text-strong text-sm font-semibold disabled:opacity-40"
+        >
+          {probando ? 'Enviando…' : 'Enviarme una notificación de prueba'}
+        </button>
+        {resultadoPrueba && (
+          <div role="status" className={`text-sm ${resultadoPrueba.ok ? 'text-strong' : 'text-muted'}`}>
+            <p>{resultadoPrueba.texto}</p>
+            {resultadoPrueba.detalle && <p className="text-xs text-muted mt-0.5">{resultadoPrueba.detalle}</p>}
+          </div>
         )}
       </div>
 

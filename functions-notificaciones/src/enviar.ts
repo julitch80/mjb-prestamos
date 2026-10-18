@@ -108,3 +108,50 @@ export function agruparPendientes(
     tag: 'mjb-pendientes',
   };
 }
+
+export interface ResultadoPrueba {
+  ok: boolean;
+  motivo?: 'sin-dispositivos';
+  enviados: number;
+  fallidos: number;
+  detalles: { dispositivo: string; error?: string }[];
+}
+
+/** Prueba diagnóstica: envía a TODOS los dispositivos del correo, sin mirar
+ * preferencias ni el silencio nocturno. Limpia tokens no registrados. */
+export async function enviarPrueba(
+  db: FirebaseFirestore.Firestore,
+  correo: string,
+): Promise<ResultadoPrueba> {
+  const snap = await db.collection('notifDispositivos').doc(correo).collection('items').get();
+  if (snap.empty) return { ok: false, motivo: 'sin-dispositivos', enviados: 0, fallidos: 0, detalles: [] };
+  const items = snap.docs.map(d => ({
+    ref: d.ref,
+    token: String(d.data().token),
+    nombre: `${String(d.data().plataforma ?? 'dispositivo')} · ${d.id.slice(0, 6)}`,
+  }));
+
+  const resp = await getMessaging().sendEachForMulticast({
+    tokens: items.map(t => t.token),
+    data: {
+      title: 'MJB · Prueba',
+      body: 'Si ves esto con la app cerrada, las notificaciones funcionan.',
+      url: 'https://julitch80.github.io/mjb-prestamos/',
+      tag: 'mjb-prueba',
+      tipo: 'prueba',
+    },
+    webpush: { headers: { Urgency: 'high', TTL: '3600' } },
+  });
+
+  const detalles: { dispositivo: string; error?: string }[] = [];
+  await Promise.all(resp.responses.map(async (r, i) => {
+    if (r.success) { detalles.push({ dispositivo: items[i].nombre }); return; }
+    const code = r.error?.code ?? 'desconocido';
+    detalles.push({ dispositivo: items[i].nombre, error: code });
+    if (code === 'messaging/registration-token-not-registered'
+      || code === 'messaging/invalid-argument') {
+      await items[i].ref.delete().catch(() => {});
+    }
+  }));
+  return { ok: resp.successCount > 0, enviados: resp.successCount, fallidos: resp.failureCount, detalles };
+}
