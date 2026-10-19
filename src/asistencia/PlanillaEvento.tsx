@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { FlechaNeon } from '../components/FlechaNeon';
 import Avatar from './Avatar';
 import EscanerQr from './EscanerQr';
@@ -32,7 +32,10 @@ import type { Event, EventSession, Student } from './domain/types';
 import { colorGrado } from '../data/maestros';
 import Ayuda from './Ayuda';
 
-type Pestana = 'registro' | 'estadisticas' | 'compartir';
+/** El cuaderno de columnas propias. `lazy`: arrastra ExcelJS, igual que en el centro de interes. */
+const DireccionGrupo = lazy(() => import('./DireccionGrupo'));
+
+type Pestana = 'registro' | 'columnas' | 'estadisticas' | 'compartir';
 type Orden = 'az' | 'grupo';
 
 const CLAVE_ORDEN = 'asis.evento.orden';
@@ -42,7 +45,13 @@ const PESTANAS_EVENTO: { clave: Pestana; nombre: string; descripcion: string }[]
     clave: 'registro',
     nombre: 'Registro',
     descripcion:
-      'Una columna por cada día del evento en que se llama lista. Toque una casilla para marcar, o escanee el código del estudiante.',
+      'La asistencia: una columna por cada día del evento en que se llama lista. Con «+ Registro de asistencia» se abre otro día. Toque una casilla para marcar, o escanee el código del estudiante.',
+  },
+  {
+    clave: 'columnas',
+    nombre: 'Gestión del grupo',
+    descripcion:
+      'La misma lista, sin la asistencia: columnas suyas con íconos, puntos, casillas o contadores, como en dirección de grupo. Por ejemplo, a qué brigada pertenece cada estudiante.',
   },
   {
     clave: 'estadisticas',
@@ -87,7 +96,8 @@ function guardarOrden(o: Orden) {
  * solo dia a la vez y no habia forma evidente de pasar al siguiente. «+ Columna» ofrece
  * SOLO los dias del rango del evento. Una columna nueva no crea nada hasta la primera
  * marca: si se creara al abrirla, cada vistazo dejaria una sesion vacia e inflaria el
- * denominador de la estadistica (sesiones REGISTRADAS, nunca el calendario).
+ * denominador de la estadistica (sesiones REGISTRADAS, nunca el calendario). El boton dice
+ * «+ Registro de asistencia», no «+ Columna»: Julian lo confundio con las columnas de gestion.
  *
  * Quien marco ya no se ve en cada fila (antes salia el correo completo): queda en el
  * aviso de la casilla y, con el nombre corto, en Estadisticas.
@@ -173,6 +183,11 @@ export default function PlanillaEvento({
       vivo = false;
     };
   }, []);
+
+  // Estable entre renders: el cuaderno se reabre cada vez que cambia `fuente`. El año es
+  // el del inicio del evento, para que un evento no se parta en dos cuadernos.
+  const fuenteCuaderno = useMemo(() => ({ tipo: 'evento' as const, eventId: evento.eventId }), [evento.eventId]);
+  const anioCuaderno = Number(evento.desde.slice(0, 4)) || new Date().getFullYear();
 
   const nombreCorto = useCallback(
     (correo: string) => nombreCortoDocente(directorio.find((d) => d.correo === correo)?.nombre, correo),
@@ -285,7 +300,12 @@ export default function PlanillaEvento({
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {PESTANAS_EVENTO.filter((p) => p.clave !== 'compartir' || evento.creadoPor === miCorreo).map(
+        {PESTANAS_EVENTO.filter(
+          (p) =>
+            (p.clave !== 'compartir' || evento.creadoPor === miCorreo) &&
+            // Escribir el cuaderno exige poder registrar, igual que marcar.
+            (p.clave !== 'columnas' || puedeRegistrar),
+        ).map(
           ({ clave, nombre, descripcion }) => (
             <Ayuda key={clave} texto={descripcion}>
               <button
@@ -321,13 +341,13 @@ export default function PlanillaEvento({
             <div className="flex flex-wrap items-center gap-2">
               {puedeRegistrar && diasLibres.length > 0 && (
                 <label className="flex items-center gap-1 text-sm text-strong">
-                  <span className="sr-only">Abrir una columna para otro día del evento</span>
+                  <span className="sr-only">Abrir el registro de asistencia de otro día del evento</span>
                   <select
                     value=""
                     onChange={(ev) => abrirColumna(ev.target.value)}
                     className="rounded-lg border border-accent bg-accent-soft px-2 py-2 text-sm font-medium text-accent-soft-fg"
                   >
-                    <option value="">+ Columna</option>
+                    <option value="">+ Registro de asistencia</option>
                     {diasLibres.map((d) => (
                       <option key={d} value={d}>
                         {etiquetaDia(d)}
@@ -393,7 +413,7 @@ export default function PlanillaEvento({
                       <th key={f} className="p-1 font-medium">
                         <button
                           onClick={() => setColumnaActiva(f)}
-                          title={registrada ? `Sesión del ${etiquetaDia(f)}` : 'Columna nueva: se guarda con la primera marca'}
+                          title={registrada ? `Asistencia del ${etiquetaDia(f)}` : 'Registro nuevo: se guarda con la primera marca'}
                           className={[
                             'whitespace-nowrap rounded-lg px-2 py-1',
                             f === activa ? 'bg-accent-soft font-semibold text-accent-soft-fg' : 'text-soft',
@@ -425,6 +445,19 @@ export default function PlanillaEvento({
             </table>
           </div>
         </div>
+      )}
+
+      {pestana === 'columnas' && puedeRegistrar && (
+        <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando la gestión del grupo…</p>}>
+          <DireccionGrupo
+            fuente={fuenteCuaderno}
+            etiqueta={evento.nombre}
+            anio={anioCuaderno}
+            estudiantes={miembros}
+            sesionesEvento={sesiones}
+            onAbrirFicha={onAbrirFicha}
+          />
+        </Suspense>
       )}
 
       {pestana === 'estadisticas' && (

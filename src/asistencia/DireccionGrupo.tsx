@@ -26,6 +26,7 @@ import type {
   ColumnaDireccion,
   DireccionGrupo as DireccionGrupoModelo,
   OpcionColumna,
+  EventSession,
   SesionPrograma,
   Student,
   TipoColumna,
@@ -56,6 +57,7 @@ export default function DireccionGrupo({
   anio,
   estudiantes,
   sesionesCentro,
+  sesionesEvento,
   onAbrirFicha,
 }: {
   /**
@@ -65,6 +67,7 @@ export default function DireccionGrupo({
    *
    *  - `grado`:  el cuaderno del director de grupo.
    *  - `centro`: el de gestion de un centro de interes, del lider y sus docentes.
+   *  - `evento`: el de un evento, de su creador y los docentes con quienes lo compartio.
    */
   fuente: FuenteCuaderno;
   /** Como se llama esto para el docente: "11.2" o "Vive Coding". Va en el Excel. */
@@ -76,6 +79,8 @@ export default function DireccionGrupo({
    * centro y ninguna otra.
    */
   sesionesCentro?: SesionPrograma[];
+  /** Igual, para un evento: sus sesiones, ya cargadas por `PlanillaEvento`. */
+  sesionesEvento?: EventSession[];
   anio: number;
   estudiantes: Student[];
   /**
@@ -158,9 +163,11 @@ export default function DireccionGrupo({
     // cuentan con `goesToMaster2000` —ausencia y evasion—, la misma definicion que la
     // columna del director, para que la cifra signifique lo mismo en los dos cuadernos.
     // Las sesiones ya vienen cargadas: aqui no se pide nada.
-    if (fuente.tipo === 'centro') {
+    // EVENTO: igual, con las sesiones del evento.
+    if (fuente.tipo !== 'grado') {
       const porEstudiante: Record<string, number> = {};
-      for (const s of sesionesCentro ?? []) {
+      const propias = fuente.tipo === 'centro' ? sesionesCentro ?? [] : sesionesEvento ?? [];
+      for (const s of propias) {
         for (const [id, m] of Object.entries(s.estudiantes ?? {})) {
           if (!studentIds.includes(id)) continue;
           porEstudiante[id] =
@@ -201,7 +208,7 @@ export default function DireccionGrupo({
     return () => {
       vivo = false;
     };
-  }, [fuente, sesionesCentro, studentIds]);
+  }, [fuente, sesionesCentro, sesionesEvento, studentIds]);
 
   /**
    * Llegadas tarde a la institucion que ALERTAN (excluye justificadas y pendientes de
@@ -215,7 +222,8 @@ export default function DireccionGrupo({
     // Las llegadas tarde son de la INSTITUCION y van por grado. Un centro de interes
     // reune estudiantes de todo el colegio y su lider no puede leer esos registros
     // —autoridad de coordinacion y del director—, asi que ahi esta columna no existe.
-    if (fuente.tipo === 'centro') {
+    // Un evento, lo mismo.
+    if (fuente.tipo !== 'grado') {
       setLlegadasTardePorEstudiante({});
       return;
     }
@@ -246,10 +254,17 @@ export default function DireccionGrupo({
    * si el director no las ha ocultado. */
   const columnasAutomaticas: ColumnaAutomatica[] = ocultarAutomaticas
     ? []
-    : fuente.tipo === 'centro'
-      ? // En un centro solo cabe una: sus propias inasistencias. Se llama distinto a
-        // proposito —"Faltas" a secas se leeria como las del colegio— aunque se cuente igual.
-        [{ id: 'faltas', nombre: 'Inasistencias al centro', valores: faltasPorEstudiante }]
+    : fuente.tipo !== 'grado'
+      ? // En un centro o un evento solo cabe una: sus propias inasistencias. Se llama
+        // distinto a proposito —"Faltas" a secas se leeria como las del colegio— aunque se
+        // cuente igual.
+        [
+          {
+            id: 'faltas',
+            nombre: fuente.tipo === 'centro' ? 'Inasistencias al centro' : 'Inasistencias al evento',
+            valores: faltasPorEstudiante,
+          },
+        ]
       : [
           { id: 'faltas', nombre: 'Faltas', valores: faltasPorEstudiante },
           { id: 'llegadas_tarde', nombre: 'Llegadas tarde', valores: llegadasTardePorEstudiante },
@@ -381,7 +396,13 @@ export default function DireccionGrupo({
             className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs font-medium text-soft hover:bg-hover"
           >
             {ocultarAutomaticas ? <EyeOff size={14} /> : <Eye size={14} />}
-            {ocultarAutomaticas ? 'Mostrar faltas y llegadas tarde' : 'Ocultar faltas y llegadas tarde'}
+            {fuente.tipo === 'grado'
+              ? ocultarAutomaticas
+                ? 'Mostrar faltas y llegadas tarde'
+                : 'Ocultar faltas y llegadas tarde'
+              : ocultarAutomaticas
+                ? 'Mostrar inasistencias'
+                : 'Ocultar inasistencias'}
           </button>
         </div>
       )}

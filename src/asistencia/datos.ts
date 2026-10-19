@@ -1568,6 +1568,9 @@ export async function leerEstudiantesDeSede(sede: string): Promise<Student[]> {
  *              (`asistenciaProgramas/{id}/grupos/{id}/gestion/{anio}`). Julian,
  *              2026-09-09: "las mismas funciones y opciones que tiene la direccion de
  *              grupo. Igualitas."
+ *  - `evento`: el de un EVENTO, de su creador y los docentes con quienes lo compartio
+ *              (`asistenciaEvents/{id}/cuaderno/{anio}`). Julian, 2026-10-19: columnas
+ *              con iconos para saber quien es de cada brigada.
  *
  * Se resuelve la RUTA y nada mas: todo lo que viene despues —leer antes de escribir,
  * rutas de campo puntuales, no esperar el acuse— es identico para los dos, y tiene que
@@ -1576,9 +1579,13 @@ export async function leerEstudiantesDeSede(sede: string): Promise<Student[]> {
  */
 export type FuenteCuaderno =
   | { tipo: 'grado'; grado: string }
-  | { tipo: 'centro'; programaId: string; grupoId: string };
+  | { tipo: 'centro'; programaId: string; grupoId: string }
+  | { tipo: 'evento'; eventId: string };
 
 function refCuaderno(fuente: FuenteCuaderno, anio: number) {
+  if (fuente.tipo === 'evento') {
+    return doc(baseDatos(), 'asistenciaEvents', fuente.eventId, 'cuaderno', String(anio));
+  }
   return fuente.tipo === 'grado'
     ? doc(baseDatos(), 'asistenciaDireccionGrupo', fuente.grado, 'anios', String(anio))
     : doc(
@@ -1594,6 +1601,7 @@ function refCuaderno(fuente: FuenteCuaderno, anio: number) {
 
 /** Los campos de identidad del cuaderno. Las reglas los exigen inmutables. */
 function identidadCuaderno(fuente: FuenteCuaderno, anio: number) {
+  if (fuente.tipo === 'evento') return { eventId: fuente.eventId, anio };
   return fuente.tipo === 'grado'
     ? { grado: fuente.grado, anio }
     : { programaId: fuente.programaId, grupoId: fuente.grupoId, anio };

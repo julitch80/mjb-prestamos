@@ -1240,6 +1240,26 @@ service cloud.firestore {
 
         allow delete: if !esSuplantacion() && (false);
       }
+
+      // El cuaderno del evento: columnas propias con iconos, puntos, casillas o contadores,
+      // igual que el del director de grupo (Julian, 2026-10-19: "quienes pertenecen a la
+      // brigada de incendios, quienes a la de terremotos"). Los mismos que pueden marcar en
+      // el evento pueden escribir aqui, con la misma excepcion del cargo de apoyo: solo en SU
+      // evento. Igual que en el cuaderno del director, la regla no puede impedir que el
+      // cliente lo vacie; por eso `abrirCuaderno` lee antes de escribir.
+      match /cuaderno/{anio} {
+        allow read: if asisEnEvento(eventId);
+
+        allow create, update: if !esSuplantacion() && (asisEnEvento(eventId)
+          && (asisCanRecord()
+              || (asisConsultaCreaEventos() && asisEventoDe(eventId).creadoPor == callerEmail()))
+          && asisAuthorStamp()
+          // El cuaderno no cambia de evento ni de año.
+          && request.resource.data.eventId == eventId
+          && request.resource.data.anio == int(anio));
+
+        allow delete: if !esSuplantacion() && (false);
+      }
     }
 
     // Quien puede REABRIR una valoracion ya entregada (Julian, 2026-09-10).
