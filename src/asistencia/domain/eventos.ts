@@ -127,3 +127,76 @@ export function resumenSesionEvento(
   const marcados = miembros.filter((id) => sesion.estudiantes?.[id]).length;
   return { marcados, pendientes: total - marcados, total };
 }
+
+// ---------------------------------------------------------------------------
+//  Planilla del evento en columnas (Julian, 2026-10-19)
+// ---------------------------------------------------------------------------
+
+/**
+ * Los dias del rango del evento, inclusivos, en orden. Son las columnas que se pueden
+ * abrir: antes el selector de fecha dejaba escoger cualquier dia, aun fuera del evento.
+ * Se calcula en UTC para que un cambio de horario no repita ni salte un dia.
+ */
+export function diasDelEvento(desde: string, hasta: string): string[] {
+  const dias: string[] = [];
+  const d = new Date(`${desde}T00:00:00Z`);
+  const fin = new Date(`${hasta}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || Number.isNaN(fin.getTime())) return dias;
+  while (d <= fin && dias.length < 400) {
+    dias.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return dias;
+}
+
+/**
+ * Orden de grados natural: 6.º2 antes que 6.º10, y por numero de grado antes que por
+ * texto. No sanea la notacion (`9.1` es de la mañana y `6º1` de la tarde, la «º» distingue
+ * la jornada): solo extrae los numeros para comparar, y desempata por el texto original.
+ */
+export function compararGrados(a: string, b: string): number {
+  const na = (a.match(/\d+/g) ?? []).map(Number);
+  const nb = (b.match(/\d+/g) ?? []).map(Number);
+  for (let i = 0; i < Math.max(na.length, nb.length); i++) {
+    const x = na[i] ?? -1;
+    const y = nb[i] ?? -1;
+    if (x !== y) return x - y;
+  }
+  return a.localeCompare(b, 'es');
+}
+
+/** Los integrantes agrupados por grado, en orden natural; dentro de cada grado, el orden que traian. */
+export function agruparPorGrado<T extends { gradoActual: string }>(
+  lista: T[],
+): { grado: string; estudiantes: T[] }[] {
+  const porGrado = new Map<string, T[]>();
+  for (const e of lista) {
+    const g = e.gradoActual || 'Sin grado';
+    const l = porGrado.get(g) ?? [];
+    l.push(e);
+    porGrado.set(g, l);
+  }
+  return [...porGrado.entries()]
+    .sort(([a], [b]) => compararGrados(a, b))
+    .map(([grado, estudiantes]) => ({ grado, estudiantes }));
+}
+
+/**
+ * El nombre corto de un docente para mostrar quien llamo lista: el primer nombre de
+ * `displayName` («Julián David Medina» → «Julián»). Sin nombre, la parte del correo antes
+ * de la arroba: nunca el correo completo con dominio.
+ */
+export function nombreCortoDocente(displayName: string | undefined, correo: string): string {
+  const primera = (displayName ?? '').trim().split(/\s+/)[0];
+  if (primera) return primera.charAt(0).toLocaleUpperCase('es') + primera.slice(1).toLocaleLowerCase('es');
+  return correo.split('@')[0] ?? correo;
+}
+
+/** Quienes marcaron en una sesion, sin repetir, en el orden en que aparecen. */
+export function quienesLlamaronLista(sesion: EventSession): string[] {
+  const vistos = new Set<string>();
+  for (const m of Object.values(sesion.estudiantes ?? {})) {
+    if (m?.registradoPor) vistos.add(m.registradoPor);
+  }
+  return [...vistos];
+}

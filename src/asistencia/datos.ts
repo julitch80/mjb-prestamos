@@ -685,6 +685,33 @@ export async function leerDirectores(): Promise<Record<string, string>> {
  * `users` se lee sin filtro porque su regla es `isActiveUser()`, que no mira `resource`:
  * la consulta es demostrable. Son 48 documentos.
  */
+export interface DocenteDirectorio {
+  correo: string;
+  nombre: string;
+  sede: string;
+  rol: string;
+}
+
+/**
+ * El directorio de la gente del colegio, para compartir un evento escogiendo por nombre
+ * en vez de escribir el correo completo (Julian, 2026-10-19). Lee `users`, que cualquier
+ * usuario activo puede leer; sin `sede` se asume la central, igual que el resto de MJB.
+ * Solo cuentas activas, ordenadas por nombre.
+ */
+export async function leerDocentes(): Promise<DocenteDirectorio[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(collection(baseDatos(), 'users'));
+  const lista: DocenteDirectorio[] = [];
+  snap.forEach((d) => {
+    const u = d.data() as { email?: string; displayName?: string; sede?: string; role?: string; active?: boolean };
+    if (u.active === false) return;
+    const correo = (u.email || d.id).trim().toLowerCase();
+    if (!correo.includes('@')) return;
+    lista.push({ correo, nombre: (u.displayName || correo).trim(), sede: u.sede || 'central', rol: u.role || '' });
+  });
+  return lista.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+}
+
 export async function leerNombresDeDirectores(): Promise<Record<string, string>> {
   if (!(await listo())) return {};
   const [porGrado, usuarios] = await Promise.all([

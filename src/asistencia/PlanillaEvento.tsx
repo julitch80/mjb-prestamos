@@ -9,31 +9,45 @@ import {
   buscarPorQrToken,
   compartirEvento,
   eliminarEvento,
+  leerDocentes,
   leerEstudiantesDeSede,
   leerSesionesEvento,
   marcarEnEvento,
+  type DocenteDirectorio,
 } from './datos';
-import { estadisticaEvento, eventoVigente, resumenSesionEvento } from './domain/eventos';
+import {
+  agruparPorGrado,
+  diasDelEvento,
+  estadisticaEvento,
+  eventoVigente,
+  nombreCortoDocente,
+  quienesLlamaronLista,
+  resumenSesionEvento,
+} from './domain/eventos';
 import { conDenominador } from './domain/stats';
 import { toDateKey } from './domain/ids';
 import { MARKS, findMark, type MarkCode } from './domain/marks';
 import { nombreCompleto, ordenarEstudiantes } from './domain/nombres';
 import type { Event, EventSession, Student } from './domain/types';
+import { colorGrado } from '../data/maestros';
 import Ayuda from './Ayuda';
 
 type Pestana = 'registro' | 'estadisticas' | 'compartir';
+type Orden = 'az' | 'grupo';
+
+const CLAVE_ORDEN = 'asis.evento.orden';
 
 const PESTANAS_EVENTO: { clave: Pestana; nombre: string; descripcion: string }[] = [
   {
     clave: 'registro',
     nombre: 'Registro',
     descripcion:
-      'Marque la asistencia del día: escanee el código del estudiante y confirme con la foto, o márquelo desde la lista.',
+      'Una columna por cada día del evento en que se llama lista. Toque una casilla para marcar, o escanee el código del estudiante.',
   },
   {
     clave: 'estadisticas',
     nombre: 'Estadísticas',
-    descripcion: 'Cuánto ha asistido cada integrante, sobre el total de sesiones registradas.',
+    descripcion: 'Cuánto ha asistido cada integrante, sobre el total de sesiones registradas, y quién llamó lista cada día.',
   },
   {
     clave: 'compartir',
@@ -43,13 +57,40 @@ const PESTANAS_EVENTO: { clave: Pestana; nombre: string; descripcion: string }[]
   },
 ];
 
+/** «lun 19 oct» a partir de 'YYYY-MM-DD', sin depender de la zona horaria. */
+function etiquetaDia(fecha: string): string {
+  const d = new Date(`${fecha}T12:00:00`);
+  return d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '');
+}
+
+function leerOrden(): Orden {
+  try {
+    return localStorage.getItem(CLAVE_ORDEN) === 'grupo' ? 'grupo' : 'az';
+  } catch {
+    return 'az';
+  }
+}
+
+function guardarOrden(o: Orden) {
+  try {
+    localStorage.setItem(CLAVE_ORDEN, o);
+  } catch {
+    /* sin almacenamiento: el orden vuelve a A–Z la proxima vez */
+  }
+}
+
 /**
  * Planilla de un evento — registro, estadistica y compartir en una sola pantalla.
  *
- * A diferencia de `Planilla.tsx` (columnas = sesiones de un cruce grado+asignatura), aqui
- * solo hay UNA fecha visible a la vez: un evento no tiene "todas las sesiones a la vista"
- * porque la lista de integrantes puede ser grande (una jornada completa) y mostrar
- * columnas por cada dia del rango la haria ilegible en movil.
+ * Registro en COLUMNAS, como la planilla de clase (Julian, 2026-10-19): una columna por
+ * cada dia del evento en que se llama lista, la mas reciente primero. Antes se veia un
+ * solo dia a la vez y no habia forma evidente de pasar al siguiente. «+ Columna» ofrece
+ * SOLO los dias del rango del evento. Una columna nueva no crea nada hasta la primera
+ * marca: si se creara al abrirla, cada vistazo dejaria una sesion vacia e inflaria el
+ * denominador de la estadistica (sesiones REGISTRADAS, nunca el calendario).
+ *
+ * Quien marco ya no se ve en cada fila (antes salia el correo completo): queda en el
+ * aviso de la casilla y, con el nombre corto, en Estadisticas.
  */
 export default function PlanillaEvento({
   evento,
@@ -74,20 +115,23 @@ export default function PlanillaEvento({
   onEliminado: (mensaje: string) => void;
 }) {
   const [pestana, setPestana] = useState<Pestana>('registro');
-  const [fecha, setFecha] = useState(toDateKey(new Date()));
+  const dias = useMemo(() => diasDelEvento(evento.desde, evento.hasta), [evento.desde, evento.hasta]);
+  const hoy = toDateKey(new Date());
+  const [columnaActiva, setColumnaActiva] = useState<string>(dias.includes(hoy) ? hoy : '');
+  const [columnasNuevas, setColumnasNuevas] = useState<string[]>([]);
+  const [orden, setOrden] = useState<Orden>(leerOrden);
   const [miembros, setMiembros] = useState<Student[]>([]);
   const [sesiones, setSesiones] = useState<EventSession[]>([]);
+  const [directorio, setDirectorio] = useState<DocenteDirectorio[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [escaneando, setEscaneando] = useState(false);
   const [candidatoQr, setCandidatoQr] = useState<Student | null>(null);
-  const [marcando, setMarcando] = useState<Student | null>(null);
+  const [marcando, setMarcando] = useState<{ estudiante: Student; fecha: string } | null>(null);
 
   // `leerEstudiantesDeSede` trae solo activos: un integrante dado de baja despues de
-  // crear el evento desaparece del listado. `evento.miembros` es la foto fija de IDs; el
-  // orden ya viene resuelto por apellidos desde `resolverIntegrantes`, asi que se
-  // preserva mapeando en ese mismo orden.
+  // crear el evento desaparece del listado. `evento.miembros` es la foto fija de IDs.
   useEffect(() => {
     let vivo = true;
     setCargando(true);
@@ -99,10 +143,8 @@ export default function PlanillaEvento({
         ]);
         if (!vivo) return;
         const porId = new Map(todos.map((e) => [e.studentId, e]));
-        // Se ordena al pintar por la misma razon que en `PlanillaCentro`: `miembros` es
-        // un conjunto de studentIds, y hoy nace ordenado (`resolverIntegrantes`) pero
-        // nada garantiza que siga asi el dia que se puedan añadir integrantes despues.
-        // Ordenar aqui cuesta nada y quita la suposicion.
+        // Se ordena al pintar: `miembros` es un conjunto de studentIds y nada garantiza
+        // que siga ordenado el dia que se puedan añadir integrantes despues.
         setMiembros(
           ordenarEstudiantes(
             evento.miembros.map((id) => porId.get(id)).filter((e): e is Student => !!e),
@@ -120,23 +162,43 @@ export default function PlanillaEvento({
     };
   }, [evento.eventId, evento.sede, evento.miembros]);
 
+  // El directorio da los nombres cortos («Julián») y la lista para compartir. Si falla,
+  // la planilla sigue: solo se veria la parte del correo antes de la arroba.
+  useEffect(() => {
+    let vivo = true;
+    leerDocentes()
+      .then((d) => vivo && setDirectorio(d))
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  const nombreCorto = useCallback(
+    (correo: string) => nombreCortoDocente(directorio.find((d) => d.correo === correo)?.nombre, correo),
+    [directorio],
+  );
+
   const recargarSesiones = useCallback(async () => {
     setSesiones(await leerSesionesEvento(evento.eventId));
   }, [evento.eventId]);
 
-  const sesionActual = useMemo(
-    () => sesiones.find((s) => s.fecha === fecha) ?? null,
-    [sesiones, fecha],
-  );
-  const avance = resumenSesionEvento(sesionActual, evento.miembros);
+  // Columnas: los dias con sesion registrada, mas los recien abiertos con «+ Columna» y
+  // el dia activo; la mas reciente primero, como en la planilla de clase.
+  const columnas = useMemo(() => {
+    const s = new Set<string>([...sesiones.map((x) => x.fecha), ...columnasNuevas]);
+    if (columnaActiva) s.add(columnaActiva);
+    return [...s].sort().reverse();
+  }, [sesiones, columnasNuevas, columnaActiva]);
 
-  /**
-   * Abre la sesion del dia SOLO cuando hace falta escribir en ella, nunca al elegir la
-   * fecha en el selector: si se abriera al mirar una fecha, cada vistazo dejaria una
-   * sesion vacia y el denominador de `estadisticaEvento` (sesiones REGISTRADAS, nunca el
-   * calendario) quedaria inflado con dias en los que nadie tomo asistencia.
-   */
-  async function asegurarSesion(): Promise<EventSession> {
+  // Sin dia activo (el evento no es de hoy): la columna mas reciente; si no hay ninguna,
+  // el primer dia del evento.
+  const activa = columnaActiva || columnas[0] || dias[0] || hoy;
+  const sesionDe = (f: string) => sesiones.find((s) => s.fecha === f) ?? null;
+  const avance = resumenSesionEvento(sesionDe(activa), evento.miembros);
+  const diasLibres = dias.filter((d) => !columnas.includes(d));
+
+  async function asegurarSesion(fecha: string): Promise<EventSession> {
     const existente = sesiones.find((s) => s.fecha === fecha);
     if (existente) return existente;
     const nueva = await abrirSesionEvento(evento.eventId, fecha);
@@ -144,15 +206,26 @@ export default function PlanillaEvento({
     return nueva;
   }
 
-  async function marcar(studentId: string, estado: MarkCode) {
+  async function marcar(studentId: string, estado: MarkCode, fecha: string) {
     setError(null);
     try {
-      await asegurarSesion();
+      await asegurarSesion(fecha);
       await marcarEnEvento(evento.eventId, fecha, studentId, estado);
       await recargarSesiones();
     } catch (e) {
       setError(`No fue posible registrar: ${(e as Error).message}`);
     }
+  }
+
+  function abrirColumna(fecha: string) {
+    if (!fecha) return;
+    setColumnasNuevas((c) => (c.includes(fecha) ? c : [...c, fecha]));
+    setColumnaActiva(fecha);
+  }
+
+  function cambiarOrden(o: Orden) {
+    setOrden(o);
+    guardarOrden(o);
   }
 
   async function leerQr(texto: string) {
@@ -183,8 +256,8 @@ export default function PlanillaEvento({
   async function marcarDesdeQr(estado: MarkCode) {
     if (!candidatoQr) return;
     const nombre = nombreCompleto(candidatoQr);
-    await marcar(candidatoQr.studentId, estado);
-    setAviso(`${nombre} — marcado.`);
+    await marcar(candidatoQr.studentId, estado, activa);
+    setAviso(`${nombre} — marcado el ${etiquetaDia(activa)}.`);
     setCandidatoQr(null);
   }
 
@@ -192,7 +265,9 @@ export default function PlanillaEvento({
     return <p className="p-3 text-sm text-muted">Cargando evento…</p>;
   }
 
-  const vigenteHoy = eventoVigente(evento, toDateKey(new Date()));
+  const vigenteHoy = eventoVigente(evento, hoy);
+  const grupos: { grado: string | null; estudiantes: Student[] }[] =
+    orden === 'grupo' ? agruparPorGrado(miembros) : [{ grado: null, estudiantes: miembros }];
 
   return (
     <div className="space-y-3">
@@ -243,16 +318,25 @@ export default function PlanillaEvento({
       {pestana === 'registro' && (
         <div className="space-y-3">
           <div className="rounded-xl border border-line bg-card p-3">
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="text-xs text-muted">
-                Fecha
-                <input
-                  type="date"
-                  value={fecha}
-                  onChange={(ev) => setFecha(ev.target.value)}
-                  className="mt-0.5 block rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong"
-                />
-              </label>
+            <div className="flex flex-wrap items-center gap-2">
+              {puedeRegistrar && diasLibres.length > 0 && (
+                <label className="flex items-center gap-1 text-sm text-strong">
+                  <span className="sr-only">Abrir una columna para otro día del evento</span>
+                  <select
+                    value=""
+                    onChange={(ev) => abrirColumna(ev.target.value)}
+                    className="rounded-lg border border-accent bg-accent-soft px-2 py-2 text-sm font-medium text-accent-soft-fg"
+                  >
+                    <option value="">+ Columna</option>
+                    {diasLibres.map((d) => (
+                      <option key={d} value={d}>
+                        {etiquetaDia(d)}
+                        {d === hoy ? ' (hoy)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               {puedeRegistrar && (
                 <button
                   onClick={() => setEscaneando(true)}
@@ -261,11 +345,31 @@ export default function PlanillaEvento({
                   Escanear código
                 </button>
               )}
+              <div className="flex rounded-full border border-line p-0.5 text-xs" role="group" aria-label="Orden de la lista">
+                {(['az', 'grupo'] as Orden[]).map((o) => (
+                  <button
+                    key={o}
+                    onClick={() => cambiarOrden(o)}
+                    aria-pressed={orden === o}
+                    className={[
+                      'rounded-full px-3 py-1',
+                      orden === o ? 'bg-accent-soft font-semibold text-accent-soft-fg' : 'text-soft',
+                    ].join(' ')}
+                  >
+                    {o === 'az' ? 'A–Z' : 'Por grupo'}
+                  </button>
+                ))}
+              </div>
               <span className="grow" />
               <span className="text-sm font-semibold text-strong">
-                {avance.marcados} de {avance.total} marcados
+                {etiquetaDia(activa)}: {avance.marcados} de {avance.total} marcados
               </span>
             </div>
+            {puedeRegistrar && (
+              <p className="mt-1 text-xs text-muted">
+                El código escaneado se marca en la columna resaltada. Toque el encabezado de otra columna para cambiarla.
+              </p>
+            )}
 
             {candidatoQr && (
               <ul className="mt-2">
@@ -278,64 +382,63 @@ export default function PlanillaEvento({
             )}
           </div>
 
-          <ul className="space-y-1">
-            {miembros.map((e) => {
-              const m = sesionActual?.estudiantes?.[e.studentId];
-              const def = m ? findMark(m.estado) : undefined;
-              return (
-                <li
-                  key={e.studentId}
-                  className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card p-2"
-                >
-                  {/* Pulsable, por lo mismo que en la planilla de clase y en la de un
-                      centro: quien lleva el evento necesita el telefono del acudiente y la
-                      ficha ya se lo deja ver. Se arreglo junto con la del centro
-                      (Julian, 2026-09-09), que era la que el habia reportado. */}
-                  <button
-                    onClick={() => onAbrirFicha(e.studentId)}
-                    title={`Abrir la ficha de ${nombreCompleto(e)}`}
-                    className="flex min-w-0 grow items-center gap-2 text-left"
-                  >
-                    <Avatar estudiante={e} tamano={40} />
-                    <span className="min-w-0 grow text-sm">
-                      <b className="block truncate text-strong">{nombreCompleto(e)}</b>
-                      <span className="text-xs text-muted">{e.gradoActual}</span>
-                    </span>
-                  </button>
-                  {/* La trazabilidad es el punto de un evento compartido: aqui va SIEMPRE
-                      visible, no escondida en un title como en la planilla de clase. */}
-                  {def && m && (
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${CLASE_MARCA[def.code]}`}
-                      title={`Registró ${m.registradoPor}`}
-                    >
-                      <SiglaMarca code={def.code} /> · {m.registradoPor}
-                    </span>
-                  )}
-                  {puedeRegistrar && (
-                    <button
-                      onClick={() => setMarcando(e)}
-                      className="rounded-lg border border-line px-3 py-1.5 text-sm text-strong"
-                      aria-label={`Marcar a ${nombreCompleto(e)}`}
-                    >
-                      {def ? 'Cambiar' : 'Marcar'}
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <div className="overflow-x-auto rounded-xl border border-line bg-card">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="text-xs text-muted">
+                  <th className="sticky left-0 z-10 bg-card p-2 text-left font-medium">Estudiante</th>
+                  {columnas.map((f) => {
+                    const registrada = Boolean(sesionDe(f));
+                    return (
+                      <th key={f} className="p-1 font-medium">
+                        <button
+                          onClick={() => setColumnaActiva(f)}
+                          title={registrada ? `Sesión del ${etiquetaDia(f)}` : 'Columna nueva: se guarda con la primera marca'}
+                          className={[
+                            'whitespace-nowrap rounded-lg px-2 py-1',
+                            f === activa ? 'bg-accent-soft font-semibold text-accent-soft-fg' : 'text-soft',
+                          ].join(' ')}
+                        >
+                          {etiquetaDia(f)}
+                          {!registrada && <span className="block text-[10px] font-normal">nueva</span>}
+                        </button>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {grupos.map(({ grado, estudiantes }) => (
+                  <FilasGrupo
+                    key={grado ?? 'todos'}
+                    grado={grado}
+                    estudiantes={estudiantes}
+                    columnas={columnas}
+                    sesionDe={sesionDe}
+                    nombreCorto={nombreCorto}
+                    puedeRegistrar={puedeRegistrar}
+                    onAbrirFicha={onAbrirFicha}
+                    onMarcar={(estudiante, fecha) => setMarcando({ estudiante, fecha })}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {pestana === 'estadisticas' && <EstadisticasEvento miembros={miembros} sesiones={sesiones} />}
+      {pestana === 'estadisticas' && (
+        <EstadisticasEvento miembros={miembros} sesiones={sesiones} nombreCorto={nombreCorto} />
+      )}
 
       {pestana === 'compartir' && evento.creadoPor === miCorreo && (
         <div className="space-y-4">
           <CompartirEvento
             eventId={evento.eventId}
+            sedeEvento={evento.sede}
             docentesIniciales={evento.docentes}
             creadoPor={evento.creadoPor}
+            directorio={directorio}
             onAviso={setAviso}
             onError={setError}
           />
@@ -347,16 +450,95 @@ export default function PlanillaEvento({
 
       {marcando && (
         <HojaMarcar
-          estudiante={marcando}
-          marcaActual={sesionActual?.estudiantes?.[marcando.studentId] ?? null}
+          estudiante={marcando.estudiante}
+          fecha={marcando.fecha}
+          marcaActual={sesionDe(marcando.fecha)?.estudiantes?.[marcando.estudiante.studentId] ?? null}
+          nombreCorto={nombreCorto}
           onElegir={(estado) => {
-            void marcar(marcando.studentId, estado);
+            void marcar(marcando.estudiante.studentId, estado, marcando.fecha);
             setMarcando(null);
           }}
           onCerrar={() => setMarcando(null)}
         />
       )}
     </div>
+  );
+}
+
+/** Las filas de un grupo (o de toda la lista en A–Z), con su encabezado de grado. */
+function FilasGrupo({
+  grado,
+  estudiantes,
+  columnas,
+  sesionDe,
+  nombreCorto,
+  puedeRegistrar,
+  onAbrirFicha,
+  onMarcar,
+}: {
+  grado: string | null;
+  estudiantes: Student[];
+  columnas: string[];
+  sesionDe: (f: string) => EventSession | null;
+  nombreCorto: (correo: string) => string;
+  puedeRegistrar: boolean;
+  onAbrirFicha: (studentId: string) => void;
+  onMarcar: (e: Student, fecha: string) => void;
+}) {
+  return (
+    <>
+      {grado && (
+        <tr>
+          <td
+            colSpan={columnas.length + 1}
+            className="border-t border-line bg-elevated px-2 py-1 text-xs font-semibold"
+            style={{ color: colorGrado(grado) }}
+          >
+            {grado} · {estudiantes.length}
+          </td>
+        </tr>
+      )}
+      {estudiantes.map((e) => (
+        <tr key={e.studentId} className="border-t border-line">
+          <td className="sticky left-0 z-10 bg-card p-1.5">
+            {/* Pulsable: quien lleva el evento necesita el telefono del acudiente y la
+                ficha ya se lo deja ver (Julian, 2026-09-09). */}
+            <button
+              onClick={() => onAbrirFicha(e.studentId)}
+              title={`Abrir la ficha de ${nombreCompleto(e)}`}
+              className="flex min-w-[11rem] items-center gap-2 text-left"
+            >
+              <Avatar estudiante={e} tamano={36} />
+              <span className="min-w-0 text-sm">
+                <b className="block truncate text-strong">{nombreCompleto(e)}</b>
+                {!grado && <span className="text-xs text-muted">{e.gradoActual}</span>}
+              </span>
+            </button>
+          </td>
+          {columnas.map((f) => {
+            const m = sesionDe(f)?.estudiantes?.[e.studentId];
+            const def = m ? findMark(m.estado) : undefined;
+            const titulo = def && m ? `${def.label} · marcó ${nombreCorto(m.registradoPor)}` : 'Sin marcar';
+            return (
+              <td key={f} className="p-1 text-center">
+                <button
+                  disabled={!puedeRegistrar}
+                  onClick={() => onMarcar(e, f)}
+                  title={titulo}
+                  aria-label={`${nombreCompleto(e)}, ${f}: ${titulo}`}
+                  className={[
+                    'mx-auto grid h-9 min-w-9 place-items-center rounded-lg px-1.5 text-xs font-bold disabled:cursor-default',
+                    def ? CLASE_MARCA[def.code] : 'border border-dashed border-line text-muted',
+                  ].join(' ')}
+                >
+                  {def ? <SiglaMarca code={def.code} /> : '·'}
+                </button>
+              </td>
+            );
+          })}
+        </tr>
+      ))}
+    </>
   );
 }
 
@@ -380,18 +562,21 @@ function BotonesMarca({ onElegir }: { onElegir: (m: MarkCode) => void }) {
 }
 
 /**
- * Hoja de marcas para la lista completa de integrantes — mismo patron de `MenuMarcas` en
- * Planilla.tsx (foto grande, un boton por marca), reconstruido aqui porque ese componente
- * no esta exportado y no hay que copiar+pegar su contenido, solo el patron visual.
+ * Hoja de marcas — mismo patron de `MenuMarcas` en Planilla.tsx (foto grande, un boton
+ * por marca), reconstruido aqui porque ese componente no esta exportado.
  */
 function HojaMarcar({
   estudiante,
+  fecha,
   marcaActual,
+  nombreCorto,
   onElegir,
   onCerrar,
 }: {
   estudiante: Student;
+  fecha: string;
   marcaActual: { estado: string; registradoPor: string } | null;
+  nombreCorto: (correo: string) => string;
   onElegir: (estado: MarkCode) => void;
   onCerrar: () => void;
 }) {
@@ -407,10 +592,11 @@ function HojaMarcar({
         <div className="flex flex-col items-center gap-1">
           <Avatar estudiante={estudiante} tamano={110} />
           <p className="text-lg font-semibold text-strong">{nombreCompleto(estudiante)}</p>
+          <p className="text-xs text-muted">{etiquetaDia(fecha)}</p>
           {marcaActual && (
             <p className="text-xs text-muted">
-              Marca actual: {findMark(marcaActual.estado)?.label ?? marcaActual.estado} · registró{' '}
-              {marcaActual.registradoPor}
+              Marca actual: {findMark(marcaActual.estado)?.label ?? marcaActual.estado} · marcó{' '}
+              {nombreCorto(marcaActual.registradoPor)}
             </p>
           )}
         </div>
@@ -446,13 +632,16 @@ function HojaMarcar({
 /**
  * Estadistica por integrante. El denominador (`sesionesCount`) va SIEMPRE junto al
  * numero: "3 faltas" no dice nada sin saber sobre cuantas sesiones se registraron.
+ * Abajo, quien llamo lista cada dia, con el nombre corto: es el reporte del evento.
  */
 function EstadisticasEvento({
   miembros,
   sesiones,
+  nombreCorto,
 }: {
   miembros: Student[];
   sesiones: EventSession[];
+  nombreCorto: (correo: string) => string;
 }) {
   if (sesiones.length === 0) {
     return (
@@ -463,72 +652,112 @@ function EstadisticasEvento({
     );
   }
 
+  const porFecha = [...sesiones].sort((a, b) => b.fecha.localeCompare(a.fecha));
+
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-card p-3">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs text-muted">
-            <th className="p-1">Estudiante</th>
-            <th className="p-1 text-right">Asistencias</th>
-            <th className="p-1 text-right">Retrasos</th>
-            <th className="p-1">Ausencias</th>
-            <th className="p-1 text-right">Sin registrar</th>
-          </tr>
-        </thead>
-        <tbody>
-          {miembros.map((e) => {
-            const r = estadisticaEvento(e.studentId, sesiones);
-            return (
-              <tr key={e.studentId} className="border-t border-line">
-                <td className="p-1 text-strong">{nombreCompleto(e)}</td>
-                <td className="p-1 text-right text-soft">{r.porMarca.asistencia}</td>
-                <td className="p-1 text-right text-soft">
-                  {r.porMarca.retraso + r.porMarca.retraso_justificado}
-                </td>
-                <td className="p-1 text-xs text-muted">
-                  {conDenominador(r.ausenciasTotales, r.sesionesCount)}
-                </td>
-                <td className="p-1 text-right text-muted">{r.sinRegistrar}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <p className="mt-2 text-xs text-muted">
-        Sobre {sesiones.length} {sesiones.length === 1 ? 'sesión registrada' : 'sesiones registradas'} de
-        este evento. El calendario no cuenta: solo los días en que alguien tomó asistencia.
-      </p>
+    <div className="space-y-3">
+      <div className="overflow-x-auto rounded-xl border border-line bg-card p-3">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-muted">
+              <th className="p-1">Estudiante</th>
+              <th className="p-1 text-right">Asistencias</th>
+              <th className="p-1 text-right">Retrasos</th>
+              <th className="p-1">Ausencias</th>
+              <th className="p-1 text-right">Sin registrar</th>
+            </tr>
+          </thead>
+          <tbody>
+            {miembros.map((e) => {
+              const r = estadisticaEvento(e.studentId, sesiones);
+              return (
+                <tr key={e.studentId} className="border-t border-line">
+                  <td className="p-1 text-strong">{nombreCompleto(e)}</td>
+                  <td className="p-1 text-right text-soft">{r.porMarca.asistencia}</td>
+                  <td className="p-1 text-right text-soft">
+                    {r.porMarca.retraso + r.porMarca.retraso_justificado}
+                  </td>
+                  <td className="p-1 text-xs text-muted">
+                    {conDenominador(r.ausenciasTotales, r.sesionesCount)}
+                  </td>
+                  <td className="p-1 text-right text-muted">{r.sinRegistrar}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p className="mt-2 text-xs text-muted">
+          Sobre {sesiones.length} {sesiones.length === 1 ? 'sesión registrada' : 'sesiones registradas'} de
+          este evento. El calendario no cuenta: solo los días en que alguien tomó asistencia.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-line bg-card p-3">
+        <p className="text-sm font-semibold text-strong">Quién llamó lista</p>
+        <ul className="mt-2 space-y-1 text-sm">
+          {porFecha.map((s) => (
+            <li key={s.fecha} className="flex flex-wrap gap-2 border-t border-line pt-1 first:border-t-0 first:pt-0">
+              <span className="w-28 text-muted">{etiquetaDia(s.fecha)}</span>
+              <span className="text-strong">
+                {quienesLlamaronLista(s).map(nombreCorto).join(', ') || 'sin marcas'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
 
+/** Para buscar sin que importen tildes ni mayusculas: «julian» encuentra «Julián». */
+function sinTildes(t: string): string {
+  return t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
 /**
- * Compartir el evento. Solo la pantalla del CREADOR la ofrece: el servidor lo exige
- * igual (`callerEmail() == creadoPor`), pero no hay que mostrar un boton que va a fallar
- * a cualquier otro docente del evento.
+ * Compartir el evento escogiendo de la lista de docentes (Julian, 2026-10-19): antes
+ * habia que escribir el correo completo de cada uno. Por defecto muestra la sede del
+ * evento, con la opcion de ver todas las sedes; el buscador filtra por nombre o correo.
+ * Se guardan los mismos correos de siempre en `docentes`, asi que las reglas no cambian.
+ * Solo la pantalla del CREADOR la ofrece: el servidor lo exige igual.
  */
 function CompartirEvento({
   eventId,
+  sedeEvento,
   docentesIniciales,
   creadoPor,
+  directorio,
   onAviso,
   onError,
 }: {
   eventId: string;
+  sedeEvento: string;
   docentesIniciales: string[];
   creadoPor: string;
+  directorio: DocenteDirectorio[];
   onAviso: (m: string) => void;
   onError: (m: string) => void;
 }) {
   const [docentes, setDocentes] = useState(docentesIniciales);
-  const [nuevo, setNuevo] = useState('');
+  const [busqueda, setBusqueda] = useState('');
+  const [todasLasSedes, setTodasLasSedes] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
-  function agregar() {
-    const correo = nuevo.trim().toLowerCase();
-    if (!correo) return;
-    if (!docentes.includes(correo)) setDocentes((d) => [...d, correo]);
-    setNuevo('');
+  const nombreDe = (correo: string) => directorio.find((d) => d.correo === correo)?.nombre ?? correo;
+  const q = sinTildes(busqueda.trim());
+  const visibles = directorio.filter(
+    (d) =>
+      d.correo !== creadoPor &&
+      (todasLasSedes || q || d.sede === sedeEvento) &&
+      (!q || sinTildes(d.nombre).includes(q) || d.correo.includes(q)),
+  );
+  // Un correo escrito completo que no esta en el directorio se puede añadir igual, como antes.
+  const correoLibre = busqueda.trim().toLowerCase();
+  const ofrecerCorreo =
+    correoLibre.includes('@') && !directorio.some((d) => d.correo === correoLibre) && !docentes.includes(correoLibre);
+
+  function alternar(correo: string) {
+    setDocentes((d) => (d.includes(correo) ? d.filter((c) => c !== correo) : [...d, correo]));
   }
 
   async function guardar() {
@@ -543,51 +772,74 @@ function CompartirEvento({
     }
   }
 
+  const compartidos = docentes.filter((c) => c !== creadoPor);
+
   return (
     <div className="rounded-xl border border-line bg-card p-3">
       <p className="text-sm font-semibold text-strong">Docentes con acceso</p>
-      <ul className="mt-2 space-y-1">
-        {docentes.map((correo) => (
-          <li
-            key={correo}
-            className="flex items-center justify-between rounded-lg border border-line p-2 text-sm"
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <span className="rounded-full bg-elevated px-2 py-1 text-xs text-soft">{nombreDe(creadoPor)} (creador)</span>
+        {compartidos.map((c) => (
+          <button
+            key={c}
+            onClick={() => alternar(c)}
+            aria-label={`Quitar a ${nombreDe(c)}`}
+            className="rounded-full border border-accent bg-accent-soft px-2 py-1 text-xs text-accent-soft-fg"
           >
-            <span className="text-strong">
-              {correo}
-              {correo === creadoPor && <span className="ml-1 text-xs text-muted">(creador)</span>}
-            </span>
-            {correo !== creadoPor && (
-              <button
-                onClick={() => setDocentes((d) => d.filter((c) => c !== correo))}
-                aria-label={`Quitar a ${correo}`}
-                className="rounded-lg border border-line px-2 py-1 text-xs text-muted"
-              >
-                Quitar
-              </button>
-            )}
+            {nombreDe(c)} ✕
+          </button>
+        ))}
+        {compartidos.length === 0 && <span className="text-xs text-muted">Todavía no lo ha compartido.</span>}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          value={busqueda}
+          onChange={(ev) => setBusqueda(ev.target.value)}
+          placeholder="Buscar por nombre…"
+          aria-label="Buscar docente por nombre"
+          className="min-w-0 grow rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-strong"
+        />
+        <label className="flex items-center gap-1 text-xs text-soft">
+          <input type="checkbox" checked={todasLasSedes} onChange={(ev) => setTodasLasSedes(ev.target.checked)} />
+          Todas las sedes
+        </label>
+      </div>
+
+      {ofrecerCorreo && (
+        <button
+          onClick={() => {
+            alternar(correoLibre);
+            setBusqueda('');
+          }}
+          className="mt-2 rounded-lg border border-line px-3 py-1.5 text-xs text-strong"
+        >
+          Añadir {correoLibre}
+        </button>
+      )}
+
+      <ul className="mt-2 max-h-72 space-y-1 overflow-y-auto">
+        {directorio.length === 0 && <li className="p-2 text-xs text-muted">Cargando la lista de docentes…</li>}
+        {directorio.length > 0 && visibles.length === 0 && (
+          <li className="p-2 text-xs text-muted">Nadie coincide con «{busqueda}».</li>
+        )}
+        {visibles.map((d) => (
+          <li key={d.correo}>
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-line p-2 text-sm hover:bg-hover">
+              <input type="checkbox" checked={docentes.includes(d.correo)} onChange={() => alternar(d.correo)} />
+              <span className="grow text-strong">{d.nombre}</span>
+              {d.sede !== sedeEvento && <span className="text-xs text-muted">otra sede</span>}
+            </label>
           </li>
         ))}
       </ul>
-
-      <div className="mt-2 flex gap-2">
-        <input
-          value={nuevo}
-          onChange={(ev) => setNuevo(ev.target.value)}
-          onKeyDown={(ev) => ev.key === 'Enter' && agregar()}
-          placeholder="correo@colegio.edu.co"
-          className="grow rounded-lg border border-line bg-elevated px-2 py-2 text-sm text-strong"
-        />
-        <button onClick={agregar} className="rounded-lg border border-line px-3 py-2 text-sm text-strong">
-          Añadir
-        </button>
-      </div>
 
       <button
         disabled={guardando}
         onClick={() => void guardar()}
         className="mt-3 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-50"
       >
-        {guardando ? 'Guardando…' : 'Guardar cambios'}
+        {guardando ? 'Guardando…' : `Guardar cambios (${compartidos.length} ${compartidos.length === 1 ? 'docente' : 'docentes'})`}
       </button>
     </div>
   );
