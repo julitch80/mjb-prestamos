@@ -15,6 +15,9 @@ interface Props {
   publicaciones: Publicacion[];
   /** Si viene, se ofrece cancelar las publicaciones programadas que aún no rigen. */
   onCancelar?: (pub: Publicacion) => Promise<void>;
+  /** Si viene, se ofrece «Volver a esta versión»: carga la publicación como borrador
+   * y lleva a Publicar. No reescribe el historial: volver es publicar otra vez. */
+  onRestaurar?: (pub: Publicacion) => void;
 }
 
 const DIA_LABEL: Record<string, string> = {
@@ -77,12 +80,13 @@ function MatrizSoloLectura({ distribucion }: { distribucion: Distribucion }) {
   );
 }
 
-export default function HistorialAcompanamientos({ jornada, publicaciones, onCancelar }: Props) {
+export default function HistorialAcompanamientos({ jornada, publicaciones, onCancelar, onRestaurar }: Props) {
   const [seleccionada, setSeleccionada] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState(false);
   const [errorCancelar, setErrorCancelar] = useState<string | null>(null);
   const [imprimiendo, setImprimiendo] = useState<string | null>(null);
+  const [restaurando, setRestaurando] = useState<string | null>(null);
   const lista = historial(publicaciones, jornada).slice().reverse(); // más reciente primero
   const hoy = fechaHoyLocal();
   const vigenteId = publicacionVigente(publicaciones, jornada, hoy).id;
@@ -134,7 +138,15 @@ export default function HistorialAcompanamientos({ jornada, publicaciones, onCan
             </button>
             {seleccionada === pub.id && (
               <div className="px-4 pb-4 space-y-2">
-                <div className="flex justify-end">
+                <div className="flex flex-wrap justify-end gap-2">
+                  {onRestaurar && !esVigente && (
+                    <button
+                      onClick={() => setRestaurando(pub.id)}
+                      className="rounded-lg border border-info px-3 py-1.5 text-xs font-semibold text-info-soft-fg hover:bg-info-soft transition"
+                    >
+                      ↺ Volver a esta versión
+                    </button>
+                  )}
                   <button
                     onClick={() => setImprimiendo(pub.id)}
                     className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-soft hover:bg-hover transition"
@@ -142,6 +154,24 @@ export default function HistorialAcompanamientos({ jornada, publicaciones, onCan
                     Exportar para imprimir
                   </button>
                 </div>
+                {onRestaurar && restaurando === pub.id && (
+                  <div className="rounded-lg border border-info bg-info-soft px-3 py-2 space-y-2">
+                    <p className="text-info-soft-fg text-xs">
+                      Se cargará {pub.esInicial ? 'la distribución inicial' : `la versión que rigió desde el ${fechaLegibleAcomp(pub.vigenteDesde)}`} en
+                      tu borrador (reemplaza lo que tengas sin publicar) y pasarás a «Publicar» para elegir desde qué
+                      fecha vuelve a regir — puede ser hoy. El historial no se borra: queda como una publicación nueva.
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={() => setRestaurando(null)} className="rounded-lg border border-line px-3 py-1.5 text-xs text-soft hover:bg-hover transition">No</button>
+                      <button
+                        onClick={() => { setRestaurando(null); onRestaurar(pub); }}
+                        className="rounded-lg bg-info text-white px-3 py-1.5 text-xs font-semibold hover:opacity-90 transition"
+                      >
+                        Sí, volver a esta versión
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {imprimiendo === pub.id && (
                   <AcompanamientosImprimible
                     jornada={jornada}

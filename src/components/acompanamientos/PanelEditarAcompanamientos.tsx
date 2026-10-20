@@ -93,6 +93,17 @@ export default function PanelEditarAcompanamientos({
 
   const { bloqueos, avisos } = revisar(borrador.distribucion);
 
+  // «Volver a esta versión» desde el historial: la publicación elegida pasa a ser el
+  // borrador (sobre la vigente actual, así no sale el aviso de desactualizado) y se va
+  // a Publicar. Republicarla crea una publicación nueva; el historial queda intacto.
+  function restaurarVersion(pub: Publicacion) {
+    const nuevo = borradorDesdeVigente(pub, vigente.id);
+    setBorrador(nuevo);
+    guardarBorrador(jornada, nuevo);
+    setBorradorDesactualizado(false);
+    setOpcion('publicar');
+  }
+
   function usarDistribucion(d: Distribucion) {
     actualizarBorrador(d);
     setOpcion('manual');
@@ -263,7 +274,7 @@ export default function PanelEditarAcompanamientos({
             )}
 
             {opcion === 'historial' && (
-              <HistorialAcompanamientos jornada={jornada} publicaciones={publicaciones} onCancelar={onCancelarPublicacion} />
+              <HistorialAcompanamientos jornada={jornada} publicaciones={publicaciones} onCancelar={onCancelarPublicacion} onRestaurar={restaurarVersion} />
             )}
 
             {opcion === 'publicar' && (
