@@ -71,7 +71,7 @@ const ResultadoCentros = lazy(() => import('./ResultadoCentros'));
  * encenderla, antes: reglas desplegadas, `functions:asistencia` y Apps Script
  * (docs/mensaje-alerta-academica.md del modulo). Despues, `true` y publicar.
  */
-const ALERTA_ACADEMICA_ACTIVA = false;
+const ALERTA_ACADEMICA_ACTIVA = true;
 const AlertaAcademica = lazy(() => import('./AlertaAcademica'));
 const ReporteAlerta = lazy(() => import('./ReporteAlerta'));
 const AlertaCoordinacion = lazy(() => import('./AlertaCoordinacion'));

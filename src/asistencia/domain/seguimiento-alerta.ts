@@ -123,13 +123,25 @@ export function pendientesDelDirector(estados: EstadoSeguimiento[]): number {
 
 // ── cuadro de coordinacion ────────────────────────────────────────────────────
 
+/**
+ * Una fila del tablero de coordinacion (Julian, 2026-10-19: «cuantos eran, cuantos
+ * asistieron, cuantos faltaron —y quienes—, cuantos recibieron»).
+ */
 export interface FilaAsistencia {
   grado: string;
+  /** Cuantos eran. */
   citados: number;
+  /** Vinieron el dia de la entrega. */
+  vinieron: number;
+  /** No vinieron el dia de la entrega (vengan o no despues). */
+  faltaron: number;
+  /** El director aun no los marca. */
+  sinMarcar: number;
+  /** Recibieron el informe: en la entrega o en la segunda citacion. */
   asistieron: number;
   reprogramados: number;
   remitidos: number;
-  /** Asistieron (a la entrega o a la segunda cita) / citados, 0..100. */
+  /** Recibieron / citados, 0..100. */
   porcentaje: number;
 }
 
@@ -137,14 +149,43 @@ export function filaAsistencia(agenda: AgendaCitaciones, x: Omit<ContextoSeguimi
   const estados = Object.values(agenda.citas).map((c) => seguimientoDe(c, { ...x, entregaCerrada: !!agenda.entregaCerradaEn }).estado);
   const citados = estados.length;
   const asistieron = estados.filter((e) => e === 'asistio' || e === 'asistio_reprogramada').length;
+  const citas = Object.values(agenda.citas);
   return {
     grado: agenda.grado,
     citados,
+    vinieron: citas.filter((c) => c.asistio === true).length,
+    faltaron: citas.filter((c) => c.asistio === false).length,
+    sinMarcar: citas.filter((c) => c.asistio !== true && c.asistio !== false).length,
     asistieron,
     reprogramados: estados.filter((e) => e === 'reprogramada' || e === 'asistio_reprogramada').length,
     remitidos: estados.filter((e) => e === 'remitida').length,
     porcentaje: citados ? Math.round((asistieron / citados) * 100) : 0,
   };
+}
+
+/** El total de la jornada: la suma de las filas, con su propio porcentaje. */
+export function totalAsistencia(filas: FilaAsistencia[]): Omit<FilaAsistencia, 'grado'> {
+  const t = { citados: 0, vinieron: 0, faltaron: 0, sinMarcar: 0, asistieron: 0, reprogramados: 0, remitidos: 0, porcentaje: 0 };
+  for (const f of filas) {
+    t.citados += f.citados; t.vinieron += f.vinieron; t.faltaron += f.faltaron; t.sinMarcar += f.sinMarcar;
+    t.asistieron += f.asistieron; t.reprogramados += f.reprogramados; t.remitidos += f.remitidos;
+  }
+  t.porcentaje = t.citados ? Math.round((t.asistieron / t.citados) * 100) : 0;
+  return t;
+}
+
+/**
+ * Los citados de un grupo, para abrirlo desde el tablero: primero los que faltaron (lo que
+ * coordinacion quiere ver), luego los sin marcar y al final los que vinieron.
+ */
+export function citadosDelGrupo(
+  agenda: AgendaCitaciones,
+  x: Omit<ContextoSeguimiento, 'entregaCerrada'>,
+): { id: string; estado: EstadoSeguimiento; falto: boolean }[] {
+  const orden = (c: CitaAlerta) => (c.asistio === false ? 0 : c.asistio === true ? 2 : 1);
+  return Object.entries(agenda.citas)
+    .sort(([, a], [, b]) => orden(a) - orden(b))
+    .map(([id, c]) => ({ id, estado: seguimientoDe(c, { ...x, entregaCerrada: !!agenda.entregaCerradaEn }).estado, falto: c.asistio === false }));
 }
 
 // ── horas libres del director ─────────────────────────────────────────────────

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { atenderRemision, leerEstudiantesDeSede } from './datos';
 import { nombreCompleto } from './domain/nombres';
 import { citacionAlertaId } from './domain/alerta-academica';
 import { fechaLarga, horaLegible } from './domain/imprimibles-alerta';
 import { toDateKey } from './domain/ids';
-import { filaAsistencia, PLAZO_EXCUSA_DIAS, seguimientoDe } from './domain/seguimiento-alerta';
+import { citadosDelGrupo, filaAsistencia, PLAZO_EXCUSA_DIAS, seguimientoDe, totalAsistencia } from './domain/seguimiento-alerta';
+import { ETIQUETA_SEGUIMIENTO } from './etiquetasSeguimiento';
 import { diaSinClases } from './horarioDelDia';
 import { citacionesSeguimientoDe, imprimirSeguimiento, nombreDirector } from './imprimirAlerta';
 import type { AgendaCitaciones, ConvocatoriaAlerta, Sede, Student } from './domain/types';
@@ -14,7 +15,9 @@ const BOTON = 'min-h-[40px] rounded-xl px-4 text-sm font-semibold disabled:opaci
 
 /**
  * Seguimiento de la entrega — lo que ve COORDINACION (Julian, 2026-10-03):
- *  - el cuadro de asistencia por grado (citados, vinieron, reprogramados, remitidos, %);
+ *  - el tablero de asistencia: totales de la jornada y cuadro por grupo (eran, vinieron,
+ *    faltaron, sin marcar, recibieron el informe, remitidos). Cada grupo se abre para ver
+ *    los nombres, primero los que faltaron (Julian, 2026-10-19);
  *  - la bandeja de casos remitidos, con su historial, para atenderlos;
  *  - el archivo de «citaciones de seguimiento» (las segundas citaciones + constancias con la
  *    fecha en blanco), porque la impresion la centraliza coordinacion.
@@ -38,6 +41,7 @@ export default function SeguimientoCoordinacion({
   const [nota, setNota] = useState<Record<string, string>>({});
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [abierto, setAbierto] = useState<string | null>(null);
 
   const ctx = useMemo(() => ({
     fechaEntrega: conv.fechaEntrega ?? hoy,
@@ -57,17 +61,24 @@ export default function SeguimientoCoordinacion({
     })), [agendas, ctx]);
   const reprogramadas = agendas.reduce((n, a) => n + Object.values(a.citas).filter((c) => c.reprogramacion && !c.remision).length, 0);
 
-  // Los nombres solo hacen falta si hay remitidos o se va a imprimir.
+  // Los nombres solo hacen falta si hay remitidos, se abre un grupo o se va a imprimir.
   useEffect(() => {
-    if (estudiantes || (remitidos.length === 0 && reprogramadas === 0)) return;
+    if (estudiantes || (remitidos.length === 0 && reprogramadas === 0 && !abierto)) return;
     void leerEstudiantesDeSede(sede).then(setEstudiantes).catch(() => setEstudiantes([]));
-  }, [remitidos.length, reprogramadas, estudiantes, sede]);
+  }, [remitidos.length, reprogramadas, abierto, estudiantes, sede]);
 
   if (!conv.fechaEntrega || hoy < conv.fechaEntrega) return null;
   if (agendas.length === 0) return null;
 
   const nombreDe = (id: string) => { const e = estudiantes?.find((x) => x.studentId === id); return e ? nombreCompleto(e) : '…'; };
-  const total = filas.reduce((t, f) => ({ citados: t.citados + f.citados, asistieron: t.asistieron + f.asistieron }), { citados: 0, asistieron: 0 });
+  const total = totalAsistencia(filas);
+  const tarjetas: { valor: string | number; texto: string; clase?: string }[] = [
+    { valor: total.citados, texto: 'Citados' },
+    { valor: total.vinieron, texto: 'Vinieron a la entrega' },
+    { valor: total.faltaron, texto: 'Faltaron', clase: total.faltaron ? 'text-danger' : '' },
+    { valor: total.asistieron, texto: 'Recibieron el informe' },
+    { valor: `${total.porcentaje} %`, texto: 'De los citados recibió' },
+  ];
 
   async function descargarSeguimiento() {
     setOcupado(true);
@@ -105,39 +116,92 @@ export default function SeguimientoCoordinacion({
   return (
     <section className="flex flex-col gap-3">
       <h3 className="text-sm font-semibold text-strong">Asistencia de la entrega · {fechaLarga(conv.fechaEntrega)}</h3>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {tarjetas.map((c) => (
+          <div key={c.texto} className="rounded-2xl border border-line bg-card px-3 py-2">
+            <p className={`text-2xl font-bold ${c.clase || 'text-strong'}`}>{c.valor}</p>
+            <p className="text-xs text-muted">{c.texto}</p>
+          </div>
+        ))}
+      </div>
+      {(total.sinMarcar > 0 || total.remitidos > 0) && (
+        <p className="text-xs text-muted">
+          {total.sinMarcar > 0 && `${total.sinMarcar} sin marcar todavía por su director. `}
+          {total.remitidos > 0 && `${total.remitidos} remitido${total.remitidos === 1 ? '' : 's'} a coordinación (abajo).`}
+        </p>
+      )}
       <div className="overflow-x-auto rounded-2xl border border-line bg-card">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line text-xs text-muted">
-              <th className="px-3 py-2 text-left font-medium">Grupo</th>
-              <th className="px-2 py-2 text-center font-medium">Citados</th>
-              <th className="px-2 py-2 text-center font-medium">Vinieron</th>
-              <th className="px-2 py-2 text-center font-medium">Reprogramados</th>
-              <th className="px-2 py-2 text-center font-medium">Remitidos</th>
-              <th className="px-2 py-2 text-center font-medium">Asistencia</th>
+              <th className="px-2 sm:px-3 py-2 text-left font-medium">Grupo</th>
+              <th className="px-1 sm:px-2 py-2 text-center font-medium">Citados</th>
+              <th className="px-1 sm:px-2 py-2 text-center font-medium">Vinieron</th>
+              <th className="px-1 sm:px-2 py-2 text-center font-medium">Faltaron</th>
+              <th className="hidden px-1 sm:px-2 py-2 text-center font-medium sm:table-cell">Sin marcar</th>
+              <th className="px-1 sm:px-2 py-2 text-center font-medium">Recibieron</th>
+              <th className="hidden px-1 sm:px-2 py-2 text-center font-medium sm:table-cell">Remitidos</th>
+              <th className="px-1 sm:px-2 py-2 text-center font-medium">%</th>
             </tr>
           </thead>
           <tbody>
-            {filas.map((f) => (
-              <tr key={f.grado} className="border-b border-line last:border-0">
-                <td className="px-3 py-1.5 font-semibold text-strong">{f.grado}</td>
-                <td className="px-2 py-1.5 text-center">{f.citados}</td>
-                <td className="px-2 py-1.5 text-center">{f.asistieron}</td>
-                <td className="px-2 py-1.5 text-center">{f.reprogramados || ''}</td>
-                <td className={`px-2 py-1.5 text-center ${f.remitidos ? 'font-semibold text-danger' : ''}`}>{f.remitidos || ''}</td>
-                <td className="px-2 py-1.5 text-center">{f.porcentaje} %</td>
-              </tr>
-            ))}
+            {filas.map((f) => {
+              const agenda = agendas.find((a) => a.grado === f.grado)!;
+              const esta = abierto === f.grado;
+              return (
+                <Fragment key={f.grado}>
+                  <tr
+                    onClick={() => setAbierto(esta ? null : f.grado)}
+                    className="cursor-pointer border-b border-line last:border-0 hover:bg-elevated"
+                    title={esta ? 'Cerrar el grupo' : 'Ver los nombres'}
+                  >
+                    <td className="px-2 sm:px-3 py-1.5 font-semibold text-strong">
+                      <span aria-hidden className="mr-1 text-muted">{esta ? '▾' : '▸'}</span>
+                      {f.grado}
+                    </td>
+                    <td className="px-1 sm:px-2 py-1.5 text-center">{f.citados}</td>
+                    <td className="px-1 sm:px-2 py-1.5 text-center">{f.vinieron}</td>
+                    <td className={`px-1 sm:px-2 py-1.5 text-center ${f.faltaron ? 'font-semibold text-danger' : ''}`}>{f.faltaron || ''}</td>
+                    <td className="hidden px-1 sm:px-2 py-1.5 text-center text-muted sm:table-cell">{f.sinMarcar || ''}</td>
+                    <td className="px-1 sm:px-2 py-1.5 text-center">{f.asistieron}</td>
+                    <td className={`hidden px-1 sm:px-2 py-1.5 text-center sm:table-cell ${f.remitidos ? 'font-semibold text-danger' : ''}`}>{f.remitidos || ''}</td>
+                    <td className="whitespace-nowrap px-1 sm:px-2 py-1.5 text-center">{f.porcentaje} %</td>
+                  </tr>
+                  {esta && (
+                    <tr className="border-b border-line bg-elevated">
+                      <td colSpan={8} className="px-2 sm:px-3 py-2">
+                        <p className="mb-1 text-xs text-muted">Director: {nombreDirector(directores[f.grado]) || 'sin director'}</p>
+                        <ul className="flex flex-col gap-1">
+                          {citadosDelGrupo(agenda, ctx).map((c) => (
+                            <li key={c.id} className="flex flex-wrap items-center gap-2">
+                              <span className="min-w-0 flex-1 text-strong">{nombreDe(c.id)}</span>
+                              <span className={`rounded-full px-1 sm:px-2 py-0.5 text-xs font-semibold ${ETIQUETA_SEGUIMIENTO[c.estado].clase}`}>
+                                {c.falto && c.estado !== 'remitida' && c.estado !== 'asistio_reprogramada' ? 'Faltó · ' : ''}
+                                {ETIQUETA_SEGUIMIENTO[c.estado].texto}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
             <tr className="bg-elevated font-semibold">
-              <td className="px-3 py-1.5">Jornada</td>
-              <td className="px-2 py-1.5 text-center">{total.citados}</td>
-              <td className="px-2 py-1.5 text-center">{total.asistieron}</td>
-              <td colSpan={2} />
-              <td className="px-2 py-1.5 text-center">{total.citados ? Math.round((total.asistieron / total.citados) * 100) : 0} %</td>
+              <td className="px-2 sm:px-3 py-1.5">Jornada</td>
+              <td className="px-1 sm:px-2 py-1.5 text-center">{total.citados}</td>
+              <td className="px-1 sm:px-2 py-1.5 text-center">{total.vinieron}</td>
+              <td className="px-1 sm:px-2 py-1.5 text-center">{total.faltaron || ''}</td>
+              <td className="hidden px-1 sm:px-2 py-1.5 text-center sm:table-cell">{total.sinMarcar || ''}</td>
+              <td className="px-1 sm:px-2 py-1.5 text-center">{total.asistieron}</td>
+              <td className="hidden px-1 sm:px-2 py-1.5 text-center sm:table-cell">{total.remitidos || ''}</td>
+              <td className="whitespace-nowrap px-1 sm:px-2 py-1.5 text-center">{total.porcentaje} %</td>
             </tr>
           </tbody>
         </table>
       </div>
+      <p className="text-xs text-muted">Toque un grupo para ver los nombres; primero aparecen los que faltaron.</p>
 
       <h3 className="text-sm font-semibold text-strong">Casos remitidos por los directores ({remitidos.length})</h3>
       {remitidos.length === 0 ? (
