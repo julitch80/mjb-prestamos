@@ -162,10 +162,16 @@ export default function AlertaAcademica({
 
       <div
         className={`rounded-xl px-3 py-2 text-sm ${
-          editable ? 'bg-info-soft text-info-soft-fg' : 'bg-elevated text-soft'
+          editable && estado.completa
+            ? 'bg-success-soft text-success-soft-fg'
+            : editable ? 'bg-info-soft text-info-soft-fg' : 'bg-elevated text-soft'
         }`}
       >
-        {editable
+        {/* Julian, 2026-10-20, tras su prueba real: "muy importante" que el docente sepa que
+            despues de entregar lo que cambie se guarda solo y no hay que volver a entregar. */}
+        {editable && estado.completa
+          ? <><b>✓ Entregada.</b> Los cambios que haga se guardan solos hasta el <b>{fechaLarga(conv.fechaLimite)}</b>; no tiene que volver a entregar.</>
+          : editable
           ? <>Periodo {conv.periodo}: abierta hasta el <b>{fechaLarga(conv.fechaLimite)}</b>. {modo === 'toque' ? 'Toque a quien esté en alerta (⚠️; otro toque lo deja en ✓)' : 'Toque un estudiante y elija ⚠️ o ✓ (el recuadro pasa solo al siguiente)'} y al terminar, «Entregar».</>
           : <>Periodo {conv.periodo}: cerrada. Puede consultarla, pero ya no se modifica.</>}
       </div>
@@ -249,18 +255,21 @@ export default function AlertaAcademica({
         );
       })()}
 
-      {editable && (
+      {editable && estado.completa && (
+        <p className="rounded-xl bg-success-soft px-4 py-3 text-sm font-semibold text-success-soft-fg" role="status">
+          ✓ Entregada. Los cambios que haga se guardan solos hasta el {fechaLarga(conv.fechaLimite)}; no tiene que volver a entregar.
+        </p>
+      )}
+      {editable && !estado.completa && (
         <button
           type="button"
           onClick={() => void entregar()}
-          disabled={entregando || (estado.completa && estado.sinMarcar === 0)}
+          disabled={entregando}
           className="min-h-[44px] rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-50"
         >
           {entregando
             ? 'Entregando…'
-            : estado.completa
-              ? 'Entregada · puede seguir corrigiendo hasta la fecha límite'
-              : `Entregar${estado.sinMarcar ? ` (los ${estado.sinMarcar} sin marcar quedan sin alerta)` : ''}`}
+            : `Entregar${estado.sinMarcar ? ` (los ${estado.sinMarcar} sin marcar quedan sin alerta)` : ''}`}
         </button>
       )}
     </div>
