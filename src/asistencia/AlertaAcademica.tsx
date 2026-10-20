@@ -255,11 +255,6 @@ export default function AlertaAcademica({
         );
       })()}
 
-      {editable && estado.completa && (
-        <p className="rounded-xl bg-success-soft px-4 py-3 text-sm font-semibold text-success-soft-fg" role="status">
-          ✓ Entregada. Los cambios que haga se guardan solos hasta el {fechaLarga(conv.fechaLimite)}; no tiene que volver a entregar.
-        </p>
-      )}
       {editable && !estado.completa && (
         <button
           type="button"
