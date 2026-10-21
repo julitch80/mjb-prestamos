@@ -354,6 +354,11 @@ export const notifPrueba = onCall(
   async (request) => {
     const correo = request.auth?.token?.email?.toLowerCase();
     if (!correo) throw new HttpsError('unauthenticated', 'Inicia sesión primero.');
-    return await enviarPrueba(db, correo);
+    const res = await enviarPrueba(db, correo);
+    logger.info('notifPrueba', {
+      correo, enviados: res.enviados, fallidos: res.fallidos,
+      codigos: res.detalles.map(d => d.error ?? 'ok'),
+    });
+    return res;
   },
 );

@@ -193,3 +193,51 @@ export async function esteDispositivoTieneToken(): Promise<boolean> {
     return false;
   }
 }
+
+// ── Diagnóstico ──────────────────────────────────────────────────────────
+export interface InfoSW { scope: string; script: string; estado: string; controlador: boolean; hashToken: string }
+
+/** Qué service worker usa el push y qué token tiene este celular. */
+export async function infoServiceWorker(): Promise<InfoSW | null> {
+  if (!('serviceWorker' in navigator)) return null;
+  const reg = await navigator.serviceWorker.ready;
+  const sw = reg.active ?? reg.waiting ?? reg.installing;
+  let hashT = 'sin token';
+  try {
+    const messaging = await obtenerMessaging();
+    if (messaging && Notification.permission === 'granted') {
+      const t = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+      if (t) hashT = (await hashToken(t)).slice(0, 12);
+    }
+  } catch (e) {
+    hashT = 'error: ' + (e instanceof Error ? e.message : String(e));
+  }
+  return {
+    scope: reg.scope, script: sw?.scriptURL ?? '?', estado: sw?.state ?? '?',
+    controlador: !!navigator.serviceWorker.controller, hashToken: hashT,
+  };
+}
+
+/** Notificación local desde la página, con la MISMA registro que usa el push.
+ * Si esta no aparece, el sistema/Chrome bloquea las del sitio. */
+export async function avisoLocal(): Promise<void> {
+  const reg = await navigator.serviceWorker.ready;
+  await reg.showNotification('MJB · Aviso local', {
+    body: 'Si ves esto, el celular sí muestra notificaciones de este sitio.',
+    tag: 'mjb-local',
+    icon: '/mjb-prestamos/icons/icon-192-v3.png',
+    badge: '/mjb-prestamos/icons/icon-192-v3.png',
+  });
+}
+
+export interface UltimoPush { cuando: number; titulo: string; estado: string }
+
+/** Último push que llegó al service worker de este celular (null = ninguno). */
+export async function leerUltimoPush(): Promise<UltimoPush | null> {
+  try {
+    const r = await (await caches.open('mjb-diag')).match('/mjb-prestamos/__ultimo-push');
+    return r ? (await r.json()) as UltimoPush : null;
+  } catch {
+    return null;
+  }
+}

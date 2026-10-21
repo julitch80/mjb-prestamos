@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../data/store';
 import {
-  activar, desactivarEsteDispositivo, enviarPruebaNotificacion, esteDispositivoTieneToken, guardarPreferencias, leerPreferencias, soportado,
+  activar, desactivarEsteDispositivo, enviarPruebaNotificacion, esteDispositivoTieneToken, guardarPreferencias, avisoLocal, infoServiceWorker, leerUltimoPush, type InfoSW, type UltimoPush, leerPreferencias, soportado,
 } from '../data/notificacionesPush';
 import { PREFERENCIAS_DEFAULT, type CategoriaNotificacion, type PreferenciasNotif } from '../data/notificacionesPushLogica';
 import { IconoCampana } from './IconosNeon';
@@ -59,11 +59,37 @@ export default function MisNotificaciones() {
     void esteDispositivoTieneToken().then(setTieneToken);
   }, [permiso]);
 
+  const [info, setInfo] = useState<InfoSW | null>(null);
+  const [ultimo, setUltimo] = useState<UltimoPush | null>(null);
+  const [crudo, setCrudo] = useState('');
+  const [msgLocal, setMsgLocal] = useState('');
+
+  useEffect(() => {
+    void infoServiceWorker().then(setInfo).catch(() => setInfo(null));
+    void leerUltimoPush().then(setUltimo);
+    const alMensaje = (e: MessageEvent) => {
+      if (e.data?.tipo === 'mjb-push-recibido') setUltimo({ cuando: e.data.cuando, titulo: e.data.titulo, estado: e.data.estado });
+    };
+    navigator.serviceWorker?.addEventListener('message', alMensaje);
+    return () => navigator.serviceWorker?.removeEventListener('message', alMensaje);
+  }, [permiso]);
+
+  async function alAvisoLocal() {
+    setMsgLocal('');
+    try {
+      await avisoLocal();
+      setMsgLocal('Orden enviada. Si no aparece nada en la barra del celular, el sistema bloquea las notificaciones de este sitio.');
+    } catch (e) {
+      setMsgLocal('Falló: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  }
+
   async function alProbar() {
     setProbando(true);
     setResultadoPrueba(null);
     try {
       const r = await enviarPruebaNotificacion();
+      setCrudo(JSON.stringify(r));
       if (r.motivo === 'sin-dispositivos') {
         setResultadoPrueba({ ok: false, texto: 'Este celular no está registrado: activa las notificaciones aquí primero.' });
       } else if (r.enviados > 0) {
@@ -186,6 +212,18 @@ export default function MisNotificaciones() {
         >
           {probando ? 'Enviando…' : 'Enviarme una notificación de prueba'}
         </button>
+        <button
+          onClick={alAvisoLocal}
+          className="ml-2 px-3 py-2 rounded-lg bg-elevated text-soft hover:text-strong text-sm font-semibold"
+        >
+          Probar aviso local
+        </button>
+        {msgLocal && <p className="text-xs text-muted">{msgLocal}</p>}
+        <div className="text-xs text-muted space-y-0.5 break-all">
+          <p>Último aviso recibido por este celular: {ultimo ? `${new Date(ultimo.cuando).toLocaleString('es-CO')} — ${ultimo.titulo} (${ultimo.estado})` : 'ninguno'}</p>
+          {info && <p>SW: {info.script} · alcance {info.scope} · {info.estado} · controla la página: {info.controlador ? 'sí' : 'no'} · token {info.hashToken}</p>}
+          {crudo && <p>Respuesta del servidor: {crudo}</p>}
+        </div>
         {resultadoPrueba && (
           <div role="status" className={`text-sm ${resultadoPrueba.ok ? 'text-strong' : 'text-muted'}`}>
             <p>{resultadoPrueba.texto}</p>

@@ -27,6 +27,21 @@ self.addEventListener('push', (event) => {
   const tipo = datos.tipo || '';
 
   event.waitUntil((async () => {
+    // Diagnóstico: anota que FCM SÍ entregó al SW (Cache API, legible desde la
+    // página) y avisa a las ventanas abiertas. Se hace ANTES de todo lo demás.
+    let estado = 'recibido';
+    const anotar = async (extra) => {
+      const reg = { cuando: Date.now(), titulo, estado: extra || estado };
+      try {
+        const cache = await caches.open('mjb-diag');
+        await cache.put('/mjb-prestamos/__ultimo-push', new Response(JSON.stringify(reg)));
+      } catch (e) { /* diagnóstico, no crítico */ }
+      try {
+        const cl = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        cl.forEach((c) => c.postMessage({ tipo: 'mjb-push-recibido', ...reg }));
+      } catch (e) { /* idem */ }
+    };
+    await anotar();
     // Si la app está abierta y visible, el hook useNotificacionesSistema ya la
     // muestra dentro de la interfaz: no duplicar el aviso del sistema
     // operativo, pero sí dejar el número en el ícono.
@@ -34,14 +49,21 @@ self.addEventListener('push', (event) => {
     const hayVisible = clientes.some((c) => c.visibilityState === 'visible');
 
     if (!hayVisible) {
-      await self.registration.showNotification(titulo, {
-        body: cuerpo,
-        tag,
-        renotify: true,
-        icon: '/mjb-prestamos/icons/icon-192-v3.png',
-        badge: '/mjb-prestamos/icons/icon-192-v3.png',
-        data: { url, tipo },
-      });
+      try {
+        await self.registration.showNotification(titulo, {
+          body: cuerpo,
+          tag,
+          renotify: true,
+          icon: '/mjb-prestamos/icons/icon-192-v3.png',
+          badge: '/mjb-prestamos/icons/icon-192-v3.png',
+          data: { url, tipo },
+        });
+        await anotar('mostrado');
+      } catch (e) {
+        await anotar('showNotification falló: ' + (e && e.message ? e.message : e));
+      }
+    } else {
+      await anotar('omitido: la app está visible (se muestra dentro de la app)');
     }
 
     if ('setAppBadge' in self.navigator) {
