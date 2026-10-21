@@ -13,7 +13,10 @@
 self.addEventListener('push', (event) => {
   let datos = {};
   try {
-    datos = event.data ? event.data.json() : {};
+    const crudo = event.data ? event.data.json() : {};
+    // FCM entrega los mensajes de solo datos envueltos: { data: {...}, from,
+    // fcmMessageId, ... }. Sin desenvolverlo, título y cuerpo salían vacíos.
+    datos = (crudo && typeof crudo.data === 'object' && crudo.data) ? crudo.data : (crudo || {});
   } catch (e) {
     datos = {};
   }
