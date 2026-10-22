@@ -47,6 +47,7 @@ export interface EntradaAsignacion {
 export const DOCENTES_APOYO: Record<string, string> = {
   yuri: 'Docente de apoyo PTA',
   alexander: 'Docente de apoyo',
+  diana_uai: 'Profesional UAI',
 };
 
 const ENTRADAS_BASE: EntradaAsignacion[] = [

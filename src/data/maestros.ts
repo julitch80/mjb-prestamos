@@ -118,6 +118,7 @@ export const USUARIOS: Usuario[] = [
   // Nuevos docentes
   { id: 'yuri',       nombre: 'Yuri Catalina Gómez Gómez',        nombreCorto: 'Yuri',       rol: 'docente', jornada: 'ambas', correo: '',       color: '#c4b5fd' },
   { id: 'alexander',  nombre: 'Jhon Alexander Sánchez Giraldo',   nombreCorto: 'Alexander',  rol: 'docente', jornada: 'ambas', correo: '', color: '#fda4af' },
+  { id: 'diana_uai',  nombre: 'Diana Ramírez',                    nombreCorto: 'Diana R.',   rol: 'docente', jornada: 'ambas', correo: '', color: '#99f6e4' },
 
   // ── Sede Gustavo Rodas Isaza (primaria) ────────────────────────────────────
   // Fuente: "asignacion Academica 2026 FINAL.xlsx", hoja PRIMARIA GRI, cruzada
