@@ -253,6 +253,17 @@ export async function pedirGuiaIA(entrada: EntradaGuiaIA): Promise<Guia> {
   } catch (e) { throw traducirError(e); }
 }
 
+export interface PreguntaSugerida { pregunta: string; porQue: string; aportes: { asignatura: string; aporte: string }[]; producto: string }
+
+export async function sugerirPreguntas(entrada: { tematica: string; asignaturas: string[]; grado: string; ajustes?: string[] }): Promise<PreguntaSugerida[]> {
+  if (!functions) throw new Error('Firebase no está configurado.');
+  try {
+    const r = await httpsCallable<typeof entrada, { ok: boolean; preguntas?: PreguntaSugerida[]; error?: string }>(functions, 'planCasaPreguntas', { timeout: 60_000 })(entrada);
+    if (!r.data.ok || !r.data.preguntas?.length) throw new Error(r.data.error ?? 'La IA no devolvió preguntas.');
+    return r.data.preguntas;
+  } catch (e) { throw traducirError(e); }
+}
+
 export async function publicarPlan(planId: string): Promise<void> {
   if (!functions) throw new Error('Firebase no está configurado.');
   try { await httpsCallable<{ planId: string }, unknown>(functions, 'planCasaPublicar')({ planId }); }

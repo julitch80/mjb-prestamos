@@ -18,6 +18,7 @@ import type { GuiaPlan, EntradaGuiaIA, PlanCasa, SalidaGuiaIA } from '../../src/
 import { COL_PLANES, COL_PUBLICO, SUB_GUIAS } from '../../src/data/planCasa/tipos';
 import { ESQUEMA_GUIA, MODELO, SISTEMA, construirPrompt, sanearGuia } from './guia';
 import { construirPublico } from './publico';
+import { ESQUEMA_PREGUNTAS, SISTEMA_PREGUNTAS, construirPromptPreguntas, sanearPreguntas, type EntradaPreguntas, type PreguntaSugerida } from './preguntas';
 
 setGlobalOptions({ maxInstances: 10, region: 'us-central1' });
 
@@ -86,6 +87,46 @@ export const planCasaGuia = onCall(
       if (err instanceof Anthropic.RateLimitError) return { ok: false, error: 'La IA está saturada. Inténtalo en un minuto.' };
       if (err instanceof Anthropic.AuthenticationError) return { ok: false, error: 'La clave de la IA no es válida. Avisa al administrador.' };
       return { ok: false, error: 'No se pudo generar la guía. Inténtalo de nuevo.' };
+    }
+  },
+);
+
+// ------------------------------------------------------------ planCasaPreguntas
+
+export const planCasaPreguntas = onCall(
+  { ...opciones, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 60, memory: '256MiB' },
+  async (request): Promise<{ ok: boolean; preguntas?: PreguntaSugerida[]; error?: string }> => {
+    const quien = await llamante(request);
+    if (!ROLES_GUIA.includes(quien.role) && !(await esEquipo(quien.correo))) {
+      throw new HttpsError('permission-denied', 'Tu usuario no puede pedir sugerencias.');
+    }
+    const e = (request.data ?? {}) as EntradaPreguntas;
+    if (!Array.isArray(e.asignaturas) || !e.asignaturas.some(a => typeof a === 'string' && a.trim())) {
+      throw new HttpsError('invalid-argument', 'Escoge al menos una asignatura.');
+    }
+    try {
+      const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+      const resp = await client.messages.create({
+        model: MODELO,
+        max_tokens: 4000,
+        system: SISTEMA_PREGUNTAS,
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: ESQUEMA_PREGUNTAS as unknown as Record<string, unknown> } },
+        messages: [{ role: 'user', content: construirPromptPreguntas(e) }],
+      });
+      logger.info('planCasaPreguntas: uso de tokens', { entrada: resp.usage.input_tokens, salida: resp.usage.output_tokens, stop: resp.stop_reason });
+      if (resp.stop_reason === 'refusal') return { ok: false, error: 'La IA no pudo generar sugerencias. Cambia la temática e inténtalo de nuevo.' };
+      if (resp.stop_reason === 'max_tokens') return { ok: false, error: 'La respuesta quedó incompleta. Inténtalo de nuevo.' };
+      const texto = resp.content.map(b => (b.type === 'text' ? b.text : '')).join('');
+      let bruto: unknown;
+      try { bruto = JSON.parse(texto); } catch { return { ok: false, error: 'La respuesta de la IA no tuvo el formato esperado. Inténtalo de nuevo.' }; }
+      const preguntas = sanearPreguntas(bruto);
+      if (!preguntas.length) return { ok: false, error: 'La IA no devolvió preguntas útiles. Inténtalo de nuevo.' };
+      return { ok: true, preguntas };
+    } catch (err) {
+      logger.error('planCasaPreguntas: fallo', { mensaje: err instanceof Error ? err.message : String(err) });
+      if (err instanceof Anthropic.RateLimitError) return { ok: false, error: 'La IA está saturada. Inténtalo en un minuto.' };
+      if (err instanceof Anthropic.AuthenticationError) return { ok: false, error: 'La clave de la IA no es válida. Avisa al administrador.' };
+      return { ok: false, error: 'No se pudieron generar las sugerencias. Inténtalo de nuevo.' };
     }
   },
 );

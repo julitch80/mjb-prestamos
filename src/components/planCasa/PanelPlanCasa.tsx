@@ -2,7 +2,7 @@
 // Crea planes, muestra el tablero por estudiante y el QR de la agenda pública.
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
-import { Check, ChevronDown, Copy, Plus, QrCode, RefreshCw, Search, X } from 'lucide-react';
+import { Check, ChevronDown, Copy, Plus, QrCode, RefreshCw, Search, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { buscarEstudiantes } from '../../asistencia/datos';
 import type { Student } from '../../asistencia/domain/types';
@@ -12,7 +12,7 @@ import {
 } from '../../data/planCasa/tipos';
 import {
   asignaturasDelGrupo, cambiarEstadoPlan, crearPlan, escucharAsignaturas, escucharGuias, escucharPlanes, type GuiaTransversalDef,
-  leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
+  leerMotivo, regenerarToken, sugerirPreguntas, urlPublica, type PlanConDocentes, type PreguntaSugerida,
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
 import {
@@ -27,6 +27,54 @@ const NIVEL = (g: string) => (g.includes('º') ? 1 : 0);
 function hoyISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// ── Ayudante «Sugerir preguntas orientadoras» ─────────────────────────────
+
+function SugerirPreguntas({ asignaturas, grado, ajustes, onUsar }: {
+  asignaturas: string[]; grado: string; ajustes: string[]; onUsar: (pregunta: string) => void;
+}) {
+  const [tematica, setTematica] = useState('');
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState('');
+  const [lista, setLista] = useState<PreguntaSugerida[]>([]);
+
+  async function pedir() {
+    if (!asignaturas.length) return setError('Escoja al menos una asignatura abajo.');
+    setError(''); setCargando(true);
+    try { setLista(await sugerirPreguntas({ tematica: tematica.trim(), asignaturas, grado, ajustes })); }
+    catch (e) { setError((e as Error).message || 'No se pudieron generar las sugerencias.'); }
+    finally { setCargando(false); }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <input value={tematica} onChange={e => setTematica(e.target.value)} placeholder="Temática (opcional): ej. el agua en mi barrio" className={CLASE_INPUT} />
+        <button onClick={pedir} disabled={cargando} className={cn(CLASE_BOTON_SEC, 'flex-shrink-0')}>
+          <Sparkles size={14} />{cargando ? 'Pensando…' : lista.length ? 'Otras preguntas' : 'Sugerir preguntas'}
+        </button>
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+      {lista.length > 0 && (
+        <ul className="space-y-2">
+          {lista.map((p, k) => (
+            <li key={k} className="rounded-xl bg-elevated p-3 space-y-1.5">
+              <p className="text-sm font-semibold text-strong">{p.pregunta}</p>
+              {p.porQue && <p className="text-xs text-soft">{p.porQue}</p>}
+              {p.aportes.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {p.aportes.map(a => <span key={a.asignatura} className="text-[11px] px-2 py-0.5 rounded-full bg-card text-soft">{a.asignatura}: {a.aporte}</span>)}
+                </div>
+              )}
+              {p.producto && <p className="text-xs text-muted">Producto: {p.producto}</p>}
+              <button onClick={() => { onUsar(p.pregunta); setLista([]); }} className={CLASE_BOTON_SEC}>Usar esta</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 // ── Formulario «Nuevo plan» ───────────────────────────────────────────────
@@ -225,6 +273,8 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
                 <input value={g.eje} onChange={e => setDef(i, { eje: e.target.value })} placeholder={`Pregunta orientadora / problema del contexto (guía ${i + 1})`} className={CLASE_INPUT} />
                 {defs.length > 1 && <button aria-label="Quitar guía" onClick={() => setDefs(l => l.filter((_, j) => j !== i))} className="p-2 text-muted hover:text-danger flex-shrink-0"><X size={15} /></button>}
               </div>
+              <SugerirPreguntas asignaturas={g.asignaturaIds.map(x => asigs.find(a => a.asignaturaId === x)?.asignaturaNombre ?? '').filter(Boolean)}
+                grado={est.gradoActual} ajustes={ajustes} onUsar={p => setDef(i, { eje: p })} />
               <div className="flex flex-wrap gap-1.5">
                 {asigs.map(a => {
                   const mia = g.asignaturaIds.includes(a.asignaturaId);
