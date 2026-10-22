@@ -6,11 +6,14 @@ import { toDateKey, jornadaDeGrado } from './domain/ids';
 import {
   alertaId,
   convocatoriaEditable,
+  digitaAlerta,
   estadoPlanilla,
   marcasAlEntregar,
+  responsableAlerta,
   siguienteMarca,
 } from './domain/alerta-academica';
 import { fechaLarga } from './domain/imprimibles-alerta';
+import { USUARIOS } from '../data/maestros';
 import type { ConvocatoriaAlerta, MarcaAlerta, PlanillaAlerta, Sede, Student } from './domain/types';
 
 /**
@@ -100,7 +103,7 @@ export default function AlertaAcademica({
     try {
       await marcarAlerta(base, existia, studentId, nueva);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo guardar la marca.');
+      setError(mensajeAlerta(e, 'No se pudo guardar la marca.'));
     }
   }, [base, editable, planilla, idDoc]);
 
@@ -121,13 +124,37 @@ export default function AlertaAcademica({
       await entregarPlanillaAlerta(base, !!planilla, cambios);
       setPlanilla(await leerPlanillaAlerta(idDoc!));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo entregar.');
+      setError(mensajeAlerta(e, 'No se pudo entregar.'));
     } finally {
       setEntregando(false);
     }
   }
 
+  // Si el servidor rechaza, casi siempre es porque la planilla de este grupo y asignatura
+  // ya la abrio el OTRO docente que tambien la dicta (asignatura compartida): una sola
+  // planilla por grupo y asignatura, a nombre de quien la abrio. Se dice en claro.
+  function mensajeAlerta(e: unknown, siNo: string): string {
+    const codigo = (e as { code?: string } | null)?.code ?? '';
+    if (codigo.includes('permission-denied')) {
+      return `La planilla de ${nombreAsignatura} en ${grado} ya la abrió otro docente que también dicta esta asignatura. ` +
+        'La alerta la digita una sola persona por grupo y asignatura: si le corresponde a usted, avise a coordinación.';
+    }
+    return e instanceof Error ? e.message : siNo;
+  }
+
   if (convocatorias === null) return <p className="p-3 text-sm text-muted">Cargando la alerta académica…</p>;
+
+  // Asignatura compartida con otro docente, y la digita el otro (RESPONSABLE_ALERTA).
+  if (!digitaAlerta(slotId, grado, subjectId)) {
+    const r = responsableAlerta(grado, subjectId);
+    const nombre = USUARIOS.find((u) => u.id === r)?.nombre ?? 'otro docente';
+    return (
+      <div className="rounded-2xl border border-line bg-card p-4 text-sm text-soft">
+        Usted comparte {nombreAsignatura} en {grado} con otro docente. La alerta académica de este grupo la digita{' '}
+        <b className="text-strong">{nombre}</b>: no tiene que hacer nada aquí.
+      </div>
+    );
+  }
 
   if (!conv) {
     return (

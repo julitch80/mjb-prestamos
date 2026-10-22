@@ -38,6 +38,32 @@ export function alertaId(anio: number, periodo: number, sede: Sede, grado: strin
   return `${anio}_${periodo}_${sede}_${grado}_${subjectId}`;
 }
 
+/**
+ * Asignaturas COMPARTIDAS: grupos donde la asignacion academica pone a dos docentes en la
+ * misma asignatura. La alerta es UNA planilla por grupo y asignatura, y queda a nombre del
+ * primero que marca; el otro docente ya no puede ni leerla. Aqui se dice quien la digita
+ * formalmente (Julian, 2026-10-22: en 10.2 Ingles la digita Johana, aunque el curso lo
+ * comparte con Juan Carlos). Clave `grado|subjectId`, valor el slotId del responsable.
+ *
+ * Pendientes de decidir (dos docentes, sin responsable todavia): 10.2 matematicas
+ * (uriel, claudia), 7º1 matematicas (yanet, felipe), 7º2 matematicas (hugo, felipe),
+ * 7º3 matematicas (yanet, felipe). Sin entrada, marca el primero que abra la planilla.
+ */
+export const RESPONSABLE_ALERTA: Record<string, string> = {
+  '10.2|ingles': 'johana',
+};
+
+/** El slotId de quien digita la alerta de ese grupo y asignatura, o null si no hay regla. */
+export function responsableAlerta(grado: string, subjectId: string): string | null {
+  return RESPONSABLE_ALERTA[`${grado}|${subjectId}`] ?? null;
+}
+
+/** ¿Este docente digita la alerta de ese grupo y asignatura? Sin regla, cualquiera que la dicte. */
+export function digitaAlerta(slotId: string, grado: string, subjectId: string): boolean {
+  const r = responsableAlerta(grado, subjectId);
+  return r === null || r === slotId;
+}
+
 export function citacionAlertaId(anio: number, periodo: number, sede: Sede, grado: string): string {
   return `${anio}_${periodo}_${sede}_${grado}`;
 }

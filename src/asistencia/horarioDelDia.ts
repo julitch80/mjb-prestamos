@@ -16,6 +16,7 @@ import { ASIGNACION_2026, asignacionDeDocente, getAsignatura } from '../data/asi
 import { useAppStore } from '../data/store';
 import { clasesEfectivas, esDiaSinClasesPorDefecto, fechaLocalISO, type ClaseEfectiva } from '../data/horario/clasesEfectivas';
 import { horasLibresDelDia, type HoraLibre } from './domain/seguimiento-alerta';
+import { responsableAlerta } from './domain/alerta-academica';
 import { useClasesEfectivasHoy } from '../data/horario/useClasesEfectivasHoy';
 import type { FranjaHoraria, HoraDeClase } from './domain/bloques-clase';
 import type { Jornada } from './domain/types';
@@ -80,7 +81,9 @@ export function asignaturasDelGrado(grado: string): { subjectId: string; nombre:
     if (e.grupo !== grado || e.asignaturaId === 'ci' || vistas.has(e.asignaturaId)) continue;
     vistas.add(e.asignaturaId);
     const a = getAsignatura(e.asignaturaId);
-    res.push({ subjectId: e.asignaturaId, nombre: a?.nombre ?? e.asignaturaId, abrev: a?.abrev ?? e.asignaturaId.slice(0, 4), slotId: e.docenteId });
+    // Asignatura compartida: el que la digita segun RESPONSABLE_ALERTA, no el primero de la lista.
+    const slotId = responsableAlerta(grado, e.asignaturaId) ?? e.docenteId;
+    res.push({ subjectId: e.asignaturaId, nombre: a?.nombre ?? e.asignaturaId, abrev: a?.abrev ?? e.asignaturaId.slice(0, 4), slotId });
   }
   return res.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 }
