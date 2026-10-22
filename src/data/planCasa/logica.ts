@@ -182,7 +182,7 @@ export function resumenTablero(
 /** Etiqueta pública: nombre de la asignatura, o eje (asignaturas) si es transversal. */
 export function etiquetaGuia(g: GuiaPlan, plan: PlanCasa, nombresAsignatura: Record<string, string>): string {
   const nombres = g.asignaturaIds.map(id => nombresAsignatura[id] ?? id);
-  if (plan.modalidad === 'transversal') return `${g.eje} (${nombres.join(' · ')})`;
+  if (plan.modalidad === 'transversal') return g.eje.trim() ? `${g.eje} (${nombres.join(' · ')})` : nombres.join(' · ');
   return nombres[0] ?? g.eje;
 }
 

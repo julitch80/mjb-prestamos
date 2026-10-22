@@ -20,7 +20,7 @@ import { asignaturasConNombre, gradoDeGrupo } from './nombres';
 import EditorGuia from './EditorGuia';
 import {
   BotonFormatoUAI, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, Etiqueta, fechaCorta, Marca,
-  repartirTodas, resumenGuia,
+  repartirTodas, resumenGuia, SugerirPreguntas,
 } from './comun';
 
 const EST_PASO: Record<EstadoPaso, string> = { pendiente: 'Pendiente', entregado: 'Entregado', revisado: 'Revisado' };
@@ -224,6 +224,9 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
   const [generandoTodo, setGenerandoTodo] = useState(false);
   const [progreso, setProgreso] = useState<Progreso[]>([]);
   const refPropuesta = useRef<HTMLDivElement>(null);
+  const [eje, setEje] = useState(g.eje);
+  const [guardandoEje, setGuardandoEje] = useState(false);
+  useEffect(() => { setEje(g.eje); }, [g.eje]);
   const r = resumenGuia(g);
   const transversal = g.asignaturaIds.length > 1 || plan.modalidad === 'transversal';
   const nombre = (id: string) => nombres[id]?.asignatura ?? id;
@@ -371,6 +374,13 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
     } finally { setGenerandoTodo(false); }
   }
 
+  async function guardarEje() {
+    setError(''); setGuardandoEje(true);
+    try { await guardarGuia(plan.id, g.id, { eje: eje.trim() }); setAviso('Pregunta orientadora guardada.'); }
+    catch (e) { setError((e as Error).message); }
+    finally { setGuardandoEje(false); }
+  }
+
   async function aprobar() {
     if (!borrador) return;
     if (!borrador.pasos.length || borrador.pasos.some(p => !p.titulo.trim())) return setError('Cada paso necesita un título.');
@@ -402,12 +412,24 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
     <div className="rounded-2xl border border-line bg-card p-4 space-y-4">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-strong">{transversal ? 'Pregunta orientadora' : 'Guía'}: {g.eje}</h3>
-          {transversal && <p className="text-xs text-muted">Integra: {g.asignaturaIds.map(nombre).join(', ')}</p>}
+          <h3 className="text-sm font-semibold text-strong">{transversal ? `Guía · ${g.asignaturaIds.map(nombre).join(' · ')}` : `Guía: ${g.eje}`}</h3>
+          {transversal && <p className="text-xs text-muted">{g.eje ? `Pregunta orientadora: ${g.eje}` : 'Pregunta orientadora pendiente.'}</p>}
         </div>
         {r.guia && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-success-soft text-success-soft-fg flex-shrink-0">✓ Aprobada</span>}
       </div>
       {gestor && <NotaGestor />}
+      {transversal && (
+        <div className="rounded-xl border border-line p-3 space-y-2">
+          <Etiqueta>Pregunta orientadora</Etiqueta>
+          <div className="flex gap-2">
+            <input value={eje} onChange={e => setEje(e.target.value)} placeholder="Pregunta orientadora / problema del contexto" className={CLASE_INPUT} />
+            <button onClick={guardarEje} disabled={guardandoEje || eje.trim() === (g.eje ?? '').trim()} className={cn(CLASE_BOTON_SEC, 'flex-shrink-0')}>
+              {guardandoEje ? 'Guardando…' : 'Guardar pregunta'}
+            </button>
+          </div>
+          <SugerirPreguntas asignaturas={g.asignaturaIds.map(nombre)} grado={gradoDeGrupo(plan.grupo)} ajustes={plan.ajustes} onUsar={setEje} />
+        </div>
+      )}
       <VistosBuenos g={g} asigs={asigs} />
 
       {(!r.guia || editando) && (
@@ -418,10 +440,11 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
               <ul className="list-disc pl-4 space-y-0.5">{plan.ajustes.map(x => <li key={x}>{x}</li>)}</ul>
             </div>
           )}
-          <button onClick={generarTodo} disabled={generandoTodo || generando}
+          <button onClick={generarTodo} disabled={generandoTodo || generando || (transversal && !g.eje.trim())}
             className={cn(CLASE_BOTON, 'w-full justify-center py-3 text-base')}>
             <Sparkles size={18} />{generandoTodo ? 'Trabajando…' : borrador ? '✨ Generar todo de nuevo con IA' : '✨ Generar todo con IA'}
           </button>
+          {transversal && !g.eje.trim() && <p className="text-xs text-warning">Primero escoja la pregunta orientadora (y guárdela).</p>}
           <p className="text-[11px] text-muted">Completa lo que esté vacío (nunca pisa lo que usted escribió) y prepara la guía para que la revise.</p>
           {progreso.length > 0 && (
             <ul className="space-y-1 text-sm">
@@ -499,7 +522,7 @@ function GuiaParticipante({ plan, g, asigs, nombres }: { plan: PlanConDocentes; 
   return (
     <div className="rounded-2xl border border-line bg-card p-4 space-y-3">
       <div className="flex items-start gap-2">
-        <h3 className="text-sm font-semibold text-strong min-w-0 flex-1">Guía de {nombreDocente(g.responsableCorreo, asigs)}: {g.eje}</h3>
+        <h3 className="text-sm font-semibold text-strong min-w-0 flex-1">Guía de {nombreDocente(g.responsableCorreo, asigs)}: {g.eje || 'Pendiente: la define el responsable'}</h3>
         {g.aprobada && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-success-soft text-success-soft-fg flex-shrink-0">✓ Aprobada</span>}
       </div>
       <VistosBuenos g={g} asigs={asigs} />

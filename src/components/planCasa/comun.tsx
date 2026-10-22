@@ -1,8 +1,9 @@
 // Piezas compartidas del módulo «Plan en casa».
-import type { ReactNode } from 'react';
-import { AlertTriangle, FileDown, Loader2 } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { AlertTriangle, FileDown, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AsignaturaPlan, GuiaPlan, FechaISO, PasoGuia, RitmoPlan } from '../../data/planCasa/tipos';
+import { sugerirPreguntas, type PreguntaSugerida } from '../../data/planCasa/persistencia';
 import { repartirPasos } from '../../data/planCasa/logica';
 import { abrirImprimibleUAI, construirHtmlUAI, type PlanParaUAI } from '../../data/planCasa/imprimibleUAI';
 
@@ -112,3 +113,52 @@ function hoyLocal(): FechaISO {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+// ── Ayudante «Sugerir preguntas orientadoras» ─────────────────────────────
+
+export function SugerirPreguntas({ asignaturas, grado, ajustes, onUsar }: {
+  asignaturas: string[]; grado: string; ajustes: string[]; onUsar: (pregunta: string) => void;
+}) {
+  const [tematica, setTematica] = useState('');
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState('');
+  const [lista, setLista] = useState<PreguntaSugerida[]>([]);
+
+  async function pedir() {
+    if (!asignaturas.length) return setError('No hay asignaturas en la guía.');
+    setError(''); setCargando(true);
+    try { setLista(await sugerirPreguntas({ tematica: tematica.trim(), asignaturas, grado, ajustes })); }
+    catch (e) { setError((e as Error).message || 'No se pudieron generar las sugerencias.'); }
+    finally { setCargando(false); }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <input value={tematica} onChange={e => setTematica(e.target.value)} placeholder="Temática (opcional): ej. el agua en mi barrio" className={CLASE_INPUT} />
+        <button onClick={pedir} disabled={cargando} className={cn(CLASE_BOTON_SEC, 'flex-shrink-0')}>
+          <Sparkles size={14} />{cargando ? 'Pensando…' : lista.length ? 'Otras preguntas' : 'Sugerir preguntas'}
+        </button>
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+      {lista.length > 0 && (
+        <ul className="space-y-2">
+          {lista.map((p, k) => (
+            <li key={k} className="rounded-xl bg-elevated p-3 space-y-1.5">
+              <p className="text-sm font-semibold text-strong">{p.pregunta}</p>
+              {p.porQue && <p className="text-xs text-soft">{p.porQue}</p>}
+              {p.aportes.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {p.aportes.map(a => <span key={a.asignatura} className="text-[11px] px-2 py-0.5 rounded-full bg-card text-soft">{a.asignatura}: {a.aporte}</span>)}
+                </div>
+              )}
+              {p.producto && <p className="text-xs text-muted">Producto: {p.producto}</p>}
+              <button onClick={() => { onUsar(p.pregunta); setLista([]); }} className={CLASE_BOTON_SEC}>Usar esta</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
