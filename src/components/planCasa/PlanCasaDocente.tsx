@@ -2,7 +2,7 @@
 // Cada docente: criterios de promoción y aportes de SUS asignaturas; si es responsable de una
 // guía, la pide con IA, la edita, la aprueba y le hace seguimiento; si solo participa, da su
 // visto bueno.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../data/store';
@@ -26,6 +26,8 @@ import {
 const EST_PASO: Record<EstadoPaso, string> = { pendiente: 'Pendiente', entregado: 'Entregado', revisado: 'Revisado' };
 const EST_SUST: Record<EstadoSustentacion, string> = { sin_citar: 'Sin citar', citada: 'Citada', sustentada: 'Sustentada' };
 type Nombres = Record<string, { asignatura: string; docente: string }>;
+type EstadoProg = 'espera' | 'curso' | 'ok' | 'fallo';
+interface Progreso { texto: string; estado: EstadoProg }
 
 // ── Seguimiento (de una guía) ─────────────────────────────────────────────
 
@@ -219,6 +221,9 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
   const [editando, setEditando] = useState(false);
   const [sugiriendo, setSugiriendo] = useState(false);
   const [avisoSug, setAvisoSug] = useState('');
+  const [generandoTodo, setGenerandoTodo] = useState(false);
+  const [progreso, setProgreso] = useState<Progreso[]>([]);
+  const refPropuesta = useRef<HTMLDivElement>(null);
   const r = resumenGuia(g);
   const transversal = g.asignaturaIds.length > 1 || plan.modalidad === 'transversal';
   const nombre = (id: string) => nombres[id]?.asignatura ?? id;
@@ -256,29 +261,114 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
     finally { setSugiriendo(false); }
   }
 
+  /** Pide la guía a la IA con las asignaturas dadas y la guarda como propuesta. */
+  async function pedirYGuardar(limpio: PedidoGuia, pr: AsignaturaPlan[]) {
+    const guia = await pedirGuiaIA({
+      asignatura: pr.map(a => nombre(a.asignaturaId)).join(', '),
+      ...(transversal ? { transversal: { eje: g.eje, asignaturas: pr.map(a => ({
+        nombre: nombre(a.asignaturaId), criteriosPromocion: a.criteriosPromocion, ...(a.aportes?.trim() ? { aportes: a.aportes.trim() } : {}),
+        ...(a.ebcDba?.trim() ? { ebcDba: a.ebcDba.trim() } : {}),
+        ...(a.evidenciaAprendizaje?.trim() ? { evidenciaAprendizaje: a.evidenciaAprendizaje.trim() } : {}),
+      })) } } : {}),
+      grado: gradoDeGrupo(plan.grupo), desde: plan.desde, hasta: plan.hasta,
+      ajustes: plan.ajustes, topeDiario: plan.topeDiario,
+      semanas: semanasDelPeriodo(plan.desde, plan.hasta), ritmo: plan.ritmo ?? 'diario',
+      criteriosPromocion: pr.map(a => `${transversal ? nombre(a.asignaturaId) + ': ' : ''}${a.criteriosPromocion}${!transversal && a.ebcDba?.trim() ? ` | EBC/DBA priorizado: ${a.ebcDba.trim()}` : ''}${!transversal && a.evidenciaAprendizaje?.trim() ? ` | Evidencia de aprendizaje esperada: ${a.evidenciaAprendizaje.trim()}` : ''}`).join('\n'),
+      pedido: limpio, ...(indicacion.trim() ? { indicacion: indicacion.trim() } : {}),
+    });
+    setBorrador(guia); setIndicacion('');
+    await guardarGuia(plan.id, g.id, { pedido: limpio, propuesta: guia });
+  }
+
   async function generar() {
     if (!pedido.tematicas.trim() || !pedido.competencias.trim()) return setError('Escriba las temáticas y las competencias.');
-    if (faltanCriterios.length) return setError(`Faltan criterios de promoción en: ${faltanCriterios.map(a => nombre(a.asignaturaId)).join(', ')}.`);
     setError(''); setAviso(''); setGenerando(true);
     const limpio: PedidoGuia = { tematicas: pedido.tematicas.trim(), competencias: pedido.competencias.trim(), ...(pedido.textoReferencia?.trim() ? { textoReferencia: pedido.textoReferencia.trim() } : {}) };
-    try {
-      const guia = await pedirGuiaIA({
-        asignatura: propias.map(a => nombre(a.asignaturaId)).join(', '),
-        ...(transversal ? { transversal: { eje: g.eje, asignaturas: propias.map(a => ({
-          nombre: nombre(a.asignaturaId), criteriosPromocion: a.criteriosPromocion, ...(a.aportes?.trim() ? { aportes: a.aportes.trim() } : {}),
-          ...(a.ebcDba?.trim() ? { ebcDba: a.ebcDba.trim() } : {}),
-          ...(a.evidenciaAprendizaje?.trim() ? { evidenciaAprendizaje: a.evidenciaAprendizaje.trim() } : {}),
-        })) } } : {}),
-        grado: gradoDeGrupo(plan.grupo), desde: plan.desde, hasta: plan.hasta,
-        ajustes: plan.ajustes, topeDiario: plan.topeDiario,
-        semanas: semanasDelPeriodo(plan.desde, plan.hasta), ritmo: plan.ritmo ?? 'diario',
-        criteriosPromocion: propias.map(a => `${transversal ? nombre(a.asignaturaId) + ': ' : ''}${a.criteriosPromocion}${!transversal && a.ebcDba?.trim() ? ` | EBC/DBA priorizado: ${a.ebcDba.trim()}` : ''}${!transversal && a.evidenciaAprendizaje?.trim() ? ` | Evidencia de aprendizaje esperada: ${a.evidenciaAprendizaje.trim()}` : ''}`).join('\n'),
-        pedido: limpio, ...(indicacion.trim() ? { indicacion: indicacion.trim() } : {}),
-      });
-      setBorrador(guia); setIndicacion('');
-      await guardarGuia(plan.id, g.id, { pedido: limpio, propuesta: guia });
-    } catch (e) { setError((e as Error).message); }
+    try { await pedirYGuardar(limpio, propias); }
+    catch (e) { setError((e as Error).message); }
     finally { setGenerando(false); }
+  }
+
+  function marcar(i: number, estado: EstadoProg, texto?: string) {
+    setProgreso(p => p.map((x, k) => k === i ? { texto: texto ?? x.texto, estado } : x));
+  }
+
+  /** Un toque: completa lo vacío de cada asignatura y del pedido, y pide la guía. Nunca pisa lo escrito. */
+  async function generarTodo() {
+    setError(''); setAviso(''); setGenerandoTodo(true);
+    const vacia = (a: AsignaturaPlan) => !a.criteriosPromocion.trim() || !a.ebcDba?.trim() || !a.evidenciaAprendizaje?.trim() || !a.aportes?.trim();
+    const aCompletar = propias.filter(vacia);
+    const pasos: Progreso[] = aCompletar.map(a => ({ texto: `Preparando ${nombre(a.asignaturaId)}…`, estado: 'curso' as EstadoProg }));
+    const iPedido = pasos.length; pasos.push({ texto: 'Preparando temáticas y competencias…', estado: 'espera' });
+    const iGuia = pasos.length; pasos.push({ texto: 'Pidiendo la guía…', estado: 'espera' });
+    setProgreso(pasos);
+    const grado = gradoDeGrupo(plan.grupo);
+    const fallos: string[] = [];
+    const actuales = new Map<string, AsignaturaPlan>(propias.map(a => [a.asignaturaId, a]));
+    try {
+      await Promise.all(aCompletar.map(async (a, i) => {
+        const n = nombre(a.asignaturaId);
+        try {
+          const existentes = Object.fromEntries(Object.entries({ criteriosPromocion: a.criteriosPromocion, ebcDba: a.ebcDba ?? '', evidenciaAprendizaje: a.evidenciaAprendizaje ?? '', aportes: a.aportes ?? '' })
+            .filter(([, v]) => v.trim()));
+          const c = await sugerirCampos({ modo: 'asignatura', asignaturas: [n], grado, ajustes: plan.ajustes, existentes });
+          const nuevo: AsignaturaPlan = {
+            ...a,
+            criteriosPromocion: a.criteriosPromocion.trim() ? a.criteriosPromocion : (c.criteriosPromocion ?? ''),
+            ebcDba: a.ebcDba?.trim() ? a.ebcDba : (c.ebcDba ?? ''),
+            evidenciaAprendizaje: a.evidenciaAprendizaje?.trim() ? a.evidenciaAprendizaje : (c.evidenciaAprendizaje ?? ''),
+            aportes: a.aportes?.trim() ? a.aportes : (c.aportes ?? ''),
+          };
+          actuales.set(a.asignaturaId, nuevo);
+          try {
+            await guardarAsignatura(plan.id, a.asignaturaId, {
+              criteriosPromocion: nuevo.criteriosPromocion, ebcDba: nuevo.ebcDba, evidenciaAprendizaje: nuevo.evidenciaAprendizaje, aportes: nuevo.aportes,
+            });
+          } catch { /* sin permiso para guardar: se usa igual en esta generación */ }
+          marcar(i, 'ok', `${n} lista`);
+        } catch (e) { fallos.push(n); marcar(i, 'fallo', `${n}: ${(e as Error).message}`); }
+      }));
+
+      // Pedido: solo si falta algo
+      let ped: PedidoGuia = { tematicas: pedido.tematicas.trim(), competencias: pedido.competencias.trim(), ...(pedido.textoReferencia?.trim() ? { textoReferencia: pedido.textoReferencia.trim() } : {}) };
+      if (!ped.tematicas || !ped.competencias) {
+        marcar(iPedido, 'curso');
+        try {
+          const existentes: Record<string, string> = {};
+          if (ped.tematicas) existentes.tematicas = ped.tematicas;
+          if (ped.competencias) existentes.competencias = ped.competencias;
+          if (ped.textoReferencia) existentes.textoReferencia = ped.textoReferencia;
+          for (const a of actuales.values()) {
+            const n = nombre(a.asignaturaId);
+            if (a.criteriosPromocion.trim()) existentes[`criterios de ${n}`] = a.criteriosPromocion.trim();
+            if (a.ebcDba?.trim()) existentes[`EBC/DBA de ${n}`] = a.ebcDba.trim();
+            if (a.aportes?.trim()) existentes[`aportes de ${n}`] = a.aportes.trim();
+          }
+          const c = await sugerirCampos({ modo: 'pedido', preguntaOrientadora: g.eje, asignaturas: g.asignaturaIds.map(nombre), grado, ajustes: plan.ajustes, existentes });
+          const ref = ped.textoReferencia || (c.textoReferencia ?? '').trim();
+          ped = {
+            tematicas: ped.tematicas || (c.tematicas ?? '').trim(),
+            competencias: ped.competencias || (c.competencias ?? '').trim(),
+            ...(ref ? { textoReferencia: ref } : {}),
+          };
+          setPedido(ped);
+          marcar(iPedido, 'ok', 'Temáticas y competencias listas');
+        } catch (e) { marcar(iPedido, 'fallo', `Temáticas y competencias: ${(e as Error).message}`); }
+      } else marcar(iPedido, 'ok', 'Temáticas y competencias ya estaban');
+
+      if (!ped.tematicas || !ped.competencias) {
+        marcar(iGuia, 'fallo', 'No se pudo pedir la guía: faltan temáticas y competencias.');
+        setError('No se pudo completar el pedido. Escriba las temáticas y competencias en «Ver y ajustar detalles» y use «Generar guía con IA».');
+        return;
+      }
+      marcar(iGuia, 'curso');
+      try {
+        await pedirYGuardar(ped, propias.map(a => actuales.get(a.asignaturaId) ?? a));
+        marcar(iGuia, 'ok', 'Guía lista');
+        setAviso(fallos.length ? `Guía lista, pero no se pudo completar: ${fallos.join(', ')}. Revise esa asignatura en «Ver y ajustar detalles».` : 'Guía lista. Revísela y apruébela.');
+        setTimeout(() => refPropuesta.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+      } catch (e) { marcar(iGuia, 'fallo', `Guía: ${(e as Error).message}`); setError((e as Error).message); }
+    } finally { setGenerandoTodo(false); }
   }
 
   async function aprobar() {
@@ -322,25 +412,50 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
 
       {(!r.guia || editando) && (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <button onClick={sugerirPedido} disabled={sugiriendo || generando} className={CLASE_BOTON_SEC}>{sugiriendo ? 'Pensando…' : '✨ Sugerir con IA'}</button>
-            {avisoSug && !sugiriendo && <span className="text-xs text-soft">{avisoSug}</span>}
-          </div>
-          <div><Etiqueta>Temáticas</Etiqueta>
-            <textarea rows={2} value={pedido.tematicas} onChange={e => setPedido({ ...pedido, tematicas: e.target.value })} className={CLASE_INPUT} /></div>
-          <div><Etiqueta>Competencias o habilidades a desarrollar</Etiqueta>
-            <textarea rows={2} value={pedido.competencias} onChange={e => setPedido({ ...pedido, competencias: e.target.value })} className={CLASE_INPUT} /></div>
-          <div><Etiqueta>Texto, lectura o enlace de referencia (opcional)</Etiqueta>
-            <textarea rows={2} value={pedido.textoReferencia ?? ''} onChange={e => setPedido({ ...pedido, textoReferencia: e.target.value })} className={CLASE_INPUT} /></div>
-          {borrador && <input value={indicacion} onChange={e => setIndicacion(e.target.value)} placeholder="Indicación para otra versión: «más corta», «más práctica»…" className={CLASE_INPUT} />}
-          <button onClick={generar} disabled={generando} className={CLASE_BOTON}><Sparkles size={15} />{borrador ? 'Otra versión' : 'Generar guía con IA'}</button>
-          {generando && <Cargando texto="La IA está preparando la guía (puede tardar hasta un minuto)…" />}
+          {plan.ajustes.length > 0 && (
+            <div className="rounded-xl bg-info-soft text-info-soft-fg text-xs p-3">
+              <p className="font-medium mb-1">Ajustes razonables del estudiante</p>
+              <ul className="list-disc pl-4 space-y-0.5">{plan.ajustes.map(x => <li key={x}>{x}</li>)}</ul>
+            </div>
+          )}
+          <button onClick={generarTodo} disabled={generandoTodo || generando}
+            className={cn(CLASE_BOTON, 'w-full justify-center py-3 text-base')}>
+            <Sparkles size={18} />{generandoTodo ? 'Trabajando…' : borrador ? '✨ Generar todo de nuevo con IA' : '✨ Generar todo con IA'}
+          </button>
+          <p className="text-[11px] text-muted">Completa lo que esté vacío (nunca pisa lo que usted escribió) y prepara la guía para que la revise.</p>
+          {progreso.length > 0 && (
+            <ul className="space-y-1 text-sm">
+              {progreso.map((p, i) => (
+                <li key={i} className={cn(p.estado === 'fallo' ? 'text-danger' : p.estado === 'ok' ? 'text-success' : 'text-soft')}>
+                  {p.estado === 'ok' ? '✓ ' : p.estado === 'fallo' ? '✗ ' : p.estado === 'curso' ? '… ' : '· '}{p.texto}
+                </li>))}
+            </ul>
+          )}
+          <details className="rounded-xl border border-line p-3">
+            <summary className="cursor-pointer text-sm font-medium text-strong">Ver y ajustar detalles (opcional)</summary>
+            <div className="space-y-3 mt-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={sugerirPedido} disabled={sugiriendo || generando || generandoTodo} className={CLASE_BOTON_SEC}>{sugiriendo ? 'Pensando…' : '✨ Sugerir con IA'}</button>
+                {avisoSug && !sugiriendo && <span className="text-xs text-soft">{avisoSug}</span>}
+              </div>
+              <div><Etiqueta>Temáticas</Etiqueta>
+                <textarea rows={2} value={pedido.tematicas} onChange={e => setPedido({ ...pedido, tematicas: e.target.value })} className={CLASE_INPUT} /></div>
+              <div><Etiqueta>Competencias o habilidades a desarrollar</Etiqueta>
+                <textarea rows={2} value={pedido.competencias} onChange={e => setPedido({ ...pedido, competencias: e.target.value })} className={CLASE_INPUT} /></div>
+              <div><Etiqueta>Texto, lectura o enlace de referencia (opcional)</Etiqueta>
+                <textarea rows={2} value={pedido.textoReferencia ?? ''} onChange={e => setPedido({ ...pedido, textoReferencia: e.target.value })} className={CLASE_INPUT} /></div>
+              {borrador && <input value={indicacion} onChange={e => setIndicacion(e.target.value)} placeholder="Indicación para otra versión: «más corta», «más práctica»…" className={CLASE_INPUT} />}
+              {faltanCriterios.length > 0 && <p className="text-[11px] text-muted">Aún faltan criterios de promoción en: {faltanCriterios.map(a => nombre(a.asignaturaId)).join(', ')}. «Generar todo con IA» los completa.</p>}
+              <button onClick={generar} disabled={generando || generandoTodo} className={CLASE_BOTON_SEC}><Sparkles size={15} />{borrador ? 'Otra versión' : 'Generar guía con IA'}</button>
+            </div>
+          </details>
+          {(generando || generandoTodo) && <Cargando texto="La IA está trabajando (puede tardar hasta un minuto)…" />}
           <p className="text-[11px] text-muted">A la IA no se le envía el nombre del estudiante ni su motivo: solo los ajustes y los datos de la asignatura.</p>
         </div>
       )}
 
-      {borrador && (!r.guia || editando) && !generando && (
-        <div className="space-y-3 border-t border-line pt-4">
+      {borrador && (!r.guia || editando) && !generando && !generandoTodo && (
+        <div ref={refPropuesta} className="space-y-3 border-t border-line pt-4">
           <h4 className="text-sm font-semibold text-strong">Propuesta (edítela a su gusto)</h4>
           <EditorGuia guia={borrador} onChange={setBorrador} />
           <div className="flex flex-wrap gap-2">
@@ -426,8 +541,15 @@ function PlanDocente({ plan, gestor }: { plan: PlanConDocentes; gestor: boolean 
       {error && <CajaError>{error}</CajaError>}
       {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
       {asigs && guias && mias.length === 0 && !error && <p className="text-sm text-soft">No tiene asignaturas en este plan.</p>}
-      {mias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
       {responsable.map(g => <GuiaResponsable key={g.id} gestor={gestor} plan={plan} g={g} todas={guias ?? []} asigs={asigs ?? []} nombres={nombres} />)}
+      {mias.length > 0 && (
+        <details className="rounded-2xl border border-line bg-card p-4">
+          <summary className="cursor-pointer text-sm font-medium text-strong">Ver y ajustar detalles (opcional): criterios y aportes de {mias.length === 1 ? 'mi asignatura' : 'mis asignaturas'}</summary>
+          <div className="space-y-3 mt-3">
+            {mias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
+          </div>
+        </details>
+      )}
       {participo.map(g => <GuiaParticipante key={g.id} plan={plan} g={g} asigs={asigs ?? []} nombres={nombres} />)}
     </section>
   );
