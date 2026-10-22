@@ -5,15 +5,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAppStore } from '../../data/store';
 import type {
   AsignaturaPlan, EstadoPaso, EstadoSustentacion, Guia, GuiaPlan, PedidoGuia,
 } from '../../data/planCasa/tipos';
 import { MODALIDADES_SUSTENTACION } from '../../data/planCasa/tipos';
 import { semanasDelPeriodo } from '../../data/planCasa/logica';
 import {
-  correoActual, darVistoBueno, escucharAsignaturas, escucharGuias, escucharPlanes, guardarAsignatura,
-  guardarGuia, pedirGuiaIA, publicarPlan, type PlanConDocentes,
+  correoActual, darVistoBueno, leerEquipo, escucharAsignaturas, escucharGuias, escucharPlanes, guardarAsignatura,
+  guardarGuia, pedirGuiaIA, publicarPlan, sugerirCampos, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
+import { USUARIOS } from '../../data/maestros';
 import { asignaturasConNombre, gradoDeGrupo } from './nombres';
 import EditorGuia from './EditorGuia';
 import {
@@ -87,13 +89,19 @@ function Seguimiento({ plan, g }: { plan: PlanConDocentes; g: GuiaPlan }) {
 
 // ── Criterios y aportes de una asignatura mía ─────────────────────────────
 
-function CriteriosAsignatura({ plan, a, nombre }: { plan: PlanConDocentes; a: AsignaturaPlan; nombre: string }) {
+function NotaGestor() {
+  return <p className="text-[11px] text-muted">Editando como superusuario/equipo</p>;
+}
+
+function CriteriosAsignatura({ plan, a, nombre, gestor }: { plan: PlanConDocentes; a: AsignaturaPlan; nombre: string; gestor: boolean }) {
   const [criterios, setCriterios] = useState(a.criteriosPromocion);
   const [aportes, setAportes] = useState(a.aportes ?? '');
   const [ebcDba, setEbcDba] = useState(a.ebcDba ?? '');
   const [evidencia, setEvidencia] = useState(a.evidenciaAprendizaje ?? '');
   const [error, setError] = useState('');
   const [ok, setOk] = useState(false);
+  const [sugiriendo, setSugiriendo] = useState(false);
+  const [aviso, setAviso] = useState('');
   const sucio = criterios.trim() !== a.criteriosPromocion.trim() || aportes.trim() !== (a.aportes ?? '').trim()
     || ebcDba.trim() !== (a.ebcDba ?? '').trim() || evidencia.trim() !== (a.evidenciaAprendizaje ?? '').trim();
 
@@ -105,15 +113,36 @@ function CriteriosAsignatura({ plan, a, nombre }: { plan: PlanConDocentes; a: As
     catch (e) { setError((e as Error).message); }
   }
 
+  /** Rellena SOLO los campos vacíos; nunca pisa lo que el docente escribió. */
+  async function sugerir() {
+    setError(''); setAviso(''); setSugiriendo(true);
+    try {
+      const existentes = Object.fromEntries(Object.entries({ criteriosPromocion: criterios, ebcDba, evidenciaAprendizaje: evidencia, aportes })
+        .filter(([, v]) => v.trim()));
+      const c = await sugerirCampos({ modo: 'asignatura', asignaturas: [nombre], grado: gradoDeGrupo(plan.grupo), ajustes: plan.ajustes, existentes });
+      if (!criterios.trim() && c.criteriosPromocion) setCriterios(c.criteriosPromocion);
+      if (!ebcDba.trim() && c.ebcDba) setEbcDba(c.ebcDba);
+      if (!evidencia.trim() && c.evidenciaAprendizaje) setEvidencia(c.evidenciaAprendizaje);
+      if (!aportes.trim() && c.aportes) setAportes(c.aportes);
+      setAviso('Revise y ajuste antes de guardar.');
+    } catch (e) { setError((e as Error).message); }
+    finally { setSugiriendo(false); }
+  }
+
   return (
     <div className="rounded-2xl border border-line bg-card p-4 space-y-3">
       <h3 className="text-sm font-semibold text-strong">{nombre}</h3>
+      {gestor && <NotaGestor />}
       {plan.ajustes.length > 0 && (
         <div className="rounded-xl bg-info-soft text-info-soft-fg text-xs p-3">
           <p className="font-medium mb-1">Ajustes razonables del estudiante</p>
           <ul className="list-disc pl-4 space-y-0.5">{plan.ajustes.map(x => <li key={x}>{x}</li>)}</ul>
         </div>
       )}
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={sugerir} disabled={sugiriendo} className={CLASE_BOTON_SEC}>{sugiriendo ? 'Pensando…' : '✨ Sugerir con IA'}</button>
+        {aviso && !sugiriendo && <span className="text-xs text-soft">{aviso}</span>}
+      </div>
       <div><Etiqueta>Criterios de promoción (qué debe demostrar para aprobar)</Etiqueta>
         <textarea rows={3} value={criterios} onChange={e => setCriterios(e.target.value)} className={CLASE_INPUT} /></div>
       <div><Etiqueta>EBC/DBA priorizado (una competencia esencial para esta área)</Etiqueta>
@@ -158,20 +187,27 @@ function GuiaLectura({ guia }: { guia: Guia }) {
   );
 }
 
-function VistosBuenos({ g }: { g: GuiaPlan }) {
+/** correo → nombreCorto vía las asignaturas del plan (docenteId → USUARIOS); si no, el prefijo del correo. */
+function nombreDocente(correo: string, asigs: AsignaturaPlan[]): string {
+  const c = correo.toLowerCase();
+  const id = asigs.find(a => a.docenteCorreo.toLowerCase() === c)?.docenteId;
+  return USUARIOS.find(u => u.id === id)?.nombreCorto ?? USUARIOS.find(u => u.correo && u.correo.toLowerCase() === c)?.nombreCorto ?? c.split('@')[0];
+}
+
+function VistosBuenos({ g, asigs }: { g: GuiaPlan; asigs: AsignaturaPlan[] }) {
   if (g.docentesCorreos.length <= 1) return null;
   return (
     <div className="flex flex-wrap gap-1.5 items-center">
       <span className="text-xs text-soft">Vistos buenos:</span>
-      {g.docentesCorreos.map(c => <Marca key={c} ok={!!g.vistosBuenos?.[c]} etiqueta={c.split('@')[0]} />)}
+      {g.docentesCorreos.map(c => <Marca key={c} ok={!!g.vistosBuenos?.[c]} etiqueta={nombreDocente(c, asigs)} />)}
     </div>
   );
 }
 
 // ── Guía donde soy responsable ────────────────────────────────────────────
 
-function GuiaResponsable({ plan, g, todas, asigs, nombres }: {
-  plan: PlanConDocentes; g: GuiaPlan; todas: GuiaPlan[]; asigs: AsignaturaPlan[]; nombres: Nombres;
+function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
+  gestor: boolean; plan: PlanConDocentes; g: GuiaPlan; todas: GuiaPlan[]; asigs: AsignaturaPlan[]; nombres: Nombres;
 }) {
   const [pedido, setPedido] = useState<PedidoGuia>(g.pedido ?? { tematicas: '', competencias: '', textoReferencia: '' });
   const [borrador, setBorrador] = useState<Guia | null>(g.propuesta ?? null);
@@ -181,6 +217,8 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres }: {
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
   const [editando, setEditando] = useState(false);
+  const [sugiriendo, setSugiriendo] = useState(false);
+  const [avisoSug, setAvisoSug] = useState('');
   const r = resumenGuia(g);
   const transversal = g.asignaturaIds.length > 1 || plan.modalidad === 'transversal';
   const nombre = (id: string) => nombres[id]?.asignatura ?? id;
@@ -189,6 +227,34 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres }: {
 
   const propias = g.asignaturaIds.map(id => asigs.find(a => a.asignaturaId === id)).filter((a): a is AsignaturaPlan => !!a);
   const faltanCriterios = propias.filter(a => !a.criteriosPromocion.trim());
+
+  /** Rellena SOLO los campos vacíos del pedido. */
+  async function sugerirPedido() {
+    setError(''); setAvisoSug(''); setSugiriendo(true);
+    try {
+      const existentes: Record<string, string> = {};
+      if (pedido.tematicas.trim()) existentes.tematicas = pedido.tematicas.trim();
+      if (pedido.competencias.trim()) existentes.competencias = pedido.competencias.trim();
+      if (pedido.textoReferencia?.trim()) existentes.textoReferencia = pedido.textoReferencia.trim();
+      for (const a of propias) {
+        const n = nombre(a.asignaturaId);
+        if (a.criteriosPromocion.trim()) existentes[`criterios de ${n}`] = a.criteriosPromocion.trim();
+        if (a.ebcDba?.trim()) existentes[`EBC/DBA de ${n}`] = a.ebcDba.trim();
+        if (a.aportes?.trim()) existentes[`aportes de ${n}`] = a.aportes.trim();
+      }
+      const c = await sugerirCampos({
+        modo: 'pedido', preguntaOrientadora: g.eje, asignaturas: g.asignaturaIds.map(nombre),
+        grado: gradoDeGrupo(plan.grupo), ajustes: plan.ajustes, existentes,
+      });
+      setPedido(p => ({
+        tematicas: p.tematicas.trim() ? p.tematicas : (c.tematicas ?? ''),
+        competencias: p.competencias.trim() ? p.competencias : (c.competencias ?? ''),
+        textoReferencia: p.textoReferencia?.trim() ? p.textoReferencia : (c.textoReferencia ?? ''),
+      }));
+      setAvisoSug('Revise y ajuste antes de generar.');
+    } catch (e) { setError((e as Error).message); }
+    finally { setSugiriendo(false); }
+  }
 
   async function generar() {
     if (!pedido.tematicas.trim() || !pedido.competencias.trim()) return setError('Escriba las temáticas y las competencias.');
@@ -251,10 +317,15 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres }: {
         </div>
         {r.guia && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-success-soft text-success-soft-fg flex-shrink-0">✓ Aprobada</span>}
       </div>
-      <VistosBuenos g={g} />
+      {gestor && <NotaGestor />}
+      <VistosBuenos g={g} asigs={asigs} />
 
       {(!r.guia || editando) && (
         <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={sugerirPedido} disabled={sugiriendo || generando} className={CLASE_BOTON_SEC}>{sugiriendo ? 'Pensando…' : '✨ Sugerir con IA'}</button>
+            {avisoSug && !sugiriendo && <span className="text-xs text-soft">{avisoSug}</span>}
+          </div>
           <div><Etiqueta>Temáticas</Etiqueta>
             <textarea rows={2} value={pedido.tematicas} onChange={e => setPedido({ ...pedido, tematicas: e.target.value })} className={CLASE_INPUT} /></div>
           <div><Etiqueta>Competencias o habilidades a desarrollar</Etiqueta>
@@ -313,10 +384,10 @@ function GuiaParticipante({ plan, g, asigs, nombres }: { plan: PlanConDocentes; 
   return (
     <div className="rounded-2xl border border-line bg-card p-4 space-y-3">
       <div className="flex items-start gap-2">
-        <h3 className="text-sm font-semibold text-strong min-w-0 flex-1">Guía de {g.responsableCorreo.split('@')[0]}: {g.eje}</h3>
+        <h3 className="text-sm font-semibold text-strong min-w-0 flex-1">Guía de {nombreDocente(g.responsableCorreo, asigs)}: {g.eje}</h3>
         {g.aprobada && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-success-soft text-success-soft-fg flex-shrink-0">✓ Aprobada</span>}
       </div>
-      <VistosBuenos g={g} />
+      <VistosBuenos g={g} asigs={asigs} />
       {guia ? (
         <>
           {!g.aprobada && <p className="text-xs text-soft">Propuesta aún sin aprobar.</p>}
@@ -334,7 +405,7 @@ function GuiaParticipante({ plan, g, asigs, nombres }: { plan: PlanConDocentes; 
 
 // ── Un plan ───────────────────────────────────────────────────────────────
 
-function PlanDocente({ plan }: { plan: PlanConDocentes }) {
+function PlanDocente({ plan, gestor }: { plan: PlanConDocentes; gestor: boolean }) {
   const [asigs, setAsigs] = useState<AsignaturaPlan[] | null>(null);
   const [guias, setGuias] = useState<GuiaPlan[] | null>(null);
   const [error, setError] = useState('');
@@ -342,9 +413,9 @@ function PlanDocente({ plan }: { plan: PlanConDocentes }) {
   useEffect(() => escucharGuias(plan.id, setGuias, e => { setError(e.message); setGuias([]); }), [plan.id]);
   const nombres = useMemo(() => asignaturasConNombre(plan.grupo), [plan.grupo]);
   const yo = correoActual();
-  const mias = (asigs ?? []).filter(a => a.docenteCorreo.toLowerCase() === yo);
-  const responsable = (guias ?? []).filter(g => g.responsableCorreo.toLowerCase() === yo);
-  const participo = (guias ?? []).filter(g => g.responsableCorreo.toLowerCase() !== yo && g.docentesCorreos.map(c => c.toLowerCase()).includes(yo));
+  const mias = (asigs ?? []).filter(a => gestor || a.docenteCorreo.toLowerCase() === yo);
+  const responsable = (guias ?? []).filter(g => gestor || g.responsableCorreo.toLowerCase() === yo);
+  const participo = gestor ? [] : (guias ?? []).filter(g => g.responsableCorreo.toLowerCase() !== yo && g.docentesCorreos.map(c => c.toLowerCase()).includes(yo));
 
   return (
     <section className="space-y-3">
@@ -355,8 +426,8 @@ function PlanDocente({ plan }: { plan: PlanConDocentes }) {
       {error && <CajaError>{error}</CajaError>}
       {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
       {asigs && guias && mias.length === 0 && !error && <p className="text-sm text-soft">No tiene asignaturas en este plan.</p>}
-      {mias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
-      {responsable.map(g => <GuiaResponsable key={g.id} plan={plan} g={g} todas={guias ?? []} asigs={asigs ?? []} nombres={nombres} />)}
+      {mias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
+      {responsable.map(g => <GuiaResponsable key={g.id} gestor={gestor} plan={plan} g={g} todas={guias ?? []} asigs={asigs ?? []} nombres={nombres} />)}
       {participo.map(g => <GuiaParticipante key={g.id} plan={plan} g={g} asigs={asigs ?? []} nombres={nombres} />)}
     </section>
   );
@@ -365,7 +436,11 @@ function PlanDocente({ plan }: { plan: PlanConDocentes }) {
 export default function PlanCasaDocente() {
   const [planes, setPlanes] = useState<PlanConDocentes[] | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => escucharPlanes(false, setPlanes, e => { setError(e.message || 'No se pudieron leer los planes.'); setPlanes([]); }), []);
+  const rol = useAppStore(s => s.rol);
+  const [enEquipo, setEnEquipo] = useState<boolean | null>(null);
+  useEffect(() => { leerEquipo().then(l => setEnEquipo(l.includes(correoActual()))); }, []);
+  const gestor = rol === 'superusuario' || rol === 'coordinador' || enEquipo === true;
+  useEffect(() => enEquipo === null ? undefined : escucharPlanes(gestor, setPlanes, e => { setError(e.message || 'No se pudieron leer los planes.'); setPlanes([]); }), [gestor, enEquipo]);
 
   return (
     <div className="space-y-5 max-w-2xl mx-auto">
@@ -373,7 +448,7 @@ export default function PlanCasaDocente() {
       {error && <CajaError>{error}</CajaError>}
       {!planes && <Cargando texto="Cargando planes…" />}
       {planes && planes.length === 0 && !error && <p className="text-sm text-soft">No tiene estudiantes con plan en casa.</p>}
-      {planes?.filter(p => p.estado === 'activo').map(p => <PlanDocente key={p.id} plan={p} />)}
+      {planes?.filter(p => p.estado === 'activo').map(p => <PlanDocente key={p.id} plan={p} gestor={gestor} />)}
     </div>
   );
 }

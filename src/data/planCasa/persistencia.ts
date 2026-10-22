@@ -264,6 +264,20 @@ export async function sugerirPreguntas(entrada: { tematica: string; asignaturas:
   } catch (e) { throw traducirError(e); }
 }
 
+export interface EntradaSugerirCampos {
+  modo: 'asignatura' | 'pedido'; preguntaOrientadora?: string; asignaturas: string[]; grado: string;
+  ajustes?: string[]; existentes?: Record<string, string>;
+}
+
+export async function sugerirCampos(entrada: EntradaSugerirCampos): Promise<Record<string, string>> {
+  if (!functions) throw new Error('Firebase no está configurado.');
+  try {
+    const r = await httpsCallable<EntradaSugerirCampos, { ok: boolean; campos?: Record<string, string>; error?: string }>(functions, 'planCasaSugerirCampos', { timeout: 60_000 })(entrada);
+    if (!r.data.ok || !r.data.campos) throw new Error(r.data.error ?? 'La IA no devolvió una sugerencia.');
+    return r.data.campos;
+  } catch (e) { throw traducirError(e); }
+}
+
 export async function publicarPlan(planId: string): Promise<void> {
   if (!functions) throw new Error('Firebase no está configurado.');
   try { await httpsCallable<{ planId: string }, unknown>(functions, 'planCasaPublicar')({ planId }); }

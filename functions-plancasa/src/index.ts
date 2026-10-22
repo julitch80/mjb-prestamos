@@ -18,6 +18,7 @@ import type { GuiaPlan, EntradaGuiaIA, PlanCasa, SalidaGuiaIA } from '../../src/
 import { COL_PLANES, COL_PUBLICO, SUB_GUIAS } from '../../src/data/planCasa/tipos';
 import { ESQUEMA_GUIA, MODELO, SISTEMA, construirPrompt, sanearGuia } from './guia';
 import { construirPublico } from './publico';
+import { SISTEMA_CAMPOS, construirPromptCampos, esquemaCampos, sanearCampos, type EntradaCampos } from './campos';
 import { ESQUEMA_PREGUNTAS, SISTEMA_PREGUNTAS, construirPromptPreguntas, sanearPreguntas, type EntradaPreguntas, type PreguntaSugerida } from './preguntas';
 
 setGlobalOptions({ maxInstances: 10, region: 'us-central1' });
@@ -127,6 +128,47 @@ export const planCasaPreguntas = onCall(
       if (err instanceof Anthropic.RateLimitError) return { ok: false, error: 'La IA está saturada. Inténtalo en un minuto.' };
       if (err instanceof Anthropic.AuthenticationError) return { ok: false, error: 'La clave de la IA no es válida. Avisa al administrador.' };
       return { ok: false, error: 'No se pudieron generar las sugerencias. Inténtalo de nuevo.' };
+    }
+  },
+);
+
+// --------------------------------------------------------- planCasaSugerirCampos
+
+export const planCasaSugerirCampos = onCall(
+  { ...opciones, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 60, memory: '256MiB' },
+  async (request): Promise<{ ok: boolean; campos?: Record<string, string>; error?: string }> => {
+    const quien = await llamante(request);
+    if (!ROLES_GUIA.includes(quien.role) && !(await esEquipo(quien.correo))) {
+      throw new HttpsError('permission-denied', 'Tu usuario no puede pedir sugerencias.');
+    }
+    const e = (request.data ?? {}) as EntradaCampos;
+    if (e.modo !== 'asignatura' && e.modo !== 'pedido') throw new HttpsError('invalid-argument', 'Modo inválido.');
+    if (!Array.isArray(e.asignaturas) || !e.asignaturas.some(a => typeof a === 'string' && a.trim())) {
+      throw new HttpsError('invalid-argument', 'Falta la asignatura.');
+    }
+    try {
+      const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+      const resp = await client.messages.create({
+        model: MODELO,
+        max_tokens: 2000,
+        system: SISTEMA_CAMPOS,
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: esquemaCampos(e.modo) as unknown as Record<string, unknown> } },
+        messages: [{ role: 'user', content: construirPromptCampos(e) }],
+      });
+      logger.info('planCasaSugerirCampos: uso de tokens', { modo: e.modo, entrada: resp.usage.input_tokens, salida: resp.usage.output_tokens, stop: resp.stop_reason });
+      if (resp.stop_reason === 'refusal') return { ok: false, error: 'La IA no pudo generar la sugerencia. Inténtalo de nuevo.' };
+      if (resp.stop_reason === 'max_tokens') return { ok: false, error: 'La respuesta quedó incompleta. Inténtalo de nuevo.' };
+      const texto = resp.content.map(b => (b.type === 'text' ? b.text : '')).join('');
+      let bruto: unknown;
+      try { bruto = JSON.parse(texto); } catch { return { ok: false, error: 'La respuesta de la IA no tuvo el formato esperado. Inténtalo de nuevo.' }; }
+      const campos = sanearCampos(bruto, e.modo);
+      if (!campos) return { ok: false, error: 'La IA no devolvió una sugerencia útil. Inténtalo de nuevo.' };
+      return { ok: true, campos };
+    } catch (err) {
+      logger.error('planCasaSugerirCampos: fallo', { mensaje: err instanceof Error ? err.message : String(err) });
+      if (err instanceof Anthropic.RateLimitError) return { ok: false, error: 'La IA está saturada. Inténtalo en un minuto.' };
+      if (err instanceof Anthropic.AuthenticationError) return { ok: false, error: 'La clave de la IA no es válida. Avisa al administrador.' };
+      return { ok: false, error: 'No se pudo generar la sugerencia. Inténtalo de nuevo.' };
     }
   },
 );
