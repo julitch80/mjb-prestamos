@@ -1,0 +1,242 @@
+// Plan de trabajo en casa con ajustes razonables — CONTRATO de datos.
+// Ver docs/plan-casa/PRD.md y PLAN.md. Todas las piezas (lógica, reglas, funciones,
+// pantallas, página pública) se construyen sobre estos tipos: cambiarlos exige
+// actualizar todas a la vez.
+
+export type FechaISO = string; // 'YYYY-MM-DD'
+
+/** Colecciones de Firestore. */
+export const COL_PLANES = 'planesCasa';             // planesCasa/{planId}
+export const SUB_RESERVADO = 'reservado';          // planesCasa/{planId}/reservado/motivo
+export const DOC_MOTIVO = 'motivo';
+export const SUB_ASIGNATURAS = 'asignaturas';      // planesCasa/{planId}/asignaturas/{asignaturaId}
+export const SUB_GUIAS = 'guias';                  // planesCasa/{planId}/guias/{guiaId}
+export const COL_PUBLICO = 'planesCasaPublico';    // planesCasaPublico/{token}
+export const DOC_EQUIPO = 'planCasaConfig/equipo'; // { correos: string[] } — UAI y orientador
+
+/** Tope diario por defecto si los ajustes no dicen otro (momentos de 25 min). */
+export const TOPE_DIARIO_DEFECTO = 4;
+
+/** Ajustes razonables frecuentes, para elegir con un toque (además del texto libre). */
+export const AJUSTES_FRECUENTES: string[] = [
+  'Lecturas cortas',
+  'Instrucciones de un paso a la vez',
+  'Ejemplos resueltos antes de cada ejercicio',
+  'Permitir entregas orales (audio o video)',
+  'Evitar trabajo en equipo',
+  'Más tiempo para cada entrega',
+  'Apoyos visuales (imágenes, esquemas)',
+  'Evaluación con preguntas de selección y respuesta corta',
+  // Propuesta curricular integrada por áreas (UAI)
+  'Priorizar una competencia (EBC) por área',
+  'Articular áreas para reducir entregas',
+  'Instrucciones cortas con apoyos gráficos',
+  'Una entrega parcial por semana, con tiempos flexibles',
+  'Actividades cortas por fatiga cognitiva y atención',
+  'Máximo 2–3 momentos por día o día por medio',
+  'De 3 a 5 ejercicios en lugar de talleres extensos',
+  'Ejemplos prácticos de modelado',
+  'Sustentación en modalidades diversas (video, audio, entrevista, esquema)',
+  'Textos cortos o material audiovisual para consultar',
+  'Mapas, esquemas o audios en lugar de escritos extensos',
+];
+
+/** Ritmo de trabajo: todos los días hábiles o solo uno por medio (máx. 2–3 momentos). */
+export type RitmoPlan = 'diario' | 'dia_por_medio';
+
+export type EstadoPlan = 'activo' | 'cerrado';
+
+/**
+ * 'por_asignatura': una guía por asignatura (lo normal).
+ * 'transversal': guías que integran varias asignaturas alrededor de un eje temático,
+ * para reducir la carga (ajuste razonable). Decisión de Julián 21-oct-2026.
+ */
+export type ModalidadGuias = 'por_asignatura' | 'transversal';
+
+export interface PlanCasa {
+  id: string;
+  /** studentId de asistenciaStudents. */
+  studentId: string;
+  nombres: string;
+  apellidos: string;
+  /** Notación del horario: '9.1' mañana, '6º1' tarde. */
+  grupo: string;
+  desde: FechaISO;
+  hasta: FechaISO;
+  /** Ajustes razonables en lenguaje pedagógico, SIN diagnóstico. Es lo único que va a la IA. */
+  ajustes: string[];
+  /** Máximo de momentos (25 min) por día sumando todas las asignaturas. */
+  topeDiario: number;
+  /** 'diario' (defecto) o 'dia_por_medio': solo un día hábil de cada dos lleva trabajo. */
+  ritmo: RitmoPlan;
+  modalidad: ModalidadGuias;
+  /** Correos de los docentes del grupo (para las reglas de lectura). */
+  docentesCorreos: string[];
+  estado: EstadoPlan;
+  /** Token largo e imposible de adivinar de la página pública (QR). */
+  tokenPublico: string;
+  creadoPor: string;   // correo
+  creadoEn: number;    // ms
+  actualizadoEn: number;
+}
+
+export interface MotivoReservado {
+  texto: string;
+  porCorreo: string;
+  actualizadoEn: number;
+}
+
+export type EvidenciaTipo = 'foto' | 'texto' | 'audio' | 'video' | 'documento';
+
+export interface PasoGuia {
+  /** Estable dentro de la guía ('p1', 'p2'…). */
+  id: string;
+  titulo: string;
+  /** Qué hacer, en instrucciones cortas y ajustadas. */
+  instrucciones: string;
+  /** Duración en momentos de 25 min (1–4). */
+  momentos: number;
+  evidencia: EvidenciaTipo;
+  /** Descripción breve de la evidencia que entrega. */
+  evidenciaDetalle: string;
+  /** Fase o semana del plan (1..n). El último paso de cada semana es la entrega parcial. */
+  semana: number;
+  /** Es la entrega parcial semanal (un solo paso por semana). */
+  esEntregaParcial?: boolean;
+  /** Canal o formato de entrega de la fase (p. ej. «Foto por WhatsApp», «Audio»). */
+  canalEntrega?: string;
+  /** Ajuste razonable aplicado en esta fase. */
+  ajusteAplicado?: string;
+  /** La propone el reparto automático; el docente puede cambiarla. */
+  fecha: FechaISO | null;
+  enlaces?: { url: string; nombre?: string }[];
+}
+
+export type ModalidadSustentacion = 'presencial' | 'virtual' | 'video' | 'audio' | 'entrevista' | 'guia_corta' | 'esquema';
+export const MODALIDADES_SUSTENTACION: { id: ModalidadSustentacion; texto: string }[] = [
+  { id: 'presencial', texto: 'Presencial' },
+  { id: 'virtual', texto: 'Virtual' },
+  { id: 'video', texto: 'Video' },
+  { id: 'audio', texto: 'Audio' },
+  { id: 'entrevista', texto: 'Entrevista personalizada' },
+  { id: 'guia_corta', texto: 'Guía corta escrita' },
+  { id: 'esquema', texto: 'Esquema o mapa de ideas' },
+];
+
+export interface Sustentacion {
+  modalidad: ModalidadSustentacion;
+  fecha: FechaISO | null;
+  hora: string | null;      // 'HH:MM'
+  lugarOEnlace: string;
+  preguntasGuia: string[];  // 3–4
+}
+
+/** La guía completa (la propuesta de la IA y, editada, la aprobada). */
+export interface Guia {
+  /** Producto integrado único. */
+  productoFinal: string;
+  /** Evidencias de aprendizaje conjuntas, una por área. */
+  evidenciasAprendizaje?: { asignatura: string; evidencia: string }[];
+  criteriosEvaluacion: string[]; // 3–4
+  pasos: PasoGuia[];
+  sustentacion: Sustentacion;
+  /** Nota corta para el docente sobre cómo se aplicaron los ajustes. */
+  notaAjustes?: string;
+}
+
+/** Lo que el docente escribe para pedir la guía. */
+export interface PedidoGuia {
+  tematicas: string;
+  competencias: string;
+  textoReferencia?: string;
+}
+
+export type EstadoPaso = 'pendiente' | 'entregado' | 'revisado';
+export type EstadoSustentacion = 'sin_citar' | 'citada' | 'sustentada';
+
+export interface SeguimientoPaso {
+  estado: EstadoPaso;
+  observacion?: string;
+  actualizadoEn?: number;
+}
+
+/** planesCasa/{planId}/asignaturas/{asignaturaId} — lo de cada asignatura que no es la guía. */
+export interface AsignaturaPlan {
+  asignaturaId: string;
+  docenteId: string;          // id de USUARIOS
+  docenteCorreo: string;
+  /** Criterios mínimos de promoción para este estudiante. */
+  criteriosPromocion: string;
+  /** Competencias o temáticas que este docente quiere que la guía cubra. */
+  aportes?: string;
+  /** EBC/DBA esencial priorizado (una competencia por área). */
+  ebcDba?: string;
+  /** Evidencia de aprendizaje que se espera en esta área. */
+  evidenciaAprendizaje?: string;
+  actualizadoEn: number;
+}
+
+/**
+ * planesCasa/{planId}/guias/{guiaId} — una guía. En 'por_asignatura' cubre UNA asignatura
+ * (id de guía = asignaturaId). En 'transversal' cubre VARIAS alrededor de un eje.
+ */
+export interface GuiaPlan {
+  id: string;
+  asignaturaIds: string[];
+  /** Pregunta orientadora / problema del contexto (transversal) o nombre de la asignatura. */
+  eje: string;
+  /** Docente que pide y edita la guía (en transversal, el que la equipo designa). */
+  responsableCorreo: string;
+  /** Correos de los docentes de las asignaturas que cubre. */
+  docentesCorreos: string[];
+  pedido?: PedidoGuia;
+  /** Última propuesta de la IA, sin aprobar. */
+  propuesta?: Guia;
+  /** Visto bueno de cada docente de la guía (correo → true). Ve el estudiante cuando estado = 'aprobada'. */
+  vistosBuenos: Record<string, boolean>;
+  /** La guía aprobada: es la que ve el estudiante. La aprueba el responsable. */
+  aprobada?: Guia;
+  aprobadaEn?: number;
+  seguimiento: Record<string, SeguimientoPaso>; // por id de paso
+  sustentacionEstado: EstadoSustentacion;
+  sustentacionObservacion?: string;
+  actualizadoEn: number;
+}
+
+/** planesCasaPublico/{token} — SIN apellidos, motivo ni ajustes. Lo escribe solo el servidor. */
+export interface PlanPublico {
+  primerNombre: string;
+  grupo: string;
+  desde: FechaISO;
+  hasta: FechaISO;
+  /** Pasos aprobados de todas las asignaturas, ya con fecha. */
+  /** `asignatura` es el nombre de la asignatura o, en guías transversales, el eje y las asignaturas que integra. */
+  pasos: Array<PasoGuia & { asignatura: string; docente: string }>;
+  sustentaciones: Array<Sustentacion & { asignatura: string; docente: string }>;
+  actualizadoEn: number;
+}
+
+/** Entrada y salida de la función llamable `planCasaGuia`. */
+export interface EntradaGuiaIA {
+  /** Nombre legible; en transversal, p. ej. 'Ciencias Naturales, Matemáticas y Lengua Castellana'. */
+  asignatura: string;
+  /** Solo en transversal: el eje temático y las asignaturas con sus criterios. */
+  transversal?: { eje: string; asignaturas: { nombre: string; criteriosPromocion: string; aportes?: string; ebcDba?: string; evidenciaAprendizaje?: string }[] };
+  grado: string;          // '8º', '10°'…
+  desde: FechaISO;
+  hasta: FechaISO;
+  ajustes: string[];
+  topeDiario: number;
+  /** Número de semanas del periodo (calculado de desde/hasta): una entrega parcial por semana. */
+  semanas: number;
+  ritmo: RitmoPlan;
+  criteriosPromocion: string;
+  pedido: PedidoGuia;
+  /** Indicación para pedir otra versión ('más corta', 'más práctica'…). */
+  indicacion?: string;
+}
+export interface SalidaGuiaIA {
+  ok: boolean;
+  guia?: Guia;
+  error?: string;
+}

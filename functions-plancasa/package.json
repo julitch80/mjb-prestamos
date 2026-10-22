@@ -1,0 +1,20 @@
+{
+  "name": "plancasa-functions",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "deploy": "firebase deploy --only functions:plancasa"
+  },
+  "engines": { "node": "22" },
+  "main": "lib/functions-plancasa/src/index.js",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.0",
+    "firebase-admin": "^13.0.2",
+    "firebase-functions": "^6.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.9"
+  },
+  "private": true
+}

@@ -579,6 +579,76 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---------- Plan de trabajo en casa (docs/plan-casa/PLAN.md) ----------
+    //
+    // planCasaConfig/equipo: { correos: [...] } (UAI y orientador). Lo lee cualquier usuario
+    // activo; lo escribe SOLO el superusuario.
+    // planesCasa/{id}: lo lee el equipo, coordinacion, rectora, superusuario o un docente
+    // cuyo correo este en `docentesCorreos`. El MOTIVO vive aparte (reservado/motivo): solo
+    // equipo, coordinacion y superusuario (la rectora lo lee).
+    // planesCasaPublico/{token}: lectura por `get` abierta a cualquiera (el token es el
+    // secreto), nunca `list`; solo escribe el servidor.
+    function pcEquipo() {
+      return isActiveUser()
+        && exists(/databases/$(database)/documents/planCasaConfig/equipo)
+        && callerEmail() in get(/databases/$(database)/documents/planCasaConfig/equipo).data.get('correos', []);
+    }
+    function pcGestiona() {
+      return pcEquipo() || (isActiveUser() && callerDoc().role in ['coordinador', 'superusuario']);
+    }
+    function pcLeeAmplio() {
+      return pcGestiona() || (isActiveUser() && callerDoc().role == 'rectora');
+    }
+    function pcDocenteDe(plan) {
+      return isActiveUser() && callerEmail() in plan.get('docentesCorreos', []);
+    }
+    match /planCasaConfig/equipo {
+      allow read: if isActiveUser();
+      allow write: if !esSuplantacion() && (isSuper());
+    }
+    match /planesCasa/{planId} {
+      allow read: if pcLeeAmplio() || pcDocenteDe(resource.data);
+      allow create, update: if !esSuplantacion() && (pcGestiona());
+      allow delete: if !esSuplantacion() && (pcEquipo() || isSuper());
+      match /reservado/{docId} {
+        allow read: if pcLeeAmplio();
+        allow write: if !esSuplantacion() && (pcGestiona());
+      }
+      match /asignaturas/{asigId} {
+        allow read: if pcLeeAmplio()
+          || pcDocenteDe(get(/databases/$(database)/documents/planesCasa/$(planId)).data);
+        allow create: if !esSuplantacion() && (pcGestiona()
+          || (isActiveUser() && request.resource.data.docenteCorreo.lower() == callerEmail()
+              && request.resource.data.asignaturaId == asigId));
+        allow update: if !esSuplantacion() && (pcGestiona()
+          || (isActiveUser() && resource.data.docenteCorreo.lower() == callerEmail()
+              && request.resource.data.docenteCorreo == resource.data.docenteCorreo
+              && request.resource.data.asignaturaId == resource.data.asignaturaId));
+        allow delete: if !esSuplantacion() && (pcEquipo() || isSuper());
+      }
+      // Guias: una por asignatura (por_asignatura) o varias asignaturas alrededor de un eje.
+      match /guias/{guiaId} {
+        allow read: if pcLeeAmplio()
+          || pcDocenteDe(get(/databases/$(database)/documents/planesCasa/$(planId)).data);
+        allow create: if !esSuplantacion() && (pcGestiona()
+          || (isActiveUser() && request.resource.data.responsableCorreo.lower() == callerEmail()
+              && pcDocenteDe(get(/databases/$(database)/documents/planesCasa/$(planId)).data)));
+        allow update: if !esSuplantacion() && (pcGestiona()
+          || (isActiveUser() && resource.data.responsableCorreo.lower() == callerEmail()
+              && request.resource.data.diff(resource.data).unchangedKeys().hasAll(['asignaturaIds', 'responsableCorreo', 'docentesCorreos']))
+          || (isActiveUser() && callerEmail() in resource.data.docentesCorreos
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vistosBuenos', 'seguimiento', 'actualizadoEn'])
+              && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['vistosBuenos'])
+                  || request.resource.data.vistosBuenos.diff(resource.data.vistosBuenos).affectedKeys().hasOnly([callerEmail()]))));
+        allow delete: if !esSuplantacion() && (pcGestiona());
+      }
+    }
+    match /planesCasaPublico/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if false;
+    }
+
     // =========================================================================
     //  BLOQUE DE REGLAS DEL MODULO DE ASISTENCIA
     //

@@ -33,6 +33,7 @@ import BannerNotificaciones from './components/BannerNotificaciones';
 import MisNotificaciones from './components/MisNotificaciones';
 import FichaSede from './components/FichaSede';
 import SedeDatos from './components/sedeDatos/SedeDatos';
+import VistaPlanCasa from './components/planCasa/VistaPlanCasa';
 import NavDropdown from './components/NavDropdown';
 import ModalSugerencia from './components/ModalSugerencia';
 import { getNotificaciones } from './data/api';
@@ -75,6 +76,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'chat',           label: 'Chat',            descripcion: 'Mensajería interna',                roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',          roles: ['superusuario'] },
   { id: 'sugerencias',    label: 'Sugerencias',     descripcion: 'Lo que reportan los docentes',      roles: ['superusuario'] },
+  { id: 'plan_casa',      label: 'Planes en casa',  descripcion: 'Guías con ajustes razonables',      roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'sede_datos',     label: 'Datos de la sede', descripcion: 'Confirme los datos de su sede',     roles: ['coordinador', 'superusuario'] },
   { id: 'notificaciones', label: 'Mis notificaciones', descripcion: 'Qué te avisa al celular',        roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
 ];
@@ -90,6 +92,9 @@ const ROL_COLOR: Record<string, string> = {
 // completa (y el lazy import) del build de producción.
 const BancoAcompanamientos = import.meta.env.DEV ? lazy(() => import('./dev/BancoAcompanamientos')) : null;
 const BancoCalendario = import.meta.env.DEV ? lazy(() => import('./dev/BancoCalendario')) : null;
+const BancoPlanPublico = import.meta.env.DEV ? lazy(() => import('./dev/BancoPlanPublico')) : null;
+// Agenda pública del plan de trabajo en casa (QR del estudiante, sin login).
+const AgendaPlanPublica = lazy(() => import('./components/planCasa/AgendaPlanPublica'));
 
 export default function App() {
   const [sugerenciaAbierta, setSugerenciaAbierta] = useState(false);
@@ -235,6 +240,21 @@ export default function App() {
     );
   }
   // ── Ruta pública: agenda de tareas por grupo (sin login) ──────────
+  if (import.meta.env.DEV && BancoPlanPublico && hash === '#/dev/plan-publico') {
+    return (
+      <Suspense fallback={null}>
+        <BancoPlanPublico />
+      </Suspense>
+    );
+  }
+  const planMatch = hash.match(/^#\/plan\/(.+)$/);
+  if (planMatch) {
+    return (
+      <Suspense fallback={null}>
+        <AgendaPlanPublica token={decodeURIComponent(planMatch[1])} />
+      </Suspense>
+    );
+  }
   const agendaMatch = hash.match(/^#\/agenda\/(.+)$/);
   if (agendaMatch) return <AgendaPublica grupo={decodeURIComponent(agendaMatch[1])} />;
   // `#/agenda` sin grupo: es como arranca la «Agenda MJB» instalada en el celular del
@@ -420,7 +440,7 @@ export default function App() {
             */}
             {(() => {
               const sede = SEDES.find(s => s.id === sedeActual);
-              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes' || vistaActual === 'sugerencias' || vistaActual === 'notificaciones' || vistaActual === 'sede_datos';
+              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes' || vistaActual === 'sugerencias' || vistaActual === 'notificaciones' || vistaActual === 'sede_datos' || vistaActual === 'plan_casa';
               if (sede && !sede.configurada && !vistaTransversal) {
                 return <FichaSede sede={sede} />;
               }
@@ -444,6 +464,7 @@ export default function App() {
                   {vistaActual === 'asistencia'     && <Asistencia />}
                   {vistaActual === 'notificaciones' && <MisNotificaciones />}
                   {vistaActual === 'sede_datos'     && (rol === 'coordinador' || rol === 'superusuario') && <SedeDatos />}
+                  {vistaActual === 'plan_casa'      && <VistaPlanCasa />}
                 </>
               );
             })()}
