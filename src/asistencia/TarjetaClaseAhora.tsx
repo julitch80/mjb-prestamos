@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { encuentrosDelDia, etiquetaHoras, sugerirClase } from './domain/bloques-clase';
+import { encuentrosDelDia, etiquetaHoras, horaParaAsignatura, sugerirClase } from './domain/bloques-clase';
 import { asignaturasEnGrado, FRANJAS, useHorasDeHoy } from './horarioDelDia';
 
 /**
@@ -33,12 +33,19 @@ export default function TarjetaClaseAhora({
   if (!sugerencia) return null;
 
   const { encuentro } = sugerencia;
-  const primera = encuentro.bloques[0];
   const asignaturas = asignaturasEnGrado(slotId, encuentro.grado);
   if (asignaturas.length === 0) return null;
-  const tomada = (subjectId: string) =>
-    sesionesHoy.some((s) => s.grado === encuentro.grado && s.bloque === primera && s.subjectId === subjectId);
-  const todasTomadas = asignaturas.every((a) => tomada(a.id));
+  // Cada materia con SU hora. Con dos asignaturas en el mismo grupo (Quimica y Biologia,
+  // Religion y Etica) las dos horas de un bloque pueden ser de materias distintas: antes
+  // las dos se ofrecian en la primera hora, y la segunda en abrirse caia sobre la planilla
+  // de la otra y salia en blanco (fallo real, 2026-10-22).
+  const delGrado = sesionesHoy.filter((s) => s.grado === encuentro.grado);
+  const horaDe = (subjectId: string) => horaParaAsignatura(encuentro.bloques, delGrado, subjectId);
+  const tomada = (subjectId: string) => {
+    const h = horaDe(subjectId);
+    return h !== null && delGrado.some((s) => s.bloque === h && s.subjectId === subjectId);
+  };
+  const todasTomadas = asignaturas.every((a) => tomada(a.id) || horaDe(a.id) === null);
 
   const encabezado =
     sugerencia.estado === 'en_curso'
@@ -71,10 +78,19 @@ export default function TarjetaClaseAhora({
         {asignaturas.map((a) => {
           const ya = tomada(a.id);
           const varias = asignaturas.length > 1;
+          const hora = horaDe(a.id);
+          if (hora === null) {
+            // Las horas de este encuentro ya son planillas de la otra materia.
+            return (
+              <p key={a.id} className="rounded-xl border border-line p-2.5 text-center text-sm text-muted">
+                {a.nombre}: las horas de esta clase ya tienen la planilla de otra asignatura.
+              </p>
+            );
+          }
           return (
             <button
               key={a.id}
-              onClick={() => onPasarLista(encuentro.grado, a.id, primera)}
+              onClick={() => onPasarLista(encuentro.grado, a.id, hora)}
               className={
                 ya
                   ? 'w-full rounded-xl border border-line p-2.5 text-sm font-semibold text-soft'
@@ -86,7 +102,7 @@ export default function TarjetaClaseAhora({
           );
         })}
       </div>
-      {encuentro.bloques.length === 2 && !todasTomadas && (
+      {encuentro.bloques.length === 2 && asignaturas.length === 1 && !todasTomadas && (
         <p className="mt-2 text-xs text-muted">
           Se llama lista una vez y cuenta para las dos horas. Si alguien llega en la segunda, se le
           corrige solo esa hora.

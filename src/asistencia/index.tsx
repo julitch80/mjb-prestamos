@@ -126,7 +126,7 @@ import Ayuda from './Ayuda';
 import { ASIGNATURAS, getAsignatura } from '../data/asignacionAcademica';
 import { exigirAutor } from './identidad';
 import { planCambioColumna, rolPuedeEliminarSesion } from './domain/columna';
-import { companeraEnLista, parejaDe } from './domain/bloques-clase';
+import { asignaturaQueOcupaLaHora, companeraEnLista, parejaAlAbrir } from './domain/bloques-clase';
 import { asignaturasEnGrado, bloquesDeHoyEnGrado } from './horarioDelDia';
 import { nombreDirector } from './imprimirAlerta';
 import { observarSync, type EstadoSync } from './sincronizacion';
@@ -232,6 +232,13 @@ export default function Asistencia() {
   const [matriculas, setMatriculas] = useState<Enrollment[]>([]);
   const [cruce, setCruce] = useState<{ grado: string; subjectId: string } | null>(null);
   useNivelAtras(cruce !== null, () => setCruce(null));
+  // Al volver a la lista de grupos se borra el aviso de error de la planilla que se dejo:
+  // si no, un fallo dentro de un grupo seguia pintado en rojo sobre la lista y parecia un
+  // error general (2026-10-22). Un fallo al ABRIR desde la lista no cambia `cruce`, asi
+  // que ese aviso si se queda.
+  useEffect(() => {
+    if (cruce === null) setError(null);
+  }, [cruce]);
   /** Navegacion interna: por estado, nunca por URL (contrato, seccion 6). */
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
   useNivelAtras(fichaAbierta !== null, () => setFichaAbierta(null));
@@ -875,21 +882,46 @@ export default function Asistencia() {
         // Clase de dos horas: si el horario de hoy le pone este grupo tambien en la otra
         // hora del bloque (1-2, 3-4, 5-6), se crean LAS DOS sesiones enlazadas. Se llama
         // lista una vez y cuenta dos horas (ver domain/bloques-clase.ts).
-        const otra = parejaDe(bloque);
-        const pareja =
-          otra !== null && bloquesDeHoyEnGrado(slotId, grado).includes(otra)
-            ? [Math.min(bloque, otra), Math.max(bloque, otra)]
-            : undefined;
+        //
+        // PERO no si el docente dicta DOS asignaturas en ese grado (Quimica y Biologia,
+        // Religion y Etica...): la otra hora puede ser la de la otra materia, y crearla con
+        // esta le robaba la hora — la planilla de la segunda materia salia en blanco
+        // (fallo real, 2026-10-22). Ver `parejaAlAbrir`.
+        const fecha = toDateKey(new Date());
+        const ocupada = asignaturaQueOcupaLaHora(sesiones, grado, fecha, bloque, subjectId);
+        if (ocupada) {
+          setError(mensajeHoraOcupada(grado, bloque, ocupada, subjectId));
+          return;
+        }
+        const horasYaAbiertas = sesiones
+          .filter((s) => s.grado === grado && s.fecha === fecha)
+          .map((s) => s.bloque);
+        const pareja = parejaAlAbrir(
+          bloque,
+          bloquesDeHoyEnGrado(slotId, grado),
+          asignaturasEnGrado(slotId, grado).length,
+          horasYaAbiertas,
+        );
+        const otra = pareja ? (pareja[0] === bloque ? pareja[1] : pareja[0]) : null;
         const base = {
           sede,
           grado,
           jornada: jornadaDeGrado(grado),
-          fecha: toDateKey(new Date()),
+          fecha,
           subjectId,
           slotId: slotId ?? '',
           pareja,
         };
-        await abrirSesion({ ...base, bloque });
+        const abierta = await abrirSesion({ ...base, bloque });
+        // `abrirSesion` devuelve la sesion que ya existia si esa hora estaba abierta (por
+        // ejemplo, por otro docente o desde otro telefono). Si es de OTRA asignatura, abrir
+        // la planilla pedida la dejaria vacia: se avisa en vez de mostrar una pantalla en
+        // blanco.
+        if (abierta.subjectId !== subjectId) {
+          await cargarSesiones();
+          setError(mensajeHoraOcupada(grado, bloque, abierta.subjectId, subjectId));
+          return;
+        }
         if (pareja && otra !== null) await abrirSesion({ ...base, bloque: otra });
         setCruce({ grado, subjectId });
         await cargarSesiones();
@@ -897,7 +929,7 @@ export default function Asistencia() {
         setError(mensajeDeError(e));
       }
     },
-    [sede, slotId, cargarSesiones],
+    [sede, slotId, sesiones, cargarSesiones],
   );
 
   if (!firebaseConfigurado) {
@@ -1460,6 +1492,16 @@ export default function Asistencia() {
         <MenuBloque
           grado={bloqueParaAbrir.grado}
           subjectId={bloqueParaAbrir.subjectId}
+          ocupadas={Object.fromEntries(
+            sesiones
+              .filter(
+                (s) =>
+                  s.grado === bloqueParaAbrir.grado &&
+                  s.fecha === toDateKey(new Date()) &&
+                  s.subjectId !== bloqueParaAbrir.subjectId,
+              )
+              .map((s) => [s.bloque, getAsignatura(s.subjectId)?.nombre ?? s.subjectId]),
+          )}
           onElegir={(bloque) => {
             const p = bloqueParaAbrir;
             setBloqueParaAbrir(null);
@@ -2041,14 +2083,26 @@ function FormularioManual({
  * mismo patrón de hoja modal que `MenuExcusas` en LlegadasTarde.tsx — un botón grande por
  * opción, sin teclear nada, pensado para usarse de pie y con prisa.
  */
+/** Aviso cuando la hora elegida ya es la planilla de otra asignatura del mismo grupo. */
+function mensajeHoraOcupada(grado: string, bloque: number, ocupadaPor: string, pedida: string): string {
+  const nombre = (id: string) => getAsignatura(id)?.nombre ?? id;
+  return (
+    `La ${bloque}.ª hora de hoy en ${grado} ya tiene la planilla de ${nombre(ocupadaPor)}. ` +
+    `Cada hora de clase lleva una sola planilla: abra ${nombre(pedida)} en la hora que le corresponde.`
+  );
+}
+
 function MenuBloque({
   grado,
   subjectId,
+  ocupadas = {},
   onElegir,
   onCerrar,
 }: {
   grado: string;
   subjectId: string;
+  /** Horas de hoy de este grupo que ya son la planilla de OTRA asignatura (bloque → nombre). */
+  ocupadas?: Record<number, string>;
   onElegir: (bloque: number) => void;
   onCerrar: () => void;
 }) {
@@ -2068,15 +2122,29 @@ function MenuBloque({
         </p>
 
         <div className="mt-3 grid grid-cols-3 gap-1.5">
-          {[1, 2, 3, 4, 5, 6].map((b) => (
-            <button
-              key={b}
-              onClick={() => onElegir(b)}
-              className="rounded-lg border border-line p-3 text-center text-lg font-semibold text-strong hover:bg-hover"
-            >
-              {b}
-            </button>
-          ))}
+          {[1, 2, 3, 4, 5, 6].map((b) =>
+            ocupadas[b] ? (
+              // Ya es la planilla de otra materia del mismo grupo: abrir aqui mostraria
+              // una planilla vacia (una hora de clase = una sola planilla).
+              <button
+                key={b}
+                disabled
+                title={`Esta hora ya tiene la planilla de ${ocupadas[b]}`}
+                className="rounded-lg border border-line bg-elevated p-2 text-center text-muted opacity-60"
+              >
+                <span className="block text-lg font-semibold">{b}</span>
+                <span className="block truncate text-[11px]">{ocupadas[b]}</span>
+              </button>
+            ) : (
+              <button
+                key={b}
+                onClick={() => onElegir(b)}
+                className="rounded-lg border border-line p-3 text-center text-lg font-semibold text-strong hover:bg-hover"
+              >
+                {b}
+              </button>
+            ),
+          )}
         </div>
 
         <button onClick={onCerrar} className="mt-3 w-full rounded-lg border border-line p-2 text-sm text-soft">

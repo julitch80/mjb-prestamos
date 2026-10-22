@@ -176,3 +176,66 @@ export function companeraEnLista<
 export function etiquetaHoras(bloques: number[]): string {
   return bloques.length === 2 ? `${bloques[0]}.ª y ${bloques[1]}.ª hora` : `${bloques[0]}.ª hora`;
 }
+
+// ---------------------------------------------------------------------------
+//  Docente con DOS asignaturas en el MISMO grupo (fallo real, 2026-10-22)
+// ---------------------------------------------------------------------------
+//
+// El `sessionId` es sede+grado+fecha+bloque, sin asignatura (por contrato: una hora de
+// clase de un grupo es UNA planilla). Carlos (Quimica y Biologia), Ledis (Economia y
+// Filosofia), Jorge (Religion y Etica)... dictan dos materias en el mismo grupo, a veces en
+// las dos horas de un mismo bloque (Jorge, 11.2: 1.ª Religion, 2.ª Etica). El horario NO
+// dice que materia va en cada hora. Antes, abrir la primera materia creaba tambien la otra
+// hora con esa misma materia; al abrir la segunda, la sesion ya existia con la primera y la
+// planilla de la segunda salia en blanco.
+
+/**
+ * La pareja de horas que se crea al abrir `bloque`, o `undefined` si se abre sola.
+ * Se enlaza SOLO si la otra hora del bloque esta hoy en el horario del docente con ese
+ * grado, todavia no tiene planilla, y el docente dicta UNA sola asignatura en el grado:
+ * con dos, la otra hora puede ser de la otra materia y no hay forma de saberlo.
+ */
+export function parejaAlAbrir(
+  bloque: number,
+  bloquesHoyEnGrado: number[],
+  asignaturasEnGrado: number,
+  horasYaAbiertas: number[],
+): [number, number] | undefined {
+  if (asignaturasEnGrado > 1) return undefined;
+  const otra = parejaDe(bloque);
+  if (otra === null || !bloquesHoyEnGrado.includes(otra) || horasYaAbiertas.includes(otra)) return undefined;
+  return [Math.min(bloque, otra), Math.max(bloque, otra)];
+}
+
+/**
+ * Si esa hora de ese grado ya tiene planilla de OTRA asignatura, cual. Abrir encima
+ * devolveria la sesion existente y la planilla pedida saldria vacia.
+ */
+export function asignaturaQueOcupaLaHora(
+  sesiones: { grado: string; fecha: string; bloque: number; subjectId: string }[],
+  grado: string,
+  fecha: string,
+  bloque: number,
+  subjectId: string,
+): string | null {
+  const s = sesiones.find(
+    (x) => x.grado === grado && x.fecha === fecha && x.bloque === bloque && x.subjectId !== subjectId,
+  );
+  return s ? s.subjectId : null;
+}
+
+/**
+ * La hora del encuentro que le toca a una asignatura en la tarjeta «Ahora»: la que ya
+ * tiene su planilla; si no, la primera libre; si todas son de otra materia, null.
+ * `sesionesHoy` son las de HOY y de ESE grado.
+ */
+export function horaParaAsignatura(
+  bloques: number[],
+  sesionesHoy: { bloque: number; subjectId: string }[],
+  subjectId: string,
+): number | null {
+  const propia = bloques.find((b) => sesionesHoy.some((s) => s.bloque === b && s.subjectId === subjectId));
+  if (propia !== undefined) return propia;
+  const libre = bloques.find((b) => !sesionesHoy.some((s) => s.bloque === b));
+  return libre ?? null;
+}
