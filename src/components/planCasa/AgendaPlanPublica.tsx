@@ -1,5 +1,6 @@
 // Página pública del plan de trabajo en casa (QR, sin login). Lee UN documento:
 // planesCasaPublico/{token}. Solo primer nombre; nunca apellidos.
+import { subpasos } from '../../data/planCasa/subpasos';
 import { useEffect, useMemo, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { ExternalLink, Clock, PackageCheck } from 'lucide-react';
@@ -199,7 +200,9 @@ function TarjetaPaso({ p }: { p: Paso }) {
         </p>
       )}
       <h3 className="text-lg font-bold text-strong leading-snug">{p.titulo}</h3>
-      <p className="text-base text-soft leading-relaxed whitespace-pre-line">{p.instrucciones}</p>
+      <ol className="list-decimal pl-5 space-y-1.5 text-base text-soft leading-relaxed">
+        {subpasos(p.instrucciones).map((s, i) => <li key={i}>{s}</li>)}
+      </ol>
       <p className="text-base text-strong rounded-xl bg-elevated/60 px-3 py-2">
         <b>Qué entregas:</b> {p.evidenciaDetalle}
         {p.canalEntrega && <span className="block"><b>Cómo lo entregas:</b> {p.canalEntrega}</span>}
