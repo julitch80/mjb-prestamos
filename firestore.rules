@@ -1020,6 +1020,44 @@ service cloud.firestore {
       }
     }
 
+    // ---------- Cambio de grupo (2026-10-22) ----------
+    // Hasta hoy `gradoActual` no lo cambiaba ningun cliente: solo la Cloud Function
+    // `changeStudentGrade`, que ninguna pantalla llamaba. La coordinacion trasladaba
+    // retirando en un grupo y dando de alta en otro, y eso creaba fichas duplicadas sin foto
+    // o dejaba al estudiante atascado. Ahora el cambio lo escribe la coordinacion en UN lote
+    // (ver `aplicarCambioDeGrupo` en datos.ts), y la regla exige que sea coherente:
+    //
+    //  - solo coordinacion de la sede (o el superusuario), nunca el director: si el director
+    //    pudiera reescribir `gradoActual`, se daria permiso sobre cualquier ficha;
+    //  - la sede no cambia;
+    //  - en el MISMO lote existe la matricula abierta `matriculaActual` de este estudiante
+    //    con el grado nuevo (getAfter: lo que quedara escrito al terminar el lote);
+    //  - queda el registro del cambio: de donde, a donde, quien (el que escribe) y cuando (la
+    //    hora del servidor), y una entrada mas en `cambiosDeGrupo`.
+    function asisTocaCambioGrupo() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['gradoActual', 'matriculaActual', 'ultimoCambioGrupo', 'cambiosDeGrupo']);
+    }
+    function asisCambioGrupoValido(studentId) {
+      let antes = resource.data;
+      let despues = request.resource.data;
+      let mat = getAfter(/databases/$(database)/documents/asistenciaEnrollments/$(despues.matriculaActual)).data;
+      return (isSuper() || asisCoordinaSede(antes.sede))
+        && despues.sede == antes.sede
+        && despues.gradoActual is string
+        && despues.gradoActual != antes.gradoActual
+        && mat.studentId == studentId
+        && mat.grado == despues.gradoActual
+        && mat.sede == antes.sede
+        && mat.hasta == null
+        && despues.ultimoCambioGrupo.desde == antes.gradoActual
+        && despues.ultimoCambioGrupo.hacia == despues.gradoActual
+        && despues.ultimoCambioGrupo.por == callerEmail()
+        && despues.ultimoCambioGrupo.en == request.time
+        && despues.cambiosDeGrupo is list
+        && despues.cambiosDeGrupo.size() == antes.get('cambiosDeGrupo', []).size() + 1;
+    }
+
     // ---------- Fichas de estudiantes ----------
     match /asistenciaStudents/{studentId} {
       allow read: if isActiveUser();
@@ -1028,13 +1066,14 @@ service cloud.firestore {
       allow create: if !esSuplantacion() && (isSuper());
 
       // Edita el superusuario, el coordinador o el director del grupo del estudiante.
-      // Campos blindados: el hash del documento, el token QR y el grado vigente. Si un
-      // director pudiera reescribir `gradoActual`, se auto-otorgaria permiso sobre
-      // cualquier ficha del colegio.
+      // Campos blindados: el hash del documento y el token QR. El grado vigente solo cambia
+      // por la puerta del cambio de grupo (`asisCambioGrupoValido`, arriba): si un director
+      // pudiera reescribir `gradoActual`, se auto-otorgaria permiso sobre cualquier ficha
+      // del colegio.
       allow update: if !esSuplantacion() && ((isSuper() || asisCoordinaSede(resource.data.sede) || asisIsDirectorOf(resource.data.gradoActual))
         && request.resource.data.docHash == resource.data.docHash
         && request.resource.data.qrToken == resource.data.qrToken
-        && request.resource.data.gradoActual == resource.data.gradoActual
+        && (!asisTocaCambioGrupo() || asisCambioGrupoValido(studentId))
         // El numero de documento lo escribe UNICAMENTE la Cloud Function de importacion,
         // que lo guarda junto al hash que sale de el. Si un cliente pudiera corregirlo, el
         // numero y el hash dejarian de corresponder y la siguiente importacion veria a ese
@@ -2149,6 +2188,29 @@ service cloud.firestore {
       return c.abierta == true && request.time <= c.limite;
     }
 
+    // La forma de citar (2026-10-22): la fija SOLO coordinacion, en la convocatoria. Ausente o
+    // null = aun sin decidir (las convocatorias anteriores no la traen). Si esta, van los dos
+    // campos y los parametros completos. Los rangos son los de LIMITES_PARAMETROS en
+    // src/asistencia/domain/alerta-academica.ts: si se cambia uno, cambiar el otro.
+    function asisMetodoAgendaValido(d) {
+      let modo = d.get('modoAgenda', null);
+      let p = d.get('parametrosAgenda', null);
+      return (modo == null && p == null)
+        || (modo in ['turnos', 'general', 'mixta'] && asisParametrosAgendaValidos(p));
+    }
+
+    function asisParametrosAgendaValidos(p) {
+      return p is map
+        && p.keys().hasAll(['baseMin', 'porAsignaturaMin', 'intervaloMin', 'generalMin', 'umbralIndividual', 'orden'])
+        && p.keys().hasOnly(['baseMin', 'porAsignaturaMin', 'intervaloMin', 'generalMin', 'umbralIndividual', 'orden'])
+        && p.baseMin is int && p.baseMin >= 1 && p.baseMin <= 60
+        && p.porAsignaturaMin is int && p.porAsignaturaMin >= 0 && p.porAsignaturaMin <= 30
+        && p.intervaloMin is int && p.intervaloMin >= 0 && p.intervaloMin <= 30
+        && p.generalMin is int && p.generalMin >= 5 && p.generalMin <= 240
+        && p.umbralIndividual is int && p.umbralIndividual >= 3 && p.umbralIndividual <= 20
+        && p.orden in ['mas_asignaturas', 'alfabetico'];
+    }
+
     // ---------- Convocatoria: la abre y la cierra coordinacion ----------
     match /asistenciaAlertaConvocatorias/{convocatoriaId} {
 
@@ -2169,15 +2231,18 @@ service cloud.firestore {
         && request.resource.data.fechaLimite is string
         && request.resource.data.limite is timestamp
         && request.resource.data.abiertaPor == callerEmail()
-        && request.resource.data.abiertaEn == request.time);
+        && request.resource.data.abiertaEn == request.time
+        && asisMetodoAgendaValido(request.resource.data));
 
-      // Cerrar, reabrir, mover la fecha limite o poner el dia y la franja de entrega. Nunca
-      // cambiar de que sede, jornada o periodo es, ni quien la abrio.
+      // Cerrar, reabrir, mover la fecha limite, poner el dia y la franja de entrega o la forma
+      // de citar (2026-10-22). Nunca cambiar de que sede, jornada o periodo es, ni quien la
+      // abrio. Solo la coordinacion de la jornada: el director de grupo no la escribe.
       allow update: if !esSuplantacion() && (asisCanRecord()
         && asisCoordinaJornada(resource.data.sede, resource.data.jornada)
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['abierta', 'fechaLimite', 'limite', 'fechaEntrega', 'franjaInicio', 'franjaFin',
-                       'plazoExcusaDias', 'cerradaPor', 'cerradaEn'])
+                       'plazoExcusaDias', 'modoAgenda', 'parametrosAgenda', 'cerradaPor', 'cerradaEn'])
+        && asisMetodoAgendaValido(request.resource.data)
         && request.resource.data.abierta is bool
         && request.resource.data.limite is timestamp
         // Si se cierra, queda dicho quien y cuando.
@@ -2229,6 +2294,46 @@ service cloud.firestore {
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['entregada'])
             || (request.resource.data.entregadaPor == callerEmail() && request.resource.data.entregadaEn == request.time))
         && asisAlertaAbierta(resource.data));
+
+      // CAMBIO DE GRUPO (2026-10-22): la coordinacion de la jornada AGREGA la marca que el
+      // estudiante traia de su grupo anterior. Solo agregar: ninguna marca existente cambia ni
+      // desaparece (si el docente ya marco a ese estudiante, el lote entero se rechaza), y
+      // cada marca agregada lleva su constancia en `traslados` (de que planilla vino, quien y
+      // cuando). Una por escritura. No depende de la convocatoria: no es marcar, es trasladar
+      // lo ya marcado, y el estudiante puede cambiar de grupo con el periodo cerrado.
+      allow update: if !esSuplantacion() && (asisCanRecord()
+        && asisAuthorStamp()
+        && asisCoordinaJornada(resource.data.sede, resource.data.jornada)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['estudiantes', 'traslados', 'ultimaEscrituraPor', 'ultimaEscrituraEn'])
+        && request.resource.data.estudiantes is map
+        && request.resource.data.traslados is map
+        && request.resource.data.estudiantes.diff(resource.data.estudiantes).changedKeys().size() == 0
+        && request.resource.data.estudiantes.diff(resource.data.estudiantes).removedKeys().size() == 0
+        && request.resource.data.estudiantes.diff(resource.data.estudiantes).addedKeys().size() == 1
+        && request.resource.data.estudiantes.diff(resource.data.estudiantes).addedKeys()
+             .hasOnly(request.resource.data.traslados.diff(resource.data.get('traslados', {})).addedKeys()));
+
+      // CAMBIO DE GRUPO, planilla que aun no existe: la coordinacion la abre a nombre del
+      // puesto del docente asignado (sale de la asignacion academica, que las reglas no ven),
+      // con la UNICA marca trasladada y su constancia. El docente la sigue usando como suya.
+      allow create: if !esSuplantacion() && (asisCanRecord()
+        && asisAuthorStamp()
+        && asisCoordinaJornada(request.resource.data.sede, request.resource.data.jornada)
+        && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
+        && request.resource.data.jornada in ['manana', 'tarde']
+        && request.resource.data.anio is int
+        && request.resource.data.periodo is int
+        && request.resource.data.grado is string
+        && request.resource.data.subjectId is string
+        && request.resource.data.slotId is string
+        && alertaId == string(request.resource.data.anio) + '_' + string(request.resource.data.periodo)
+             + '_' + request.resource.data.sede + '_' + request.resource.data.grado + '_' + request.resource.data.subjectId
+        && request.resource.data.estudiantes is map
+        && request.resource.data.estudiantes.size() == 1
+        && request.resource.data.traslados is map
+        && request.resource.data.estudiantes.keys().hasOnly(request.resource.data.traslados.keys())
+        && request.resource.data.entregada == false);
 
       allow delete: if !esSuplantacion() && (false);
     }

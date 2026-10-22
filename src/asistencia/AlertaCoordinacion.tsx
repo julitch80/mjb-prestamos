@@ -9,7 +9,19 @@ import {
   leerEstudiantesDeSede,
 } from './datos';
 import { jornadaDeGrado, toDateKey } from './domain/ids';
-import { consolidarGrupo, convocatoriaEditable, MINIMO_PARA_CITAR } from './domain/alerta-academica';
+import {
+  ajusteDeJornada,
+  consolidarGrupo,
+  convocatoriaEditable,
+  LIMITES_PARAMETROS,
+  metodoDeConvocatoria,
+  MINIMO_PARA_CITAR,
+  NOMBRE_MODO,
+  normalizarParametros,
+  PARAMETROS_POR_DEFECTO,
+  type Citado,
+  type MetodoAgenda,
+} from './domain/alerta-academica';
 import { ordenarEstudiantes } from './domain/nombres';
 import { citacionesDelGrupo, imprimirTodo, informesDelGrupo, nombreDirector, planillaDelGrupo, type OrdenPlanilla } from './imprimirAlerta';
 import { asignaturasDelGrado } from './horarioDelDia';
@@ -17,7 +29,7 @@ import ReporteAlerta from './ReporteAlerta';
 import SeguimientoCoordinacion from './SeguimientoCoordinacion';
 import { fechaLarga } from './domain/imprimibles-alerta';
 import { PLAZO_EXCUSA_DIAS } from './domain/seguimiento-alerta';
-import type { AgendaCitaciones, ConvocatoriaAlerta, Jornada, PlanillaAlerta, Sede, Student } from './domain/types';
+import type { AgendaCitaciones, ConvocatoriaAlerta, Jornada, ModoAgenda, ParametrosAgenda, PlanillaAlerta, Sede, Student } from './domain/types';
 
 const CAJA = 'rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong';
 const BOTON = 'min-h-[40px] rounded-xl px-4 text-sm font-semibold disabled:opacity-50';
@@ -26,7 +38,9 @@ const BOTON = 'min-h-[40px] rounded-xl px-4 text-sm font-semibold disabled:opaci
  * Alerta academica — la seccion de COORDINACION (Julian, 2026-10-02).
  *
  *  1. Abre la convocatoria del periodo con su fecha limite, la cierra y la reabre.
- *  2. Pone el dia y la franja de entrega a las familias (las horas las reparte cada director).
+ *  2. Pone el dia y la franja de entrega a las familias, y la FORMA de citar (turnos, reunion
+ *     general o mixta, con sus parametros: el colegio, 2026-10-22). Las horas de cada citado
+ *     se le proponen al director con esa forma; el director ya no la elige.
  *  3. Ve el avance de todos los grupos de su sede y jornada, y entra al reporte de cualquiera.
  */
 export default function AlertaCoordinacion({
@@ -94,8 +108,12 @@ export default function AlertaCoordinacion({
     const entregadas = esperadas.filter((e) => del.some((p) => p.subjectId === e.subjectId && p.entregada)).length;
     const cuenta = new Map<string, number>();
     for (const p of del) for (const [id, m] of Object.entries(p.estudiantes ?? {})) if (m === 'alerta') cuenta.set(id, (cuenta.get(id) ?? 0) + 1);
-    const citados = [...cuenta.values()].filter((n) => n >= MINIMO_PARA_CITAR).length;
-    return { grado: g, esperadas: esperadas.length, entregadas, citados };
+    // Para la cuenta de tiempo de la forma de citar basta el numero de asignaturas: el nombre
+    // solo cambia el orden, no los minutos.
+    const listaCitados: Citado[] = [...cuenta.entries()]
+      .filter(([, n]) => n >= MINIMO_PARA_CITAR)
+      .map(([studentId, n]) => ({ studentId, nombre: studentId, asignaturas: n }));
+    return { grado: g, esperadas: esperadas.length, entregadas, citados: listaCitados.length, listaCitados };
   }), [gradosJornada, planillas]);
 
   // Grupos con citados (dos o mas alertas) cuyo director aun no guardo la agenda.
@@ -260,7 +278,16 @@ export default function AlertaCoordinacion({
             )}
           </div>
 
-          <FranjaEntrega conv={conv} guardando={guardando} onGuardar={(c) => void hacer(() => actualizarConvocatoriaAlerta(conv.convocatoriaId, c))} />
+          <FranjaEntrega key={`franja-${conv.convocatoriaId}`} conv={conv} guardando={guardando} onGuardar={(c) => void hacer(() => actualizarConvocatoriaAlerta(conv.convocatoriaId, c))} />
+
+          <MetodoCitacion
+            key={`metodo-${conv.convocatoriaId}`}
+            conv={conv}
+            guardando={guardando}
+            grupos={avance.map((a) => ({ grado: a.grado, citados: a.listaCitados }))}
+            conAgenda={agendas.length}
+            onGuardar={(m) => void hacer(() => actualizarConvocatoriaAlerta(conv.convocatoriaId, { modoAgenda: m.modo, parametrosAgenda: m.parametros }))}
+          />
 
           <label className="flex flex-wrap items-center gap-2 text-xs text-muted">
             Días hábiles para justificar la inasistencia a la entrega
@@ -370,7 +397,7 @@ function FranjaEntrega({
   return (
     <div className="flex flex-col gap-2 border-t border-line pt-3">
       <p className="text-xs text-muted">
-        Día y franja de entrega a las familias. Cada director reparte dentro de ella las horas de sus citados.
+        Día y franja de entrega a las familias. A cada director se le propone dentro de ella la agenda de sus citados, con la forma de citar que usted defina abajo.
       </p>
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-xs text-muted">Día<input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={CAJA} /></label>
@@ -385,6 +412,129 @@ function FranjaEntrega({
         </button>
       </div>
       {inicio && fin && inicio >= fin && <p className="text-xs text-danger">La hora de inicio debe ser anterior a la de fin.</p>}
+    </div>
+  );
+}
+
+const MODOS: { modo: ModoAgenda; ayuda: string }[] = [
+  { modo: 'turnos', ayuda: 'Cada acudiente con su hora; más asignaturas, más tiempo.' },
+  { modo: 'general', ayuda: 'Todos a la misma hora, al inicio de la franja.' },
+  { modo: 'mixta', ayuda: 'Reunión corta para los leves y turnos para los demás.' },
+];
+
+/**
+ * La forma de citar a los acudientes — la define SOLO coordinacion, por convocatoria (el
+ * colegio, 2026-10-22). Mismas opciones y parametros que antes elegia cada director; con
+ * esto se le propone a cada uno la agenda de su grupo. La cuenta de tiempo por grupo que
+ * antes veia el director la ve ahora quien decide.
+ */
+function MetodoCitacion({
+  conv,
+  guardando,
+  grupos,
+  conAgenda,
+  onGuardar,
+}: {
+  conv: ConvocatoriaAlerta;
+  guardando: boolean;
+  grupos: { grado: string; citados: Citado[] }[];
+  /** Cuantos directores ya guardaron agenda: cambiar la forma no se la modifica. */
+  conAgenda: number;
+  onGuardar: (m: MetodoAgenda) => void;
+}) {
+  const guardado = metodoDeConvocatoria(conv);
+  const [modo, setModo] = useState<ModoAgenda>(guardado?.modo ?? 'turnos');
+  const [p, setP] = useState<ParametrosAgenda>(guardado?.parametros ?? PARAMETROS_POR_DEFECTO);
+  const metodo: MetodoAgenda = { modo, parametros: normalizarParametros(p) };
+  const cambio = !guardado || guardado.modo !== modo || JSON.stringify(guardado.parametros) !== JSON.stringify(metodo.parametros);
+  const franja = conv.franjaInicio && conv.franjaFin ? { inicio: conv.franjaInicio, fin: conv.franjaFin } : null;
+  const ajuste = franja ? ajusteDeJornada(grupos, franja, metodo) : [];
+  const noAlcanzan = ajuste.filter((a) => !a.alcanza);
+
+  const numero = (k: keyof typeof LIMITES_PARAMETROS, etiqueta: string) => (
+    <label className="flex flex-col gap-1 text-xs text-muted">
+      {etiqueta}
+      <input
+        type="number"
+        min={LIMITES_PARAMETROS[k].min}
+        max={LIMITES_PARAMETROS[k].max}
+        value={p[k]}
+        onChange={(e) => setP({ ...p, [k]: e.target.value === '' ? '' : +e.target.value } as ParametrosAgenda)}
+        onBlur={() => setP(normalizarParametros(p))}
+        className={`${CAJA} w-20`}
+      />
+    </label>
+  );
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-3">
+      <p className="text-xs text-muted">
+        Forma de citar a los acudientes. La define usted para toda la jornada: los directores ven la agenda de su grupo
+        ya propuesta con ella y no pueden cambiarla (sí pueden mover una hora a mano para encajar un turno).
+      </p>
+      {!guardado && (
+        <p className="rounded-xl bg-warning-soft px-3 py-2 text-xs text-warning-soft-fg">
+          Aún no la ha definido: mientras tanto, los directores no pueden armar su agenda de citaciones.
+        </p>
+      )}
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Forma de citar">
+        {MODOS.map((m) => (
+          <button
+            key={m.modo}
+            title={m.ayuda}
+            aria-pressed={modo === m.modo}
+            onClick={() => setModo(m.modo)}
+            className={`min-h-[36px] rounded-full border px-3 text-sm ${modo === m.modo ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg' : 'border-line text-soft'}`}
+          >
+            {NOMBRE_MODO[m.modo]}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        {modo !== 'general' && (
+          <>
+            {numero('baseMin', 'Base (min)')}
+            {numero('porAsignaturaMin', 'Por asignatura')}
+            {numero('intervaloMin', 'Entre turnos')}
+          </>
+        )}
+        {modo !== 'turnos' && numero('generalMin', 'Reunión (min)')}
+        {modo === 'mixta' && numero('umbralIndividual', 'Turno desde (asig.)')}
+        {modo !== 'general' && (
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            Orden
+            <select value={p.orden} onChange={(e) => setP({ ...p, orden: e.target.value as ParametrosAgenda['orden'] })} className={CAJA}>
+              <option value="mas_asignaturas">Más asignaturas primero</option>
+              <option value="alfabetico">Alfabético</option>
+            </select>
+          </label>
+        )}
+        <button disabled={guardando || !cambio} onClick={() => { setP(metodo.parametros); onGuardar(metodo); }} className={`${BOTON} bg-accent text-accent-fg`}>
+          Guardar forma de citar
+        </button>
+      </div>
+
+      {!franja ? (
+        <p className="text-xs text-muted">Guarde la franja para ver si alcanza el tiempo en cada grupo.</p>
+      ) : ajuste.length === 0 ? (
+        <p className="text-xs text-muted">Todavía no hay estudiantes con dos o más alertas en la jornada.</p>
+      ) : noAlcanzan.length === 0 ? (
+        <p className="rounded-xl bg-success-soft px-3 py-2 text-xs text-success-soft-fg">
+          Con esta forma alcanza la franja en los {ajuste.length} grupos con citados (con lo marcado hasta ahora).
+        </p>
+      ) : (
+        <p className="rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger-soft-fg">
+          Con esta forma no alcanza la franja en {noAlcanzan.length} de {ajuste.length} grupos:{' '}
+          {noAlcanzan.map((a) => `${a.grado} (${a.citados} citados, ${a.necesariosMin} min)`).join(', ')}.
+          {' '}Pruebe otra forma, menos minutos o una franja más amplia.
+        </p>
+      )}
+      {guardado && cambio && conAgenda > 0 && (
+        <p className="text-xs text-muted">
+          {conAgenda === 1 ? 'Un director ya guardó su agenda' : `${conAgenda} directores ya guardaron su agenda`}: cambiar la forma no se la
+          modifica; a cada uno le aparecerá el aviso para volver a proponerla.
+        </p>
+      )}
     </div>
   );
 }

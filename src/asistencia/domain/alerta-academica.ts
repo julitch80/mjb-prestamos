@@ -4,8 +4,9 @@
  * Julian, 2026-10-02: en la 7.ª semana de cada periodo cada docente senala, en cada planilla
  * (grado + asignatura), quien esta en alerta. El director de grupo consolida su grupo,
  * imprime un informe por estudiante (se entrega EN PERSONA) y cita al acudiente de quien
- * tiene DOS O MAS asignaturas en alerta. Las fechas y la franja las pone coordinacion; las
- * horas de cada citado, el director, con la propuesta de `proponerAgenda`.
+ * tiene DOS O MAS asignaturas en alerta. Las fechas, la franja y la FORMA de citar (turnos,
+ * reunion general o mixta, con sus parametros; el colegio, 2026-10-22) las pone coordinacion;
+ * las horas de cada citado, el director, con la propuesta de `proponerAgenda`.
  */
 import type {
   CitaAlerta,
@@ -165,6 +166,105 @@ export const PARAMETROS_POR_DEFECTO: ParametrosAgenda = {
   umbralIndividual: 3,
   orden: 'mas_asignaturas',
 };
+
+/**
+ * Rangos de cada parametro. Son LOS MISMOS que exige la regla de la convocatoria
+ * (`asisParametrosAgendaValidos` en rules/asistencia.rules): si se cambia uno, cambiar el otro.
+ */
+export const LIMITES_PARAMETROS = {
+  baseMin: { min: 1, max: 60 },
+  porAsignaturaMin: { min: 0, max: 30 },
+  intervaloMin: { min: 0, max: 30 },
+  generalMin: { min: 5, max: 240 },
+  umbralIndividual: { min: 3, max: 20 },
+} as const;
+
+const MODOS_VALIDOS: ModoAgenda[] = ['turnos', 'general', 'mixta'];
+
+/**
+ * Lleva cualquier entrada (una caja vacia, un decimal, un documento a medias) a parametros
+ * validos: enteros dentro de `LIMITES_PARAMETROS` y lo que falte, por defecto. Lo que se
+ * guarda pasa siempre por aqui, asi la regla nunca rechaza lo que la pantalla deja escribir.
+ */
+export function normalizarParametros(p: Partial<Record<keyof ParametrosAgenda, unknown>> | null | undefined): ParametrosAgenda {
+  const fuente = p ?? {};
+  const num = (k: keyof typeof LIMITES_PARAMETROS): number => {
+    const v = Number(fuente[k]);
+    const { min, max } = LIMITES_PARAMETROS[k];
+    return Number.isFinite(v) && fuente[k] !== null && fuente[k] !== '' ? Math.min(max, Math.max(min, Math.round(v))) : PARAMETROS_POR_DEFECTO[k];
+  };
+  return {
+    baseMin: num('baseMin'),
+    porAsignaturaMin: num('porAsignaturaMin'),
+    intervaloMin: num('intervaloMin'),
+    generalMin: num('generalMin'),
+    umbralIndividual: num('umbralIndividual'),
+    orden: fuente.orden === 'alfabetico' ? 'alfabetico' : 'mas_asignaturas',
+  };
+}
+
+export interface MetodoAgenda {
+  modo: ModoAgenda;
+  parametros: ParametrosAgenda;
+}
+
+/**
+ * La forma de citar que fijo coordinacion en la convocatoria (el colegio, 2026-10-22), o
+ * `null` si aun no la fijo — o si es una convocatoria anterior al cambio, que no la trae.
+ */
+export function metodoDeConvocatoria(c: Pick<ConvocatoriaAlerta, 'modoAgenda' | 'parametrosAgenda'> | null): MetodoAgenda | null {
+  if (!c?.modoAgenda || !MODOS_VALIDOS.includes(c.modoAgenda)) return null;
+  return { modo: c.modoAgenda, parametros: normalizarParametros(c.parametrosAgenda) };
+}
+
+/** ¿La agenda guardada se armo con esta misma forma? Si no, el director ve el aviso de recalcular. */
+export function mismoMetodo(a: MetodoAgenda, b: MetodoAgenda): boolean {
+  if (a.modo !== b.modo) return false;
+  const pa = normalizarParametros(a.parametros), pb = normalizarParametros(b.parametros);
+  // Solo cuentan los parametros que usa el modo: en `general` no importa la duracion del turno.
+  const usados: (keyof ParametrosAgenda)[] =
+    a.modo === 'turnos' ? ['baseMin', 'porAsignaturaMin', 'intervaloMin', 'orden']
+    : a.modo === 'general' ? ['generalMin']
+    : ['baseMin', 'porAsignaturaMin', 'intervaloMin', 'generalMin', 'umbralIndividual', 'orden'];
+  return usados.every((k) => pa[k] === pb[k]);
+}
+
+export const NOMBRE_MODO: Record<ModoAgenda, string> = {
+  turnos: 'Turnos individuales',
+  general: 'Reunión general',
+  mixta: 'Mixta',
+};
+
+/** La forma en una linea, para que el director vea con que se le propone la agenda. */
+export function describirMetodo(m: MetodoAgenda): string {
+  const p = m.parametros;
+  const turno = `turnos de ${p.baseMin} min + ${p.porAsignaturaMin} por asignatura, ${p.intervaloMin} min entre turnos`;
+  const orden = p.orden === 'alfabetico' ? 'en orden alfabético' : 'más asignaturas primero';
+  if (m.modo === 'general') return `Reunión general de ${p.generalMin} min al inicio de la franja`;
+  if (m.modo === 'turnos') return `Turnos individuales: ${turno}; ${orden}`;
+  return `Mixta: reunión general de ${p.generalMin} min para quien tiene menos de ${p.umbralIndividual} asignaturas, y ${turno}; ${orden}`;
+}
+
+export interface AjusteGrupo {
+  grado: string;
+  citados: number;
+  necesariosMin: number;
+  alcanza: boolean;
+}
+
+/**
+ * Para COORDINACION, al elegir la forma: cuanto necesita cada grupo de la jornada con ella
+ * en la franja. Antes esa cuenta la veia solo el director; ahora quien decide es coordinacion.
+ * Los grupos sin citados no aparecen.
+ */
+export function ajusteDeJornada(grupos: { grado: string; citados: Citado[] }[], franja: Franja, metodo: MetodoAgenda): AjusteGrupo[] {
+  return grupos
+    .filter((g) => g.citados.length > 0)
+    .map((g) => {
+      const r = proponerAgenda(g.citados, franja, metodo.modo, metodo.parametros);
+      return { grado: g.grado, citados: g.citados.length, necesariosMin: r.necesariosMin, alcanza: r.alcanza };
+    });
+}
 
 export interface Citado {
   studentId: string;

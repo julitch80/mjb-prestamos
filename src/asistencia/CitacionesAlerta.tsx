@@ -6,33 +6,31 @@ import { enlaceSms } from './domain/telefonos';
 import {
   aHora,
   aMinutos,
-  alternativasSiNoAlcanza,
   cambiosEnCitados,
   citacionAlertaId,
+  describirMetodo,
+  metodoDeConvocatoria,
+  mismoMetodo,
   motivoCitacion,
+  NOMBRE_MODO,
   PARAMETROS_POR_DEFECTO,
   proponerAgenda,
   revisarAgenda,
   textoSmsCitacion,
   type Citado,
   type FilaConsolidado,
+  type MetodoAgenda,
 } from './domain/alerta-academica';
 import { fechaLarga, horaLegible } from './domain/imprimibles-alerta';
 import type { AgendaCitaciones, CitaAlerta, ConvocatoriaAlerta, ModoAgenda, ParametrosAgenda, Sede, Student } from './domain/types';
 
-const CAJA = 'w-16 rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong';
-const MODOS: { modo: ModoAgenda; nombre: string; ayuda: string }[] = [
-  { modo: 'turnos', nombre: 'Turnos individuales', ayuda: 'Cada acudiente con su hora; más asignaturas, más tiempo.' },
-  { modo: 'general', nombre: 'Reunión general', ayuda: 'Todos a la misma hora, al inicio de la franja.' },
-  { modo: 'mixta', nombre: 'Mixta', ayuda: 'Reunión corta para los leves y turnos para los demás.' },
-];
-
 /**
  * Citaciones de la alerta — la agenda del DIRECTOR (Julian, 2026-10-02).
  *
- * Coordinacion fija el dia y la franja; el director reparte a sus citados (dos o mas
- * alertas) por turnos, en reunion general o mixta, con la cuenta de si alcanza el tiempo.
- * Despues envia las de su grupo: correo al institucional del estudiante, SMS desde su
+ * Coordinacion fija el dia, la franja y la FORMA de citar —turnos, reunion general o mixta,
+ * con sus parametros— (el colegio, 2026-10-22: el director ya no la elige). Con esa forma se
+ * le propone la agenda de sus citados (dos o mas alertas) y la cuenta de si alcanza el
+ * tiempo; el director puede mover horas a mano para encajarla, la guarda y despues envia las de su grupo: correo al institucional del estudiante, SMS desde su
  * celular (un toque por familia). La impresa la descarga coordinacion con toda la jornada
  * (Julian, 2026-10-03): el director no imprime. Nada sale sin que lo toque.
  */
@@ -53,6 +51,8 @@ export default function CitacionesAlerta({
 }) {
   const idDoc = citacionAlertaId(conv.anio, conv.periodo, sede, grado);
   const [agendaGuardada, setAgendaGuardada] = useState<AgendaCitaciones | null | undefined>(undefined);
+  // Con que forma esta armada la agenda que se ve: la de coordinacion al proponer, o la que
+  // trae la agenda guardada (puede ser anterior al cambio). Es lo que se guarda en la agenda.
   const [modo, setModo] = useState<ModoAgenda>('turnos');
   const [p, setP] = useState<ParametrosAgenda>(PARAMETROS_POR_DEFECTO);
   const [citas, setCitas] = useState<Record<string, CitaAlerta>>({});
@@ -61,6 +61,7 @@ export default function CitacionesAlerta({
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
 
   const franja = conv.franjaInicio && conv.franjaFin ? { inicio: conv.franjaInicio, fin: conv.franjaFin } : null;
+  const metodo = metodoDeConvocatoria(conv);
 
   const citados: Citado[] = useMemo(
     () => filas.filter((f) => f.citar).flatMap((f) => {
@@ -72,13 +73,14 @@ export default function CitacionesAlerta({
 
   const vacia = (c: Pick<CitaAlerta, 'hora' | 'duracionMin' | 'general'>): CitaAlerta => ({ ...c, enviadaCorreoEn: null, enviadaSmsEn: null, impresaEn: null });
 
-  function proponer(m: ModoAgenda, params: ParametrosAgenda) {
+  // Solo con la forma de coordinacion: el director no propone con otra.
+  function proponer(m: MetodoAgenda) {
     if (!franja) return;
-    const r = proponerAgenda(citados, franja, m, params);
+    const r = proponerAgenda(citados, franja, m.modo, m.parametros);
     // Conserva las marcas de envio de quien ya estaba: recalcular no borra lo enviado.
     setCitas((antes) => Object.fromEntries(Object.entries(r.citas).map(([id, c]) => [id, { ...vacia(c), ...pick(antes[id]) }])));
-    setModo(m);
-    setP(params);
+    setModo(m.modo);
+    setP(m.parametros);
     setSucio(true);
   }
   // Todo lo registrado de ese citado (envios, asistencia, excusa, reprogramacion, remision) se
@@ -96,10 +98,12 @@ export default function CitacionesAlerta({
     });
   }, [idDoc]);
 
-  // Sin agenda guardada: la primera propuesta sale sola, con los valores por defecto.
+  // Sin agenda guardada: la primera propuesta sale sola, con la forma de coordinacion. Sin
+  // forma fijada no se propone nada (ver el aviso de abajo).
+  const claveMetodo = metodo ? JSON.stringify(metodo) : null;
   useEffect(() => {
-    if (agendaGuardada === null && franja && citados.length && Object.keys(citas).length === 0) proponer('turnos', PARAMETROS_POR_DEFECTO);
-  }, [agendaGuardada, franja?.inicio, franja?.fin, citados.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (agendaGuardada === null && metodo && franja && citados.length && Object.keys(citas).length === 0) proponer(metodo);
+  }, [agendaGuardada, franja?.inicio, franja?.fin, citados.length, claveMetodo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!franja || !conv.fechaEntrega) {
     return (
@@ -112,12 +116,24 @@ export default function CitacionesAlerta({
     return <div className="rounded-2xl border border-line bg-card p-4 text-sm text-muted">Nadie del grupo tiene dos o más asignaturas en alerta: no hay a quién citar.</div>;
   }
   if (agendaGuardada === undefined) return <p className="p-3 text-sm text-muted">Cargando la agenda…</p>;
+  // Sin forma de citar y sin agenda: no hay con que proponer. Con agenda guardada (armada
+  // antes del cambio) se sigue mostrando: puede estar ya enviada a las familias.
+  if (!metodo && !agendaGuardada) {
+    return (
+      <div className="rounded-2xl border border-line bg-card p-4 text-sm text-muted">
+        Coordinación todavía no ha definido la forma de citar a los acudientes (turnos individuales, reunión general o mixta).
+        Cuando la defina, aquí le aparecerá la agenda propuesta para su grupo.
+      </div>
+    );
+  }
 
   const disponibles = aMinutos(franja.fin) - aMinutos(franja.inicio);
   const ids = Object.keys(citas);
   const ultimaFin = ids.length ? Math.max(...ids.map((id) => aMinutos(citas[id].hora) + citas[id].duracionMin)) : aMinutos(franja.inicio);
   const necesarios = ultimaFin - aMinutos(franja.inicio);
-  const alternativas = sucio || !agendaGuardada ? alternativasSiNoAlcanza(citados, franja, modo, p) : [];
+  // La agenda que se ve, ¿esta armada con la forma vigente de coordinacion?
+  const desfasada = !!metodo && !mismoMetodo({ modo, parametros: p }, metodo);
+  const yaEnviadas = ids.filter((id) => citas[id].enviadaCorreoEn || citas[id].enviadaSmsEn || citas[id].impresaEn).length;
   const problemas = revisarAgenda(citas, franja);
   const cambios = agendaGuardada ? cambiosEnCitados(agendaGuardada.citas, citados.map((c) => c.studentId)) : { entran: [], salen: [] };
   const nombreDe = (id: string) => { const e = estudiantes.find((x) => x.studentId === id); return e ? nombreCompleto(e) : id; };
@@ -183,7 +199,7 @@ export default function CitacionesAlerta({
       {(cambios.entran.length > 0 || cambios.salen.length > 0) && (
         <div className="rounded-xl border border-warning-soft bg-warning-soft p-3 text-sm text-warning-soft-fg">
           <b>Su lista de citados cambió</b> desde que guardó la agenda (se reabrió la alerta o un docente corrigió).
-          {cambios.entran.length > 0 && <p>Entran: {cambios.entran.map(nombreDe).join(', ')}. Recalcule o agréguelos a la agenda.</p>}
+          {cambios.entran.length > 0 && <p>Entran: {cambios.entran.map(nombreDe).join(', ')}. {metodo ? 'Use «Volver a proponer» para incluirlos.' : 'Para incluirlos, coordinación tiene que definir la forma de citar.'}</p>}
           {cambios.salen.map((s) => (
             <p key={s.studentId}>
               Sale: {nombreDe(s.studentId)}{s.yaEnviada ? ' — ya se le había enviado la citación: avísele que ya no hace falta venir.' : '.'}
@@ -192,56 +208,39 @@ export default function CitacionesAlerta({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Forma de organizar">
-        {MODOS.map((m) => (
+      {/* La forma de citar la define coordinacion (2026-10-22): aqui solo se lee. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
+        <span className="min-w-0 flex-1">
+          <span className="block text-xs text-muted">Forma de citar (la define coordinación)</span>
+          {metodo
+            ? <span className="text-strong">{describirMetodo(metodo)}</span>
+            : <span className="text-strong">Coordinación aún no la ha definido. Su agenda guardada ({NOMBRE_MODO[modo]}) sigue valiendo: puede mover horas, guardarla y enviarla.</span>}
+        </span>
+        {metodo && (
           <button
-            key={m.modo}
-            title={m.ayuda}
-            onClick={() => proponer(m.modo, p)}
-            className={`min-h-[36px] rounded-full border px-3 text-sm ${modo === m.modo ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg' : 'border-line text-soft'}`}
+            onClick={() => proponer(metodo)}
+            disabled={!!ocupado}
+            title="Vuelve a repartir las horas con la forma que definió coordinación. Se pierden los cambios hechos a mano; los envíos registrados se conservan."
+            className="min-h-[36px] rounded-xl border border-line px-3 text-sm text-strong disabled:opacity-50"
           >
-            {m.nombre}
+            Volver a proponer
           </button>
-        ))}
+        )}
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 text-xs text-muted">
-        {modo !== 'general' && (
-          <>
-            <label className="flex flex-col gap-1">Base (min)<input type="number" min={1} value={p.baseMin} onChange={(e) => proponer(modo, { ...p, baseMin: Math.max(1, +e.target.value) })} className={CAJA} /></label>
-            <label className="flex flex-col gap-1">Por asignatura<input type="number" min={0} value={p.porAsignaturaMin} onChange={(e) => proponer(modo, { ...p, porAsignaturaMin: Math.max(0, +e.target.value) })} className={CAJA} /></label>
-            <label className="flex flex-col gap-1">Entre turnos<input type="number" min={0} value={p.intervaloMin} onChange={(e) => proponer(modo, { ...p, intervaloMin: Math.max(0, +e.target.value) })} className={CAJA} /></label>
-          </>
-        )}
-        {modo !== 'turnos' && (
-          <label className="flex flex-col gap-1">Reunión (min)<input type="number" min={5} value={p.generalMin} onChange={(e) => proponer(modo, { ...p, generalMin: Math.max(5, +e.target.value) })} className={CAJA} /></label>
-        )}
-        {modo === 'mixta' && (
-          <label className="flex flex-col gap-1">Turno desde (asig.)<input type="number" min={3} value={p.umbralIndividual} onChange={(e) => proponer(modo, { ...p, umbralIndividual: Math.max(3, +e.target.value) })} className={CAJA} /></label>
-        )}
-        <label className="flex flex-col gap-1">Orden
-          <select value={p.orden} onChange={(e) => proponer(modo, { ...p, orden: e.target.value as ParametrosAgenda['orden'] })} className="rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong">
-            <option value="mas_asignaturas">Más asignaturas primero</option>
-            <option value="alfabetico">Alfabético</option>
-          </select>
-        </label>
-      </div>
+      {desfasada && (
+        <div className="rounded-xl border border-warning-soft bg-warning-soft p-3 text-sm text-warning-soft-fg">
+          <b>Coordinación cambió la forma de citar</b> después de que se armó esta agenda (la suya está como {NOMBRE_MODO[modo]}{modo === metodo?.modo ? ', con otros tiempos' : ''}).
+          {' '}Use «Volver a proponer» para ajustarla y guárdela.
+          {yaEnviadas > 0 && <> {yaEnviadas === 1 ? 'A 1 familia' : `A ${yaEnviadas} familias`} ya se le envió la citación: si cambia su hora, vuelva a enviársela.</>}
+        </div>
+      )}
 
       <div className={`rounded-xl px-3 py-2 text-sm ${necesarios <= disponibles ? 'bg-success-soft text-success-soft-fg' : 'bg-danger-soft text-danger-soft-fg'}`}>
         {necesarios <= disponibles
           ? <>Necesita {necesarios} min de {disponibles}: le sobran {disponibles - necesarios}.</>
-          : <>Necesita {necesarios} min y tiene {disponibles}. Puede mover turnos a mano o elegir una opción:</>}
+          : <>Necesita {necesarios} min y tiene {disponibles}. Puede mover turnos a mano o pedirle a coordinación que ajuste la forma de citar o la franja.</>}
       </div>
-      {necesarios > disponibles && alternativas.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {alternativas.map((a) => (
-            <button key={a.etiqueta} onClick={() => proponer(a.modo, a.parametros)} className="rounded-xl border border-line px-3 py-2 text-left text-sm hover:bg-elevated">
-              <b className="text-strong">{a.etiqueta}</b>
-              <span className={`block text-xs ${a.alcanza ? 'text-success' : 'text-muted'}`}>{a.necesariosMin} min{a.alcanza ? ' · alcanza' : ''}</span>
-            </button>
-          ))}
-        </div>
-      )}
 
       <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
         {ordenadas.map((id) => {

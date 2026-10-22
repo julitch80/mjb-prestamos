@@ -143,6 +143,30 @@ export interface Student {
   /** Grado vigente, denormalizado: las reglas no pueden consultar colecciones. */
   gradoActual: string;
   activo: boolean;
+  /**
+   * Cambio de grupo (2026-10-22, `domain/cambio-grupo.ts`). `matriculaActual` es el id de
+   * la matricula abierta: con el, la regla comprueba que el `gradoActual` nuevo tenga su
+   * matricula escrita en el mismo lote. `cambiosDeGrupo` es el historial visible; el
+   * completo (la ficha anterior entera) lo archiva el trigger `onStudentUpdated`.
+   */
+  matriculaActual?: string;
+  ultimoCambioGrupo?: { desde: string; hacia: string; fecha: string; por: string; en: unknown };
+  cambiosDeGrupo?: CambioDeGrupo[];
+  /** Ficha creada por error al trasladar a mano: apunta a la verdadera. Va con `activo: false`. */
+  duplicadoDe?: string;
+}
+
+/** Una entrada del historial de cambios de grupo de la ficha. */
+export interface CambioDeGrupo {
+  desde: string;
+  hacia: string;
+  /** 'AAAA-MM-DD': dia desde el que cuenta en el grupo nuevo. */
+  fecha: string;
+  por: string;
+  /** Instante en ms (en una lista no cabe la hora del servidor). */
+  en: number;
+  /** Estaba retirado al cambiarlo (el estado atascado de los traslados a mano). */
+  reintegrado: boolean;
 }
 
 /** El grado nunca es un campo fijo: es una matricula con vigencia. */
@@ -891,6 +915,14 @@ export interface ConvocatoriaAlerta {
   franjaFin: string | null;
   /** Dias habiles para justificar la inasistencia a la entrega. Por defecto 3 (Julian, 2026-10-03). */
   plazoExcusaDias?: number;
+  /**
+   * Forma de citar a los acudientes y sus parametros. La decide SOLO coordinacion, junto
+   * con la franja (el colegio, 2026-10-22); el director ya no la elige: la agenda de su
+   * grupo se propone con esto. Ausente o `null` = coordinacion aun no la fijo (las
+   * convocatorias anteriores al cambio no la traen). Van juntos: los dos o ninguno.
+   */
+  modoAgenda?: ModoAgenda | null;
+  parametrosAgenda?: ParametrosAgenda | null;
   abiertaPor: string;
   abiertaEn: number;
   cerradaPor: string | null;
@@ -913,6 +945,11 @@ export interface PlanillaAlerta {
   slotId: string;
   /** Escrito con rutas de campo puntuales (`estudiantes.est_0412`), como las sesiones. */
   estudiantes: Record<string, MarcaAlerta>;
+  /**
+   * Marcas que llegaron con un cambio de grupo, no puestas por el docente de esta planilla:
+   * de que planilla salieron, quien las traslado y cuando (2026-10-22).
+   */
+  traslados?: Record<string, { desde: string; fichaDuplicada?: string; por: string; en: number }>;
   entregada: boolean;
   entregadaPor: string | null;
   entregadaEn: number | null;

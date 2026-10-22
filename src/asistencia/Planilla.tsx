@@ -1337,8 +1337,9 @@ export function ModalNuevoEstudiante({
       >
         <p className="text-lg font-semibold text-strong">Agregar estudiante nuevo</p>
         <p className="mb-2 text-xs text-muted">
-          Se matricula en <b>{grado}</b>. Para trasladar a alguien que ya está en el
-          sistema, use el cambio de grado en su ficha en vez de crearlo de nuevo.
+          Se matricula en <b>{grado}</b>. Si el estudiante ya está en otro grupo (aunque
+          figure como retirado), no lo cree de nuevo: búsquelo, abra su ficha y use
+          «Cambiar de grupo». Así conserva la foto, los datos y su historial.
         </p>
 
         <div className="grid grid-cols-2 gap-2">

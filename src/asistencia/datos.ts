@@ -44,7 +44,8 @@ import { httpsCallable } from 'firebase/functions';
 
 import { db, esperarAuth, functions } from '../lib/firebase';
 import type { AvisoInasistencia } from './domain/avisos';
-import { sessionId as construirSessionId, toDateKey } from './domain/ids';
+import { sessionId as construirSessionId, jornadaDeGrado, toDateKey } from './domain/ids';
+import type { PlanCambioGrupo } from './domain/cambio-grupo';
 import { compararEstudiantes } from './domain/nombres';
 import { avisoEvasionId, censoDiaId } from './domain/evasion';
 import {
@@ -65,7 +66,7 @@ import {
 } from './domain/seguimiento-caso';
 import type { MarkCode } from './domain/marks';
 import { planCambioColumna, type PlanCambioColumna } from './domain/columna';
-import { alertaId, citacionAlertaId, convocatoriaAlertaId } from './domain/alerta-academica';
+import { alertaId, citacionAlertaId, convocatoriaAlertaId, normalizarParametros } from './domain/alerta-academica';
 import type {
   AlertConfig,
   AvisoEvasion,
@@ -98,6 +99,8 @@ import type {
   AgendaCitaciones,
   ConvocatoriaAlerta,
   MarcaAlerta,
+  ModoAgenda,
+  ParametrosAgenda,
   PlanillaAlerta,
   JustificacionInasistencia,
   ReprogramacionCita,
@@ -1023,6 +1026,152 @@ export async function actualizarFicha(
 ): Promise<void> {
   await exigirAutor();
   await updateDoc(doc(baseDatos(), 'asistenciaStudents', studentId), cambios);
+}
+
+// ════════════════════════════════════════════════════════════════════════════════════
+//  Cambio de grupo (2026-10-22) — ver domain/cambio-grupo.ts
+// ════════════════════════════════════════════════════════════════════════════════════
+
+/** Todo lo que hace falta leer para calcular un cambio de grupo. */
+export interface InsumosCambioGrupo {
+  estudiante: Student;
+  matriculas: Enrollment[];
+  /** Estudiantes activos del grupo destino (para detectar la ficha duplicada). */
+  enDestino: Student[];
+  /** Matriculas abiertas de cada estudiante del destino, por si se retira un duplicado. */
+  matriculasDestino: Enrollment[];
+  alertasOrigen: PlanillaAlerta[];
+  alertasDestino: PlanillaAlerta[];
+  agendasOrigen: AgendaCitaciones[];
+}
+
+/**
+ * Lee los insumos del cambio. Las consultas de alertas y agendas van por sede + jornada +
+ * grado + anio: la regla de lectura de coordinacion depende de sede y jornada, y sin esos
+ * filtros Firestore rechaza la consulta entera. Por eso el cambio es de COORDINACION: el
+ * superusuario no lee alertas (regla de `asistenciaAlertas`).
+ */
+export async function leerInsumosCambioGrupo(studentId: string, gradoNuevo: string, anio: number): Promise<InsumosCambioGrupo> {
+  if (!(await listo())) throw new Error('La sesión de Firebase no está lista.');
+  const estudiante = await leerEstudiante(studentId);
+  if (!estudiante) throw new Error('No se encontró la ficha del estudiante.');
+  const sede = estudiante.sede;
+  const gradoViejo = estudiante.gradoActual;
+
+  const planillas = (grado: string) =>
+    getDocs(query(
+      collection(baseDatos(), 'asistenciaAlertas'),
+      where('sede', '==', sede), where('jornada', '==', jornadaDeGrado(grado)),
+      where('grado', '==', grado), where('anio', '==', anio),
+    )).then((s) => aLista<PlanillaAlerta>(s));
+
+  const [matriculas, grupoDestino, alertasOrigen, alertasDestino, agendasOrigen] = await Promise.all([
+    getDocs(query(collection(baseDatos(), 'asistenciaEnrollments'), where('studentId', '==', studentId)))
+      .then((s) => aLista<Enrollment>(s)),
+    leerGrupo(gradoNuevo),
+    planillas(gradoViejo),
+    planillas(gradoNuevo),
+    getDocs(query(
+      collection(baseDatos(), 'asistenciaCitacionesAlerta'),
+      where('sede', '==', sede), where('jornada', '==', jornadaDeGrado(gradoViejo)),
+      where('grado', '==', gradoViejo), where('anio', '==', anio),
+    )).then((s) => aLista<AgendaCitaciones>(s)),
+  ]);
+
+  return {
+    estudiante,
+    matriculas,
+    enDestino: grupoDestino.estudiantes,
+    matriculasDestino: grupoDestino.matriculas,
+    alertasOrigen,
+    alertasDestino,
+    agendasOrigen,
+  };
+}
+
+/**
+ * Escribe un cambio de grupo en UN SOLO LOTE: o queda todo, o no queda nada. Un cambio a
+ * medias (matricula nueva sin `gradoActual`, o marcas copiadas sin matricula) es peor que
+ * ninguno.
+ *
+ *  - La ficha es la MISMA: mismo `studentId`, y con el la foto (`asistencia/photos/
+ *    {studentId}.jpg`), el QR, los datos del Master y el historial de asistencia.
+ *  - `gradoActual` lo autoriza la regla solo si en el mismo lote existe la matricula
+ *    abierta que dice ese grado (`matriculaActual`) y el registro del cambio con el autor.
+ *  - Si estaba retirado (el estado atascado), queda activo.
+ *  - Las marcas de alerta se AGREGAN con rutas de campo puntuales; la regla rechaza el lote
+ *    si alguna pisara una marca existente (por ejemplo, si el docente marco mientras tanto).
+ *
+ * Exige conexion: sin ella el lote quedaria en cola y la pantalla diria «hecho» sin que el
+ * servidor lo hubiera aceptado.
+ */
+export async function aplicarCambioDeGrupo(plan: PlanCambioGrupo): Promise<void> {
+  if (!hayConexion()) throw new Error('El cambio de grupo necesita conexión. Inténtelo de nuevo cuando tenga señal.');
+  const autor = await exigirAutor();
+  const db = baseDatos();
+  const batch = writeBatch(db);
+  const ahora = Date.now();
+
+  for (const id of plan.matriculas.cerrar) {
+    batch.update(doc(db, 'asistenciaEnrollments', id), {
+      hasta: plan.fecha, cerradaPor: autor, motivoCierre: 'cambio_grupo',
+    });
+  }
+  batch.set(doc(db, 'asistenciaEnrollments', plan.matriculas.nuevaId), {
+    ...plan.matriculas.nueva, creadaPor: autor, motivo: 'cambio_grupo', gradoAnterior: plan.gradoAnterior,
+  });
+
+  batch.update(doc(db, 'asistenciaStudents', plan.studentId), {
+    gradoActual: plan.gradoNuevo,
+    activo: true,
+    matriculaActual: plan.matriculas.nuevaId,
+    ultimoCambioGrupo: {
+      desde: plan.gradoAnterior, hacia: plan.gradoNuevo, fecha: plan.fecha, por: autor, en: serverTimestamp(),
+    },
+    cambiosDeGrupo: arrayUnion({ ...plan.registro, por: autor }),
+  });
+
+  for (const dup of plan.retirarDuplicados) {
+    batch.update(doc(db, 'asistenciaStudents', dup.studentId), { activo: false, duplicadoDe: plan.studentId });
+    for (const id of dup.cerrarMatriculas) {
+      batch.update(doc(db, 'asistenciaEnrollments', id), {
+        hasta: plan.fecha, cerradaPor: autor, motivoCierre: 'ficha_duplicada',
+      });
+    }
+  }
+
+  for (const c of plan.alertas.copiar) {
+    const ref = doc(db, 'asistenciaAlertas', c.alertaId);
+    const traslado = { ...c.traslado, por: autor, en: ahora };
+    if (c.crear) {
+      batch.set(ref, {
+        ...c.crear,
+        estudiantes: { [plan.studentId]: c.marca },
+        traslados: { [plan.studentId]: traslado },
+        entregada: false, entregadaPor: null, entregadaEn: null,
+        ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp(),
+      });
+    } else {
+      batch.update(ref, {
+        [`estudiantes.${plan.studentId}`]: c.marca,
+        [`traslados.${plan.studentId}`]: traslado,
+        ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp(),
+      });
+    }
+  }
+
+  try {
+    await batch.commit();
+  } catch (e) {
+    const code = (e as { code?: string }).code;
+    if (code === 'permission-denied') {
+      throw new Error(
+        'El servidor no aceptó el cambio y no se guardó nada. Puede que un docente haya marcado la alerta de este estudiante ' +
+          'mientras tanto, o que su cuenta no tenga autoridad sobre esta sede y jornada. Vuelva a abrir el cambio para recalcularlo.',
+      );
+    }
+    throw e;
+  }
 }
 
 /**
@@ -3479,10 +3628,14 @@ export async function actualizarConvocatoriaAlerta(
     franjaInicio?: string | null;
     franjaFin?: string | null;
     plazoExcusaDias?: number;
+    /** La forma de citar (2026-10-22): van siempre juntos; los parametros, ya normalizados. */
+    modoAgenda?: ModoAgenda;
+    parametrosAgenda?: ParametrosAgenda;
   },
 ): Promise<void> {
   const autor = await exigirAutor();
   const escritura: Record<string, unknown> = { ...cambios };
+  if (cambios.modoAgenda) escritura.parametrosAgenda = normalizarParametros(cambios.parametrosAgenda);
   if (cambios.fechaLimite) escritura.limite = finDelDia(cambios.fechaLimite);
   if (cambios.abierta === false) {
     escritura.cerradaPor = autor;

@@ -48,10 +48,11 @@ import type {
   Student,
 } from './domain/types';
 import DetalleCaso from './DetalleCaso';
+import ModalCambiarGrupo from './CambiarGrupo';
 import TelefonoAcudiente from './TelefonoAcudiente';
 import { mensajeConfirmarDatos } from './domain/sms';
 import { ModalRegistrarLlamada } from './RegistrarLlamada';
-import { Check, Copy, UserCheck, UserX } from 'lucide-react';
+import { ArrowRightLeft, Check, Copy, UserCheck, UserX } from 'lucide-react';
 
 
 /**
@@ -86,6 +87,7 @@ export default function Ficha({
   const [cuenta, setCuenta] = useState<MiCuenta | null>(null);
   const [autoridadSede, setAutoridadSede] = useState<Record<string, string[]>>({});
   const [confirmandoRetiro, setConfirmandoRetiro] = useState(false);
+  const [cambiandoGrupo, setCambiandoGrupo] = useState(false);
   // Numero sobre el que se pulso "Llamar", pendiente de que se decida si se registra la
   // gestion. `null` = no hay aviso pendiente.
   const [numeroLlamado, setNumeroLlamado] = useState<string | null>(null);
@@ -230,6 +232,14 @@ export default function Ficha({
       (cuenta?.rol === 'coordinador' &&
         cuenta.activo &&
         (autoridadSede[est.sede] ?? []).includes(cuenta.correo)),
+  );
+
+  // Cambiar de grupo: SOLO coordinacion con autoridad en la sede del estudiante. Es mas
+  // estrecho que `puedeEditar` por dos razones: el director no puede (se daria permiso
+  // sobre otro grupo cambiando `gradoActual`), y el superusuario no lee ni escribe las
+  // planillas de alerta academica, asi que su cambio dejaria las marcas atras.
+  const puedeCambiarGrupo = Boolean(
+    cuenta?.rol === 'coordinador' && cuenta.activo && (autoridadSede[est.sede] ?? []).includes(cuenta.correo),
   );
 
   // El puesto que ve el servidor. Si difiere del que resuelve la interfaz, la app
@@ -609,6 +619,49 @@ export default function Ficha({
       </div>
 
       {/*
+        GRUPO (2026-10-22). Cambiar de grupo mueve la MISMA ficha; antes la unica salida era
+        retirar aqui y dar de alta alla, que dejaba al estudiante atascado o duplicado.
+      */}
+      {(puedeCambiarGrupo || rol === 'superusuario' || est.duplicadoDe || (est.cambiosDeGrupo?.length ?? 0) > 0) && (
+        <div className="rounded-xl border border-line bg-card p-3">
+          <p className="text-sm text-strong">
+            Grupo: <b>{est.gradoActual}</b>
+          </p>
+          {est.duplicadoDe && (
+            <p className="mt-1 text-xs text-warning-soft-fg">
+              Esta ficha se creó por error al trasladar al estudiante y quedó retirada. La ficha
+              verdadera es otra (la que tiene la foto y los datos).
+            </p>
+          )}
+          {(est.cambiosDeGrupo?.length ?? 0) > 0 && (
+            <ul className="mt-1 space-y-0.5 text-xs text-muted">
+              {est.cambiosDeGrupo!.map((c) => (
+                <li key={c.en}>
+                  {c.fecha}: de {c.desde} a {c.hacia}, por {c.por}
+                  {c.reintegrado ? ' (estaba retirado)' : ''}
+                </li>
+              ))}
+            </ul>
+          )}
+          {puedeCambiarGrupo && !est.duplicadoDe && (
+            <button
+              onClick={() => setCambiandoGrupo(true)}
+              className="mt-2 flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-accent"
+            >
+              <ArrowRightLeft size={16} aria-hidden />
+              Cambiar de grupo
+            </button>
+          )}
+          {rol === 'superusuario' && (
+            <p className="mt-1 text-xs text-muted">
+              El cambio de grupo lo hace coordinación: también traslada las marcas de alerta
+              académica, que esta cuenta no puede leer.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/*
         Zona de peligro, separada del resto: retirar (y reintegrar) es del mismo
         `puedeEditar` que edita el contacto, pero es una accion que cambia si el
         estudiante aparece en planillas y conteos, asi que lleva sus propios tokens de
@@ -658,6 +711,18 @@ export default function Ficha({
             </>
           )}
         </div>
+      )}
+
+      {cambiandoGrupo && (
+        <ModalCambiarGrupo
+          estudiante={est}
+          grados={Object.keys(directores)}
+          onCerrar={() => setCambiandoGrupo(false)}
+          onHecho={async () => {
+            setCambiandoGrupo(false);
+            setEst(await leerEstudiante(studentId));
+          }}
+        />
       )}
 
       {confirmandoRetiro && (
