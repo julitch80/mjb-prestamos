@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { USUARIOS } from '../data/maestros';
-import { alertasDelGrado, convocatoriasAlerta } from './datos';
+import { alertasDeJornada, alertasDelGrado, convocatoriasAlerta } from './datos';
 import { nombreCompleto, ordenarEstudiantes } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import { consolidarGrupo, MINIMO_PARA_CITAR, puedeCitar } from './domain/alerta-academica';
@@ -58,8 +58,15 @@ export default function ReporteAlerta({
   useEffect(() => {
     if (!conv) { setPlanillas([]); return; }
     setPlanillas(null);
-    void alertasDelGrado(grado, conv.anio, conv.periodo).then(setPlanillas).catch(() => setPlanillas([]));
-  }, [grado, conv?.anio, conv?.periodo]); // eslint-disable-line react-hooks/exhaustive-deps
+    // El director consulta por SU grado (la regla lo reconoce con asisIsDirectorOf). La
+    // coordinacion NO puede hacer esa consulta: la regla solo le prueba permiso por sede y
+    // jornada, asi que se le negaba entera y el reporte salia «0 de 10» con las planillas
+    // entregadas (2026-10-22). Para ella: la consulta de la jornada, filtrada al grado.
+    const carga = esDirector
+      ? alertasDelGrado(grado, conv.anio, conv.periodo)
+      : alertasDeJornada(sede, jornada, conv.anio, conv.periodo).then((ps) => ps.filter((x) => x.grado === grado));
+    void carga.then(setPlanillas).catch(() => setPlanillas([]));
+  }, [grado, esDirector, sede, jornada, conv?.anio, conv?.periodo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activos = useMemo(() => ordenarEstudiantes(estudiantes.filter((e) => e.activo !== false)), [estudiantes]);
   const esperadas = useMemo(() => asignaturasDelGrado(grado), [grado]);
