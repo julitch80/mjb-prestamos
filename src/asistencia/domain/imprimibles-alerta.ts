@@ -215,6 +215,8 @@ export interface FilaPlanillaFirmas {
   alertas: number;
   /** Hora de la cita si esta citado (dos o mas alertas), ya legible. */
   horaCita: string | null;
+  /** Con la mixta por rangos: la reunion a la que va («Reunión de las 6:00 a. m. · 2 a 3 asignaturas»). */
+  seccion?: string;
 }
 
 export interface PlanillaFirmas {
@@ -237,6 +239,9 @@ function planillaFirmas(inst: DatosInstitucion, p: PlanillaFirmas): string {
   // Las filas llegan ya ordenadas (lo decide coordinacion); solo las de los citados.
   const citadas = p.filas.filter((f) => f.horaCita);
   const filas = citadas.map((f, i) =>
+    (f.seccion && f.seccion !== citadas[i - 1]?.seccion
+      ? `<tr class="pf-sec"><td colspan="5">${esc(f.seccion)}</td></tr>`
+      : '') +
     `<tr><td class="pf-n">${i + 1}</td><td>${esc(f.estudiante)}</td><td class="pf-m"><span class="pf-cita">${esc(f.horaCita!)}</span> · ${f.alertas} asig.</td><td></td><td></td></tr>`);
   return `<section class="hoja pf">
     ${encabezado(inst, 'Entrega de alerta académica · registro de asistencia', `Grupo ${p.grado} · periodo ${p.periodo} · ${p.anio} · ${p.fecha}`)}
@@ -260,6 +265,7 @@ const CSS_PF = `
 .pf-m { width: 36mm; white-space: nowrap; }
 .pf-f { width: 50mm; } .pf-tel { width: 34mm; }
 .pf-citado td { background: #f7eef0; }
+.pf-t tr.pf-sec td { height: 7mm; font-weight: 700; font-size: 8.4pt; background: #eef2f7; border-bottom: 0.3mm solid #111; }
 .pf-cita { font-weight: 700; color: #b3122a; font-size: 7.8pt; }
 .pf-inf { color: #555; font-size: 7.8pt; }
 .hoja.pf .firma .linea { margin-top: 6mm; }

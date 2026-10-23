@@ -24,7 +24,7 @@
  *  - Las citaciones de 10.1: las arma y las atiende el director de 10.1, y la cita pudo
  *    haber ocurrido ya. Solo se avisan, para que nadie cite dos veces.
  */
-import { alertaId } from './alerta-academica';
+import { alertaId, combinarPlanillas } from './alerta-academica';
 import { enrollmentId, gradoSortKey, jornadaDeGrado } from './ids';
 import { normalizar } from './nombres';
 import type { AgendaCitaciones, CambioDeGrupo, Enrollment, Jornada, MarcaAlerta, PlanillaAlerta, Sede, Student } from './types';
@@ -275,13 +275,18 @@ export function planAlertas(input: {
   }
 
   // 3. Marcas del grupo viejo.
-  const origenOrdenado = [...input.origen].sort((a, b) => a.periodo - b.periodo || a.subjectId.localeCompare(b.subjectId));
+  // Asignatura compartida (2026-10-23): las planillas de sus docentes viajan combinadas.
+  const origenOrdenado = combinarPlanillas(input.origen).sort((a, b) => a.periodo - b.periodo || a.subjectId.localeCompare(b.subjectId));
   for (const p of origenOrdenado) {
     const marca = p.estudiantes?.[input.studentId];
     if (!marca) continue;
-    const id = alertaId(input.anio, p.periodo, input.sede, input.gradoNuevo, p.subjectId);
-    const enDestino = destinoPorId.get(id);
-    const marcaDestino = enDestino?.estudiantes?.[input.studentId];
+    const comun = alertaId(input.anio, p.periodo, input.sede, input.gradoNuevo, p.subjectId);
+    // En el grupo nuevo puede haber varias de la misma asignatura (compartida): la marca de
+    // cualquiera se respeta, y la copia va a la comun o, si no la hay, a la de un docente.
+    const delDestino = input.destino.filter((d) => d.subjectId === p.subjectId && d.periodo === p.periodo);
+    const enDestino = destinoPorId.get(comun) ?? delDestino[0];
+    const id = enDestino?.alertaId ?? comun;
+    const marcaDestino = delDestino.map((d) => d.estudiantes?.[input.studentId]).find(Boolean);
     if (marcaDestino) {
       plan.conservadas.push({ alertaId: id, subjectId: p.subjectId, periodo: p.periodo, marcaDestino, marcaOrigen: marca });
       continue;

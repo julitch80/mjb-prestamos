@@ -11,9 +11,15 @@ import {
 import { jornadaDeGrado, toDateKey } from './domain/ids';
 import {
   ajusteDeJornada,
+  combinarPlanillas,
   consolidarGrupo,
-  agendaPropuesta,
+  convocatoriaDelGrado,
+  correrBandas,
+  excepcionPropuesta,
+  fechaCorta,
+  problemasExcepcion,
   agendaSinDecisiones,
+  agendaVigente,
   normalizarBandas,
   problemasBandas,
   textoRango,
@@ -39,7 +45,7 @@ import DigitacionPorCoordinacion, { nombreDelPuesto } from './DigitacionPorCoord
 import SeguimientoCoordinacion from './SeguimientoCoordinacion';
 import { fechaLarga } from './domain/imprimibles-alerta';
 import { PLAZO_EXCUSA_DIAS } from './domain/seguimiento-alerta';
-import type { AgendaCitaciones, BandaAgenda, ConvocatoriaAlerta, Jornada, ModoAgenda, ParametrosAgenda, PlanillaAlerta, Sede, Student } from './domain/types';
+import type { AgendaCitaciones, BandaAgenda, ConvocatoriaAlerta, ExcepcionAgenda, Jornada, ModoAgenda, ParametrosAgenda, PlanillaAlerta, Sede, Student } from './domain/types';
 
 const CAJA = 'rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong';
 const BOTON = 'min-h-[40px] rounded-xl px-4 text-sm font-semibold disabled:opacity-50';
@@ -122,7 +128,7 @@ export default function AlertaCoordinacion({
   // estudiantes suman dos o mas alertas (no hace falta la lista del grupo para contarlos).
   const avance = useMemo(() => gradosJornada.map((g) => {
     const esperadas = asignaturasDelGrado(g);
-    const del = (planillas ?? []).filter((p) => p.grado === g);
+    const del = combinarPlanillas((planillas ?? []).filter((p) => p.grado === g), esperadas);
     const entregadas = esperadas.filter((e) => del.some((p) => p.subjectId === e.subjectId && p.entregada)).length;
     const cuenta = new Map<string, number>();
     for (const p of del) for (const [id, m] of Object.entries(p.estudiantes ?? {})) if (m === 'alerta') cuenta.set(id, (cuenta.get(id) ?? 0) + 1);
@@ -170,25 +176,29 @@ export default function AlertaCoordinacion({
       const frescas = await agendasDeJornada(sede, jornada, conv.anio, conv.periodo);
       setAgendas(frescas);
       const titulo = `Alerta académica · jornada ${jornada === 'manana' ? 'mañana' : 'tarde'} · periodo ${conv.periodo}`;
-      const metodo = metodoDeConvocatoria(conv);
-      const franja = conv.franjaInicio && conv.franjaFin ? { inicio: conv.franjaInicio, fin: conv.franjaFin } : null;
       const citaciones: ReturnType<typeof citacionesDelGrupo> = [];
       const informes: ReturnType<typeof informesDelGrupo> = [];
       const firmas: NonNullable<ReturnType<typeof planillaDelGrupo>>[] = [];
       for (const g of gradosJornada) {
+        // Cada grupo con su convocatoria: la de todos o su caso especial (fecha, franja, horas).
+        const cg = convocatoriaDelGrado(conv, g);
+        const metodo = metodoDeConvocatoria(cg);
+        const franja = cg.franjaInicio && cg.franjaFin ? { inicio: cg.franjaInicio, fin: cg.franjaFin } : null;
         const del = ordenarEstudiantes(todos.filter((e) => e.gradoActual === g && e.activo !== false));
         const c = consolidarGrupo((planillas ?? []).filter((p) => p.grado === g), asignaturasDelGrado(g), del.map((e) => e.studentId));
-        informes.push(...informesDelGrupo(g, conv, c.filas, del, nombreDirector(directores[g])));
+        informes.push(...informesDelGrupo(g, cg, c.filas, del, nombreDirector(directores[g])));
         // La agenda guardada por el director; con la REUNION GENERAL y sin agenda, la que
         // propone la forma de coordinacion (todos a la misma hora): ningun grupo queda fuera.
         let a = frescas.find((x) => x.grado === g);
-        if (!a && agendaSinDecisiones(metodo) && metodo && franja) {
+        if (agendaSinDecisiones(metodo) && metodo && franja) {
+          // La forma la decide coordinacion: si la guardada se armo con otra (o no hay), se
+          // imprime con la vigente, conservando lo registrado de cada familia.
           const citados = c.filas.filter((f) => f.citar).map((f) => ({ studentId: f.studentId, nombre: f.studentId, asignaturas: f.total }));
-          if (citados.length) a = agendaPropuesta({ anio: conv.anio, periodo: conv.periodo, sede, jornada, grado: g }, citados, franja, metodo);
+          a = agendaVigente(a, { anio: conv.anio, periodo: conv.periodo, sede, jornada, grado: g }, citados, franja, metodo) ?? undefined;
         }
         if (!a) continue;
-        citaciones.push(...citacionesDelGrupo(g, conv, a, todos.filter((e) => e.gradoActual === g), nombreDirector(directores[g])));
-        const pf = planillaDelGrupo(g, conv, a, c.filas, del, nombreDirector(directores[g]), ordenPlanilla);
+        citaciones.push(...citacionesDelGrupo(g, cg, a, todos.filter((e) => e.gradoActual === g), nombreDirector(directores[g])));
+        const pf = planillaDelGrupo(g, cg, a, c.filas, del, nombreDirector(directores[g]), ordenPlanilla);
         if (pf) firmas.push(pf);
       }
       const ok = imprimirTodo(sede, citaciones, informes, titulo, firmas,
@@ -359,11 +369,19 @@ export default function AlertaCoordinacion({
             key={`metodo-${conv.convocatoriaId}`}
             conv={conv}
             guardando={guardando}
-            grupos={avance.map((a) => ({ grado: a.grado, citados: a.listaCitados }))}
+            grupos={avance.filter((a) => !conv.excepcionesAgenda?.[a.grado]).map((a) => ({ grado: a.grado, citados: a.listaCitados }))}
             conAgenda={agendas.length}
             onGuardar={(m) => void hacer(() => actualizarConvocatoriaAlerta(conv.convocatoriaId, {
               modoAgenda: m.modo, parametrosAgenda: m.parametros, bandasAgenda: m.modo === 'mixta' ? m.bandas ?? null : null,
             }))}
+          />
+
+          <CasosEspeciales
+            key={`casos-${conv.convocatoriaId}`}
+            conv={conv}
+            grados={gradosJornada}
+            guardando={guardando}
+            onGuardar={(x) => void hacer(() => actualizarConvocatoriaAlerta(conv.convocatoriaId, { excepcionesAgenda: x }))}
           />
 
           <label className="flex flex-wrap items-center gap-2 text-xs text-muted">
@@ -548,6 +566,121 @@ function FranjaEntrega({
         </button>
       </div>
       {inicio && fin && inicio >= fin && <p className="text-xs text-danger">La hora de inicio debe ser anterior a la de fin.</p>}
+    </div>
+  );
+}
+
+/**
+ * Casos especiales (Julian, 2026-10-23): un director de grupo que entrega en otra fecha, en
+ * otra franja y, con la mixta por rangos, a otras horas. Lo decide SOLO coordinacion; al
+ * director se le muestra y su agenda, citaciones y planilla de firmas salen con esto.
+ */
+function CasosEspeciales({
+  conv,
+  grados,
+  guardando,
+  onGuardar,
+}: {
+  conv: ConvocatoriaAlerta;
+  grados: string[];
+  guardando: boolean;
+  onGuardar: (x: Record<string, ExcepcionAgenda> | null) => void;
+}) {
+  const casos = conv.excepcionesAgenda ?? {};
+  const [grado, setGrado] = useState<string | null>(null);
+  const [x, setX] = useState<ExcepcionAgenda>(() => excepcionPropuesta(conv));
+  const errores = grado ? problemasExcepcion(x) : [];
+  const libres = grados.filter((g) => !casos[g] || g === grado);
+
+  function editar(g: string) {
+    setGrado(g);
+    setX(casos[g] ?? excepcionPropuesta(conv));
+  }
+  function ponerInicio(inicio: string) {
+    setX((v) => ({ ...v, franjaInicio: inicio, bandas: v.bandas ? correrBandas(v.bandas, v.franjaInicio, inicio) : v.bandas }));
+  }
+  function guardar() {
+    if (!grado || errores.length) return;
+    onGuardar({ ...casos, [grado]: x });
+    setGrado(null);
+  }
+  function quitar(g: string) {
+    const resto = Object.fromEntries(Object.entries(casos).filter(([k]) => k !== g));
+    onGuardar(Object.keys(resto).length ? resto : null);
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-3">
+      <p className="text-xs text-muted">
+        Casos especiales: si un director de grupo necesita entregar en otro día u otro horario, defínalo aquí. Ese grupo
+        sale con su propia fecha y franja en la agenda, las citaciones y la planilla de firmas; los demás siguen igual.
+      </p>
+      {Object.keys(casos).length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {Object.entries(casos).sort(([a], [b]) => a.localeCompare(b, 'es', { numeric: true })).map(([g, c]) => (
+            <li key={g} className="flex flex-wrap items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
+              <b className="text-strong">{g}</b>
+              <span className="flex-1 text-soft">
+                {fechaCorta(c.fechaEntrega)}, de {horaCorta(c.franjaInicio)} a {horaCorta(c.franjaFin)}
+                {c.bandas?.length ? ` · ${c.bandas.map((b) => `${textoRango(b)}: ${horaCorta(b.hora)}`).join(' · ')}` : ''}
+                {c.motivo ? ` · ${c.motivo}` : ''}
+              </span>
+              <button type="button" disabled={guardando} onClick={() => editar(g)} className={`${BOTON} border border-line text-strong`}>Cambiar</button>
+              <button type="button" disabled={guardando} onClick={() => quitar(g)} className={`${BOTON} border border-line text-strong`}>Quitar</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {grado === null ? (
+        <button type="button" disabled={guardando || libres.length === 0} onClick={() => editar(libres[0])} className={`${BOTON} self-start border border-line text-strong`}>
+          + Agregar caso especial
+        </button>
+      ) : (
+        <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 text-xs text-muted">Grupo
+              <select value={grado} onChange={(e) => editar(e.target.value)} className={CAJA}>
+                {libres.map((g) => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-muted">Día
+              <input type="date" value={x.fechaEntrega} onChange={(e) => setX({ ...x, fechaEntrega: e.target.value })} className={CAJA} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-muted">Desde
+              <input type="time" value={x.franjaInicio} onChange={(e) => ponerInicio(e.target.value)} className={CAJA} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-muted">Hasta
+              <input type="time" value={x.franjaFin} onChange={(e) => setX({ ...x, franjaFin: e.target.value })} className={CAJA} />
+            </label>
+            <label className="flex flex-1 flex-col gap-1 text-xs text-muted">Motivo (opcional)
+              <input type="text" maxLength={200} value={x.motivo ?? ''} onChange={(e) => setX({ ...x, motivo: e.target.value })} className={CAJA} />
+            </label>
+          </div>
+          {x.bandas?.length ? (
+            <div className="flex flex-col gap-1">
+              <p className="text-xs text-muted">Horas de cada rango para este grupo (se corren solas al cambiar «Desde»):</p>
+              {x.bandas.map((b, i) => (
+                <div key={i} className="flex flex-wrap items-end gap-2">
+                  <span className="w-28 text-sm text-strong">{textoRango(b)} asig.</span>
+                  <label className="flex flex-col gap-1 text-xs text-muted">Hora
+                    <input type="time" value={b.hora} onChange={(e) => setX({ ...x, bandas: x.bandas!.map((y, j) => (j === i ? { ...y, hora: e.target.value } : y)) })} className={CAJA} />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-muted">Reunión (min)
+                    <input type="number" min={5} max={240} value={b.duracionMin} onChange={(e) => setX({ ...x, bandas: x.bandas!.map((y, j) => (j === i ? { ...y, duracionMin: +e.target.value } : y)) })} className={`${CAJA} w-20`} />
+                  </label>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {errores.length > 0 && (
+            <ul className="list-disc pl-5 text-xs text-danger">{errores.map((e) => <li key={e}>{e}</li>)}</ul>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={guardando || errores.length > 0} onClick={guardar} className={`${BOTON} bg-accent text-accent-fg`}>Guardar caso especial</button>
+            <button type="button" onClick={() => setGrado(null)} className={`${BOTON} border border-line text-strong`}>Cancelar</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

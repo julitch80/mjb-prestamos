@@ -2181,6 +2181,14 @@ service cloud.firestore {
     // de quien tiene dos o mas. Quien ve el consolidado: el director de su grado y la
     // coordinacion de la jornada (Julian, 2026-10-02) — ni rectoria ni orientacion.
 
+    // Id de la planilla de alerta: grado y asignatura; en una asignatura COMPARTIDA (dos
+    // docentes en el mismo grupo, 2026-10-23) el puesto al final (`__slot`): cada docente marca
+    // la suya y la app las combina, asi el ✓ de uno no borra el ⚠️ del otro.
+    function asisAlertaIdValido(id, d) {
+      let comun = string(d.anio) + '_' + string(d.periodo) + '_' + d.sede + '_' + d.grado + '_' + d.subjectId;
+      return id == comun || id == comun + '__' + d.slotId;
+    }
+
     // La convocatoria de la sede y jornada de la planilla, abierta y sin vencer. Se compara
     // contra `limite` (instante), porque las reglas solo conocen `request.time`.
     function asisAlertaAbierta(d) {
@@ -2266,13 +2274,16 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['abierta', 'fechaLimite', 'limite', 'fechaEntrega', 'franjaInicio', 'franjaFin',
                        'plazoExcusaDias', 'modoAgenda', 'parametrosAgenda', 'cerradaPor', 'cerradaEn',
-                       'horaLimite', 'fechaInicio', 'horaInicio', 'inicio', 'bandasAgenda'])
+                       'horaLimite', 'fechaInicio', 'horaInicio', 'inicio', 'bandasAgenda', 'excepcionesAgenda'])
         && asisMetodoAgendaValido(request.resource.data)
         // Hora de cierre y ventana (2026-10-22): opcionales; `inicio` es un instante o nada.
         && (request.resource.data.get('inicio', null) == null || request.resource.data.inicio is timestamp)
         // Rangos de la mixta (2026-10-23): una lista corta o nada. El detalle lo valida la app.
         && (request.resource.data.get('bandasAgenda', null) == null
             || (request.resource.data.bandasAgenda is list && request.resource.data.bandasAgenda.size() <= 10))
+        // Casos especiales por grupo (2026-10-23): un mapa por grado, o nada. El detalle, la app.
+        && (request.resource.data.get('excepcionesAgenda', null) == null
+            || (request.resource.data.excepcionesAgenda is map && request.resource.data.excepcionesAgenda.size() <= 40))
         && request.resource.data.abierta is bool
         && request.resource.data.limite is timestamp
         // Si se cierra, queda dicho quien y cuando.
@@ -2315,8 +2326,7 @@ service cloud.firestore {
         && request.resource.data.grado is string
         && request.resource.data.subjectId is string
         && request.resource.data.slotId is string
-        && alertaId == string(request.resource.data.anio) + '_' + string(request.resource.data.periodo)
-             + '_' + request.resource.data.sede + '_' + request.resource.data.grado + '_' + request.resource.data.subjectId
+        && asisAlertaIdValido(alertaId, request.resource.data)
         && request.resource.data.estudiantes is map
         && request.resource.data.entregada == false
         && asisAlertaConvocada(request.resource.data));
@@ -2351,8 +2361,7 @@ service cloud.firestore {
         && request.resource.data.periodo is int
         && request.resource.data.grado is string
         && request.resource.data.subjectId is string
-        && alertaId == string(request.resource.data.anio) + '_' + string(request.resource.data.periodo)
-             + '_' + request.resource.data.sede + '_' + request.resource.data.grado + '_' + request.resource.data.subjectId
+        && asisAlertaIdValido(alertaId, request.resource.data)
         && request.resource.data.estudiantes is map
         && request.resource.data.entregada == false
         && asisAlertaAbierta(request.resource.data));

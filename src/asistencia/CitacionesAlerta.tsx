@@ -113,11 +113,24 @@ export default function CitacionesAlerta({
   // quedaba sin citaciones en el archivo de impresion. Una sola vez por pantalla.
   const autoGuardada = useRef(false);
   useEffect(() => {
-    // Tambien la MIXTA POR RANGOS (2026-10-23): la hora la da el rango, no el director.
-    if (autoGuardada.current || agendaGuardada !== null || !agendaSinDecisiones(metodo) || modo !== metodo?.modo) return;
-    if (!sucio || Object.keys(citas).length === 0) return;
+    // Tambien la MIXTA POR RANGOS (2026-10-23): la hora la da el rango, no el director. Y si
+    // la agenda guardada se armo con OTRA forma (coordinacion la cambio despues), se vuelve a
+    // proponer con la vigente —conservando envios y asistencia— y se guarda sola.
+    if (autoGuardada.current || agendaGuardada === undefined || !agendaSinDecisiones(metodo) || !metodo || !franja) return;
+    const vieja = !!agendaGuardada && !mismoMetodo(
+      { modo: agendaGuardada.modo, parametros: agendaGuardada.parametros, bandas: agendaGuardada.bandas ?? null }, metodo);
+    if (agendaGuardada !== null && !vieja) return;
+    if (vieja && !sucio) { proponer(metodo); return; }
+    if (!sucio || modo !== metodo.modo || Object.keys(citas).length === 0) return;
     autoGuardada.current = true;
-    void guardar();
+    const yaEnviadas = vieja
+      ? Object.values(agendaGuardada!.citas).filter((c) => c.enviadaCorreoEn || c.enviadaSmsEn || c.impresaEn).length
+      : 0;
+    void guardar().then(() => {
+      if (yaEnviadas > 0) {
+        setAviso({ tipo: 'ok', texto: `Coordinación cambió la forma de citar y su agenda se actualizó sola. ${yaEnviadas === 1 ? 'Una familia ya había recibido' : `${yaEnviadas} familias ya habían recibido`} la citación con la hora anterior: vuelva a enviársela.` });
+      }
+    });
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!franja || !conv.fechaEntrega) {

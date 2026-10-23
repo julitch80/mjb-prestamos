@@ -13,6 +13,7 @@ import type {
   BandaAgenda,
   CitaAlerta,
   ConvocatoriaAlerta,
+  ExcepcionAgenda,
   Jornada,
   MarcaAlerta,
   ModoAgenda,
@@ -41,19 +42,22 @@ export function alertaId(anio: number, periodo: number, sede: Sede, grado: strin
 }
 
 /**
- * Asignaturas COMPARTIDAS: grupos donde la asignacion academica pone a dos docentes en la
- * misma asignatura. La alerta es UNA planilla por grupo y asignatura, y queda a nombre del
- * primero que marca; el otro docente ya no puede ni leerla. Aqui se dice quien la digita
- * formalmente (Julian, 2026-10-22: en 10.2 Ingles la digita Johana, aunque el curso lo
- * comparte con Juan Carlos). Clave `grado|subjectId`, valor el slotId del responsable.
- *
- * Pendientes de decidir (dos docentes, sin responsable todavia): 10.2 matematicas
- * (uriel, claudia), 7º1 matematicas (yanet, felipe), 7º2 matematicas (hugo, felipe),
- * 7º3 matematicas (yanet, felipe). Sin entrada, marca el primero que abra la planilla.
+ * Planilla PROPIA de un docente en una asignatura COMPARTIDA (dos docentes en el mismo grupo
+ * y asignatura segun la asignacion academica). Julian, 2026-10-23: «si aparece en uno de los
+ * dos, queda; si no aparece en ninguno, no queda». Con una sola planilla, el ✓ de uno borraba
+ * el ⚠️ del otro (paso en 10.2 Ingles). Ahora cada uno marca la suya y el reporte las combina
+ * (`combinarPlanillas`). Si el docente ya tenia la planilla comun a su nombre, sigue con esa.
  */
-export const RESPONSABLE_ALERTA: Record<string, string> = {
-  '10.2|ingles': 'johana',
-};
+export function alertaIdDocente(anio: number, periodo: number, sede: Sede, grado: string, subjectId: string, slotId: string): string {
+  return `${alertaId(anio, periodo, sede, grado, subjectId)}__${slotId}`;
+}
+
+/**
+ * Responsable unico de una asignatura compartida (2026-10-22). VACIO desde el 2026-10-23: en
+ * las compartidas marcan los dos y se combina (`alertaIdDocente`). Se deja por si un grupo
+ * necesita otra vez que digite uno solo. Clave `grado|subjectId`, valor el slotId.
+ */
+export const RESPONSABLE_ALERTA: Record<string, string> = {};
 
 /** El slotId de quien digita la alerta de ese grupo y asignatura, o null si no hay regla. */
 export function responsableAlerta(grado: string, subjectId: string): string | null {
@@ -174,6 +178,35 @@ export function marcasAlEntregar(p: PlanillaAlerta | null, studentIds: string[])
 export interface AsignaturaEsperada {
   subjectId: string;
   nombre: string;
+  /** Puestos que la dictan en el grupo; con dos o mas es compartida y se esperan las de todos. */
+  docentes?: string[];
+}
+
+/**
+ * Una planilla por grupo y asignatura, combinando las de los docentes de una asignatura
+ * compartida: ⚠️ si CUALQUIERA lo marco en alerta; ✓ solo si todos lo marcaron sin alerta;
+ * si no, sin marcar (pendiente). Entregada cuando todos entregaron. Un docente esperado que
+ * aun no abrio su planilla cuenta como «sin entregar»: la asignatura no queda completa.
+ */
+export function combinarPlanillas(planillas: PlanillaAlerta[], esperadas: AsignaturaEsperada[] = []): PlanillaAlerta[] {
+  const grupos = new Map<string, PlanillaAlerta[]>();
+  for (const p of planillas) {
+    const k = `${p.grado}|${p.subjectId}|${p.periodo}`;
+    grupos.set(k, [...(grupos.get(k) ?? []), p]);
+  }
+  return [...grupos.values()].map((ps) => {
+    const docentes = esperadas.find((e) => e.subjectId === ps[0].subjectId)?.docentes ?? [];
+    const falta = docentes.length > 1 && docentes.some((d) => !ps.some((p) => p.slotId === d));
+    if (ps.length === 1 && !falta) return ps[0];
+    const ids = new Set(ps.flatMap((p) => Object.keys(p.estudiantes ?? {})));
+    const estudiantes: Record<string, MarcaAlerta> = {};
+    for (const id of ids) {
+      const marcas = ps.map((p) => p.estudiantes?.[id]);
+      if (marcas.includes('alerta')) estudiantes[id] = 'alerta';
+      else if (!falta && marcas.every((m) => m === 'sin_alerta')) estudiantes[id] = 'sin_alerta';
+    }
+    return { ...ps[0], estudiantes, entregada: !falta && ps.every((p) => p.entregada) };
+  });
 }
 
 export interface FilaConsolidado {
@@ -203,7 +236,7 @@ export function consolidarGrupo(
   esperadas: AsignaturaEsperada[],
   studentIds: string[],
 ): Consolidado {
-  const porAsignatura = new Map(planillas.map((p) => [p.subjectId, p]));
+  const porAsignatura = new Map(combinarPlanillas(planillas, esperadas).map((p) => [p.subjectId, p]));
   const orden = [
     ...esperadas.map((e) => e.subjectId),
     ...planillas.map((p) => p.subjectId).filter((s) => !esperadas.some((e) => e.subjectId === s)),
@@ -359,6 +392,54 @@ export function metodoDeConvocatoria(
 }
 
 /** ¿La agenda guardada se armo con esta misma forma? Si no, el director ve el aviso de recalcular. */
+// ── casos especiales por grupo (2026-10-23) ─────────────────────────────────────────
+
+/**
+ * La convocatoria tal como la vive UN grupo: con su caso especial (otra fecha, otra franja y,
+ * con la mixta por rangos, otras horas) si coordinacion lo definio; si no, la de todos. Todo
+ * lo del grupo la usa: agenda, citaciones, planilla de firmas y dia de la entrega.
+ */
+export function convocatoriaDelGrado(c: ConvocatoriaAlerta, grado: string): ConvocatoriaAlerta {
+  const x = c.excepcionesAgenda?.[grado];
+  if (!x) return c;
+  const conBandas = c.modoAgenda === 'mixta' && !!c.bandasAgenda?.length;
+  return {
+    ...c,
+    fechaEntrega: x.fechaEntrega,
+    franjaInicio: x.franjaInicio,
+    franjaFin: x.franjaFin,
+    bandasAgenda: conBandas && x.bandas?.length ? x.bandas : c.bandasAgenda,
+  };
+}
+
+/** Para un caso nuevo: lo de todos (fecha, franja y, con rangos, sus mismas horas), para cambiar. */
+export function excepcionPropuesta(c: ConvocatoriaAlerta): ExcepcionAgenda {
+  return {
+    fechaEntrega: c.fechaEntrega ?? '',
+    franjaInicio: c.franjaInicio ?? '',
+    franjaFin: c.franjaFin ?? '',
+    bandas: c.modoAgenda === 'mixta' && c.bandasAgenda?.length ? normalizarBandas(c.bandasAgenda) : null,
+    motivo: '',
+  };
+}
+
+/** Lo que impide guardar un caso especial; con rangos, cada reunion dentro de su franja. */
+export function problemasExcepcion(x: ExcepcionAgenda): string[] {
+  const p: string[] = [];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(x.fechaEntrega)) p.push('Falta el día de la entrega.');
+  if (!/^\d{2}:\d{2}$/.test(x.franjaInicio) || !/^\d{2}:\d{2}$/.test(x.franjaFin)) p.push('Falta la franja (desde y hasta).');
+  else if (x.franjaInicio >= x.franjaFin) p.push('La hora de inicio debe ser anterior a la de fin.');
+  else if (x.bandas?.length) p.push(...problemasBandas(normalizarBandas(x.bandas), { inicio: x.franjaInicio, fin: x.franjaFin }));
+  return p;
+}
+
+/** Al correr la franja, las horas de los rangos se corren lo mismo (empieza 30 min despues: todas 30 min despues). */
+export function correrBandas(bandas: BandaAgenda[], deInicio: string, aInicio: string): BandaAgenda[] {
+  if (!/^\d{2}:\d{2}$/.test(deInicio) || !/^\d{2}:\d{2}$/.test(aInicio)) return bandas;
+  const d = aMinutos(aInicio) - aMinutos(deInicio);
+  return bandas.map((b) => (/^\d{2}:\d{2}$/.test(b.hora) ? { ...b, hora: aHora(Math.max(0, Math.min(23 * 60 + 59, aMinutos(b.hora) + d))) } : b));
+}
+
 export function mismoMetodo(a: MetodoAgenda, b: MetodoAgenda): boolean {
   if (a.modo !== b.modo) return false;
   if (a.modo === 'mixta' && (a.bandas?.length || b.bandas?.length)) {
@@ -526,6 +607,33 @@ export function agendaPropuesta(
   };
 }
 
+/**
+ * La agenda con la que se imprime y se trabaja cuando la forma la decide coordinacion
+ * (`agendaSinDecisiones`): si la guardada se armo con OTRA forma (p. ej. se guardo sola con
+ * la reunion general y luego coordinacion paso a rangos), se recalcula con la vigente y se
+ * conserva lo registrado de cada familia (envios, asistencia, excusa...). Sin agenda guardada,
+ * la propuesta. Fallo real, 2026-10-23: las planillas de firmas salian con la hora vieja.
+ */
+export function agendaVigente(
+  guardada: AgendaCitaciones | null | undefined,
+  base: { anio: number; periodo: number; sede: Sede; jornada: Jornada; grado: string },
+  citados: Citado[],
+  franja: Franja,
+  metodo: MetodoAgenda,
+): AgendaCitaciones | null {
+  if (guardada && mismoMetodo({ modo: guardada.modo, parametros: guardada.parametros, bandas: guardada.bandas ?? null }, metodo)) return guardada;
+  if (citados.length === 0) return guardada ?? null;
+  const nueva = agendaPropuesta(base, citados, franja, metodo);
+  if (!guardada) return nueva;
+  const citas = Object.fromEntries(Object.entries(nueva.citas).map(([id, c]) => {
+    const antes = guardada.citas[id];
+    if (!antes) return [id, c];
+    const { hora: _h, duracionMin: _d, general: _g, ...resto } = antes;
+    return [id, { ...c, ...resto }];
+  }));
+  return { ...guardada, modo: nueva.modo, parametros: nueva.parametros, bandas: nueva.bandas, citas };
+}
+
 export interface Alternativa {
   etiqueta: string;
   modo: ModoAgenda;
@@ -645,6 +753,8 @@ export type EstadoDigitacion = 'entregada' | 'sin_entregar' | 'no_existe';
 
 export interface FilaDigitacion {
   subjectId: string;
+  /** Asignatura compartida: hay una fila por docente, cada uno con su planilla. */
+  compartida: boolean;
   nombre: string;
   /** Puesto de quien la dicta segun la asignacion academica (o RESPONSABLE_ALERTA). */
   slotResponsable: string;
@@ -668,9 +778,13 @@ export function filasDigitacion(
   planillas: PlanillaAlerta[],
 ): FilaDigitacion[] {
   return esperadas.map((e) => {
-    const p = planillas.find((x) => x.grado === grado && x.subjectId === e.subjectId) ?? null;
+    const compartida = esperadas.filter((x) => x.subjectId === e.subjectId).length > 1;
+    const delGrupo = planillas.filter((x) => x.grado === grado && x.subjectId === e.subjectId);
+    // Compartida: la de ESTE docente y ninguna otra (la del colega es otra fila).
+    const p = delGrupo.find((x) => x.slotId === e.slotId) ?? (compartida ? null : delGrupo[0] ?? null);
     return {
       subjectId: e.subjectId,
+      compartida,
       nombre: e.nombre,
       slotResponsable: e.slotId,
       estado: !p ? 'no_existe' : p.entregada ? 'entregada' : 'sin_entregar',

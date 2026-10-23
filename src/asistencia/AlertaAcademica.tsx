@@ -15,6 +15,7 @@ import {
   alertaPorEmpezar,
   horaCorta,
   alertaId,
+  alertaIdDocente,
   digitaAlerta,
   estadoPlanilla,
   marcasAlEntregar,
@@ -22,6 +23,7 @@ import {
   siguienteMarca,
 } from './domain/alerta-academica';
 import { fechaLarga } from './domain/imprimibles-alerta';
+import { docentesDeAsignatura } from './horarioDelDia';
 import { USUARIOS } from '../data/maestros';
 import type { ConvocatoriaAlerta, MarcaAlerta, PlanillaAlerta, Sede, Student } from './domain/types';
 
@@ -98,16 +100,31 @@ export default function AlertaAcademica({
   }, [sede, jornada, convocatoriaId]);
 
   const conv = convocatorias?.find((c) => c.convocatoriaId === periodoElegido) ?? null;
-  const base = conv
-    ? { anio: conv.anio, periodo: conv.periodo, sede, jornada, grado, subjectId, slotId }
+  const idComun = conv ? alertaId(conv.anio, conv.periodo, sede, grado, subjectId) : null;
+  // Asignatura COMPARTIDA (2026-10-23): cada docente marca la suya y el reporte las combina.
+  // Si la comun ya es de este docente, sigue con esa; si no, la propia (`…__slot`).
+  const compartida = useMemo(() => docentesDeAsignatura(grado, subjectId).length > 1, [grado, subjectId]);
+  const [idDoc, setIdDoc] = useState<string | null>(null);
+  const base = conv && idDoc
+    ? { anio: conv.anio, periodo: conv.periodo, sede, jornada, grado, subjectId, slotId, alertaId: idDoc }
     : null;
-  const idDoc = conv ? alertaId(conv.anio, conv.periodo, sede, grado, subjectId) : null;
 
   useEffect(() => {
-    if (!idDoc) { setPlanilla(null); setCargando(false); return; }
+    if (!conv || !idComun) { setIdDoc(null); setPlanilla(null); setCargando(false); return; }
+    let vivo = true;
     setCargando(true);
-    void leerPlanillaAlerta(idDoc).then((p) => { setPlanilla(p); setCargando(false); });
-  }, [idDoc]);
+    void (async () => {
+      const comun = await leerPlanillaAlerta(idComun);
+      if (!compartida || comun?.slotId === slotId) {
+        if (vivo) { setIdDoc(idComun); setPlanilla(comun); setCargando(false); }
+        return;
+      }
+      const propia = alertaIdDocente(conv.anio, conv.periodo, sede, grado, subjectId, slotId);
+      const p = await leerPlanillaAlerta(propia);
+      if (vivo) { setIdDoc(propia); setPlanilla(p); setCargando(false); }
+    })();
+    return () => { vivo = false; };
+  }, [idComun, compartida, slotId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activos = useMemo(() => ordenarEstudiantes(estudiantes.filter((e) => e.activo !== false)), [estudiantes]);
   const ids = useMemo(() => activos.map((e) => e.studentId), [activos]);
@@ -121,7 +138,7 @@ export default function AlertaAcademica({
     const existia = !!planilla;
     // Optimista, como la asistencia: la marca se ve al instante y se envia sola.
     setPlanilla((p) => ({
-      ...(p ?? ({ alertaId: idDoc!, ...base, entregada: false, entregadaPor: null, entregadaEn: null, ultimaEscrituraPor: '', ultimaEscrituraEn: Date.now() } as PlanillaAlerta)),
+      ...(p ?? ({ ...base, entregada: false, entregadaPor: null, entregadaEn: null, ultimaEscrituraPor: '', ultimaEscrituraEn: Date.now() } as PlanillaAlerta)),
       estudiantes: { ...(p?.estudiantes ?? {}), [studentId]: nueva },
     }));
     try {

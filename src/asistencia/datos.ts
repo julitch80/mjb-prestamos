@@ -100,6 +100,7 @@ import type {
   ConvocatoriaAlerta,
   MarcaAlerta,
   BandaAgenda,
+  ExcepcionAgenda,
   ModoAgenda,
   ParametrosAgenda,
   PlanillaAlerta,
@@ -3653,12 +3654,23 @@ export async function actualizarConvocatoriaAlerta(
     parametrosAgenda?: ParametrosAgenda;
     /** Rangos de la mixta (2026-10-23); null los quita. */
     bandasAgenda?: BandaAgenda[] | null;
+    /** Casos especiales por grupo (2026-10-23): el mapa completo; null o vacio los quita. */
+    excepcionesAgenda?: Record<string, ExcepcionAgenda> | null;
   },
 ): Promise<void> {
   const autor = await exigirAutor();
   const escritura: Record<string, unknown> = { ...cambios };
   if (cambios.modoAgenda) escritura.parametrosAgenda = normalizarParametros(cambios.parametrosAgenda);
   if ('bandasAgenda' in cambios) escritura.bandasAgenda = cambios.bandasAgenda?.length ? normalizarBandas(cambios.bandasAgenda) : null;
+  if ('excepcionesAgenda' in cambios) {
+    const xs = Object.entries(cambios.excepcionesAgenda ?? {});
+    escritura.excepcionesAgenda = xs.length
+      ? Object.fromEntries(xs.map(([g, x]) => [g, {
+          fechaEntrega: x.fechaEntrega, franjaInicio: x.franjaInicio, franjaFin: x.franjaFin,
+          bandas: x.bandas?.length ? normalizarBandas(x.bandas) : null, motivo: (x.motivo ?? '').trim().slice(0, 200),
+        }]))
+      : null;
+  }
   if (cambios.fechaLimite) {
     escritura.limite = Timestamp.fromMillis(instanteColombia(cambios.fechaLimite, cambios.horaLimite ?? null));
     escritura.horaLimite = cambios.horaLimite ?? null;
@@ -3716,15 +3728,21 @@ export async function alertasDeJornada(sede: Sede, jornada: Jornada, anio: numbe
   return aLista<PlanillaAlerta>(snap);
 }
 
+function idDePlanilla(base: { anio: number; periodo: number; sede: Sede; grado: string; subjectId: string; alertaId?: string }): string {
+  return base.alertaId ?? alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId);
+}
+
 /**
  * Crea la planilla si no existe (la primera marca). Mismo patron que `abrirSesion`: se
  * escribe directo sin comprobar antes, y si rebota se lee para distinguir «ya existia».
  */
 async function asegurarPlanillaAlerta(base: {
   anio: number; periodo: number; sede: Sede; jornada: Jornada; grado: string; subjectId: string; slotId: string;
+  /** El id del documento si no es el comun: la planilla propia en una asignatura compartida. */
+  alertaId?: string;
 }): Promise<string> {
   const autor = await exigirAutor();
-  const id = alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId);
+  const id = idDePlanilla(base);
   const ref = doc(baseDatos(), 'asistenciaAlertas', id);
   const nueva = {
     alertaId: id, ...base, estudiantes: {}, entregada: false, entregadaPor: null, entregadaEn: null,
@@ -3750,7 +3768,7 @@ export async function marcarAlerta(
   marca: MarcaAlerta,
 ): Promise<void> {
   const autor = await exigirAutor();
-  const id = existe ? alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId) : await asegurarPlanillaAlerta(base);
+  const id = existe ? idDePlanilla(base) : await asegurarPlanillaAlerta(base);
   registrarEnvio(
     updateDoc(doc(baseDatos(), 'asistenciaAlertas', id), {
       [`estudiantes.${studentId}`]: marca,
@@ -3770,7 +3788,7 @@ export async function entregarPlanillaAlerta(
   cambios: Record<string, MarcaAlerta>,
 ): Promise<void> {
   const autor = await exigirAutor();
-  const id = existe ? alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId) : await asegurarPlanillaAlerta(base);
+  const id = existe ? idDePlanilla(base) : await asegurarPlanillaAlerta(base);
   const escritura: Record<string, unknown> = {
     entregada: true,
     entregadaPor: autor,
@@ -3797,7 +3815,7 @@ function selloCoordinacion(autor: string) {
 /** Como `asegurarPlanillaAlerta`, a nombre del puesto ASIGNADO (`base.slotId`) y con la constancia. */
 async function asegurarPlanillaAlertaPorCoordinacion(base: BasePlanillaAlerta): Promise<string> {
   const autor = await exigirAutor();
-  const id = alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId);
+  const id = idDePlanilla(base);
   const ref = doc(baseDatos(), 'asistenciaAlertas', id);
   const nueva = {
     alertaId: id, ...base, estudiantes: {}, entregada: false, entregadaPor: null, entregadaEn: null,
@@ -3822,7 +3840,7 @@ export async function marcarAlertaPorCoordinacion(
   marca: MarcaAlerta,
 ): Promise<void> {
   const autor = await exigirAutor();
-  const id = existe ? alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId) : await asegurarPlanillaAlertaPorCoordinacion(base);
+  const id = existe ? idDePlanilla(base) : await asegurarPlanillaAlertaPorCoordinacion(base);
   registrarEnvio(
     updateDoc(doc(baseDatos(), 'asistenciaAlertas', id), {
       [`estudiantes.${studentId}`]: marca,
@@ -3840,7 +3858,7 @@ export async function entregarPlanillaAlertaPorCoordinacion(
   cambios: Record<string, MarcaAlerta>,
 ): Promise<void> {
   const autor = await exigirAutor();
-  const id = existe ? alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId) : await asegurarPlanillaAlertaPorCoordinacion(base);
+  const id = existe ? idDePlanilla(base) : await asegurarPlanillaAlertaPorCoordinacion(base);
   const escritura: Record<string, unknown> = {
     entregada: true,
     entregadaPor: autor,

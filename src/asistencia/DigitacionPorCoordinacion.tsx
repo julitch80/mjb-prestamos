@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { USUARIOS } from '../data/maestros';
 import { reasignarPlanillaAlerta } from './datos';
 import { alertaId, filasDigitacion, type FilaDigitacion } from './domain/alerta-academica';
-import { asignaturasDelGrado } from './horarioDelDia';
+import { asignacionesDelGrado } from './horarioDelDia';
 import type { ConvocatoriaAlerta, PlanillaAlerta, Sede } from './domain/types';
 
 /** Nombre del docente de un puesto; el puesto tal cual si no esta en la lista de MJB. */
@@ -43,7 +43,7 @@ export default function DigitacionPorCoordinacion({
   const [pasando, setPasando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hecho, setHecho] = useState<string | null>(null);
-  const filas = filasDigitacion(grado, asignaturasDelGrado(grado), planillas);
+  const filas = filasDigitacion(grado, asignacionesDelGrado(grado), planillas);
 
   async function pasar(f: FilaDigitacion) {
     setPasando(f.subjectId);
@@ -82,7 +82,7 @@ export default function DigitacionPorCoordinacion({
           const docente = nombreDelPuesto(f.slotResponsable);
           const otro = f.slotPlanilla ? nombreDelPuesto(f.slotPlanilla) : null;
           return (
-            <li key={f.subjectId} className="flex flex-col gap-2 rounded-xl border border-line bg-card p-3">
+            <li key={`${f.subjectId}|${f.slotResponsable}`} className="flex flex-col gap-2 rounded-xl border border-line bg-card p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="flex-1 text-sm font-semibold text-strong">{f.nombre}</span>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${ETIQUETA[f.estado].clase}`}>
@@ -93,6 +93,11 @@ export default function DigitacionPorCoordinacion({
                 {docente}
                 {f.porCoordinacion && ' · digitada por coordinación'}
               </p>
+              {f.compartida && (
+                <p className="text-xs text-muted">
+                  Asignatura compartida: cada docente entrega su planilla y el reporte las combina (queda en alerta si cualquiera lo marcó).
+                </p>
+              )}
               {f.aNombreDeOtro && otro && (
                 <div className="flex flex-col gap-2 rounded-lg bg-warning-soft p-2 text-xs text-warning-soft-fg">
                   <span>Esta planilla está a nombre de <b>{otro}</b>; corresponde a <b>{docente}</b>.</span>

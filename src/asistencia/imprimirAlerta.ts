@@ -5,7 +5,7 @@
  */
 import { USUARIOS } from '../data/maestros';
 import { nombreCompleto } from './domain/nombres';
-import { motivoCitacion, type FilaConsolidado } from './domain/alerta-academica';
+import { bandaDe, motivoCitacion, textoRango, type FilaConsolidado } from './domain/alerta-academica';
 import { FUNDAMENTO_CITACION } from './domain/seguimiento-alerta';
 import {
   fechaLarga,
@@ -122,12 +122,19 @@ export function planillaDelGrupo(
     return [{ nombre: nombreCompleto(e), hora: c.hora, alertas: filas.find((f) => f.studentId === id)?.total ?? 0 }];
   });
   if (lista.length === 0) return null;
-  lista.sort(orden === 'hora'
+  // Mixta por rangos (2026-10-23): un bloque por reunion, en orden de hora; dentro, alfabetico.
+  const bandas = agenda.modo === 'mixta' && agenda.bandas?.length ? agenda.bandas : null;
+  lista.sort(orden === 'hora' || bandas
     ? (a, b) => a.hora.localeCompare(b.hora) || a.nombre.localeCompare(b.nombre, 'es')
     : (a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const seccionDe = (x: { hora: string; alertas: number }) => {
+    if (!bandas) return undefined;
+    const b = bandaDe(x.alertas, bandas);
+    return `Reunión de las ${horaLegible(x.hora)}${b ? ` · ${textoRango(b)} asignaturas en alerta` : ''}`;
+  };
   return {
     grado, periodo: conv.periodo, anio: conv.anio, director, fecha: fechaLarga(conv.fechaEntrega),
-    filas: lista.map((x) => ({ estudiante: x.nombre, alertas: x.alertas, horaCita: horaLegible(x.hora) })),
+    filas: lista.map((x) => ({ estudiante: x.nombre, alertas: x.alertas, horaCita: horaLegible(x.hora), seccion: seccionDe(x) })),
   };
 }
 

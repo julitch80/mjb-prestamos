@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { atenderRemision, leerEstudiantesDeSede } from './datos';
 import { nombreCompleto } from './domain/nombres';
-import { citacionAlertaId } from './domain/alerta-academica';
+import { citacionAlertaId, convocatoriaDelGrado } from './domain/alerta-academica';
 import { fechaLarga, horaLegible } from './domain/imprimibles-alerta';
 import { toDateKey } from './domain/ids';
 import { citadosDelGrupo, filaAsistencia, PLAZO_EXCUSA_DIAS, seguimientoDe, totalAsistencia } from './domain/seguimiento-alerta';
@@ -50,16 +50,24 @@ export default function SeguimientoCoordinacion({
     sinClases: diaSinClases,
   }), [conv.fechaEntrega, conv.plazoExcusaDias, hoy]);
 
-  const filas = useMemo(
-    () => agendas.map((a) => filaAsistencia(a, ctx)).sort((a, b) => a.grado.localeCompare(b.grado, 'es', { numeric: true })),
-    [agendas, ctx],
+  // Caso especial (2026-10-23): un grupo puede entregar en otra fecha. Cada uno cuenta desde
+  // la suya, y solo entran los que ya entregaron.
+  const fechaDe = (g: string) => convocatoriaDelGrado(conv, g).fechaEntrega;
+  const ctxDe = (g: string) => ({ ...ctx, fechaEntrega: fechaDe(g) ?? hoy });
+  const vigentes = useMemo(
+    () => agendas.filter((a) => { const f = convocatoriaDelGrado(conv, a.grado).fechaEntrega; return !!f && hoy >= f; }),
+    [agendas, conv, hoy],
   );
-  const remitidos = useMemo(() => agendas.flatMap((a) =>
+  const filas = useMemo(
+    () => vigentes.map((a) => filaAsistencia(a, ctxDe(a.grado))).sort((a, b) => a.grado.localeCompare(b.grado, 'es', { numeric: true })),
+    [vigentes, ctx], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const remitidos = useMemo(() => vigentes.flatMap((a) =>
     Object.entries(a.citas).flatMap(([id, c]) => {
-      const s = seguimientoDe(c, { ...ctx, entregaCerrada: !!a.entregaCerradaEn });
+      const s = seguimientoDe(c, { ...ctxDe(a.grado), entregaCerrada: !!a.entregaCerradaEn });
       return s.estado === 'remitida' ? [{ agenda: a, id, cita: c, motivo: s.motivoRemision ?? '' }] : [];
-    })), [agendas, ctx]);
-  const reprogramadas = agendas.reduce((n, a) => n + Object.values(a.citas).filter((c) => c.reprogramacion && !c.remision).length, 0);
+    })), [vigentes, ctx]); // eslint-disable-line react-hooks/exhaustive-deps
+  const reprogramadas = vigentes.reduce((n, a) => n + Object.values(a.citas).filter((c) => c.reprogramacion && !c.remision).length, 0);
 
   // Los nombres solo hacen falta si hay remitidos, se abre un grupo o se va a imprimir.
   useEffect(() => {
@@ -67,8 +75,8 @@ export default function SeguimientoCoordinacion({
     void leerEstudiantesDeSede(sede).then(setEstudiantes).catch(() => setEstudiantes([]));
   }, [remitidos.length, reprogramadas, abierto, estudiantes, sede]);
 
-  if (!conv.fechaEntrega || hoy < conv.fechaEntrega) return null;
-  if (agendas.length === 0) return null;
+  if (vigentes.length === 0) return null;
+  const especiales = vigentes.filter((a) => conv.excepcionesAgenda?.[a.grado]).map((a) => `${a.grado} (${fechaLarga(fechaDe(a.grado)!)})`);
 
   const nombreDe = (id: string) => { const e = estudiantes?.find((x) => x.studentId === id); return e ? nombreCompleto(e) : '…'; };
   const total = totalAsistencia(filas);
@@ -86,10 +94,10 @@ export default function SeguimientoCoordinacion({
     try {
       const todos = estudiantes ?? (await leerEstudiantesDeSede(sede));
       if (!estudiantes) setEstudiantes(todos);
-      const citas = agendas
+      const citas = vigentes
         .slice()
         .sort((a, b) => a.grado.localeCompare(b.grado, 'es', { numeric: true }))
-        .flatMap((a) => citacionesSeguimientoDe(a.grado, conv, a, todos.filter((e) => e.gradoActual === a.grado), nombreDirector(directores[a.grado])));
+        .flatMap((a) => citacionesSeguimientoDe(a.grado, convocatoriaDelGrado(conv, a.grado), a, todos.filter((e) => e.gradoActual === a.grado), nombreDirector(directores[a.grado])));
       const ok = imprimirSeguimiento(sede, citas, constancias, `Citaciones de seguimiento · ${conv.jornada === 'manana' ? 'mañana' : 'tarde'} · periodo ${conv.periodo}`);
       if (!ok) setError('El navegador bloqueó la ventana de impresión: permita las ventanas emergentes de la app.');
     } catch (e) {
@@ -115,7 +123,10 @@ export default function SeguimientoCoordinacion({
 
   return (
     <section className="flex flex-col gap-3">
-      <h3 className="text-sm font-semibold text-strong">Asistencia de la entrega · {fechaLarga(conv.fechaEntrega)}</h3>
+      <h3 className="text-sm font-semibold text-strong">
+        Asistencia de la entrega{conv.fechaEntrega ? ` · ${fechaLarga(conv.fechaEntrega)}` : ''}
+      </h3>
+      {especiales.length > 0 && <p className="text-xs text-muted">Con caso especial: {especiales.join(', ')}.</p>}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {tarjetas.map((c) => (
           <div key={c.texto} className="rounded-2xl border border-line bg-card px-3 py-2">
@@ -172,7 +183,7 @@ export default function SeguimientoCoordinacion({
                       <td colSpan={8} className="px-2 sm:px-3 py-2">
                         <p className="mb-1 text-xs text-muted">Director: {nombreDirector(directores[f.grado]) || 'sin director'}</p>
                         <ul className="flex flex-col gap-1">
-                          {citadosDelGrupo(agenda, ctx).map((c) => (
+                          {citadosDelGrupo(agenda, ctxDe(agenda.grado)).map((c) => (
                             <li key={c.id} className="flex flex-wrap items-center gap-2">
                               <span className="min-w-0 flex-1 text-strong">{nombreDe(c.id)}</span>
                               <span className={`rounded-full px-1 sm:px-2 py-0.5 text-xs font-semibold ${ETIQUETA_SEGUIMIENTO[c.estado].clase}`}>

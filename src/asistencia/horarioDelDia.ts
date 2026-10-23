@@ -74,18 +74,36 @@ export function bloquesDeHoyEnGrado(slotId: string | null, grado: string, fecha:
  * asignacion academica, no se escribe a mano. Excluye el centro de interes, que no es
  * una clase del grupo.
  */
-export function asignaturasDelGrado(grado: string): { subjectId: string; nombre: string; abrev: string; slotId: string }[] {
+export function asignaturasDelGrado(grado: string): { subjectId: string; nombre: string; abrev: string; slotId: string; docentes: string[] }[] {
   const vistas = new Set<string>();
-  const res: { subjectId: string; nombre: string; abrev: string; slotId: string }[] = [];
+  const res: { subjectId: string; nombre: string; abrev: string; slotId: string; docentes: string[] }[] = [];
   for (const e of ASIGNACION_2026) {
     if (e.grupo !== grado || e.asignaturaId === 'ci' || vistas.has(e.asignaturaId)) continue;
     vistas.add(e.asignaturaId);
     const a = getAsignatura(e.asignaturaId);
-    // Asignatura compartida: el que la digita segun RESPONSABLE_ALERTA, no el primero de la lista.
-    const slotId = responsableAlerta(grado, e.asignaturaId) ?? e.docenteId;
-    res.push({ subjectId: e.asignaturaId, nombre: a?.nombre ?? e.asignaturaId, abrev: a?.abrev ?? e.asignaturaId.slice(0, 4), slotId });
+    const docentes = docentesDeAsignatura(grado, e.asignaturaId);
+    // Asignatura compartida con responsable unico (RESPONSABLE_ALERTA): solo el marca.
+    const r = responsableAlerta(grado, e.asignaturaId);
+    res.push({
+      subjectId: e.asignaturaId, nombre: a?.nombre ?? e.asignaturaId, abrev: a?.abrev ?? e.asignaturaId.slice(0, 4),
+      slotId: r ?? e.docenteId, docentes: r ? [r] : docentes,
+    });
   }
   return res.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+/** Puestos que dictan una asignatura en un grado (dos o mas = asignatura compartida). */
+export function docentesDeAsignatura(grado: string, subjectId: string): string[] {
+  return [...new Set(ASIGNACION_2026.filter((e) => e.grupo === grado && e.asignaturaId === subjectId).map((e) => e.docenteId))];
+}
+
+/**
+ * Una entrada por asignatura Y DOCENTE: en las compartidas, una por cada uno (cada uno tiene
+ * su planilla de alerta y coordinacion puede digitar la de cualquiera). Para la digitacion.
+ */
+export function asignacionesDelGrado(grado: string): { subjectId: string; nombre: string; slotId: string }[] {
+  return asignaturasDelGrado(grado).flatMap((a) =>
+    a.docentes.map((slotId) => ({ subjectId: a.subjectId, nombre: a.nombre, slotId })));
 }
 
 /** Dia sin clases para los estudiantes (festivo, jornada pedagogica…), segun MJB. Fines de semana aparte. */

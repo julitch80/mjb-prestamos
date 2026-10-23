@@ -3,7 +3,7 @@ import { USUARIOS } from '../data/maestros';
 import { alertasDeJornada, alertasDelGrado, convocatoriasAlerta } from './datos';
 import { nombreCompleto, ordenarEstudiantes } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
-import { consolidarGrupo, MINIMO_PARA_CITAR, puedeCitar } from './domain/alerta-academica';
+import { combinarPlanillas, consolidarGrupo, convocatoriaDelGrado, fechaCorta, horaCorta, MINIMO_PARA_CITAR, puedeCitar } from './domain/alerta-academica';
 import { toDateKey } from './domain/ids';
 import CitacionesAlerta from './CitacionesAlerta';
 import EntregaAlerta from './EntregaAlerta';
@@ -53,7 +53,10 @@ export default function ReporteAlerta({
       .catch(() => setConvocatorias([]));
   }, [sede, jornada]);
 
-  const conv = convocatorias?.find((c) => c.convocatoriaId === periodoElegido) ?? null;
+  // Con el caso especial del grupo, si coordinacion lo definio: su fecha, franja y horas.
+  const convGeneral = convocatorias?.find((c) => c.convocatoriaId === periodoElegido) ?? null;
+  const conv = useMemo(() => (convGeneral ? convocatoriaDelGrado(convGeneral, grado) : null), [convGeneral, grado]);
+  const especial = convGeneral?.excepcionesAgenda?.[grado] ?? null;
 
   useEffect(() => {
     if (!conv) { setPlanillas([]); return; }
@@ -74,6 +77,8 @@ export default function ReporteAlerta({
     () => consolidarGrupo(planillas ?? [], esperadas, activos.map((e) => e.studentId)),
     [planillas, esperadas, activos],
   );
+  // Asignatura compartida: una por asignatura, con las marcas de sus docentes combinadas.
+  const combinadas = useMemo(() => combinarPlanillas(planillas ?? [], esperadas), [planillas, esperadas]);
 
   if (convocatorias === null) return <p className="p-3 text-sm text-muted">Cargando el reporte…</p>;
   if (!conv) {
@@ -176,7 +181,7 @@ export default function ReporteAlerta({
                       </button>
                     </td>
                     {columnas.map((c) => {
-                      const m = planillas.find((p) => p.subjectId === c.subjectId)?.estudiantes?.[e.studentId];
+                      const m = combinadas.find((p) => p.subjectId === c.subjectId)?.estudiantes?.[e.studentId];
                       return (
                         <td key={c.subjectId} className="px-1.5 py-1.5 text-center">
                           {m === 'alerta' ? '⚠️' : m === 'sin_alerta' ? <span className="text-muted">✓</span> : <span className="text-muted">·</span>}
@@ -199,6 +204,13 @@ export default function ReporteAlerta({
           docente imprimen; coordinacion descarga un solo archivo con toda la jornada. */}
       {citados > 0 && (
         <p className="text-xs text-muted">Los informes individuales y las citaciones de sus {citados} citados los descarga coordinación para toda la jornada: usted no tiene que imprimir nada.</p>
+      )}
+
+      {especial && (
+        <p className="rounded-xl bg-elevated px-3 py-2 text-xs text-soft">
+          Caso especial definido por coordinación: este grupo entrega el {fechaCorta(especial.fechaEntrega)}, de {horaCorta(especial.franjaInicio)} a {horaCorta(especial.franjaFin)}
+          {especial.motivo ? ` (${especial.motivo})` : ''}.
+        </p>
       )}
 
       {esDirector && (puedeCitar(conv, toDateKey(new Date())) ? (

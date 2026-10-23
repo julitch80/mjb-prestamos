@@ -942,6 +942,12 @@ export interface ConvocatoriaAlerta {
    * Empieza en 2 (con 0 o 1 no se cita) y cubre sin huecos hasta el ultimo, abierto.
    */
   bandasAgenda?: BandaAgenda[] | null;
+  /**
+   * CASOS ESPECIALES por grupo (Julian, 2026-10-23): un director de grupo que entrega en otra
+   * fecha, otra franja y, con la mixta por rangos, a otras horas. Los define SOLO coordinacion.
+   * Clave: el grado literal. Sin entrada, el grupo va con lo de todos.
+   */
+  excepcionesAgenda?: Record<string, ExcepcionAgenda> | null;
   abiertaPor: string;
   abiertaEn: number;
   cerradaPor: string | null;
@@ -1051,6 +1057,17 @@ export interface RemisionCita {
   atendidaPor?: string | null;
   atendidaEn?: number | null;
   notaCoordinacion?: string | null;
+}
+
+/** El caso especial de un grupo: su dia y franja de entrega (y sus horas, si hay rangos). */
+export interface ExcepcionAgenda {
+  fechaEntrega: string;
+  franjaInicio: string;
+  franjaFin: string;
+  /** Los mismos rangos de todos, con sus propias horas. null = la forma no usa rangos. */
+  bandas?: BandaAgenda[] | null;
+  /** Por que (para que quede dicho), opcional. */
+  motivo?: string;
 }
 
 /** Un rango de la forma mixta: de `desde` a `hasta` asignaturas (null = o mas), reunion a `hora`. */
