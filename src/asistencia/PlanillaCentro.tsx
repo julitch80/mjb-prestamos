@@ -3,6 +3,7 @@ import { FlechaNeon } from '../components/FlechaNeon';
 import Avatar from './Avatar';
 import Ayuda from './Ayuda';
 import EscanerQr from './EscanerQr';
+import EscribirAlGrupo from './EscribirAlGrupo';
 import VerificacionFoto from './VerificacionFoto';
 import { CLASE_MARCA, SiglaMarca } from './Planilla';
 import {
@@ -771,6 +772,9 @@ export default function PlanillaCentro({
         >
           Mosaico de fotos
         </button>
+        {/* Correo a todos los inscritos, en copia oculta: el mismo del director de grupo
+            (Julian, 2026-10-22). No aparece si ninguno tiene correo institucional. */}
+        {(puedeRegistrar || esCoordinador) && <EscribirAlGrupo estudiantes={miembros} etiqueta={grupo.nombre} conTexto />}
         {esCoordinador && (
           <Ayuda texto="Inscribir o retirar estudiantes de este centro. Solo la coordinación del programa puede hacerlo.">
             <button
