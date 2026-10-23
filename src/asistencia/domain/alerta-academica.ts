@@ -747,6 +747,58 @@ export function textoSmsCitacion(c: {
   );
 }
 
+// ── reconstruir la planilla de un docente desde el historial (2026-10-23) ─────────────
+
+/** Una entrada del historial de una planilla (lo escribe el trigger `onAlertaUpdated`). */
+export interface EntradaHistorialAlerta {
+  studentId?: string;
+  marcaAnterior?: MarcaAlerta;
+  marcaNueva?: MarcaAlerta;
+  evento?: 'entregada' | 'reabierta';
+  cambiadoPor: string | null;
+  /** ms; 0 si el servidor aun no lo sello. */
+  cambiadoEn: number;
+}
+
+export type FuenteReconstruida = 'correccion_propia' | 'antes_de_otro' | 'planilla_comun';
+
+export interface MarcaReconstruida {
+  studentId: string;
+  marca: MarcaAlerta;
+  fuente: FuenteReconstruida;
+}
+
+/**
+ * Asignatura compartida que se marco en UNA planilla comun antes del 2026-10-23 (10.2 Ingles:
+ * Juan Carlos marco primero; la planilla paso a Johana y sus ✓ reemplazaron los ⚠️ de el).
+ * Recupera lo que habia marcado el docente de `correos`, estudiante por estudiante:
+ *  1. Si el mismo corrigio la marca: su ULTIMA correccion.
+ *  2. Si no, y otro la cambio despues: lo que habia ANTES del primer cambio del otro (el
+ *     historial no archiva la primera marca, solo las correcciones; esa marca anterior es la
+ *     que el habia puesto, porque la planilla fue suya primero).
+ *  3. Si nadie la cambio: la marca de la planilla comun (trabajaban sobre la misma hoja).
+ * Johana sigue con la comun intacta; esto es la planilla PROPIA del otro docente.
+ */
+export function reconstruirDesdeHistorial(
+  comun: Pick<PlanillaAlerta, 'estudiantes'>,
+  historial: EntradaHistorialAlerta[],
+  correos: string[],
+): MarcaReconstruida[] {
+  const suyos = new Set(correos.map((c) => c.trim().toLowerCase()));
+  const esSuya = (e: EntradaHistorialAlerta) => !!e.cambiadoPor && suyos.has(e.cambiadoPor.trim().toLowerCase());
+  const orden = historial.filter((e) => e.studentId && e.marcaNueva).sort((a, b) => a.cambiadoEn - b.cambiadoEn);
+  const ids = [...new Set([...Object.keys(comun.estudiantes ?? {}), ...orden.map((e) => e.studentId!)])];
+  return ids.flatMap((studentId): MarcaReconstruida[] => {
+    const del = orden.filter((e) => e.studentId === studentId);
+    const propias = del.filter(esSuya);
+    if (propias.length) return [{ studentId, marca: propias[propias.length - 1].marcaNueva!, fuente: 'correccion_propia' }];
+    const ajena = del.find((e) => !esSuya(e) && e.marcaAnterior);
+    if (ajena) return [{ studentId, marca: ajena.marcaAnterior!, fuente: 'antes_de_otro' }];
+    const m = comun.estudiantes?.[studentId];
+    return m ? [{ studentId, marca: m, fuente: 'planilla_comun' }] : [];
+  });
+}
+
 // ── digitacion por coordinacion (2026-10-22) ──────────────────────────────────────────
 
 export type EstadoDigitacion = 'entregada' | 'sin_entregar' | 'no_existe';

@@ -66,7 +66,7 @@ import {
 } from './domain/seguimiento-caso';
 import type { MarkCode } from './domain/marks';
 import { planCambioColumna, type PlanCambioColumna } from './domain/columna';
-import { alertaId, citacionAlertaId, convocatoriaAlertaId, instanteColombia, normalizarBandas, normalizarParametros } from './domain/alerta-academica';
+import { alertaId, citacionAlertaId, convocatoriaAlertaId, instanteColombia, normalizarBandas, normalizarParametros, type EntradaHistorialAlerta } from './domain/alerta-academica';
 import type {
   AlertConfig,
   AvisoEvasion,
@@ -3869,6 +3869,50 @@ export async function entregarPlanillaAlertaPorCoordinacion(
   };
   for (const [studentId, marca] of Object.entries(cambios)) escritura[`estudiantes.${studentId}`] = marca;
   await updateDoc(doc(baseDatos(), 'asistenciaAlertas', id), escritura);
+}
+
+/** El historial de correcciones de una planilla de alerta (solo coordinacion lo lee). */
+export async function leerHistorialAlerta(alertaIdDoc: string): Promise<EntradaHistorialAlerta[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(collection(baseDatos(), 'asistenciaAlertas', alertaIdDoc, 'historial'));
+  const lista: EntradaHistorialAlerta[] = [];
+  snap.forEach((d) => {
+    const x = d.data() as Omit<EntradaHistorialAlerta, 'cambiadoEn'> & { cambiadoEn?: { toMillis?: () => number } };
+    lista.push({ ...x, cambiadoPor: x.cambiadoPor ?? null, cambiadoEn: x.cambiadoEn?.toMillis?.() ?? 0 });
+  });
+  return lista;
+}
+
+/** Los correos de las cuentas de un puesto (normalmente una). */
+export async function correosDelPuesto(slotId: string): Promise<string[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(query(collection(baseDatos(), 'users'), where('slotId', '==', slotId)));
+  const lista: string[] = [];
+  snap.forEach((d) => { lista.push(((d.data() as { email?: string }).email || d.id).trim().toLowerCase()); });
+  return lista;
+}
+
+/**
+ * Crea la planilla PROPIA de un docente en una asignatura compartida con las marcas
+ * reconstruidas del historial, y la deja entregada. Dos escrituras (la regla crea sin
+ * entregar); las dos con la constancia de coordinacion, y `reconstruidaDe` dice de donde.
+ */
+export async function crearPlanillaReconstruida(
+  base: BasePlanillaAlerta & { alertaId: string },
+  estudiantes: Record<string, MarcaAlerta>,
+  desde: string,
+): Promise<void> {
+  const autor = await exigirAutor();
+  const ref = doc(baseDatos(), 'asistenciaAlertas', base.alertaId);
+  await setDoc(ref, {
+    ...base, estudiantes, entregada: false, entregadaPor: null, entregadaEn: null,
+    reconstruidaDe: { alertaId: desde, por: autor, en: serverTimestamp() },
+    ...selloCoordinacion(autor), ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp(),
+  });
+  await updateDoc(ref, {
+    entregada: true, entregadaPor: autor, entregadaEn: serverTimestamp(),
+    ...selloCoordinacion(autor), ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp(),
+  });
 }
 
 /**

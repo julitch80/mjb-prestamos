@@ -2305,6 +2305,14 @@ service cloud.firestore {
         || resource.data.slotId == callerDoc().slotId
       );
 
+      // El historial de correcciones (lo escribe el trigger `onAlertaUpdated`): material de
+      // coordinacion, como el de las sesiones. Desde el 2026-10-23 lo lee la app para
+      // reconstruir la planilla de un docente en una asignatura compartida.
+      match /historial/{entryId} {
+        allow read: if isSuper() || asisIsCoordinador();
+        allow write: if !esSuplantacion() && (false);
+      }
+
       // DIGITACION POR COORDINACION (2026-10-22): la coordinacion de la jornada digita la
       // alerta EN NOMBRE del docente que no puede (planilla abierta por otro, fecha vencida,
       // sin senal...). Abre la planilla de cualquier grado y asignatura a nombre del puesto

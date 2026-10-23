@@ -36,7 +36,7 @@ import {
   type FilaDigitacion,
   type MetodoAgenda,
 } from './domain/alerta-academica';
-import { ordenarEstudiantes } from './domain/nombres';
+import { nombreCompleto, ordenarEstudiantes } from './domain/nombres';
 import { citacionesDelGrupo, imprimirTodo, informesDelGrupo, nombreDirector, planillaDelGrupo, type OrdenPlanilla } from './imprimirAlerta';
 import { asignaturasDelGrado } from './horarioDelDia';
 import ReporteAlerta from './ReporteAlerta';
@@ -253,6 +253,17 @@ export default function AlertaCoordinacion({
             planillas={planillas}
             onDigitar={setDigitando}
             onCambio={recargarPlanillas}
+            nombreDe={(id) => { const e = estudiantes?.find((x) => x.studentId === id); return e ? nombreCompleto(e) : id; }}
+          />
+        )}
+        {conv && (
+          <CasosEspeciales
+            key={`caso-${conv.convocatoriaId}-${grupoAbierto}`}
+            conv={conv}
+            grados={[grupoAbierto]}
+            soloGrado={grupoAbierto}
+            guardando={guardando}
+            onGuardar={(x) => void hacer(() => actualizarConvocatoriaAlerta(conv.convocatoriaId, { excepcionesAgenda: x }))}
           />
         )}
         {estudiantes === null ? (
@@ -452,6 +463,9 @@ export default function AlertaCoordinacion({
                     {a.entregadas} de {a.esperadas} entregadas
                     {a.entregadas === a.esperadas && a.esperadas > 0 && <span className="text-success"> ✓</span>}
                   </span>
+                  {conv.excepcionesAgenda?.[a.grado] && (
+                    <span className="rounded-full bg-elevated px-2 py-0.5 text-xs font-semibold text-strong">caso especial</span>
+                  )}
                   {a.citados > 0 && (
                     <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-soft-fg">{a.citados} por citar</span>
                   )}
@@ -578,15 +592,19 @@ function FranjaEntrega({
 function CasosEspeciales({
   conv,
   grados,
+  soloGrado,
   guardando,
   onGuardar,
 }: {
   conv: ConvocatoriaAlerta;
   grados: string[];
+  /** En la vista de un grupo: solo su caso, sin escoger grupo. */
+  soloGrado?: string;
   guardando: boolean;
   onGuardar: (x: Record<string, ExcepcionAgenda> | null) => void;
 }) {
-  const casos = conv.excepcionesAgenda ?? {};
+  const todos = conv.excepcionesAgenda ?? {};
+  const casos = soloGrado ? Object.fromEntries(Object.entries(todos).filter(([g]) => g === soloGrado)) : todos;
   const [grado, setGrado] = useState<string | null>(null);
   const [x, setX] = useState<ExcepcionAgenda>(() => excepcionPropuesta(conv));
   const errores = grado ? problemasExcepcion(x) : [];
@@ -601,19 +619,21 @@ function CasosEspeciales({
   }
   function guardar() {
     if (!grado || errores.length) return;
-    onGuardar({ ...casos, [grado]: x });
+    onGuardar({ ...todos, [grado]: x });
     setGrado(null);
   }
   function quitar(g: string) {
-    const resto = Object.fromEntries(Object.entries(casos).filter(([k]) => k !== g));
+    const resto = Object.fromEntries(Object.entries(todos).filter(([k]) => k !== g));
     onGuardar(Object.keys(resto).length ? resto : null);
   }
 
   return (
-    <div className="flex flex-col gap-2 border-t border-line pt-3">
+    <div className={soloGrado ? 'flex flex-col gap-2 rounded-2xl border border-line bg-card p-4' : 'flex flex-col gap-2 border-t border-line pt-3'}>
+      <h4 className="text-sm font-semibold text-strong">{soloGrado ? `Caso especial de ${soloGrado}` : 'Casos especiales por grupo'}</h4>
       <p className="text-xs text-muted">
-        Casos especiales: si un director de grupo necesita entregar en otro día u otro horario, defínalo aquí. Ese grupo
-        sale con su propia fecha y franja en la agenda, las citaciones y la planilla de firmas; los demás siguen igual.
+        {soloGrado
+          ? `Si el director de ${soloGrado} necesita entregar en otro día u otro horario, defínalo aquí: este grupo sale con su propia fecha y franja en la agenda, las citaciones y la planilla de firmas.`
+          : 'Si un director de grupo necesita entregar en otro día u otro horario, defínalo aquí (o desde la tarjeta del grupo, en «Avance por grupo»). Ese grupo sale con su propia fecha y franja en la agenda, las citaciones y la planilla de firmas; los demás siguen igual.'}
       </p>
       {Object.keys(casos).length > 0 && (
         <ul className="flex flex-col gap-1">
@@ -633,7 +653,7 @@ function CasosEspeciales({
       )}
       {grado === null ? (
         <button type="button" disabled={guardando || libres.length === 0} onClick={() => editar(libres[0])} className={`${BOTON} self-start border border-line text-strong`}>
-          + Agregar caso especial
+          {soloGrado ? `+ Definir caso especial para ${soloGrado}` : '+ Agregar caso especial'}
         </button>
       ) : (
         <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
