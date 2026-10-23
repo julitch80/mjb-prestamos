@@ -21,6 +21,10 @@ import {
   avisoEvaluaciones, esRecordatorio, iconoRecordatorio, validarEnlaces,
 } from '../data/tareas/recordatorios';
 import { esUrlSegura } from '../data/tareas/textoEnlaces';
+import {
+  estadoHistorial, tareasPropias, gruposDelHistorial, filtrarHistorial, agruparPorMes, precargaDesde,
+  type EstadoHistorial,
+} from '../data/tareas/historial';
 import { anclasPorDefecto, ANCLAS_GRUPO_MAX, ANCLA_LABEL_MAX, type Ancla } from '../data/tareas/habitos';
 import {
   addDias, esDiaHabil, esDiaEjecutable, hoyISO, parseFecha, formatFecha, diaSemana, esFestivo,
@@ -669,6 +673,8 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
   const [mostrarSolicitud, setMostrarSolicitud] = useState(false);
   const [agendaAbierta, setAgendaAbierta] = useState(false);
   const [replicando, setReplicando] = useState<Tarea | null>(null);
+  // Pestaña del docente: publicar (formulario + vigentes) o su historial.
+  const [vistaDoc, setVistaDoc] = useState<'publicar' | 'historial'>('publicar');
   const [editandoAnclas, setEditandoAnclas] = useState(false);
   const soyDirector = !!grupo && esDirectorDeGrupo(userId, grupo);
 
@@ -919,14 +925,66 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
     }
   }
 
+  /** Precarga el formulario con una tarea pasada (sin fechas: se validan como cualquier tarea nueva). */
+  function volverAPublicar(t: Tarea, grupoDestino: string) {
+    const p = precargaDesde(t, grupoDestino);
+    setModo(p.tipo);
+    if (p.tipoRecordatorio) setTipoRec(p.tipoRecordatorio);
+    setGrupo(p.grupo);
+    const ids = misGrupos.find(g => g.grupo === p.grupo)?.asignaturaIds ?? [];
+    setAsignaturaId(ids.includes(p.asignaturaId) ? p.asignaturaId : ids[0] ?? '');
+    setTitulo(p.titulo);
+    setDescripcion(p.descripcion);
+    setMomentos(p.momentos);
+    setAdjunto(p.adjuntoUrl ? { url: p.adjuntoUrl, nombre: p.adjuntoNombre ?? 'Archivo adjunto' } : null);
+    setEnlaces(p.enlaces);
+    setFechaEntrega(null);
+    setEvalConfirmando(null);
+    setCompletando(null);
+    setAviso({ tipo: 'ok', texto: 'Se copiaron los datos. Elige la fecha de entrega y revisa antes de publicar.' });
+    setVistaDoc('publicar');
+  }
+
+  const pildorasVista = (
+    <div role="tablist" aria-label="Vista de tareas" className="inline-flex rounded-xl border border-line p-0.5 bg-elevated/40">
+      {([['publicar', 'Publicar'], ['historial', 'Historial']] as const).map(([v, etiqueta]) => (
+        <button
+          key={v}
+          role="tab"
+          aria-selected={vistaDoc === v}
+          onClick={() => setVistaDoc(v)}
+          className={cn(
+            'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px]',
+            vistaDoc === v ? 'bg-hover text-strong' : 'text-muted hover:text-strong'
+          )}
+        >
+          {etiqueta}
+        </button>
+      ))}
+    </div>
+  );
+
   if (misGrupos.length === 0) return (
     <div className="rounded-2xl border border-line bg-elevated/40 p-6 text-sm text-muted">
       No tienes asignación académica registrada, así que no puedes asignar tareas.
     </div>
   );
 
+  if (vistaDoc === 'historial') return (
+    <div className="space-y-5">
+      {pildorasVista}
+      <HistorialDocente
+        propias={tareasPropias(tareas, userId!)}
+        grupos={misGrupos.map(g => g.grupo)}
+        hoy={hoy}
+        onVolverAPublicar={volverAPublicar}
+      />
+    </div>
+  );
+
   return (
     <div className="space-y-5">
+      {pildorasVista}
       {/* ── Tareas de Classroom por completar (4.2) ───────── */}
       {pendientesCr.length > 0 && (
         <section className="rounded-2xl border border-line bg-info-soft text-info-soft-fg p-4 space-y-2">
@@ -1447,6 +1505,134 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// ── Historial del docente (solo sus propias tareas) ───────────────────────────
+
+const CHIP_ESTADO: Record<EstadoHistorial, string> = {
+  vigente: 'border-success bg-success-soft text-success-soft-fg',
+  vencida: 'border-line bg-elevated text-muted',
+  cancelada: 'border-danger bg-danger-soft text-danger-soft-fg',
+};
+
+function HistorialDocente({ propias, grupos, hoy, onVolverAPublicar }: {
+  propias: Tarea[]; grupos: string[]; hoy: FechaISO;
+  onVolverAPublicar: (t: Tarea, grupoDestino: string) => void;
+}) {
+  const gruposHist = useMemo(() => gruposDelHistorial(propias, grupos), [propias, grupos]);
+  const [grupo, setGrupo] = useState(gruposHist[0] ?? '');
+  const [busqueda, setBusqueda] = useState('');
+  const [otroGrupoDe, setOtroGrupoDe] = useState<string | null>(null);
+  const [verAntiguos, setVerAntiguos] = useState(false);
+
+  const lista = useMemo(() => filtrarHistorial(propias, grupo, busqueda), [propias, grupo, busqueda]);
+  const meses = useMemo(() => agruparPorMes(lista), [lista]);
+  // Con muchos meses, solo los 3 más recientes salen abiertos; el resto se despliega aparte.
+  const visibles = verAntiguos || busqueda.trim() ? meses : meses.slice(0, 3);
+  const ocultos = meses.length - visibles.length;
+
+  if (gruposHist.length === 0) return (
+    <p className="text-xs text-muted">No tienes grupos asignados ni tareas anteriores.</p>
+  );
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap gap-1">
+        {gruposHist.map(g => (
+          <button
+            key={g}
+            onClick={() => { setGrupo(g); setOtroGrupoDe(null); setVerAntiguos(false); }}
+            className={cn(
+              'px-3 py-1.5 rounded-full text-xs font-bold border transition-all',
+              grupo === g ? 'bg-hover border-line-strong' : 'border-line text-muted hover:bg-elevated'
+            )}
+            style={grupo === g ? { color: colorGrado(g) } : undefined}
+          >
+            {g}
+          </button>
+        ))}
+      </div>
+      <input
+        type="search"
+        value={busqueda}
+        onChange={e => setBusqueda(e.target.value)}
+        placeholder="Buscar por título…"
+        aria-label="Buscar por título"
+        className="w-full px-3 py-2 rounded-xl bg-elevated border border-line text-sm text-strong placeholder:text-muted focus:outline-none focus:border-line-strong"
+      />
+      {lista.length === 0 && (
+        <p className="text-xs text-muted">
+          {busqueda.trim() ? 'Ninguna coincide con la búsqueda.' : `Aún no has publicado nada en ${grupo}.`}
+        </p>
+      )}
+      {visibles.map(m => {
+        const [y, mm] = m.mes.split('-').map(Number);
+        return (
+          <div key={m.mes} className="space-y-2">
+            <h4 className="text-[11px] font-bold uppercase tracking-wide text-muted">{MESES[mm - 1]} {y}</h4>
+            {m.tareas.map(t => {
+              const est = estadoHistorial(t, hoy);
+              const rec = esRecordatorio(t);
+              return (
+                <div key={t.id} className="rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-sm space-y-1">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-strong break-words">{rec ? `${iconoRecordatorio(t)} ` : ''}{t.titulo}</div>
+                      <div className="text-[11px] text-muted">
+                        {getAsignatura(t.asignaturaId)?.nombre} · asignada {fechaLegible(t.fechaAsignacion)} · {rec
+                          ? `${TIPOS_RECORDATORIO[t.tipoRecordatorio ?? 'aviso']?.etiqueta ?? 'Recordatorio'} para el ${fechaLegible(t.fechaEntrega)}`
+                          : `${t.momentos} momento${t.momentos > 1 ? 's' : ''} · entrega ${fechaLegible(t.fechaEntrega)}`}
+                      </div>
+                    </div>
+                    <span className={cn('shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-semibold', CHIP_ESTADO[est])}>{est}</span>
+                  </div>
+                  {/* Descripción, archivo adjunto y enlaces: el mismo desplegable de siempre. */}
+                  <DetalleTarea t={t} />
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      onClick={() => onVolverAPublicar(t, t.grupo)}
+                      className="px-3 py-1 rounded-full border border-line-strong bg-card text-strong text-[11px] font-bold hover:bg-elevated"
+                    >
+                      Volver a publicar
+                    </button>
+                    <button
+                      onClick={() => setOtroGrupoDe(otroGrupoDe === t.id ? null : t.id)}
+                      className="px-3 py-1 rounded-full border border-line text-soft text-[11px] font-semibold hover:bg-elevated"
+                    >
+                      Publicar en otro grupo
+                    </button>
+                  </div>
+                  {otroGrupoDe === t.id && (
+                    <div className="flex flex-wrap items-center gap-1 pt-1">
+                      <span className="text-[11px] text-muted mr-1">Grupo:</span>
+                      {grupos.filter(g => g !== t.grupo).map(g => (
+                        <button
+                          key={g}
+                          onClick={() => { setOtroGrupoDe(null); onVolverAPublicar(t, g); }}
+                          className="px-2.5 py-1 rounded-full border border-line text-[11px] font-bold hover:bg-elevated"
+                          style={{ color: colorGrado(g) }}
+                        >
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+      {ocultos > 0 && (
+        <button
+          onClick={() => setVerAntiguos(true)}
+          className="px-3 py-1.5 rounded-full border border-line text-xs text-soft hover:bg-elevated"
+        >
+          Ver {ocultos} mes{ocultos > 1 ? 'es' : ''} anterior{ocultos > 1 ? 'es' : ''}
+        </button>
+      )}
+    </section>
   );
 }
 
