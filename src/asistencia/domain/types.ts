@@ -936,6 +936,12 @@ export interface ConvocatoriaAlerta {
    */
   modoAgenda?: ModoAgenda | null;
   parametrosAgenda?: ParametrosAgenda | null;
+  /**
+   * Forma MIXTA por rangos (Julian, 2026-10-23): segun cuantas asignaturas en alerta tiene
+   * el estudiante, una reunion a una hora. «2 a 3 → 6:00, 4 a 6 → 7:00, 7 o mas → 8:00».
+   * Empieza en 2 (con 0 o 1 no se cita) y cubre sin huecos hasta el ultimo, abierto.
+   */
+  bandasAgenda?: BandaAgenda[] | null;
   abiertaPor: string;
   abiertaEn: number;
   cerradaPor: string | null;
@@ -1047,6 +1053,15 @@ export interface RemisionCita {
   notaCoordinacion?: string | null;
 }
 
+/** Un rango de la forma mixta: de `desde` a `hasta` asignaturas (null = o mas), reunion a `hora`. */
+export interface BandaAgenda {
+  desde: number;
+  hasta: number | null;
+  /** 'HH:MM' */
+  hora: string;
+  duracionMin: number;
+}
+
 export interface AgendaCitaciones {
   citacionId: string;
   anio: number;
@@ -1056,6 +1071,8 @@ export interface AgendaCitaciones {
   grado: string;
   modo: ModoAgenda;
   parametros: ParametrosAgenda;
+  /** Los rangos con que se armo, si la forma era mixta por rangos (para avisar si cambian). */
+  bandas?: BandaAgenda[] | null;
   citas: Record<string, CitaAlerta>;
   /** «Cerrar la entrega»: desde aqui, los no marcados cuentan como no asistieron. */
   entregaCerradaEn?: number | null;

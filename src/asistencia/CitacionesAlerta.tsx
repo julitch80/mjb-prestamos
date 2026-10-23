@@ -14,6 +14,7 @@ import {
   motivoCitacion,
   NOMBRE_MODO,
   PARAMETROS_POR_DEFECTO,
+  agendaSinDecisiones,
   proponerAgenda,
   revisarAgenda,
   textoSmsCitacion,
@@ -22,7 +23,7 @@ import {
   type MetodoAgenda,
 } from './domain/alerta-academica';
 import { fechaLarga, horaLegible } from './domain/imprimibles-alerta';
-import type { AgendaCitaciones, CitaAlerta, ConvocatoriaAlerta, ModoAgenda, ParametrosAgenda, Sede, Student } from './domain/types';
+import type { AgendaCitaciones, BandaAgenda, CitaAlerta, ConvocatoriaAlerta, ModoAgenda, ParametrosAgenda, Sede, Student } from './domain/types';
 
 /**
  * Citaciones de la alerta — la agenda del DIRECTOR (Julian, 2026-10-02).
@@ -55,6 +56,7 @@ export default function CitacionesAlerta({
   // trae la agenda guardada (puede ser anterior al cambio). Es lo que se guarda en la agenda.
   const [modo, setModo] = useState<ModoAgenda>('turnos');
   const [p, setP] = useState<ParametrosAgenda>(PARAMETROS_POR_DEFECTO);
+  const [bandas, setBandas] = useState<BandaAgenda[] | null>(null);
   const [citas, setCitas] = useState<Record<string, CitaAlerta>>({});
   const [sucio, setSucio] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -76,11 +78,12 @@ export default function CitacionesAlerta({
   // Solo con la forma de coordinacion: el director no propone con otra.
   function proponer(m: MetodoAgenda) {
     if (!franja) return;
-    const r = proponerAgenda(citados, franja, m.modo, m.parametros);
+    const r = proponerAgenda(citados, franja, m.modo, m.parametros, m.bandas);
     // Conserva las marcas de envio de quien ya estaba: recalcular no borra lo enviado.
     setCitas((antes) => Object.fromEntries(Object.entries(r.citas).map(([id, c]) => [id, { ...vacia(c), ...pick(antes[id]) }])));
     setModo(m.modo);
     setP(m.parametros);
+    setBandas(m.bandas ?? null);
     setSucio(true);
   }
   // Todo lo registrado de ese citado (envios, asistencia, excusa, reprogramacion, remision) se
@@ -94,7 +97,7 @@ export default function CitacionesAlerta({
   useEffect(() => {
     void leerAgendaCitaciones(idDoc).then((a) => {
       setAgendaGuardada(a);
-      if (a) { setModo(a.modo); setP(a.parametros); setCitas(a.citas); setSucio(false); }
+      if (a) { setModo(a.modo); setP(a.parametros); setBandas(a.bandas ?? null); setCitas(a.citas); setSucio(false); }
     });
   }, [idDoc]);
 
@@ -110,7 +113,8 @@ export default function CitacionesAlerta({
   // quedaba sin citaciones en el archivo de impresion. Una sola vez por pantalla.
   const autoGuardada = useRef(false);
   useEffect(() => {
-    if (autoGuardada.current || agendaGuardada !== null || modo !== 'general' || metodo?.modo !== 'general') return;
+    // Tambien la MIXTA POR RANGOS (2026-10-23): la hora la da el rango, no el director.
+    if (autoGuardada.current || agendaGuardada !== null || !agendaSinDecisiones(metodo) || modo !== metodo?.modo) return;
     if (!sucio || Object.keys(citas).length === 0) return;
     autoGuardada.current = true;
     void guardar();
@@ -143,7 +147,7 @@ export default function CitacionesAlerta({
   const ultimaFin = ids.length ? Math.max(...ids.map((id) => aMinutos(citas[id].hora) + citas[id].duracionMin)) : aMinutos(franja.inicio);
   const necesarios = ultimaFin - aMinutos(franja.inicio);
   // La agenda que se ve, ¿esta armada con la forma vigente de coordinacion?
-  const desfasada = !!metodo && !mismoMetodo({ modo, parametros: p }, metodo);
+  const desfasada = !!metodo && !mismoMetodo({ modo, parametros: p, bandas }, metodo);
   const yaEnviadas = ids.filter((id) => citas[id].enviadaCorreoEn || citas[id].enviadaSmsEn || citas[id].impresaEn).length;
   const problemas = revisarAgenda(citas, franja);
   const cambios = agendaGuardada ? cambiosEnCitados(agendaGuardada.citas, citados.map((c) => c.studentId)) : { entran: [], salen: [] };
@@ -154,7 +158,7 @@ export default function CitacionesAlerta({
     setOcupado('guardar');
     setAviso(null);
     try {
-      await guardarAgendaCitaciones({ anio: conv.anio, periodo: conv.periodo, sede, jornada: conv.jornada, grado, modo, parametros: p, citas }, !!agendaGuardada);
+      await guardarAgendaCitaciones({ anio: conv.anio, periodo: conv.periodo, sede, jornada: conv.jornada, grado, modo, parametros: p, bandas, citas }, !!agendaGuardada);
       const a = await leerAgendaCitaciones(idDoc);
       setAgendaGuardada(a);
       setSucio(false);

@@ -66,7 +66,7 @@ import {
 } from './domain/seguimiento-caso';
 import type { MarkCode } from './domain/marks';
 import { planCambioColumna, type PlanCambioColumna } from './domain/columna';
-import { alertaId, citacionAlertaId, convocatoriaAlertaId, instanteColombia, normalizarParametros } from './domain/alerta-academica';
+import { alertaId, citacionAlertaId, convocatoriaAlertaId, instanteColombia, normalizarBandas, normalizarParametros } from './domain/alerta-academica';
 import type {
   AlertConfig,
   AvisoEvasion,
@@ -99,6 +99,7 @@ import type {
   AgendaCitaciones,
   ConvocatoriaAlerta,
   MarcaAlerta,
+  BandaAgenda,
   ModoAgenda,
   ParametrosAgenda,
   PlanillaAlerta,
@@ -3650,11 +3651,14 @@ export async function actualizarConvocatoriaAlerta(
     /** La forma de citar (2026-10-22): van siempre juntos; los parametros, ya normalizados. */
     modoAgenda?: ModoAgenda;
     parametrosAgenda?: ParametrosAgenda;
+    /** Rangos de la mixta (2026-10-23); null los quita. */
+    bandasAgenda?: BandaAgenda[] | null;
   },
 ): Promise<void> {
   const autor = await exigirAutor();
   const escritura: Record<string, unknown> = { ...cambios };
   if (cambios.modoAgenda) escritura.parametrosAgenda = normalizarParametros(cambios.parametrosAgenda);
+  if ('bandasAgenda' in cambios) escritura.bandasAgenda = cambios.bandasAgenda?.length ? normalizarBandas(cambios.bandasAgenda) : null;
   if (cambios.fechaLimite) {
     escritura.limite = Timestamp.fromMillis(instanteColombia(cambios.fechaLimite, cambios.horaLimite ?? null));
     escritura.horaLimite = cambios.horaLimite ?? null;
@@ -3892,11 +3896,11 @@ export async function guardarAgendaCitaciones(
   const ref = doc(baseDatos(), 'asistenciaCitacionesAlerta', id);
   if (existe) {
     await updateDoc(ref, {
-      modo: agenda.modo, parametros: agenda.parametros, citas: agenda.citas,
+      modo: agenda.modo, parametros: agenda.parametros, bandas: agenda.bandas ?? null, citas: agenda.citas,
       ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp(),
     });
   } else {
-    await setDoc(ref, { citacionId: id, ...agenda, ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp() });
+    await setDoc(ref, { citacionId: id, ...agenda, bandas: agenda.bandas ?? null, ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp() });
   }
 }
 

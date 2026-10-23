@@ -2266,10 +2266,13 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['abierta', 'fechaLimite', 'limite', 'fechaEntrega', 'franjaInicio', 'franjaFin',
                        'plazoExcusaDias', 'modoAgenda', 'parametrosAgenda', 'cerradaPor', 'cerradaEn',
-                       'horaLimite', 'fechaInicio', 'horaInicio', 'inicio'])
+                       'horaLimite', 'fechaInicio', 'horaInicio', 'inicio', 'bandasAgenda'])
         && asisMetodoAgendaValido(request.resource.data)
         // Hora de cierre y ventana (2026-10-22): opcionales; `inicio` es un instante o nada.
         && (request.resource.data.get('inicio', null) == null || request.resource.data.inicio is timestamp)
+        // Rangos de la mixta (2026-10-23): una lista corta o nada. El detalle lo valida la app.
+        && (request.resource.data.get('bandasAgenda', null) == null
+            || (request.resource.data.bandasAgenda is list && request.resource.data.bandasAgenda.size() <= 10))
         && request.resource.data.abierta is bool
         && request.resource.data.limite is timestamp
         // Si se cierra, queda dicho quien y cuando.
@@ -2433,7 +2436,7 @@ service cloud.firestore {
         && asisAuthorStamp()
         && asisIsDirectorOf(resource.data.grado)
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['modo', 'parametros', 'citas', 'entregaCerradaEn', 'ultimaEscrituraPor', 'ultimaEscrituraEn'])
+             .hasOnly(['modo', 'parametros', 'bandas', 'citas', 'entregaCerradaEn', 'ultimaEscrituraPor', 'ultimaEscrituraEn'])
         && request.resource.data.modo in ['turnos', 'general', 'mixta']
         && request.resource.data.citas is map);
 

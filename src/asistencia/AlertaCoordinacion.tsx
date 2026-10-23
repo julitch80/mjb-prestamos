@@ -13,6 +13,10 @@ import {
   ajusteDeJornada,
   consolidarGrupo,
   agendaPropuesta,
+  agendaSinDecisiones,
+  normalizarBandas,
+  problemasBandas,
+  textoRango,
   alertaPorEmpezar,
   convocatoriaEditable,
   horaCorta,
@@ -35,7 +39,7 @@ import DigitacionPorCoordinacion, { nombreDelPuesto } from './DigitacionPorCoord
 import SeguimientoCoordinacion from './SeguimientoCoordinacion';
 import { fechaLarga } from './domain/imprimibles-alerta';
 import { PLAZO_EXCUSA_DIAS } from './domain/seguimiento-alerta';
-import type { AgendaCitaciones, ConvocatoriaAlerta, Jornada, ModoAgenda, ParametrosAgenda, PlanillaAlerta, Sede, Student } from './domain/types';
+import type { AgendaCitaciones, BandaAgenda, ConvocatoriaAlerta, Jornada, ModoAgenda, ParametrosAgenda, PlanillaAlerta, Sede, Student } from './domain/types';
 
 const CAJA = 'rounded-lg border border-line bg-elevated px-2 py-1.5 text-sm text-strong';
 const BOTON = 'min-h-[40px] rounded-xl px-4 text-sm font-semibold disabled:opacity-50';
@@ -132,7 +136,7 @@ export default function AlertaCoordinacion({
 
   // Grupos con citados (dos o mas alertas) cuyo director aun no guardo la agenda. Con la
   // REUNION GENERAL no hace falta: el archivo la arma solo (ver `descargarTodo`).
-  const esGeneral = metodoDeConvocatoria(conv)?.modo === 'general';
+  const esGeneral = agendaSinDecisiones(metodoDeConvocatoria(conv));
   const sinAgenda = esGeneral ? [] : avance.filter((a) => a.citados > 0 && !agendas.some((x) => x.grado === a.grado)).map((a) => a.grado);
   const citadosJornada = avance.reduce((n, a) => n + a.citados, 0);
   const constanciasSugeridas = Math.max(4, Math.ceil(citadosJornada / 10) * 4);
@@ -178,7 +182,7 @@ export default function AlertaCoordinacion({
         // La agenda guardada por el director; con la REUNION GENERAL y sin agenda, la que
         // propone la forma de coordinacion (todos a la misma hora): ningun grupo queda fuera.
         let a = frescas.find((x) => x.grado === g);
-        if (!a && metodo?.modo === 'general' && franja) {
+        if (!a && agendaSinDecisiones(metodo) && metodo && franja) {
           const citados = c.filas.filter((f) => f.citar).map((f) => ({ studentId: f.studentId, nombre: f.studentId, asignaturas: f.total }));
           if (citados.length) a = agendaPropuesta({ anio: conv.anio, periodo: conv.periodo, sede, jornada, grado: g }, citados, franja, metodo);
         }
@@ -357,7 +361,9 @@ export default function AlertaCoordinacion({
             guardando={guardando}
             grupos={avance.map((a) => ({ grado: a.grado, citados: a.listaCitados }))}
             conAgenda={agendas.length}
-            onGuardar={(m) => void hacer(() => actualizarConvocatoriaAlerta(conv.convocatoriaId, { modoAgenda: m.modo, parametrosAgenda: m.parametros }))}
+            onGuardar={(m) => void hacer(() => actualizarConvocatoriaAlerta(conv.convocatoriaId, {
+              modoAgenda: m.modo, parametrosAgenda: m.parametros, bandasAgenda: m.modo === 'mixta' ? m.bandas ?? null : null,
+            }))}
           />
 
           <label className="flex flex-wrap items-center gap-2 text-xs text-muted">
@@ -575,9 +581,21 @@ function MetodoCitacion({
   const guardado = metodoDeConvocatoria(conv);
   const [modo, setModo] = useState<ModoAgenda>(guardado?.modo ?? 'turnos');
   const [p, setP] = useState<ParametrosAgenda>(guardado?.parametros ?? PARAMETROS_POR_DEFECTO);
-  const metodo: MetodoAgenda = { modo, parametros: normalizarParametros(p) };
-  const cambio = !guardado || guardado.modo !== modo || JSON.stringify(guardado.parametros) !== JSON.stringify(metodo.parametros);
   const franja = conv.franjaInicio && conv.franjaFin ? { inicio: conv.franjaInicio, fin: conv.franjaFin } : null;
+  // Mixta por rangos (2026-10-23): si no hay guardados, se sugieren tres para editar.
+  const [bandas, setBandas] = useState<BandaAgenda[]>(
+    guardado?.bandas?.length ? guardado.bandas : [
+      { desde: 2, hasta: 3, hora: franja?.inicio ?? '07:00', duracionMin: 45 },
+      { desde: 4, hasta: 6, hora: '', duracionMin: 45 },
+      { desde: 7, hasta: null, hora: '', duracionMin: 45 },
+    ],
+  );
+  const bandasN = normalizarBandas(bandas);
+  const errBandas = modo === 'mixta' ? problemasBandas(bandasN, franja) : [];
+  const metodo: MetodoAgenda = { modo, parametros: normalizarParametros(p), bandas: modo === 'mixta' ? bandasN : null };
+  const cambio = !guardado || guardado.modo !== modo || JSON.stringify(guardado.parametros) !== JSON.stringify(metodo.parametros)
+    || (modo === 'mixta' && JSON.stringify(guardado.bandas ?? []) !== JSON.stringify(bandasN));
+  const ponerBanda = (i: number, b: Partial<BandaAgenda>) => setBandas(bandas.map((x, j) => (j === i ? { ...x, ...b } : x)));
   const ajuste = franja ? ajusteDeJornada(grupos, franja, metodo) : [];
   const noAlcanzan = ajuste.filter((a) => !a.alcanza);
 
@@ -621,16 +639,15 @@ function MetodoCitacion({
         ))}
       </div>
       <div className="flex flex-wrap items-end gap-2">
-        {modo !== 'general' && (
+        {modo === 'turnos' && (
           <>
             {numero('baseMin', 'Base (min)')}
             {numero('porAsignaturaMin', 'Por asignatura')}
             {numero('intervaloMin', 'Entre turnos')}
           </>
         )}
-        {modo !== 'turnos' && numero('generalMin', 'Reunión (min)')}
-        {modo === 'mixta' && numero('umbralIndividual', 'Turno desde (asig.)')}
-        {modo !== 'general' && (
+        {modo === 'general' && numero('generalMin', 'Reunión (min)')}
+        {modo === 'turnos' && (
           <label className="flex flex-col gap-1 text-xs text-muted">
             Orden
             <select value={p.orden} onChange={(e) => setP({ ...p, orden: e.target.value as ParametrosAgenda['orden'] })} className={CAJA}>
@@ -639,10 +656,70 @@ function MetodoCitacion({
             </select>
           </label>
         )}
-        <button disabled={guardando || !cambio} onClick={() => { setP(metodo.parametros); onGuardar(metodo); }} className={`${BOTON} bg-accent text-accent-fg`}>
+        <button
+          disabled={guardando || !cambio || errBandas.length > 0}
+          onClick={() => { setP(metodo.parametros); if (modo === 'mixta') setBandas(bandasN); onGuardar(metodo); }}
+          className={`${BOTON} bg-accent text-accent-fg`}
+        >
           Guardar forma de citar
         </button>
       </div>
+
+      {modo === 'mixta' && (
+        <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
+          <p className="text-xs text-muted">
+            Por rangos: según cuántas asignaturas tenga en alerta, cada acudiente va a la reunión de su rango. Empieza en
+            {' '}{MINIMO_PARA_CITAR} (con menos no se cita) y el último rango queda abierto («o más»).
+          </p>
+          {bandas.map((b, i) => {
+            const ultimo = i === bandas.length - 1;
+            return (
+              <div key={i} className="flex flex-wrap items-end gap-2">
+                <label className="flex flex-col gap-1 text-xs text-muted">Desde
+                  <input type="number" min={MINIMO_PARA_CITAR} value={b.desde} onChange={(e) => ponerBanda(i, { desde: +e.target.value })} className={`${CAJA} w-16`} />
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-muted">Hasta
+                  {ultimo ? (
+                    <span className={`${CAJA} w-20 text-muted`}>o más</span>
+                  ) : (
+                    <input type="number" min={b.desde} value={b.hasta ?? ''} onChange={(e) => ponerBanda(i, { hasta: e.target.value === '' ? null : +e.target.value })} className={`${CAJA} w-16`} />
+                  )}
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-muted">Hora
+                  <input type="time" value={b.hora} onChange={(e) => ponerBanda(i, { hora: e.target.value })} className={CAJA} />
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-muted">Reunión (min)
+                  <input type="number" min={5} max={240} value={b.duracionMin} onChange={(e) => ponerBanda(i, { duracionMin: +e.target.value })} className={`${CAJA} w-20`} />
+                </label>
+                {bandas.length > 1 && (
+                  <button type="button" onClick={() => setBandas(bandas.filter((_, j) => j !== i).map((x, j, arr) => (j === arr.length - 1 ? { ...x, hasta: null } : x)))}
+                    className={`${BOTON} border border-line text-strong`} aria-label={`Quitar el rango ${textoRango(b)}`}>
+                    Quitar
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          {bandas.length < 10 && (
+            <button
+              type="button"
+              onClick={() => {
+                const ult = bandas[bandas.length - 1];
+                const desde = ult ? ult.desde + 1 : MINIMO_PARA_CITAR;
+                setBandas([...bandas.slice(0, -1), ...(ult ? [{ ...ult, hasta: ult.desde }] : []), { desde, hasta: null, hora: '', duracionMin: ult?.duracionMin ?? 45 }]);
+              }}
+              className={`${BOTON} self-start border border-line text-strong`}
+            >
+              + Agregar rango
+            </button>
+          )}
+          {errBandas.length > 0 && (
+            <ul className="list-disc pl-5 text-xs text-danger">
+              {errBandas.map((e) => <li key={e}>{e}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
 
       {!franja ? (
         <p className="text-xs text-muted">Guarde la franja para ver si alcanza el tiempo en cada grupo.</p>

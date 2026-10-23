@@ -10,6 +10,7 @@
  */
 import type {
   AgendaCitaciones,
+  BandaAgenda,
   CitaAlerta,
   ConvocatoriaAlerta,
   Jornada,
@@ -279,20 +280,90 @@ export function normalizarParametros(p: Partial<Record<keyof ParametrosAgenda, u
 export interface MetodoAgenda {
   modo: ModoAgenda;
   parametros: ParametrosAgenda;
+  /** Mixta por rangos (2026-10-23). Sin rangos, la mixta de antes (umbral + turnos). */
+  bandas?: BandaAgenda[] | null;
+}
+
+// ── mixta por rangos ─────────────────────────────────────────────────────────
+
+export const MAX_BANDAS = 10;
+
+/** Ordena por `desde`, redondea y acota. */
+export function normalizarBandas(bandas: BandaAgenda[] | null | undefined): BandaAgenda[] {
+  return (bandas ?? [])
+    .map((b) => {
+      const h = b.hasta as unknown;
+      return {
+        desde: Math.max(MINIMO_PARA_CITAR, Math.round(Number(b.desde) || MINIMO_PARA_CITAR)),
+        hasta: h === null || h === undefined || h === '' ? null : Math.round(Number(h)),
+        hora: String(b.hora ?? ''),
+        duracionMin: Math.min(240, Math.max(5, Math.round(Number(b.duracionMin) || 30))),
+      };
+    })
+    .sort((a, b) => a.desde - b.desde)
+    .slice(0, MAX_BANDAS);
+}
+
+/**
+ * Lo que impide guardar los rangos, en castellano. Vacio = validos: empiezan en 2, se
+ * siguen sin huecos ni cruces, el ultimo queda abierto («o mas») y cada reunion cabe en la
+ * franja de entrega.
+ */
+export function problemasBandas(bandas: BandaAgenda[], franja: Franja | null): string[] {
+  const p: string[] = [];
+  if (bandas.length === 0) return ['Agregue al menos un rango.'];
+  if (bandas[0].desde !== MINIMO_PARA_CITAR) p.push(`El primer rango debe empezar en ${MINIMO_PARA_CITAR} asignaturas (con menos no se cita).`);
+  bandas.forEach((b, i) => {
+    const ultimo = i === bandas.length - 1;
+    if (b.hasta !== null && b.hasta < b.desde) p.push(`Rango ${i + 1}: «hasta» no puede ser menor que «desde».`);
+    if (!ultimo && b.hasta === null) p.push(`Rango ${i + 1}: solo el último puede quedar abierto («o más»).`);
+    if (ultimo && b.hasta !== null) p.push('El último rango debe quedar abierto («o más»), para que nadie quede sin hora.');
+    if (!ultimo && b.hasta !== null && bandas[i + 1].desde !== b.hasta + 1) {
+      p.push(bandas[i + 1].desde > b.hasta + 1
+        ? `Hay un hueco entre el rango ${i + 1} y el ${i + 2}: falta ${b.hasta + 1}.`
+        : `Los rangos ${i + 1} y ${i + 2} se cruzan.`);
+    }
+    if (!/^\d{2}:\d{2}$/.test(b.hora)) p.push(`Rango ${i + 1}: falta la hora.`);
+    else if (franja && (aMinutos(b.hora) < aMinutos(franja.inicio) || aMinutos(b.hora) + b.duracionMin > aMinutos(franja.fin))) {
+      p.push(`Rango ${i + 1}: la reunión debe quedar dentro de la franja (${franja.inicio} a ${franja.fin}).`);
+    }
+  });
+  return p;
+}
+
+/** El rango que le toca a quien tiene `n` asignaturas en alerta. */
+export function bandaDe(n: number, bandas: BandaAgenda[]): BandaAgenda | null {
+  return bandas.find((b) => n >= b.desde && (b.hasta === null || n <= b.hasta)) ?? null;
+}
+
+/** «2 a 3», «7 o más», «4» */
+export function textoRango(b: BandaAgenda): string {
+  return b.hasta === null ? `${b.desde} o más` : b.hasta === b.desde ? `${b.desde}` : `${b.desde} a ${b.hasta}`;
+}
+
+/** Formas en que la agenda queda determinada por coordinacion: el director no decide nada. */
+export function agendaSinDecisiones(m: MetodoAgenda | null): boolean {
+  return !!m && (m.modo === 'general' || (m.modo === 'mixta' && !!m.bandas?.length));
 }
 
 /**
  * La forma de citar que fijo coordinacion en la convocatoria (el colegio, 2026-10-22), o
  * `null` si aun no la fijo — o si es una convocatoria anterior al cambio, que no la trae.
  */
-export function metodoDeConvocatoria(c: Pick<ConvocatoriaAlerta, 'modoAgenda' | 'parametrosAgenda'> | null): MetodoAgenda | null {
+export function metodoDeConvocatoria(
+  c: Pick<ConvocatoriaAlerta, 'modoAgenda' | 'parametrosAgenda' | 'bandasAgenda'> | null,
+): MetodoAgenda | null {
   if (!c?.modoAgenda || !MODOS_VALIDOS.includes(c.modoAgenda)) return null;
-  return { modo: c.modoAgenda, parametros: normalizarParametros(c.parametrosAgenda) };
+  const bandas = c.modoAgenda === 'mixta' && c.bandasAgenda?.length ? normalizarBandas(c.bandasAgenda) : null;
+  return { modo: c.modoAgenda, parametros: normalizarParametros(c.parametrosAgenda), bandas };
 }
 
 /** ¿La agenda guardada se armo con esta misma forma? Si no, el director ve el aviso de recalcular. */
 export function mismoMetodo(a: MetodoAgenda, b: MetodoAgenda): boolean {
   if (a.modo !== b.modo) return false;
+  if (a.modo === 'mixta' && (a.bandas?.length || b.bandas?.length)) {
+    return JSON.stringify(normalizarBandas(a.bandas)) === JSON.stringify(normalizarBandas(b.bandas));
+  }
   const pa = normalizarParametros(a.parametros), pb = normalizarParametros(b.parametros);
   // Solo cuentan los parametros que usa el modo: en `general` no importa la duracion del turno.
   const usados: (keyof ParametrosAgenda)[] =
@@ -315,6 +386,9 @@ export function describirMetodo(m: MetodoAgenda): string {
   const orden = p.orden === 'alfabetico' ? 'en orden alfabético' : 'más asignaturas primero';
   if (m.modo === 'general') return `Reunión general de ${p.generalMin} min al inicio de la franja`;
   if (m.modo === 'turnos') return `Turnos individuales: ${turno}; ${orden}`;
+  if (m.bandas?.length) {
+    return 'Por rangos: ' + m.bandas.map((b) => `${textoRango(b)} asignaturas, reunión a las ${horaCorta(b.hora)} (${b.duracionMin} min)`).join('; ');
+  }
   return `Mixta: reunión general de ${p.generalMin} min para quien tiene menos de ${p.umbralIndividual} asignaturas, y ${turno}; ${orden}`;
 }
 
@@ -334,7 +408,7 @@ export function ajusteDeJornada(grupos: { grado: string; citados: Citado[] }[], 
   return grupos
     .filter((g) => g.citados.length > 0)
     .map((g) => {
-      const r = proponerAgenda(g.citados, franja, metodo.modo, metodo.parametros);
+      const r = proponerAgenda(g.citados, franja, metodo.modo, metodo.parametros, metodo.bandas);
       return { grado: g.grado, citados: g.citados.length, necesariosMin: r.necesariosMin, alcanza: r.alcanza };
     });
 }
@@ -382,10 +456,28 @@ export function ordenarCitados(citados: Citado[], orden: ParametrosAgenda['orden
  *    despues turnos para los demas.
  * No recorta nada: si no alcanza lo dice (`alcanza: false`) y el director decide.
  */
-export function proponerAgenda(citados: Citado[], franja: Franja, modo: ModoAgenda, p: ParametrosAgenda): PropuestaAgenda {
+export function proponerAgenda(
+  citados: Citado[],
+  franja: Franja,
+  modo: ModoAgenda,
+  p: ParametrosAgenda,
+  bandas?: BandaAgenda[] | null,
+): PropuestaAgenda {
   const ini = aMinutos(franja.inicio);
   const disponiblesMin = Math.max(0, aMinutos(franja.fin) - ini);
   const citas: PropuestaAgenda['citas'] = {};
+
+  // Mixta por rangos: cada citado va a la reunion de su rango (todos a la misma hora).
+  if (modo === 'mixta' && bandas?.length) {
+    let fin = ini;
+    for (const c of citados) {
+      const b = bandaDe(c.asignaturas, bandas) ?? bandas[bandas.length - 1];
+      citas[c.studentId] = { hora: b.hora, duracionMin: b.duracionMin, general: true };
+      fin = Math.max(fin, aMinutos(b.hora) + b.duracionMin);
+    }
+    const necesariosMin = fin - ini;
+    return { modo, citas, necesariosMin, disponiblesMin, alcanza: necesariosMin <= disponiblesMin };
+  }
   const ordenados = ordenarCitados(citados, p.orden);
 
   const aGeneral = modo === 'general' ? ordenados : modo === 'mixta' ? ordenados.filter((c) => c.asignaturas < p.umbralIndividual) : [];
@@ -417,7 +509,7 @@ export function agendaPropuesta(
   franja: Franja,
   metodo: MetodoAgenda,
 ): AgendaCitaciones {
-  const r = proponerAgenda(citados, franja, metodo.modo, metodo.parametros);
+  const r = proponerAgenda(citados, franja, metodo.modo, metodo.parametros, metodo.bandas);
   const citas = Object.fromEntries(
     Object.entries(r.citas).map(([id, c]) => [id, { ...c, enviadaCorreoEn: null, enviadaSmsEn: null, impresaEn: null } as CitaAlerta]),
   );
@@ -426,6 +518,7 @@ export function agendaPropuesta(
     ...base,
     modo: metodo.modo,
     parametros: metodo.parametros,
+    bandas: metodo.bandas ?? null,
     citas,
     entregaCerradaEn: null,
     ultimaEscrituraPor: '',
