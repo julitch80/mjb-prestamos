@@ -49,6 +49,7 @@ import {
 import { alertaDeSeguimiento, type SeguimientoCaso } from './domain/seguimiento-caso';
 import { filtroEfectivo, filtroInicial, gradoEnJornada, type FiltroJornada } from './domain/filtro-jornada';
 import type { FamilyContact, Jornada, Sede, Student } from './domain/types';
+import ResumenPeriodo from './ResumenPeriodo';
 import SelectorJornada from './SelectorJornada';
 
 /** Cuántos días de calendario se piden para cubrir la ventana de días con censo. Holgado a
@@ -432,6 +433,15 @@ export default function CasosPermanencia({
           </ul>
         </details>
       )}
+
+      {/* ================= 3. RESUMEN DEL PERIODO (solo lectura) ================= */}
+      <ResumenPeriodo
+        sede={sede}
+        filtro={filtro}
+        estudiantes={estudiantes}
+        casos={casos}
+        seguimientosConocidos={seguimientosDe}
+      />
     </div>
   );
 }

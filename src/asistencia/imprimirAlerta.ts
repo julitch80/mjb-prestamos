@@ -19,13 +19,15 @@ import {
   type InformeAlerta,
   type PlanillaFirmas,
 } from './domain/imprimibles-alerta';
+import { htmlResumenPermanencia } from './domain/imprimible-resumen-permanencia';
+import type { ResumenPeriodo } from './domain/resumen-permanencia';
 import { asignaturasDelGrado } from './horarioDelDia';
 import type { AgendaCitaciones, ConvocatoriaAlerta, Sede, Student } from './domain/types';
 
 // `import.meta.env.BASE_URL` sin depender de los tipos de Vite (ver MosaicoGrupo.tsx).
 const BASE_URL = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
 
-const NOMBRE_SEDE: Record<Sede, string> = { central: 'Central', gustavo_rodas: 'Gustavo Rodas', la_finquita: 'La Finquita' };
+export const NOMBRE_SEDE: Record<Sede, string> = { central: 'Central', gustavo_rodas: 'Gustavo Rodas', la_finquita: 'La Finquita' };
 
 function institucion(sede: Sede) {
   // Escudo OFICIAL recortado del membrete (no `mjb_escudo.png`, que es el logo de la app).
@@ -182,4 +184,9 @@ export function imprimirTodo(
 
 export function imprimirCitaciones(sede: Sede, citaciones: CitacionAlerta[], titulo: string): boolean {
   return abrirImpresion(htmlCitaciones(institucion(sede), citaciones, titulo));
+}
+
+/** El «Resumen del periodo» de permanencia, en una ventana lista para imprimir. */
+export function imprimirResumenPermanencia(sede: Sede, resumen: ResumenPeriodo, alcance: string): boolean {
+  return abrirImpresion(htmlResumenPermanencia(institucion(sede), resumen, alcance));
 }

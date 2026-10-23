@@ -41,7 +41,7 @@ export interface CitacionAlerta {
   motivo: string;
 }
 
-const esc = (s: string): string =>
+export const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -62,7 +62,7 @@ export function horaLegible(hhmm: string): string {
   return `${h12}:${String(m).padStart(2, '0')} ${sufijo}`;
 }
 
-function encabezado(inst: DatosInstitucion, titulo: string, subtitulo: string): string {
+export function encabezado(inst: DatosInstitucion, titulo: string, subtitulo: string): string {
   return `<header class="enc">
     <img src="${esc(inst.escudoUrl)}" alt="">
     <div>
@@ -159,7 +159,7 @@ body { margin: 0; background: #525659; font-family: Arial, Helvetica, sans-serif
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }`;
 
-function documento(titulo: string, cuerpo: string, resumen: string): string {
+export function documento(titulo: string, cuerpo: string, resumen: string): string {
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(titulo)}</title><style>${CSS}</style></head>
 <body>
 <div class="solo-pantalla"><b style="flex:1">${esc(titulo)} · ${esc(resumen)}</b>

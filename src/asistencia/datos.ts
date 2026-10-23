@@ -3304,6 +3304,20 @@ export async function leerCensosDesde(desde: string, sede: string): Promise<Cens
 }
 
 /**
+ * Censos ENTRE dos fechas, las dos inclusive. Para el «Resumen del periodo»: un rango corto
+ * no carga el año. Las dos condiciones van sobre el MISMO campo (`fecha`), así que bastan
+ * los índices de un solo campo: no hace falta índice compuesto ni tocar `firestore.indexes`.
+ * La sede se filtra en el navegador, como en `leerCensosDesde`.
+ */
+export async function leerCensosEntre(desde: string, hasta: string, sede: string): Promise<CensoDia[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(
+    query(collection(baseDatos(), 'asistenciaCensoDia'), where('fecha', '>=', desde), where('fecha', '<=', hasta)),
+  );
+  return aLista<CensoDia>(snap).filter((c) => c.sede === sede);
+}
+
+/**
  * Las llamadas a familias de una sede. Filtrada por `sede` porque la regla es
  * `asisCoordinaSede(resource.data.sede)`: sin el filtro, Firestore rechaza la consulta
  * entera aunque cada documento fuera legible.
