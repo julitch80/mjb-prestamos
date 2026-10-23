@@ -12,6 +12,7 @@ import { jornadaDeGrado, toDateKey } from './domain/ids';
 import {
   ajusteDeJornada,
   consolidarGrupo,
+  agendaPropuesta,
   alertaPorEmpezar,
   convocatoriaEditable,
   horaCorta,
@@ -129,8 +130,10 @@ export default function AlertaCoordinacion({
     return { grado: g, esperadas: esperadas.length, entregadas, citados: listaCitados.length, listaCitados };
   }), [gradosJornada, planillas]);
 
-  // Grupos con citados (dos o mas alertas) cuyo director aun no guardo la agenda.
-  const sinAgenda = avance.filter((a) => a.citados > 0 && !agendas.some((x) => x.grado === a.grado)).map((a) => a.grado);
+  // Grupos con citados (dos o mas alertas) cuyo director aun no guardo la agenda. Con la
+  // REUNION GENERAL no hace falta: el archivo la arma solo (ver `descargarTodo`).
+  const esGeneral = metodoDeConvocatoria(conv)?.modo === 'general';
+  const sinAgenda = esGeneral ? [] : avance.filter((a) => a.citados > 0 && !agendas.some((x) => x.grado === a.grado)).map((a) => a.grado);
   const citadosJornada = avance.reduce((n, a) => n + a.citados, 0);
   const constanciasSugeridas = Math.max(4, Math.ceil(citadosJornada / 10) * 4);
   const nConstancias = constancias ?? constanciasSugeridas;
@@ -163,18 +166,25 @@ export default function AlertaCoordinacion({
       const frescas = await agendasDeJornada(sede, jornada, conv.anio, conv.periodo);
       setAgendas(frescas);
       const titulo = `Alerta académica · jornada ${jornada === 'manana' ? 'mañana' : 'tarde'} · periodo ${conv.periodo}`;
-      const citaciones = gradosJornada.flatMap((g) => {
-        const a = frescas.find((x) => x.grado === g);
-        return a ? citacionesDelGrupo(g, conv, a, todos.filter((e) => e.gradoActual === g), nombreDirector(directores[g])) : [];
-      });
+      const metodo = metodoDeConvocatoria(conv);
+      const franja = conv.franjaInicio && conv.franjaFin ? { inicio: conv.franjaInicio, fin: conv.franjaFin } : null;
+      const citaciones: ReturnType<typeof citacionesDelGrupo> = [];
       const informes: ReturnType<typeof informesDelGrupo> = [];
       const firmas: NonNullable<ReturnType<typeof planillaDelGrupo>>[] = [];
       for (const g of gradosJornada) {
         const del = ordenarEstudiantes(todos.filter((e) => e.gradoActual === g && e.activo !== false));
         const c = consolidarGrupo((planillas ?? []).filter((p) => p.grado === g), asignaturasDelGrado(g), del.map((e) => e.studentId));
         informes.push(...informesDelGrupo(g, conv, c.filas, del, nombreDirector(directores[g])));
-        const a = frescas.find((x) => x.grado === g);
-        const pf = a ? planillaDelGrupo(g, conv, a, c.filas, del, nombreDirector(directores[g]), ordenPlanilla) : null;
+        // La agenda guardada por el director; con la REUNION GENERAL y sin agenda, la que
+        // propone la forma de coordinacion (todos a la misma hora): ningun grupo queda fuera.
+        let a = frescas.find((x) => x.grado === g);
+        if (!a && metodo?.modo === 'general' && franja) {
+          const citados = c.filas.filter((f) => f.citar).map((f) => ({ studentId: f.studentId, nombre: f.studentId, asignaturas: f.total }));
+          if (citados.length) a = agendaPropuesta({ anio: conv.anio, periodo: conv.periodo, sede, jornada, grado: g }, citados, franja, metodo);
+        }
+        if (!a) continue;
+        citaciones.push(...citacionesDelGrupo(g, conv, a, todos.filter((e) => e.gradoActual === g), nombreDirector(directores[g])));
+        const pf = planillaDelGrupo(g, conv, a, c.filas, del, nombreDirector(directores[g]), ordenPlanilla);
         if (pf) firmas.push(pf);
       }
       const ok = imprimirTodo(sede, citaciones, informes, titulo, firmas,

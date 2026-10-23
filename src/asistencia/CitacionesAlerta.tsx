@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { enviarCitacionesAlerta } from '../data/api';
 import { guardarAgendaCitaciones, leerAgendaCitaciones, marcarEnvioCitas } from './datos';
 import { nombreCompleto } from './domain/nombres';
@@ -104,6 +104,17 @@ export default function CitacionesAlerta({
   useEffect(() => {
     if (agendaGuardada === null && metodo && franja && citados.length && Object.keys(citas).length === 0) proponer(metodo);
   }, [agendaGuardada, franja?.inicio, franja?.fin, citados.length, claveMetodo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // REUNION GENERAL: no hay nada que decidir, asi que la primera propuesta se guarda sola
+  // (Julian, 2026-10-22). Sin esto, el grupo cuyo director no pulsaba «Guardar agenda» se
+  // quedaba sin citaciones en el archivo de impresion. Una sola vez por pantalla.
+  const autoGuardada = useRef(false);
+  useEffect(() => {
+    if (autoGuardada.current || agendaGuardada !== null || modo !== 'general' || metodo?.modo !== 'general') return;
+    if (!sucio || Object.keys(citas).length === 0) return;
+    autoGuardada.current = true;
+    void guardar();
+  }); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!franja || !conv.fechaEntrega) {
     return (

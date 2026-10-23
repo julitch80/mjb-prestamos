@@ -9,6 +9,7 @@
  * las horas de cada citado, el director, con la propuesta de `proponerAgenda`.
  */
 import type {
+  AgendaCitaciones,
   CitaAlerta,
   ConvocatoriaAlerta,
   Jornada,
@@ -402,6 +403,34 @@ export function proponerAgenda(citados: Citado[], franja: Franja, modo: ModoAgen
   });
   const necesariosMin = cursor - ini;
   return { modo, citas, necesariosMin, disponiblesMin, alcanza: necesariosMin <= disponiblesMin };
+}
+
+/**
+ * La agenda tal como la propone la forma de coordinacion, lista para guardar o imprimir,
+ * sin envios registrados. Con la REUNION GENERAL no hay nada que decidir (todos a la misma
+ * hora, al inicio de la franja), asi que se guarda sola y, si el director nunca abrio su
+ * reporte, el archivo de impresion de coordinacion la arma con esto (Julian, 2026-10-22).
+ */
+export function agendaPropuesta(
+  base: { anio: number; periodo: number; sede: Sede; jornada: Jornada; grado: string },
+  citados: Citado[],
+  franja: Franja,
+  metodo: MetodoAgenda,
+): AgendaCitaciones {
+  const r = proponerAgenda(citados, franja, metodo.modo, metodo.parametros);
+  const citas = Object.fromEntries(
+    Object.entries(r.citas).map(([id, c]) => [id, { ...c, enviadaCorreoEn: null, enviadaSmsEn: null, impresaEn: null } as CitaAlerta]),
+  );
+  return {
+    citacionId: citacionAlertaId(base.anio, base.periodo, base.sede, base.grado),
+    ...base,
+    modo: metodo.modo,
+    parametros: metodo.parametros,
+    citas,
+    entregaCerradaEn: null,
+    ultimaEscrituraPor: '',
+    ultimaEscrituraEn: 0,
+  };
 }
 
 export interface Alternativa {
