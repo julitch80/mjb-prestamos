@@ -3749,6 +3749,91 @@ export async function entregarPlanillaAlerta(
   await updateDoc(doc(baseDatos(), 'asistenciaAlertas', id), escritura);
 }
 
+// ── Digitacion por coordinacion (2026-10-22) ─────────────────────────────────────────
+// La coordinacion de la jornada digita la alerta EN NOMBRE del docente: tambien con la
+// fecha vencida (basta que la convocatoria exista) y aunque la planilla este a nombre de
+// otro puesto. Cada escritura lleva `porCoordinacion` (quien y cuando): la regla la exige,
+// y es lo que deja ver despues que no la digito el docente.
+
+export type BasePlanillaAlerta = Parameters<typeof asegurarPlanillaAlerta>[0];
+
+function selloCoordinacion(autor: string) {
+  return { porCoordinacion: { por: autor, en: serverTimestamp() } };
+}
+
+/** Como `asegurarPlanillaAlerta`, a nombre del puesto ASIGNADO (`base.slotId`) y con la constancia. */
+async function asegurarPlanillaAlertaPorCoordinacion(base: BasePlanillaAlerta): Promise<string> {
+  const autor = await exigirAutor();
+  const id = alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId);
+  const ref = doc(baseDatos(), 'asistenciaAlertas', id);
+  const nueva = {
+    alertaId: id, ...base, estudiantes: {}, entregada: false, entregadaPor: null, entregadaEn: null,
+    ...selloCoordinacion(autor), ultimaEscrituraPor: autor, ultimaEscrituraEn: serverTimestamp(),
+  };
+  const optimista = { ...nueva, ultimaEscrituraEn: Date.now() } as unknown as PlanillaAlerta;
+  // Si ya existia, el setDoc pasa por la regla de update, que no deja borrar marcas: se
+  // rechaza y se lee la que habia (coordinacion si puede leerla).
+  await abrirDocumento<PlanillaAlerta>(ref, nueva, optimista, async (e) => {
+    const otra = await getDoc(ref).catch(() => null);
+    if (otra?.exists()) return otra.data() as PlanillaAlerta;
+    throw e;
+  });
+  return id;
+}
+
+/** `marcarAlerta` digitado por coordinacion. */
+export async function marcarAlertaPorCoordinacion(
+  base: BasePlanillaAlerta,
+  existe: boolean,
+  studentId: string,
+  marca: MarcaAlerta,
+): Promise<void> {
+  const autor = await exigirAutor();
+  const id = existe ? alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId) : await asegurarPlanillaAlertaPorCoordinacion(base);
+  registrarEnvio(
+    updateDoc(doc(baseDatos(), 'asistenciaAlertas', id), {
+      [`estudiantes.${studentId}`]: marca,
+      ...selloCoordinacion(autor),
+      ultimaEscrituraPor: autor,
+      ultimaEscrituraEn: serverTimestamp(),
+    }),
+  );
+}
+
+/** `entregarPlanillaAlerta` digitado por coordinacion: queda entregada por quien coordina. */
+export async function entregarPlanillaAlertaPorCoordinacion(
+  base: BasePlanillaAlerta,
+  existe: boolean,
+  cambios: Record<string, MarcaAlerta>,
+): Promise<void> {
+  const autor = await exigirAutor();
+  const id = existe ? alertaId(base.anio, base.periodo, base.sede, base.grado, base.subjectId) : await asegurarPlanillaAlertaPorCoordinacion(base);
+  const escritura: Record<string, unknown> = {
+    entregada: true,
+    entregadaPor: autor,
+    entregadaEn: serverTimestamp(),
+    ...selloCoordinacion(autor),
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  };
+  for (const [studentId, marca] of Object.entries(cambios)) escritura[`estudiantes.${studentId}`] = marca;
+  await updateDoc(doc(baseDatos(), 'asistenciaAlertas', id), escritura);
+}
+
+/**
+ * Pasa la planilla al puesto que corresponde (la abrio el docente equivocado). Las marcas
+ * no se tocan; desde ahi el docente asignado la sigue como suya. Se espera el acuse.
+ */
+export async function reasignarPlanillaAlerta(alertaIdDoc: string, slotId: string): Promise<void> {
+  const autor = await exigirAutor();
+  await updateDoc(doc(baseDatos(), 'asistenciaAlertas', alertaIdDoc), {
+    slotId,
+    ...selloCoordinacion(autor),
+    ultimaEscrituraPor: autor,
+    ultimaEscrituraEn: serverTimestamp(),
+  });
+}
+
 /** La agenda de citaciones de un grado, o null si el director aun no la arma. */
 export async function leerAgendaCitaciones(citacionIdDoc: string): Promise<AgendaCitaciones | null> {
   if (!(await listo())) return null;

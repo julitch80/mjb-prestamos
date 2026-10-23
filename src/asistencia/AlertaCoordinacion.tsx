@@ -20,12 +20,15 @@ import {
   normalizarParametros,
   PARAMETROS_POR_DEFECTO,
   type Citado,
+  type FilaDigitacion,
   type MetodoAgenda,
 } from './domain/alerta-academica';
 import { ordenarEstudiantes } from './domain/nombres';
 import { citacionesDelGrupo, imprimirTodo, informesDelGrupo, nombreDirector, planillaDelGrupo, type OrdenPlanilla } from './imprimirAlerta';
 import { asignaturasDelGrado } from './horarioDelDia';
 import ReporteAlerta from './ReporteAlerta';
+import AlertaAcademica from './AlertaAcademica';
+import DigitacionPorCoordinacion, { nombreDelPuesto } from './DigitacionPorCoordinacion';
 import SeguimientoCoordinacion from './SeguimientoCoordinacion';
 import { fechaLarga } from './domain/imprimibles-alerta';
 import { PLAZO_EXCUSA_DIAS } from './domain/seguimiento-alerta';
@@ -59,6 +62,8 @@ export default function AlertaCoordinacion({
   const [elegida, setElegida] = useState<string | null>(null);
   const [planillas, setPlanillas] = useState<PlanillaAlerta[] | null>(null);
   const [grupoAbierto, setGrupoAbierto] = useState<string | null>(null);
+  // Asignatura del grupo abierto que coordinacion digita en nombre del docente (2026-10-22).
+  const [digitando, setDigitando] = useState<FilaDigitacion | null>(null);
   const [agendas, setAgendas] = useState<AgendaCitaciones[]>([]);
   // Orden de las planillas de asistencia: lo decide coordinacion (Julian, 2026-10-03).
   const [ordenPlanilla, setOrdenPlanilla] = useState<OrdenPlanilla>('hora');
@@ -82,6 +87,11 @@ export default function AlertaCoordinacion({
   useEffect(() => { void recargar(); }, [sede, jornada]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const conv = convocatorias?.find((c) => c.convocatoriaId === elegida) ?? null;
+
+  function recargarPlanillas() {
+    if (!conv) return;
+    void alertasDeJornada(sede, jornada, conv.anio, conv.periodo).then(setPlanillas).catch(() => undefined);
+  }
 
   useEffect(() => {
     if (!conv) { setPlanillas([]); return; }
@@ -174,10 +184,50 @@ export default function AlertaCoordinacion({
     }
   }
 
+  if (grupoAbierto && digitando && conv) {
+    return (
+      <div className="flex flex-col gap-3">
+        <button
+          onClick={() => { setDigitando(null); recargarPlanillas(); }}
+          className="group inline-flex min-h-[44px] items-center gap-1 self-start text-sm text-accent"
+        >
+          <FlechaNeon direccion="izquierda" tamano="sm" /> Asignaturas de {grupoAbierto}
+        </button>
+        {estudiantes === null ? (
+          <p className="p-3 text-sm text-muted">Cargando el grupo…</p>
+        ) : (
+          <AlertaAcademica
+            key={`${grupoAbierto}-${digitando.subjectId}`}
+            grado={grupoAbierto}
+            subjectId={digitando.subjectId}
+            nombreAsignatura={digitando.nombre}
+            sede={sede}
+            slotId={digitando.slotResponsable}
+            estudiantes={estudiantes.filter((e) => e.gradoActual === grupoAbierto)}
+            puedeRegistrar
+            porCoordinacion={{ nombreDocente: nombreDelPuesto(digitando.slotResponsable) }}
+            convocatoriaId={conv.convocatoriaId}
+            onCambio={recargarPlanillas}
+          />
+        )}
+      </div>
+    );
+  }
+
   if (grupoAbierto) {
     return (
       <div className="flex flex-col gap-3">
-        <button onClick={() => setGrupoAbierto(null)} className="group inline-flex items-center gap-1 self-start text-sm text-accent"><FlechaNeon direccion="izquierda" tamano="sm" /> Todos los grupos</button>
+        <button onClick={() => { setGrupoAbierto(null); setDigitando(null); }} className="group inline-flex min-h-[44px] items-center gap-1 self-start text-sm text-accent"><FlechaNeon direccion="izquierda" tamano="sm" /> Todos los grupos</button>
+        {conv && planillas && (
+          <DigitacionPorCoordinacion
+            grado={grupoAbierto}
+            sede={sede}
+            conv={conv}
+            planillas={planillas}
+            onDigitar={setDigitando}
+            onCambio={recargarPlanillas}
+          />
+        )}
         {estudiantes === null ? (
           <p className="p-3 text-sm text-muted">Cargando el grupo…</p>
         ) : (
@@ -204,7 +254,7 @@ export default function AlertaCoordinacion({
             {(['manana', 'tarde'] as const).map((j) => (
               <button
                 key={j}
-                onClick={() => { setJornada(j); setGrupoAbierto(null); }}
+                onClick={() => { setJornada(j); setGrupoAbierto(null); setDigitando(null); }}
                 className={`min-h-[36px] rounded-full border px-3 text-sm ${jornada === j ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg' : 'border-line text-soft'}`}
               >
                 {j === 'manana' ? 'Mañana' : 'Tarde'}

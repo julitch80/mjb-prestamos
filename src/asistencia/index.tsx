@@ -926,7 +926,16 @@ export default function Asistencia() {
         setCruce({ grado, subjectId });
         await cargarSesiones();
       } catch (e) {
-        setError(mensajeDeError(e));
+        // Rechazo al ABRIR: casi siempre esa hora de ese grupo ya la abrio OTRO docente
+        // (una hora de clase = una sola planilla, sin importar quien), y su planilla no se
+        // puede ni leer. Se dice en claro en vez del aviso generico (Gloria, 2026-10-22).
+        const texto = e instanceof Error ? e.message : String(e);
+        setError(
+          texto.includes('permission-denied') || texto.includes('insufficient permissions')
+            ? `La ${bloque}.ª hora de hoy en ${grado} ya la abrió otro docente. Revise que esté abriendo ` +
+                'la hora que le corresponde según su horario; si esa hora sí es su clase, avise a coordinación.'
+            : mensajeDeError(e),
+        );
       }
     },
     [sede, slotId, sesiones, cargarSesiones],

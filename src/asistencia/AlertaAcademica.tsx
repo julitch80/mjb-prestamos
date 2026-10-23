@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Avatar from './Avatar';
-import { convocatoriasAlerta, entregarPlanillaAlerta, leerPlanillaAlerta, marcarAlerta } from './datos';
+import {
+  convocatoriasAlerta,
+  entregarPlanillaAlerta,
+  entregarPlanillaAlertaPorCoordinacion,
+  leerPlanillaAlerta,
+  marcarAlerta,
+  marcarAlertaPorCoordinacion,
+} from './datos';
 import { nombreCompleto, ordenarEstudiantes } from './domain/nombres';
 import { toDateKey, jornadaDeGrado } from './domain/ids';
 import {
+  alertaEditable,
   alertaId,
-  convocatoriaEditable,
   digitaAlerta,
   estadoPlanilla,
   marcasAlEntregar,
@@ -46,6 +53,9 @@ export default function AlertaAcademica({
   slotId,
   estudiantes,
   puedeRegistrar,
+  porCoordinacion = null,
+  convocatoriaId = null,
+  onCambio,
 }: {
   grado: string;
   subjectId: string;
@@ -54,6 +64,16 @@ export default function AlertaAcademica({
   slotId: string;
   estudiantes: Student[];
   puedeRegistrar: boolean;
+  /**
+   * Coordinacion digitando EN NOMBRE del docente (2026-10-22): se edita aunque haya vencido
+   * la fecha, se escribe con la constancia `porCoordinacion` y se avisa en un recuadro.
+   * `slotId` es entonces el del docente asignado.
+   */
+  porCoordinacion?: { nombreDocente: string } | null;
+  /** Periodo a mostrar (el que coordinacion tiene elegido); sin el, el abierto o el mas reciente. */
+  convocatoriaId?: string | null;
+  /** Tras guardar o entregar: para que quien abrio esta pantalla recargue su avance. */
+  onCambio?: () => void;
 }) {
   const jornada = jornadaDeGrado(grado);
   const [convocatorias, setConvocatorias] = useState<ConvocatoriaAlerta[] | null>(null);
@@ -70,10 +90,10 @@ export default function AlertaAcademica({
     void convocatoriasAlerta(sede, jornada).then((cs) => {
       setConvocatorias(cs);
       // La abierta primero; si no hay, la mas reciente (para consultar lo entregado).
-      const abierta = cs.find((c) => c.abierta) ?? cs[0];
+      const abierta = cs.find((c) => c.convocatoriaId === convocatoriaId) ?? cs.find((c) => c.abierta) ?? cs[0];
       setPeriodoElegido(abierta?.convocatoriaId ?? null);
     }).catch(() => setConvocatorias([]));
-  }, [sede, jornada]);
+  }, [sede, jornada, convocatoriaId]);
 
   const conv = convocatorias?.find((c) => c.convocatoriaId === periodoElegido) ?? null;
   const base = conv
@@ -90,7 +110,9 @@ export default function AlertaAcademica({
   const activos = useMemo(() => ordenarEstudiantes(estudiantes.filter((e) => e.activo !== false)), [estudiantes]);
   const ids = useMemo(() => activos.map((e) => e.studentId), [activos]);
   const estado = estadoPlanilla(planilla, ids);
-  const editable = puedeRegistrar && convocatoriaEditable(conv, toDateKey(new Date()));
+  const editable = alertaEditable(conv, toDateKey(new Date()), puedeRegistrar, !!porCoordinacion);
+  // Abierta para los DOCENTES (la fecha que ve el docente); coordinacion sigue despues.
+  const abiertaDocentes = alertaEditable(conv, toDateKey(new Date()), true);
 
   const marcar = useCallback(async (studentId: string, nueva: MarcaAlerta) => {
     if (!base || !editable) return;
@@ -101,11 +123,13 @@ export default function AlertaAcademica({
       estudiantes: { ...(p?.estudiantes ?? {}), [studentId]: nueva },
     }));
     try {
-      await marcarAlerta(base, existia, studentId, nueva);
+      if (porCoordinacion) await marcarAlertaPorCoordinacion(base, existia, studentId, nueva);
+      else await marcarAlerta(base, existia, studentId, nueva);
+      if (!existia) onCambio?.();
     } catch (e) {
       setError(mensajeAlerta(e, 'No se pudo guardar la marca.'));
     }
-  }, [base, editable, planilla, idDoc]);
+  }, [base, editable, planilla, idDoc, porCoordinacion, onCambio]);
 
   // Tras elegir, el recuadro pasa al siguiente de la lista: se recorre el grupo sin
   // abrir y cerrar treinta veces. Al llegar al ultimo, se cierra.
@@ -121,8 +145,10 @@ export default function AlertaAcademica({
     setError(null);
     const cambios = marcasAlEntregar(planilla, ids);
     try {
-      await entregarPlanillaAlerta(base, !!planilla, cambios);
+      if (porCoordinacion) await entregarPlanillaAlertaPorCoordinacion(base, !!planilla, cambios);
+      else await entregarPlanillaAlerta(base, !!planilla, cambios);
       setPlanilla(await leerPlanillaAlerta(idDoc!));
+      onCambio?.();
     } catch (e) {
       setError(mensajeAlerta(e, 'No se pudo entregar.'));
     } finally {
@@ -135,6 +161,10 @@ export default function AlertaAcademica({
   // planilla por grupo y asignatura, a nombre de quien la abrio. Se dice en claro.
   function mensajeAlerta(e: unknown, siNo: string): string {
     const codigo = (e as { code?: string } | null)?.code ?? '';
+    if (codigo.includes('permission-denied') && porCoordinacion) {
+      return `El servidor no aceptó el cambio en ${nombreAsignatura} de ${grado}. ` +
+        'Verifique que el grupo sea de su sede y jornada, y que no esté usando «Ver como».';
+    }
     if (codigo.includes('permission-denied')) {
       return `La planilla de ${nombreAsignatura} en ${grado} ya la abrió otro docente que también dicta esta asignatura. ` +
         'La alerta la digita una sola persona por grupo y asignatura: si le corresponde a usted, avise a coordinación.';
@@ -145,7 +175,7 @@ export default function AlertaAcademica({
   if (convocatorias === null) return <p className="p-3 text-sm text-muted">Cargando la alerta académica…</p>;
 
   // Asignatura compartida con otro docente, y la digita el otro (RESPONSABLE_ALERTA).
-  if (!digitaAlerta(slotId, grado, subjectId)) {
+  if (!porCoordinacion && !digitaAlerta(slotId, grado, subjectId)) {
     const r = responsableAlerta(grado, subjectId);
     const nombre = USUARIOS.find((u) => u.id === r)?.nombre ?? 'otro docente';
     return (
@@ -167,6 +197,12 @@ export default function AlertaAcademica({
 
   return (
     <div className="flex flex-col gap-3">
+      {porCoordinacion && (
+        <div role="status" className="rounded-xl border border-warning-soft bg-warning-soft px-3 py-2 text-sm text-warning-soft-fg">
+          Está digitando la alerta de <b>{nombreAsignatura}</b> en <b>{grado}</b> en nombre de{' '}
+          <b>{porCoordinacion.nombreDocente}</b>. Quedará registrado que lo hizo coordinación.
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="flex-1 text-base font-semibold text-strong">
           Alerta académica · {grado} · {nombreAsignatura}
@@ -197,9 +233,11 @@ export default function AlertaAcademica({
         {/* Julian, 2026-10-20, tras su prueba real: "muy importante" que el docente sepa que
             despues de entregar lo que cambie se guarda solo y no hay que volver a entregar. */}
         {editable && estado.completa
-          ? <><b>✓ Entregada.</b> Los cambios que haga se guardan solos hasta el <b>{fechaLarga(conv.fechaLimite)}</b>; no tiene que volver a entregar.</>
+          ? <><b>✓ Entregada.</b> Los cambios que haga se guardan solos{porCoordinacion ? '' : <> hasta el <b>{fechaLarga(conv.fechaLimite)}</b></>}; no tiene que volver a entregar.</>
           : editable
-          ? <>Periodo {conv.periodo}: abierta hasta el <b>{fechaLarga(conv.fechaLimite)}</b>. {modo === 'toque' ? 'Toque a quien esté en alerta (⚠️; otro toque lo deja en ✓)' : 'Toque un estudiante y elija ⚠️ o ✓ (el recuadro pasa solo al siguiente)'} y al terminar, «Entregar».</>
+          ? <>Periodo {conv.periodo}: {abiertaDocentes
+              ? <>abierta hasta el <b>{fechaLarga(conv.fechaLimite)}</b>.</>
+              : <>cerrada para los docentes; coordinación todavía puede digitarla.</>} {modo === 'toque' ? 'Toque a quien esté en alerta (⚠️; otro toque lo deja en ✓)' : 'Toque un estudiante y elija ⚠️ o ✓ (el recuadro pasa solo al siguiente)'} y al terminar, «Entregar».</>
           : <>Periodo {conv.periodo}: cerrada. Puede consultarla, pero ya no se modifica.</>}
       </div>
 

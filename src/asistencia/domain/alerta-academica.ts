@@ -78,6 +78,20 @@ export function convocatoriaEditable(c: ConvocatoriaAlerta | null, hoyISO: strin
   return !!c && c.abierta && hoyISO <= c.fechaLimite;
 }
 
+/**
+ * Si la planilla se puede marcar. El docente, mientras la convocatoria siga abierta y sin
+ * vencer; coordinacion digitando en su nombre (2026-10-22), con que la convocatoria exista.
+ */
+export function alertaEditable(
+  c: ConvocatoriaAlerta | null,
+  hoyISO: string,
+  puedeRegistrar: boolean,
+  porCoordinacion = false,
+): boolean {
+  if (porCoordinacion) return !!c;
+  return puedeRegistrar && convocatoriaEditable(c, hoyISO);
+}
+
 /** Las citaciones se arman con el reporte CERRADO: antes la lista de citados puede cambiar. */
 export function puedeCitar(c: ConvocatoriaAlerta | null, hoyISO: string): boolean {
   return !!c && !convocatoriaEditable(c, hoyISO);
@@ -469,4 +483,46 @@ export function textoSmsCitacion(c: {
     `I.E. Manuel J. Betancur. Acudiente de ${c.estudiante} (${c.grado}): le citamos el ${fechaCorta(c.fechaISO)} a las ${hora}` +
     `${c.general ? ' (reunión general)' : ''}, seguimiento de la alerta académica del periodo ${c.periodo}. Asistencia obligatoria: la citación sirve de soporte para la licencia laboral de acudiente (Ley 2466 de 2025). Dir. de grupo: ${c.director}.`
   );
+}
+
+// ── digitacion por coordinacion (2026-10-22) ──────────────────────────────────────────
+
+export type EstadoDigitacion = 'entregada' | 'sin_entregar' | 'no_existe';
+
+export interface FilaDigitacion {
+  subjectId: string;
+  nombre: string;
+  /** Puesto de quien la dicta segun la asignacion academica (o RESPONSABLE_ALERTA). */
+  slotResponsable: string;
+  estado: EstadoDigitacion;
+  /** Puesto a cuyo nombre esta la planilla; null si no existe. */
+  slotPlanilla: string | null;
+  /** Existe a nombre de OTRO puesto: el docente asignado no puede marcarla (la regla lo rechaza). */
+  aNombreDeOtro: boolean;
+  /** Coordinacion ya la digito alguna vez. */
+  porCoordinacion: boolean;
+}
+
+/**
+ * Una fila por asignatura esperada del grupo, para la vista de coordinacion: si la planilla
+ * esta entregada, sin entregar o no existe, y si esta a nombre de otro puesto (el caso que
+ * bloquea al docente: la abrio otro y la regla solo deja escribir al dueño).
+ */
+export function filasDigitacion(
+  grado: string,
+  esperadas: { subjectId: string; nombre: string; slotId: string }[],
+  planillas: PlanillaAlerta[],
+): FilaDigitacion[] {
+  return esperadas.map((e) => {
+    const p = planillas.find((x) => x.grado === grado && x.subjectId === e.subjectId) ?? null;
+    return {
+      subjectId: e.subjectId,
+      nombre: e.nombre,
+      slotResponsable: e.slotId,
+      estado: !p ? 'no_existe' : p.entregada ? 'entregada' : 'sin_entregar',
+      slotPlanilla: p?.slotId ?? null,
+      aNombreDeOtro: !!p && p.slotId !== e.slotId,
+      porCoordinacion: !!p?.porCoordinacion,
+    };
+  });
 }

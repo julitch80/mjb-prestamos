@@ -950,6 +950,11 @@ export interface PlanillaAlerta {
    * de que planilla salieron, quien las traslado y cuando (2026-10-22).
    */
   traslados?: Record<string, { desde: string; fichaDuplicada?: string; por: string; en: number }>;
+  /**
+   * La ultima vez que coordinacion la digito en nombre del docente (2026-10-22): quien y
+   * cuando. Ausente = nunca la toco coordinacion.
+   */
+  porCoordinacion?: { por: string; en: number };
   entregada: boolean;
   entregadaPor: string | null;
   entregadaEn: number | null;

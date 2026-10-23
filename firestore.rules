@@ -2188,6 +2188,28 @@ service cloud.firestore {
       return c.abierta == true && request.time <= c.limite;
     }
 
+    // La convocatoria de la planilla EXISTE (abierta, cerrada o vencida, da igual). Es lo que
+    // exige la digitacion por coordinacion (2026-10-22): no se abren planillas de un periodo
+    // que coordinacion no ha convocado, pero la fecha limite no la detiene.
+    function asisAlertaConvocada(d) {
+      return exists(/databases/$(database)/documents/asistenciaAlertaConvocatorias/$(string(d.anio) + '_' + string(d.periodo) + '_' + d.sede + '_' + d.jornada));
+    }
+
+    // Constancia de que la escritura la hizo coordinacion, no el docente: quien y cuando. Va
+    // en CADA escritura por coordinacion, asi que siempre refleja la ultima.
+    //
+    // ⚠️ Con `get(campo, null)` y NO `request.resource.data.porCoordinacion`: si el campo falta
+    // (toda escritura de un docente), leerlo directo es un ERROR, no un falso, y ante un error
+    // el `&&` sigue evaluando el resto buscando un falso. Asi se gastaba el limite de 1000
+    // expresiones por peticion y las reglas que venian despues (cambio de grupo) fallaban.
+    function asisSelloCoordinacion() {
+      let p = request.resource.data.get('porCoordinacion', null);
+      return p is map
+        && p.keys().hasOnly(['por', 'en'])
+        && p.get('por', null) == callerEmail()
+        && p.get('en', null) == request.time;
+    }
+
     // La forma de citar (2026-10-22): la fija SOLO coordinacion, en la convocatoria. Ausente o
     // null = aun sin decidir (las convocatorias anteriores no la traen). Si esta, van los dos
     // campos y los parametros completos. Los rangos son los de LIMITES_PARAMETROS en
@@ -2263,6 +2285,51 @@ service cloud.firestore {
         || asisIsDirectorOf(resource.data.grado)
         || resource.data.slotId == callerDoc().slotId
       );
+
+      // DIGITACION POR COORDINACION (2026-10-22): la coordinacion de la jornada digita la
+      // alerta EN NOMBRE del docente que no puede (planilla abierta por otro, fecha vencida,
+      // sin senal...). Abre la planilla de cualquier grado y asignatura a nombre del puesto
+      // asignado (sale de la asignacion academica, que las reglas no ven), con la convocatoria
+      // CREADA aunque ya este cerrada o vencida. Siempre deja `porCoordinacion`.
+      //
+      // La constancia va PRIMERO y es barata: las escrituras del docente no la traen y se
+      // descartan aqui con un falso limpio (el limite es de 1000 expresiones por peticion,
+      // sumando TODAS las reglas `allow` del bloque; con la coordinacion acotada por jornada
+      // otro orden lo agotaba).
+      allow create: if !esSuplantacion() && (asisSelloCoordinacion()
+        && asisAuthorStamp()
+        && asisCoordinaJornada(request.resource.data.sede, request.resource.data.jornada)
+        && asisCanRecord()
+        && request.resource.data.sede in ['central', 'gustavo_rodas', 'la_finquita']
+        && request.resource.data.jornada in ['manana', 'tarde']
+        && request.resource.data.anio is int
+        && request.resource.data.periodo is int
+        && request.resource.data.grado is string
+        && request.resource.data.subjectId is string
+        && request.resource.data.slotId is string
+        && alertaId == string(request.resource.data.anio) + '_' + string(request.resource.data.periodo)
+             + '_' + request.resource.data.sede + '_' + request.resource.data.grado + '_' + request.resource.data.subjectId
+        && request.resource.data.estudiantes is map
+        && request.resource.data.entregada == false
+        && asisAlertaConvocada(request.resource.data));
+
+      // ...y marca, corrige, entrega o la pasa al puesto que corresponde (`slotId`: la planilla
+      // que abrio el docente equivocado vuelve a quien la dicta, y este la sigue como suya).
+      // Tambien despues de la fecha limite. Ninguna marca desaparece: se cambia de alerta a sin alerta,
+      // no se borra (asi un setDoc con la planilla vacia no se lleva lo que habia).
+      allow update: if !esSuplantacion() && (asisSelloCoordinacion()
+        && asisAuthorStamp()
+        && asisCoordinaJornada(resource.data.sede, resource.data.jornada)
+        && asisCanRecord()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['estudiantes', 'entregada', 'entregadaPor', 'entregadaEn', 'slotId',
+                       'porCoordinacion', 'ultimaEscrituraPor', 'ultimaEscrituraEn'])
+        && request.resource.data.estudiantes is map
+        && request.resource.data.estudiantes.diff(resource.data.estudiantes).removedKeys().size() == 0
+        && request.resource.data.slotId is string
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['entregada'])
+            || (request.resource.data.entregadaPor == callerEmail() && request.resource.data.entregadaEn == request.time))
+        && asisAlertaConvocada(resource.data));
 
       // La crea el docente asignado: la pantalla solo ofrece sus planillas, y la regla exige
       // que el puesto del documento sea el suyo (Julian, 2026-10-02: «esto ya esta en la
