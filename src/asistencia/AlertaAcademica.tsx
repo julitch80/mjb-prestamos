@@ -12,6 +12,8 @@ import { nombreCompleto, ordenarEstudiantes } from './domain/nombres';
 import { toDateKey, jornadaDeGrado } from './domain/ids';
 import {
   alertaEditable,
+  alertaPorEmpezar,
+  horaCorta,
   alertaId,
   digitaAlerta,
   estadoPlanilla,
@@ -233,11 +235,13 @@ export default function AlertaAcademica({
         {/* Julian, 2026-10-20, tras su prueba real: "muy importante" que el docente sepa que
             despues de entregar lo que cambie se guarda solo y no hay que volver a entregar. */}
         {editable && estado.completa
-          ? <><b>✓ Entregada.</b> Los cambios que haga se guardan solos{porCoordinacion ? '' : <> hasta el <b>{fechaLarga(conv.fechaLimite)}</b></>}; no tiene que volver a entregar.</>
+          ? <><b>✓ Entregada.</b> Los cambios que haga se guardan solos{porCoordinacion ? '' : <> hasta el <b>{fechaLarga(conv.fechaLimite)}{conv.horaLimite ? ` a las ${horaCorta(conv.horaLimite)}` : ''}</b></>}; no tiene que volver a entregar.</>
           : editable
           ? <>Periodo {conv.periodo}: {abiertaDocentes
-              ? <>abierta hasta el <b>{fechaLarga(conv.fechaLimite)}</b>.</>
+              ? <>abierta hasta el <b>{fechaLarga(conv.fechaLimite)}{conv.horaLimite ? ` a las ${horaCorta(conv.horaLimite)}` : ''}</b>.</>
               : <>cerrada para los docentes; coordinación todavía puede digitarla.</>} {modo === 'toque' ? 'Toque a quien esté en alerta (⚠️; otro toque lo deja en ✓)' : 'Toque un estudiante y elija ⚠️ o ✓ (el recuadro pasa solo al siguiente)'} y al terminar, «Entregar».</>
+          : conv.abierta && alertaPorEmpezar(conv) && conv.fechaInicio && conv.horaInicio
+          ? <>Periodo {conv.periodo}: se habilita el <b>{fechaLarga(conv.fechaInicio)} a las {horaCorta(conv.horaInicio)}</b>. Desde esa hora podrá marcar.</>
           : <>Periodo {conv.periodo}: cerrada. Puede consultarla, pero ya no se modifica.</>}
       </div>
 

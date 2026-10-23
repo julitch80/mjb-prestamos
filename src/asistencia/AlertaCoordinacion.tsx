@@ -12,7 +12,9 @@ import { jornadaDeGrado, toDateKey } from './domain/ids';
 import {
   ajusteDeJornada,
   consolidarGrupo,
+  alertaPorEmpezar,
   convocatoriaEditable,
+  horaCorta,
   LIMITES_PARAMETROS,
   metodoDeConvocatoria,
   MINIMO_PARA_CITAR,
@@ -78,6 +80,7 @@ export default function AlertaCoordinacion({
   const hoy = new Date();
   const [periodoNuevo, setPeriodoNuevo] = useState(1);
   const [limiteNuevo, setLimiteNuevo] = useState('');
+  const [horaNueva, setHoraNueva] = useState('');
 
   async function recargar(seleccion?: string) {
     const cs = await convocatoriasAlerta(sede, jornada).catch(() => []);
@@ -278,10 +281,14 @@ export default function AlertaCoordinacion({
             Fecha límite para los docentes
             <input type="date" value={limiteNuevo} onChange={(e) => setLimiteNuevo(e.target.value)} className={CAJA} />
           </label>
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            Hora de cierre (opcional)
+            <input type="time" value={horaNueva} onChange={(e) => setHoraNueva(e.target.value)} className={CAJA} />
+          </label>
           <button
             disabled={guardando || !limiteNuevo || yaExiste}
             onClick={() => void hacer(
-              () => abrirConvocatoriaAlerta({ anio: hoy.getFullYear(), periodo: periodoNuevo, sede, jornada, fechaLimite: limiteNuevo }),
+              () => abrirConvocatoriaAlerta({ anio: hoy.getFullYear(), periodo: periodoNuevo, sede, jornada, fechaLimite: limiteNuevo, horaLimite: horaNueva || null }),
               `${hoy.getFullYear()}_${periodoNuevo}_${sede}_${jornada}`,
             )}
             className={`${BOTON} bg-accent text-accent-fg`}
@@ -297,7 +304,14 @@ export default function AlertaCoordinacion({
         <section className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="flex-1 text-sm font-semibold text-strong">
-              {conv.anio} · periodo {conv.periodo} · {editable ? <span className="text-success">abierta hasta el {conv.fechaLimite}</span> : <span className="text-muted">cerrada</span>}
+              {conv.anio} · periodo {conv.periodo} ·{' '}
+              {editable ? (
+                <span className="text-success">abierta hasta el {conv.fechaLimite}{conv.horaLimite ? ` a las ${horaCorta(conv.horaLimite)}` : ''}</span>
+              ) : conv.abierta && alertaPorEmpezar(conv) && conv.fechaInicio && conv.horaInicio ? (
+                <span className="text-info-soft-fg">programada: se habilita el {conv.fechaInicio} a las {horaCorta(conv.horaInicio)}</span>
+              ) : (
+                <span className="text-muted">cerrada</span>
+              )}
             </h3>
             {convocatorias && convocatorias.length > 1 && (
               <select value={elegida ?? ''} onChange={(e) => setElegida(e.target.value)} className={CAJA} aria-label="Periodo">
@@ -307,16 +321,6 @@ export default function AlertaCoordinacion({
           </div>
 
           <div className="flex flex-wrap items-end gap-2">
-            <label className="flex flex-col gap-1 text-xs text-muted">
-              Mover la fecha límite
-              <input
-                type="date"
-                defaultValue={conv.fechaLimite}
-                onBlur={(e) => e.target.value && e.target.value !== conv.fechaLimite &&
-                  void hacer(() => actualizarConvocatoriaAlerta(conv.convocatoriaId, { fechaLimite: e.target.value }))}
-                className={CAJA}
-              />
-            </label>
             {conv.abierta ? (
               <button disabled={guardando} onClick={() => void hacer(() => actualizarConvocatoriaAlerta(conv.convocatoriaId, { abierta: false }))} className={`${BOTON} border border-line text-strong`}>
                 Cerrar la alerta
@@ -327,6 +331,13 @@ export default function AlertaCoordinacion({
               </button>
             )}
           </div>
+
+          <HorarioAlerta
+            key={`horario-${conv.convocatoriaId}`}
+            conv={conv}
+            guardando={guardando}
+            onGuardar={(c) => void hacer(() => actualizarConvocatoriaAlerta(conv.convocatoriaId, c))}
+          />
 
           <FranjaEntrega key={`franja-${conv.convocatoriaId}`} conv={conv} guardando={guardando} onGuardar={(c) => void hacer(() => actualizarConvocatoriaAlerta(conv.convocatoriaId, c))} />
 
@@ -426,6 +437,65 @@ export default function AlertaCoordinacion({
           onRecargar={() => void agendasDeJornada(sede, jornada, conv.anio, conv.periodo).then(setAgendas)}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Cuando pueden marcar los docentes (Julian, 2026-10-22: «ademas de la fecha, la hora, y
+ * poder habilitarla de tal hora a tal hora por cualquier eventualidad»). La hora de cierre
+ * es opcional: sin ella, fin del dia, como siempre. «Habilitar desde» tambien: sin ella,
+ * desde que se abre. Lo que ya estaba organizado no cambia mientras no se toque aqui.
+ */
+function HorarioAlerta({
+  conv,
+  guardando,
+  onGuardar,
+}: {
+  conv: ConvocatoriaAlerta;
+  guardando: boolean;
+  onGuardar: (c: { fechaLimite: string; horaLimite: string | null; fechaInicio: string | null; horaInicio: string | null }) => void;
+}) {
+  const [fecha, setFecha] = useState(conv.fechaLimite);
+  const [hora, setHora] = useState(conv.horaLimite ?? '');
+  const [fechaIni, setFechaIni] = useState(conv.fechaInicio ?? '');
+  const [horaIni, setHoraIni] = useState(conv.horaInicio ?? '');
+  const ventanaIncompleta = (!!fechaIni) !== (!!horaIni);
+  const inicioDespuesDelCierre =
+    !!fechaIni && !!horaIni && `${fechaIni}T${horaIni}` >= `${fecha}T${hora || '23:59'}`;
+  const cambio =
+    fecha !== conv.fechaLimite || hora !== (conv.horaLimite ?? '') ||
+    fechaIni !== (conv.fechaInicio ?? '') || horaIni !== (conv.horaInicio ?? '');
+  const valida = !!fecha && !ventanaIncompleta && !inicioDespuesDelCierre;
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-3">
+      <p className="text-xs text-muted">
+        Hasta cuándo pueden marcar los docentes. Sin hora de cierre, la alerta cierra al final del día. Para habilitarla solo
+        en una franja (por ejemplo hoy de 2:00 a 4:00 p. m.), ponga también «Habilitar desde»; si estaba cerrada, use «Reabrir».
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-xs text-muted">Fecha límite<input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={CAJA} /></label>
+        <label className="flex flex-col gap-1 text-xs text-muted">Hora de cierre (opcional)<input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className={CAJA} /></label>
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-xs text-muted">Habilitar desde: día (opcional)<input type="date" value={fechaIni} onChange={(e) => setFechaIni(e.target.value)} className={CAJA} /></label>
+        <label className="flex flex-col gap-1 text-xs text-muted">Hora<input type="time" value={horaIni} onChange={(e) => setHoraIni(e.target.value)} className={CAJA} /></label>
+        {(fechaIni || horaIni) && (
+          <button type="button" onClick={() => { setFechaIni(''); setHoraIni(''); }} className={`${BOTON} border border-line text-strong`}>
+            Quitar «desde»
+          </button>
+        )}
+        <button
+          type="button"
+          disabled={guardando || !valida || !cambio}
+          onClick={() => onGuardar({ fechaLimite: fecha, horaLimite: hora || null, fechaInicio: fechaIni || null, horaInicio: horaIni || null })}
+          className={`${BOTON} bg-accent text-accent-fg`}
+        >
+          Guardar horario
+        </button>
+      </div>
+      {ventanaIncompleta && <p className="text-xs text-danger">Para «Habilitar desde» ponga el día y la hora.</p>}
+      {inicioDespuesDelCierre && <p className="text-xs text-danger">«Habilitar desde» debe ser antes del cierre.</p>}
     </div>
   );
 }

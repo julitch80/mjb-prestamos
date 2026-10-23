@@ -74,8 +74,38 @@ export function citacionAlertaId(anio: number, periodo: number, sede: Sede, grad
  * ¿Se puede marcar o corregir hoy? Abierta por coordinacion y sin pasar la fecha limite
  * (inclusive). Fuera de eso la planilla se ve pero no se edita.
  */
-export function convocatoriaEditable(c: ConvocatoriaAlerta | null, hoyISO: string): boolean {
-  return !!c && c.abierta && hoyISO <= c.fechaLimite;
+export function convocatoriaEditable(c: ConvocatoriaAlerta | null, hoyISO: string, ahora: number = Date.now()): boolean {
+  return !!c && c.abierta && !alertaPorEmpezar(c, ahora) && !alertaVencida(c, hoyISO, ahora);
+}
+
+/** Instante (ms) de 'YYYY-MM-DD' a la hora 'HH:MM' de Colombia (UTC-5). Sin hora: fin del dia. */
+export function instanteColombia(fechaISO: string, hora?: string | null): number {
+  return new Date(`${fechaISO}T${hora ? `${hora}:00` : '23:59:59'}-05:00`).getTime();
+}
+
+/** Tiene ventana programada y todavia no llega su hora de inicio. */
+export function alertaPorEmpezar(c: Pick<ConvocatoriaAlerta, 'inicio'>, ahora: number = Date.now()): boolean {
+  return !!c.inicio && ahora < c.inicio;
+}
+
+/**
+ * Ya paso el cierre. Sin hora de cierre, cuenta el dia entero (como siempre); con hora, el
+ * ultimo dia cierra a esa hora.
+ */
+export function alertaVencida(
+  c: Pick<ConvocatoriaAlerta, 'fechaLimite' | 'horaLimite'>,
+  hoyISO: string,
+  ahora: number = Date.now(),
+): boolean {
+  if (hoyISO !== c.fechaLimite) return hoyISO > c.fechaLimite;
+  return !!c.horaLimite && ahora > instanteColombia(c.fechaLimite, c.horaLimite);
+}
+
+/** 'HH:MM' → '2:00 p. m.', para los textos. */
+export function horaCorta(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const sufijo = h < 12 ? 'a. m.' : 'p. m.';
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${sufijo}`;
 }
 
 /**
@@ -93,8 +123,10 @@ export function alertaEditable(
 }
 
 /** Las citaciones se arman con el reporte CERRADO: antes la lista de citados puede cambiar. */
-export function puedeCitar(c: ConvocatoriaAlerta | null, hoyISO: string): boolean {
-  return !!c && !convocatoriaEditable(c, hoyISO);
+export function puedeCitar(c: ConvocatoriaAlerta | null, hoyISO: string, ahora: number = Date.now()): boolean {
+  // Cerrada o vencida. Una ventana PROGRAMADA que aun no empieza no habilita las
+  // citaciones: los docentes todavia van a marcar.
+  return !!c && (!c.abierta || alertaVencida(c, hoyISO, ahora));
 }
 
 // ── planilla del docente ──────────────────────────────────────────────────────

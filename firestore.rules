@@ -2185,7 +2185,9 @@ service cloud.firestore {
     // contra `limite` (instante), porque las reglas solo conocen `request.time`.
     function asisAlertaAbierta(d) {
       let c = get(/databases/$(database)/documents/asistenciaAlertaConvocatorias/$(string(d.anio) + '_' + string(d.periodo) + '_' + d.sede + '_' + d.jornada)).data;
-      return c.abierta == true && request.time <= c.limite;
+      return c.abierta == true && request.time <= c.limite
+        // Ventana programada (2026-10-22): «de tal hora a tal hora». Sin `inicio`, como siempre.
+        && (c.get('inicio', null) == null || request.time >= c.inicio);
     }
 
     // La convocatoria de la planilla EXISTE (abierta, cerrada o vencida, da igual). Es lo que
@@ -2263,8 +2265,11 @@ service cloud.firestore {
         && asisCoordinaJornada(resource.data.sede, resource.data.jornada)
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['abierta', 'fechaLimite', 'limite', 'fechaEntrega', 'franjaInicio', 'franjaFin',
-                       'plazoExcusaDias', 'modoAgenda', 'parametrosAgenda', 'cerradaPor', 'cerradaEn'])
+                       'plazoExcusaDias', 'modoAgenda', 'parametrosAgenda', 'cerradaPor', 'cerradaEn',
+                       'horaLimite', 'fechaInicio', 'horaInicio', 'inicio'])
         && asisMetodoAgendaValido(request.resource.data)
+        // Hora de cierre y ventana (2026-10-22): opcionales; `inicio` es un instante o nada.
+        && (request.resource.data.get('inicio', null) == null || request.resource.data.inicio is timestamp)
         && request.resource.data.abierta is bool
         && request.resource.data.limite is timestamp
         // Si se cierra, queda dicho quien y cuando.

@@ -66,7 +66,7 @@ import {
 } from './domain/seguimiento-caso';
 import type { MarkCode } from './domain/marks';
 import { planCambioColumna, type PlanCambioColumna } from './domain/columna';
-import { alertaId, citacionAlertaId, convocatoriaAlertaId, normalizarParametros } from './domain/alerta-academica';
+import { alertaId, citacionAlertaId, convocatoriaAlertaId, instanteColombia, normalizarParametros } from './domain/alerta-academica';
 import type {
   AlertConfig,
   AvisoEvasion,
@@ -3566,14 +3566,10 @@ function aConvocatoria(d: Record<string, unknown>): ConvocatoriaAlerta {
   return {
     ...(d as unknown as ConvocatoriaAlerta),
     limite: aMs(d.limite),
+    inicio: d.inicio ? aMs(d.inicio) : null,
     abiertaEn: aMs(d.abiertaEn),
     cerradaEn: d.cerradaEn ? aMs(d.cerradaEn) : null,
   };
-}
-
-/** Fin del dia 'YYYY-MM-DD' en Colombia (UTC-5, sin horario de verano). */
-function finDelDia(fechaISO: string): Timestamp {
-  return Timestamp.fromDate(new Date(`${fechaISO}T23:59:59-05:00`));
 }
 
 /**
@@ -3597,14 +3593,18 @@ export async function abrirConvocatoriaAlerta(input: {
   sede: Sede;
   jornada: Jornada;
   fechaLimite: string;
+  /** Hora de cierre ('HH:MM'); sin ella, fin del dia. */
+  horaLimite?: string | null;
 }): Promise<void> {
   const autor = await exigirAutor();
   const id = convocatoriaAlertaId(input.anio, input.periodo, input.sede, input.jornada);
+  const { horaLimite, ...resto } = input;
   await setDoc(doc(baseDatos(), 'asistenciaAlertaConvocatorias', id), {
     convocatoriaId: id,
-    ...input,
+    ...resto,
+    ...(horaLimite ? { horaLimite } : {}),
     abierta: true,
-    limite: finDelDia(input.fechaLimite),
+    limite: Timestamp.fromMillis(instanteColombia(input.fechaLimite, horaLimite ?? null)),
     fechaEntrega: null,
     franjaInicio: null,
     franjaFin: null,
@@ -3624,6 +3624,11 @@ export async function actualizarConvocatoriaAlerta(
   cambios: {
     abierta?: boolean;
     fechaLimite?: string;
+    /** Va SIEMPRE junto con `fechaLimite` (null = fin del dia): con ellos se recalcula `limite`. */
+    horaLimite?: string | null;
+    /** Ventana: van juntos; los dos null quitan la ventana. */
+    fechaInicio?: string | null;
+    horaInicio?: string | null;
     fechaEntrega?: string | null;
     franjaInicio?: string | null;
     franjaFin?: string | null;
@@ -3636,7 +3641,17 @@ export async function actualizarConvocatoriaAlerta(
   const autor = await exigirAutor();
   const escritura: Record<string, unknown> = { ...cambios };
   if (cambios.modoAgenda) escritura.parametrosAgenda = normalizarParametros(cambios.parametrosAgenda);
-  if (cambios.fechaLimite) escritura.limite = finDelDia(cambios.fechaLimite);
+  if (cambios.fechaLimite) {
+    escritura.limite = Timestamp.fromMillis(instanteColombia(cambios.fechaLimite, cambios.horaLimite ?? null));
+    escritura.horaLimite = cambios.horaLimite ?? null;
+  }
+  if ('fechaInicio' in cambios || 'horaInicio' in cambios) {
+    const f = cambios.fechaInicio ?? null;
+    const h = cambios.horaInicio ?? null;
+    escritura.fechaInicio = f && h ? f : null;
+    escritura.horaInicio = f && h ? h : null;
+    escritura.inicio = f && h ? Timestamp.fromMillis(instanteColombia(f, h)) : null;
+  }
   if (cambios.abierta === false) {
     escritura.cerradaPor = autor;
     escritura.cerradaEn = serverTimestamp();

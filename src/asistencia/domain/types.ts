@@ -909,6 +909,19 @@ export interface ConvocatoriaAlerta {
    * compara la regla: las reglas solo conocen `request.time`, no una fecha en texto.
    */
   limite: number;
+  /**
+   * Hora de cierre ('HH:MM', Colombia) del dia `fechaLimite`. Ausente o null = fin del dia,
+   * como siempre (Julian, 2026-10-22: «ademas de la fecha, la hora»). `limite` ya la incluye.
+   */
+  horaLimite?: string | null;
+  /**
+   * Ventana: desde cuando se puede marcar ('YYYY-MM-DD' + 'HH:MM', y el instante en ms que
+   * compara la regla). Ausente o null = desde que se abre. Sirve para habilitar la alerta
+   * «de tal hora a tal hora» por cualquier eventualidad.
+   */
+  fechaInicio?: string | null;
+  horaInicio?: string | null;
+  inicio?: number | null;
   /** Dia de entrega de la alerta a las familias y su franja ('HH:MM'). Las pone coordinacion. */
   fechaEntrega: string | null;
   franjaInicio: string | null;
