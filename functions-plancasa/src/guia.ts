@@ -27,6 +27,14 @@ Reglas:
 - Si se te pide una guía transversal, diseña UNA sola guía integrada alrededor del eje que cubra los criterios de todas las asignaturas listadas, con MENOS pasos y menos momentos en total que si se hicieran guías separadas (el propósito es reducir la carga académica). Cada paso empieza su título indicando a qué asignaturas sirve, con el formato «[Ciencias · Lengua] Título», y los criterios de evaluación deben cubrir cada asignatura (nómbrala al inicio de cada criterio).
 - En notaAjustes explica al docente, en dos o tres frases, cómo aplicaste los ajustes.`;
 
+/** Bloque que se añade al prompt cuando el estudiante no usa tecnología. */
+export const BLOQUE_SIN_TECNOLOGIA = `PLAN SIN TECNOLOGÍA. El estudiante no tiene acceso a celular, computador ni internet; la guía se entrega IMPRESA. Reglas obligatorias:
+- NUNCA propongas evidencias ni canales con foto, video, audio, código QR, enlaces, WhatsApp, correo ni plataformas. Deja los enlaces vacíos.
+- El tipo de evidencia de cada paso es SOLO «texto» o «documento», entendidos en papel; en evidenciaDetalle indica que se resuelve «en hoja o cuaderno».
+- canalEntrega, por ejemplo: «En físico al docente» o «Por medio del acudiente, en coordinación con el docente».
+- sustentacionModalidad SOLO puede ser: presencial, entrevista, guia_corta o esquema (en papel u oral, presencial).
+- INCLUYE dentro de las instrucciones de la guía todo el contenido necesario: lecturas cortas escritas completas, ejemplos resueltos y ejercicios con sus números y datos. NUNCA escribas «consulta en internet», «busca en» ni «mira el video».`;
+
 export const ESQUEMA_GUIA = {
   type: 'object',
   additionalProperties: false,
@@ -88,6 +96,7 @@ export function construirPrompt(e: EntradaGuiaIA): string {
   const tr = e.transversal && Array.isArray(e.transversal.asignaturas) && e.transversal.asignaturas.length ? e.transversal : null;
   const ajustes = (e.ajustes ?? []).map(a => limpio(a, MAX.corto)).filter(Boolean);
   const partes = [
+    ...(e.sinTecnologia ? [BLOQUE_SIN_TECNOLOGIA] : []),
     `Asignatura: ${limpio(e.asignatura, 100)}`,
     `Grado: ${limpio(e.grado, 20)}`,
     `Periodo de trabajo en casa: del ${limpio(e.desde, 10)} al ${limpio(e.hasta, 10)}`,
@@ -118,7 +127,11 @@ function lista(v: unknown, max: number, largoItem: number): string[] {
 }
 
 /** Valida y normaliza la respuesta de la IA a una Guia del contrato; null si no sirve. */
-export function sanearGuia(bruto: unknown, topeDiario: number, semanas = 0): Guia | null {
+const EVIDENCIAS_PAPEL: EvidenciaTipo[] = ['texto', 'documento'];
+const MODALIDADES_PRESENCIALES: ModalidadSustentacion[] = ['presencial', 'entrevista', 'guia_corta', 'esquema'];
+const RE_URL = /\bhttps?:\/\/\S+|\bwww\.\S+/gi;
+
+export function sanearGuia(bruto: unknown, topeDiario: number, semanas = 0, sinTecnologia = false): Guia | null {
   if (!bruto || typeof bruto !== 'object') return null;
   const o = bruto as Record<string, unknown>;
   const maxMomentos = Math.max(1, Math.min(4, tope(topeDiario)));
@@ -140,11 +153,12 @@ export function sanearGuia(bruto: unknown, topeDiario: number, semanas = 0): Gui
     if (!p || typeof p !== 'object') continue;
     const r = p as Record<string, unknown>;
     const titulo = limpio(r.titulo, MAX.corto);
-    const instrucciones = limpio(r.instrucciones, MAX.largo);
+    const instrucciones = sinTecnologia ? limpio(limpio(r.instrucciones, MAX.largo).replace(RE_URL, ''), MAX.largo) : limpio(r.instrucciones, MAX.largo);
     if (!titulo || !instrucciones) continue;
     const m = Math.round(Number(r.momentos));
     const sm = Math.round(Number(r.semana));
-    const evidencia = EVIDENCIAS.includes(r.evidencia as EvidenciaTipo) ? (r.evidencia as EvidenciaTipo) : 'texto';
+    let evidencia = EVIDENCIAS.includes(r.evidencia as EvidenciaTipo) ? (r.evidencia as EvidenciaTipo) : 'texto';
+    if (sinTecnologia && !EVIDENCIAS_PAPEL.includes(evidencia)) evidencia = 'texto';
     pasos.push({
       id: `p${pasos.length + 1}`,
       titulo,
@@ -156,6 +170,7 @@ export function sanearGuia(bruto: unknown, topeDiario: number, semanas = 0): Gui
       ...(limpio(r.canalEntrega, MAX.corto) ? { canalEntrega: limpio(r.canalEntrega, MAX.corto) } : {}),
       ...(limpio(r.ajusteAplicado, MAX.medio) ? { ajusteAplicado: limpio(r.ajusteAplicado, MAX.medio) } : {}),
       fecha: null,
+      ...(sinTecnologia ? { enlaces: [] } : {}),
     });
   }
   // Orden por semana (estable) y ids; el último paso de cada semana es la entrega parcial.
@@ -163,7 +178,8 @@ export function sanearGuia(bruto: unknown, topeDiario: number, semanas = 0): Gui
   pasos.forEach((p, i) => { p.id = `p${i + 1}`; p.esEntregaParcial = i === pasos.length - 1 || pasos[i + 1].semana !== p.semana; });
   if (!productoFinal || !criterios.length || !pasos.length || !preguntas.length) return null;
   const nota = limpio(o.notaAjustes, MAX.medio);
-  const modalidad = MODALIDADES.includes(o.sustentacionModalidad as ModalidadSustentacion) ? (o.sustentacionModalidad as ModalidadSustentacion) : 'presencial';
+  let modalidad = MODALIDADES.includes(o.sustentacionModalidad as ModalidadSustentacion) ? (o.sustentacionModalidad as ModalidadSustentacion) : 'presencial';
+  if (sinTecnologia && !MODALIDADES_PRESENCIALES.includes(modalidad)) modalidad = 'presencial';
   return {
     productoFinal,
     ...(evidenciasAprendizaje.length ? { evidenciasAprendizaje } : {}),

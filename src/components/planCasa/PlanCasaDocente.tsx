@@ -19,7 +19,7 @@ import { USUARIOS } from '../../data/maestros';
 import { asignaturasConNombre, gradoDeGrupo } from './nombres';
 import EditorGuia from './EditorGuia';
 import {
-  BotonFormatoUAI, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, Etiqueta, fechaCorta, Marca,
+  BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, Etiqueta, fechaCorta, Marca,
   repartirTodas, resumenGuia, SugerirPreguntas,
 } from './comun';
 
@@ -121,7 +121,7 @@ function CriteriosAsignatura({ plan, a, nombre, gestor }: { plan: PlanConDocente
     try {
       const existentes = Object.fromEntries(Object.entries({ criteriosPromocion: criterios, ebcDba, evidenciaAprendizaje: evidencia, aportes })
         .filter(([, v]) => v.trim()));
-      const c = await sugerirCampos({ modo: 'asignatura', asignaturas: [nombre], grado: gradoDeGrupo(plan.grupo), ajustes: plan.ajustes, existentes });
+      const c = await sugerirCampos({ modo: 'asignatura', asignaturas: [nombre], grado: gradoDeGrupo(plan.grupo), ajustes: plan.ajustes, existentes, ...(plan.sinTecnologia ? { sinTecnologia: true } : {}) });
       if (!criterios.trim() && c.criteriosPromocion) setCriterios(c.criteriosPromocion);
       if (!ebcDba.trim() && c.ebcDba) setEbcDba(c.ebcDba);
       if (!evidencia.trim() && c.evidenciaAprendizaje) setEvidencia(c.evidenciaAprendizaje);
@@ -258,7 +258,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
       }
       const c = await sugerirCampos({
         modo: 'pedido', preguntaOrientadora: g.eje, asignaturas: g.asignaturaIds.map(nombre),
-        grado: gradoDeGrupo(plan.grupo), ajustes: plan.ajustes, existentes,
+        grado: gradoDeGrupo(plan.grupo), ajustes: plan.ajustes, existentes, ...(plan.sinTecnologia ? { sinTecnologia: true } : {}),
       });
       setPedido(p => ({
         tematicas: p.tematicas.trim() ? p.tematicas : (c.tematicas ?? ''),
@@ -280,7 +280,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
         ...(a.evidenciaAprendizaje?.trim() ? { evidenciaAprendizaje: a.evidenciaAprendizaje.trim() } : {}),
       })) } } : {}),
       grado: gradoDeGrupo(plan.grupo), desde: plan.desde, hasta: plan.hasta,
-      ajustes: plan.ajustes, topeDiario: plan.topeDiario,
+      ajustes: plan.ajustes, topeDiario: plan.topeDiario, ...(plan.sinTecnologia ? { sinTecnologia: true } : {}),
       semanas: semanasDelPeriodo(plan.desde, plan.hasta), ritmo: plan.ritmo ?? 'diario',
       criteriosPromocion: pr.map(a => `${transversal ? nombre(a.asignaturaId) + ': ' : ''}${a.criteriosPromocion}${!transversal && a.ebcDba?.trim() ? ` | EBC/DBA priorizado: ${a.ebcDba.trim()}` : ''}${!transversal && a.evidenciaAprendizaje?.trim() ? ` | Evidencia de aprendizaje esperada: ${a.evidenciaAprendizaje.trim()}` : ''}`).join('\n'),
       pedido: limpio, ...(indicacion.trim() ? { indicacion: indicacion.trim() } : {}),
@@ -320,7 +320,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
         try {
           const existentes = Object.fromEntries(Object.entries({ criteriosPromocion: a.criteriosPromocion, ebcDba: a.ebcDba ?? '', evidenciaAprendizaje: a.evidenciaAprendizaje ?? '', aportes: a.aportes ?? '' })
             .filter(([, v]) => v.trim()));
-          const c = await sugerirCampos({ modo: 'asignatura', asignaturas: [n], grado, ajustes: plan.ajustes, existentes });
+          const c = await sugerirCampos({ modo: 'asignatura', asignaturas: [n], grado, ajustes: plan.ajustes, existentes, ...(plan.sinTecnologia ? { sinTecnologia: true } : {}) });
           const nuevo: AsignaturaPlan = {
             ...a,
             criteriosPromocion: a.criteriosPromocion.trim() ? a.criteriosPromocion : (c.criteriosPromocion ?? ''),
@@ -353,7 +353,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
             if (a.ebcDba?.trim()) existentes[`EBC/DBA de ${n}`] = a.ebcDba.trim();
             if (a.aportes?.trim()) existentes[`aportes de ${n}`] = a.aportes.trim();
           }
-          const c = await sugerirCampos({ modo: 'pedido', preguntaOrientadora: g.eje, asignaturas: g.asignaturaIds.map(nombre), grado, ajustes: plan.ajustes, existentes });
+          const c = await sugerirCampos({ modo: 'pedido', preguntaOrientadora: g.eje, asignaturas: g.asignaturaIds.map(nombre), grado, ajustes: plan.ajustes, existentes, ...(plan.sinTecnologia ? { sinTecnologia: true } : {}) });
           const ref = ped.textoReferencia || (c.textoReferencia ?? '').trim();
           ped = {
             tematicas: ped.tematicas || (c.tematicas ?? '').trim(),
@@ -573,6 +573,7 @@ function PlanDocente({ plan, gestor }: { plan: PlanConDocentes; gestor: boolean 
         <h3 className="text-base font-semibold text-strong">{plan.nombres.split(' ')[0]} {plan.apellidos.split(' ')[0]} · {plan.grupo}</h3>
         <p className="text-xs text-soft">Del {fechaCorta(plan.desde)} al {fechaCorta(plan.hasta)} · máximo {plan.topeDiario} momentos por día{plan.ritmo === 'dia_por_medio' ? ' (día por medio)' : ''} · guías {plan.modalidad === 'transversal' ? 'transversales' : 'por asignatura'}</p>
       </div>
+      {guias && <BotonCuadernillo plan={plan} guias={guias} nombres={nombres} />}
       {error && <CajaError>{error}</CajaError>}
       {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
       {asigs && guias && mias.length === 0 && !error && <p className="text-sm text-soft">No tiene asignaturas en este plan.</p>}

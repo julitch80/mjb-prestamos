@@ -18,7 +18,11 @@ export const DOC_EQUIPO = 'planCasaConfig/equipo'; // { correos: string[] } — 
 export const TOPE_DIARIO_DEFECTO = 4;
 
 /** Ajustes razonables frecuentes, para elegir con un toque (además del texto libre). */
+/** Texto del ajuste que activa el modo sin tecnología (se mantiene sincronizado con PlanCasa.sinTecnologia). */
+export const AJUSTE_SIN_TECNOLOGIA = 'Sin uso de tecnología (guía impresa)';
+
 export const AJUSTES_FRECUENTES: string[] = [
+  AJUSTE_SIN_TECNOLOGIA,
   'Lecturas cortas',
   'Instrucciones de un paso a la vez',
   'Ejemplos resueltos antes de cada ejercicio',
@@ -67,6 +71,8 @@ export interface PlanCasa {
   ajustes: string[];
   /** Contexto para los docentes del plan, en lenguaje pedagógico, SOLO LECTURA para ellos. Sin diagnóstico ni datos sensibles (eso va en el motivo reservado). No va a la IA ni al QR. */
   contextoDocentes?: string;
+  /** El estudiante no usa tecnología: guía impresa, entregas y sustentación en papel/presenciales/orales; sin QR, enlaces ni multimedia. */
+  sinTecnologia?: boolean;
   /** Máximo de momentos (25 min) por día sumando todas las asignaturas. */
   topeDiario: number;
   /** 'diario' (defecto) o 'dia_por_medio': solo un día hábil de cada dos lleva trabajo. */
@@ -234,6 +240,8 @@ export interface EntradaGuiaIA {
   ritmo: RitmoPlan;
   criteriosPromocion: string;
   pedido: PedidoGuia;
+  /** Plan sin tecnología: la guía va impresa, con el contenido dentro y evidencias en papel. */
+  sinTecnologia?: boolean;
   /** Indicación para pedir otra versión ('más corta', 'más práctica'…). */
   indicacion?: string;
 }

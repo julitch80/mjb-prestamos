@@ -100,3 +100,30 @@ describe('sanearGuia', () => {
     expect(sanearGuia({ ...ok, productoFinal: '' }, 4)).toBeNull();
   });
 });
+
+describe('sin tecnología', () => {
+  it('el prompt lleva el bloque solo cuando la bandera está activa', () => {
+    expect(construirPrompt({ ...entrada, sinTecnologia: true })).toContain('PLAN SIN TECNOLOGÍA');
+    expect(construirPrompt(entrada)).not.toContain('PLAN SIN TECNOLOGÍA');
+  });
+  const bruto = {
+    productoFinal: 'Cartel', criteriosEvaluacion: ['a'], preguntasSustentacion: ['¿p?'], sustentacionModalidad: 'video',
+    pasos: [
+      { titulo: 'Ver', instrucciones: '1. Mira https://x.com/v y escribe', momentos: 1, evidencia: 'video', evidenciaDetalle: 'v', semana: 1 },
+      { titulo: 'Hablar', instrucciones: '1. Cuenta', momentos: 1, evidencia: 'audio', evidenciaDetalle: 'a', semana: 1 },
+      { titulo: 'Foto', instrucciones: '1. Dibuja', momentos: 1, evidencia: 'foto', evidenciaDetalle: 'f', semana: 2 },
+    ],
+  };
+  it('mapea evidencias y modalidad y quita enlaces', () => {
+    const g = sanearGuia(bruto, 3, 2, true)!;
+    expect(g.pasos.every(p => p.evidencia === 'texto')).toBe(true);
+    expect(g.sustentacion.modalidad).toBe('presencial');
+    expect(g.pasos.every(p => !p.enlaces?.length)).toBe(true);
+    expect(g.pasos[0].instrucciones).not.toContain('http');
+  });
+  it('sin la bandera no cambia nada', () => {
+    const g = sanearGuia(bruto, 3, 2)!;
+    expect(g.pasos.map(p => p.evidencia)).toEqual(['video', 'audio', 'foto']);
+    expect(g.sustentacion.modalidad).toBe('video');
+  });
+});

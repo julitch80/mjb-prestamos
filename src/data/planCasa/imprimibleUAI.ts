@@ -7,7 +7,7 @@ import type {
 } from './tipos';
 import { MODALIDADES_SUSTENTACION } from './tipos';
 
-export type PlanParaUAI = Pick<PlanCasa, 'nombres' | 'grupo' | 'desde' | 'hasta' | 'ajustes' | 'topeDiario'> & { ritmo?: RitmoPlan };
+export type PlanParaUAI = Pick<PlanCasa, 'nombres' | 'grupo' | 'desde' | 'hasta' | 'ajustes' | 'topeDiario'> & { ritmo?: RitmoPlan; sinTecnologia?: boolean };
 
 const fecha = (f: FechaISO | null | undefined) => {
   if (!f) return '';
@@ -66,7 +66,7 @@ function seccionGuia(
     <td>${celda(p.evidenciaDetalle || p.instrucciones)}</td>
     <td>${p.semana ? `Semana ${esc(p.semana)}` : '—'}${p.fecha ? `<br>${esc(fecha(p.fecha))}` : ''}</td>
     <td>${celda(p.ajusteAplicado)}</td>
-    <td>${celda(p.canalEntrega || p.evidencia)}</td></tr>`).join('');
+    <td>${plan.sinTecnologia ? 'Entrega impresa' : celda(p.canalEntrega || p.evidencia)}</td></tr>`).join('');
 
   return `<section class="guia">
   <h1>Propuesta curricular integrada por áreas</h1>
@@ -91,6 +91,7 @@ function seccionGuia(
 
   <h3>Ajustes razonables</h3>
   ${plan.ajustes.length ? `<ul>${plan.ajustes.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : '<p>—</p>'}
+  ${plan.sinTecnologia ? '<p><b>Entrega impresa:</b> la guía se entrega en papel; las entregas y la sustentación son en papel, presenciales u orales.</p>' : ''}
   <p>Ritmo de trabajo: ${plan.ritmo === 'dia_por_medio' ? 'día por medio' : 'diario'} · máximo ${esc(plan.topeDiario)} momentos de 25 min por día.</p>
   ${guia.criteriosEvaluacion.length ? `<h3>Criterios de evaluación</h3><ul>${guia.criteriosEvaluacion.map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
 

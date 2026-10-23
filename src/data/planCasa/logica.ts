@@ -6,6 +6,7 @@ import { addDias, parseFecha } from '../tareas/calendario';
 import type {
   AsignaturaPlan, FechaISO, GuiaPlan, PasoGuia, PlanCasa, PlanPublico, RitmoPlan, Sustentacion,
 } from './tipos';
+import { AJUSTE_SIN_TECNOLOGIA } from './tipos';
 
 /** Número de semanas (lunes a domingo) que toca el periodo: una entrega parcial por semana. */
 export function semanasDelPeriodo(desde: FechaISO, hasta: FechaISO): number {
@@ -240,4 +241,10 @@ export function nuevoToken(): string {
   let s = '';
   for (const x of b) s += String.fromCharCode(x);
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/** Mantiene sincronizados la bandera «sin tecnología» y el ajuste del mismo nombre. */
+export function conSinTecnologia(ajustes: string[], valor: boolean): { sinTecnologia: boolean; ajustes: string[] } {
+  const sin = ajustes.filter(a => a !== AJUSTE_SIN_TECNOLOGIA);
+  return { sinTecnologia: valor, ajustes: valor ? [AJUSTE_SIN_TECNOLOGIA, ...sin] : sin };
 }

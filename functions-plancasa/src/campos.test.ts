@@ -32,3 +32,12 @@ describe('esquemaCampos / sanearCampos', () => {
     expect(sanearCampos('x', 'asignatura')).toBeNull();
   });
 });
+
+import { construirPromptCampos as cpc } from './campos';
+describe('campos sin tecnología', () => {
+  it('añade la nota solo con la bandera', () => {
+    const e = { modo: 'asignatura' as const, asignaturas: ['Física'], grado: '10°' };
+    expect(cpc({ ...e, sinTecnologia: true })).toContain('SIN TECNOLOGÍA');
+    expect(cpc(e)).not.toContain('SIN TECNOLOGÍA');
+  });
+});

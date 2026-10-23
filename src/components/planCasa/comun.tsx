@@ -1,10 +1,11 @@
 // Piezas compartidas del módulo «Plan en casa».
 import { useState, type ReactNode } from 'react';
-import { AlertTriangle, FileDown, Loader2, Sparkles } from 'lucide-react';
+import { AlertTriangle, FileDown, Printer, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AsignaturaPlan, GuiaPlan, FechaISO, PasoGuia, RitmoPlan } from '../../data/planCasa/tipos';
 import { sugerirPreguntas, type PreguntaSugerida } from '../../data/planCasa/persistencia';
 import { repartirPasos } from '../../data/planCasa/logica';
+import { abrirImprimibleGuia, construirHtmlCuadernillo } from '../../data/planCasa/imprimibleGuia';
 import { abrirImprimibleUAI, construirHtmlUAI, type PlanParaUAI } from '../../data/planCasa/imprimibleUAI';
 
 export const CLASE_INPUT =
@@ -91,6 +92,24 @@ export function BotonFormatoUAI({ plan, guias, asigs, nombres }: {
       title={html ? 'Abre el formato para imprimir o guardar como PDF' : 'Aún no hay una guía con propuesta'}>
       <FileDown size={15} />Descargar en formato UAI
     </button>
+  );
+}
+
+/** «Imprimir cuadernillo (versión PDF)»: un solo documento con todas las guías aprobadas, para el estudiante sin tecnología. */
+export function BotonCuadernillo({ plan, guias, nombres }: {
+  plan: Parameters<typeof construirHtmlCuadernillo>[0] & { sinTecnologia?: boolean }; guias: GuiaPlan[]; nombres: Record<string, { asignatura: string; docente: string }>;
+}) {
+  if (!plan.sinTecnologia) return null;
+  const html = construirHtmlCuadernillo(plan, guias, nombres);
+  const pendientes = guias.filter(g => !g.aprobada).flatMap(g => g.asignaturaIds.map(id => nombres[id]?.asignatura ?? id));
+  return (
+    <div className="space-y-1">
+      <button onClick={() => abrirImprimibleGuia(html)} disabled={!html} className={CLASE_BOTON_SEC}
+        title={html ? 'Abre el cuadernillo para imprimir o guardar como PDF' : 'Aún no hay guías aprobadas'}>
+        <Printer size={15} />Imprimir cuadernillo (versión PDF)
+      </button>
+      {pendientes.length > 0 && <p className="text-[11px] text-muted">Falta aprobar (no entran al cuadernillo): {pendientes.join(', ')}.</p>}
+    </div>
   );
 }
 

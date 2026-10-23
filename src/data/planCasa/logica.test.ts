@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   agendaDelDia, aPublico, docentesDelGrupo, esDiaDePlan, guiasIniciales, nuevoToken, progresoAsignatura, progresoGuia,
-  proximasEntregas, repartirPasos, resumenTablero, semanasDelPeriodo,
+  proximasEntregas, repartirPasos, resumenTablero, semanasDelPeriodo, conSinTecnologia,
 } from './logica';
 import { addDias } from '../tareas/calendario';
 import type { AsignaturaPlan, Guia, GuiaPlan, PasoGuia, PlanCasa } from './tipos';
@@ -157,5 +157,14 @@ describe('docentes y token', () => {
     expect(t.length).toBeGreaterThanOrEqual(32);
     expect(t).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(nuevoToken()).not.toBe(t);
+  });
+});
+
+describe('conSinTecnologia', () => {
+  it('agrega y quita el ajuste sin duplicar', () => {
+    const a = conSinTecnologia(['x'], true);
+    expect(a.sinTecnologia).toBe(true);
+    expect(conSinTecnologia(a.ajustes, true).ajustes).toEqual(a.ajustes);
+    expect(conSinTecnologia(a.ajustes, false)).toEqual({ sinTecnologia: false, ajustes: ['x'] });
   });
 });

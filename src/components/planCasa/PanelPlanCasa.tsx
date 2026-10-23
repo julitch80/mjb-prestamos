@@ -8,15 +8,16 @@ import { buscarEstudiantes } from '../../asistencia/datos';
 import type { Student } from '../../asistencia/domain/types';
 import { ASIGNACION_2026 } from '../../data/asignacionAcademica';
 import {
-  AJUSTES_FRECUENTES, TOPE_DIARIO_DEFECTO, type AsignaturaPlan, type GuiaPlan, type ModalidadGuias, type PlanCasa, type RitmoPlan,
+  AJUSTES_FRECUENTES, AJUSTE_SIN_TECNOLOGIA, TOPE_DIARIO_DEFECTO, type AsignaturaPlan, type GuiaPlan, type ModalidadGuias, type PlanCasa, type RitmoPlan,
 } from '../../data/planCasa/tipos';
 import {
   asignaturasDelGrupo, cambiarEstadoPlan, crearPlan, escucharAsignaturas, escucharGuias, escucharPlanes, type GuiaTransversalDef,
-  guardarContexto, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
+  guardarContexto, guardarSinTecnologia, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
+import { conSinTecnologia } from '../../data/planCasa/logica';
 import {
-  BotonFormatoUAI, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
+  BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
   resumenGuia, TEXTO_SUSTENTACION,
 } from './comun';
 
@@ -43,6 +44,7 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
   const [contexto, setContexto] = useState('');
   const [ajustes, setAjustes] = useState<string[]>([]);
   const [libre, setLibre] = useState('');
+  const [sinTec, setSinTec] = useState(false);
   const [tope, setTope] = useState(TOPE_DIARIO_DEFECTO);
   const [ritmo, setRitmo] = useState<RitmoPlan>('diario');
   const [modalidad, setModalidad] = useState<ModalidadGuias>('por_asignatura');
@@ -74,7 +76,11 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
     const docs = ids.map(x => asigs.find(a => a.asignaturaId === x)?.docenteId);
     setDef(i, { asignaturaIds: ids, responsableDocenteId: docs.includes(g.responsableDocenteId) ? g.responsableDocenteId : '' });
   }
-  const alternar = (a: string) => setAjustes(l => (l.includes(a) ? l.filter(x => x !== a) : [...l, a]));
+  function cambiarSinTec(v: boolean) { const r = conSinTecnologia(ajustes, v); setSinTec(r.sinTecnologia); setAjustes(r.ajustes); }
+  const alternar = (a: string) => {
+    if (a === AJUSTE_SIN_TECNOLOGIA) return cambiarSinTec(!ajustes.includes(a));
+    setAjustes(l => (l.includes(a) ? l.filter(x => x !== a) : [...l, a]));
+  };
 
   function agregarLibre() {
     const t = libre.trim();
@@ -95,7 +101,7 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
     try {
       const r = await crearPlan({
         studentId: est.studentId, nombres: est.nombres, apellidos: est.apellidos, grupo: est.gradoActual,
-        desde, hasta, motivo: motivo.trim(), contextoDocentes: contexto, ajustes, topeDiario: tope, ritmo, modalidad,
+        desde, hasta, motivo: motivo.trim(), contextoDocentes: contexto, ajustes, topeDiario: tope, ritmo, modalidad, ...(sinTec ? { sinTecnologia: true } : {}),
         ...(modalidad === 'transversal' ? { guiasTransversales: defs.map(g => ({ ...g, eje: g.eje.trim() })) } : {}),
       });
       let msg = `Plan creado para ${est.nombres}.`;
@@ -195,6 +201,12 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
           <button onClick={agregarLibre} className={CLASE_BOTON_SEC} aria-label="Agregar ajuste"><Plus size={16} /></button>
         </div>
       </div>
+
+      <label className="flex items-start gap-2 text-sm text-strong cursor-pointer">
+        <input type="checkbox" checked={sinTec} onChange={e => cambiarSinTec(e.target.checked)} className="mt-1" />
+        <span>Sin uso de tecnología (guía impresa)
+          <span className="block text-[11px] text-muted">El estudiante no tiene acceso a celular, computador ni internet: la guía se entrega impresa y las entregas y la sustentación son en papel, presenciales u orales.</span></span>
+      </label>
 
       <div>
         <Etiqueta>Máximo de momentos por día (1 momento = 25 min)</Etiqueta>
@@ -377,7 +389,9 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
         </p>
       )}
 
-      {verQR && <BloqueQR plan={plan} />}
+      {verQR && (plan.sinTecnologia
+        ? <p className="rounded-xl bg-elevated text-sm text-soft p-3">Plan sin tecnología: se entrega la guía impresa.</p>
+        : <BloqueQR plan={plan} />)}
       {error && <CajaError>{error}</CajaError>}
       {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
 
@@ -421,6 +435,7 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
       {guias && asigs && guias.some(g => g.aprobada || g.propuesta) && (
         <BotonFormatoUAI plan={plan} guias={guias} asigs={asigs} nombres={nombres} />
       )}
+      {guias && <BotonCuadernillo plan={plan} guias={guias} nombres={nombres} />}
 
       {abierto && (
         <div className="rounded-xl bg-elevated p-3 space-y-2 text-sm">
@@ -434,6 +449,12 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
               {ctxMsg && <span className="text-xs text-soft">{ctxMsg}</span>}
             </div>
           </div>
+          <label className="flex items-start gap-2 text-strong cursor-pointer">
+            <input type="checkbox" checked={!!plan.sinTecnologia} className="mt-1"
+              onChange={e => { const r = conSinTecnologia(plan.ajustes, e.target.checked); guardarSinTecnologia(plan.id, r.sinTecnologia, r.ajustes).catch(er => setError(er.message)); }} />
+            <span>Sin uso de tecnología (guía impresa)
+              <span className="block text-[11px] text-muted">El estudiante no tiene acceso a celular, computador ni internet: la guía se entrega impresa y las entregas y la sustentación son en papel, presenciales u orales.</span></span>
+          </label>
           <p className="text-soft"><span className="font-medium text-strong">Ajustes:</span> {plan.ajustes.length ? plan.ajustes.join(' · ') : 'ninguno'}</p>
           <p className="text-soft"><span className="font-medium text-strong">Tope diario:</span> {plan.topeDiario} momentos · ritmo {plan.ritmo === 'dia_por_medio' ? 'día por medio' : 'diario'}</p>
           <button onClick={() => cambiarEstadoPlan(plan.id, plan.estado === 'activo' ? 'cerrado' : 'activo').catch(e => setError(e.message))}

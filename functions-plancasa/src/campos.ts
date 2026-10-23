@@ -3,7 +3,7 @@
 export type ModoCampos = 'asignatura' | 'pedido';
 export interface EntradaCampos {
   modo: ModoCampos; preguntaOrientadora?: string; asignaturas: string[]; grado: string;
-  ajustes?: string[]; existentes?: Record<string, string>;
+  ajustes?: string[]; existentes?: Record<string, string>; sinTecnologia?: boolean;
 }
 
 export const CLAVES_ASIGNATURA = ['criteriosPromocion', 'ebcDba', 'evidenciaAprendizaje', 'aportes'] as const;
@@ -60,6 +60,7 @@ export function construirPromptCampos(e: EntradaCampos): string {
       ? `Asignatura: ${asigs[0] ?? ''}`
       : `Asignaturas que integra la guía: ${asigs.join(', ')}`,
     `Pregunta orientadora: ${limpio(e.preguntaOrientadora, 400) || '(no hay)'}`,
+    ...(e.sinTecnologia ? ['PLAN SIN TECNOLOGÍA: el estudiante no tiene celular, computador ni internet; todo se entrega impreso y en papel. No sugieras recursos digitales, videos, audios, enlaces ni QR; la lectura de referencia debe poder escribirse completa dentro de la guía.'] : []),
     `Ajustes razonables:\n${ajustes.length ? ajustes.map(a => `- ${a}`).join('\n') : '- (ninguno específico)'}`,
     `Lo que el docente ya escribió (respétalo):\n${existentes.length ? existentes.map(([k, v]) => `- ${k}: ${v}`).join('\n') : '- (nada)'}`,
     `Redacta una propuesta para estos campos:\n${claves.map(k => `- ${k}: ${DESCRIPCION[k]}`).join('\n')}`,

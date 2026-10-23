@@ -80,7 +80,7 @@ export const planCasaGuia = onCall(
       const texto = resp.content.map(b => (b.type === 'text' ? b.text : '')).join('');
       let bruto: unknown;
       try { bruto = JSON.parse(texto); } catch { return { ok: false, error: 'La respuesta de la IA no tuvo el formato esperado. Inténtalo de nuevo.' }; }
-      const guia = sanearGuia(bruto, e.topeDiario, e.semanas);
+      const guia = sanearGuia(bruto, e.topeDiario, e.semanas, e.sinTecnologia === true);
       if (!guia) return { ok: false, error: 'La IA devolvió una guía incompleta. Inténtalo de nuevo.' };
       return { ok: true, guia };
     } catch (err) {

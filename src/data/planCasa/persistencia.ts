@@ -135,6 +135,7 @@ export interface DatosNuevoPlan {
   studentId: string; nombres: string; apellidos: string; grupo: string;
   desde: string; hasta: string; motivo: string; contextoDocentes?: string; ajustes: string[]; topeDiario: number;
   ritmo: RitmoPlan;
+  sinTecnologia?: boolean;
   modalidad: ModalidadGuias;
   /** Solo en transversal: cada asignatura del grupo en exactamente una guía. */
   guiasTransversales?: GuiaTransversalDef[];
@@ -164,7 +165,7 @@ export async function crearPlan(d: DatosNuevoPlan): Promise<ResultadoCrear> {
   const ref = await addDoc(collection(bd, COL_PLANES), {
     studentId: d.studentId, nombres: d.nombres, apellidos: d.apellidos, grupo: d.grupo,
     desde: d.desde, hasta: d.hasta, ...(d.contextoDocentes?.trim() ? { contextoDocentes: d.contextoDocentes.trim() } : {}), ajustes: d.ajustes, topeDiario: d.topeDiario,
-    ritmo: d.ritmo ?? 'diario', modalidad: d.modalidad, docentesCorreos,
+    ritmo: d.ritmo ?? 'diario', ...(d.sinTecnologia ? { sinTecnologia: true } : {}), modalidad: d.modalidad, docentesCorreos,
     estado: 'activo', tokenPublico: token, creadoPor: correo, creadoEn: ahora, actualizadoEn: ahora,
   });
   await setDoc(doc(bd, COL_PLANES, ref.id, SUB_RESERVADO, DOC_MOTIVO), {
@@ -215,6 +216,10 @@ export async function darVistoBueno(planId: string, guiaId: string, correo: stri
 
 export async function cambiarEstadoPlan(planId: string, estado: 'activo' | 'cerrado') {
   await updateDoc(doc(baseDatos(), COL_PLANES, planId), { estado, actualizadoEn: Date.now() });
+}
+
+export async function guardarSinTecnologia(planId: string, sinTecnologia: boolean, ajustes: string[]) {
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId), { sinTecnologia, ajustes, actualizadoEn: Date.now() });
 }
 
 export async function guardarContexto(planId: string, contextoDocentes: string) {
@@ -270,7 +275,7 @@ export async function sugerirPreguntas(entrada: { tematica: string; asignaturas:
 
 export interface EntradaSugerirCampos {
   modo: 'asignatura' | 'pedido'; preguntaOrientadora?: string; asignaturas: string[]; grado: string;
-  ajustes?: string[]; existentes?: Record<string, string>;
+  ajustes?: string[]; existentes?: Record<string, string>; sinTecnologia?: boolean;
 }
 
 export async function sugerirCampos(entrada: EntradaSugerirCampos): Promise<Record<string, string>> {
