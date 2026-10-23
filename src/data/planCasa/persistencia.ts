@@ -133,7 +133,7 @@ export interface GuiaTransversalDef { eje: string; asignaturaIds: string[]; resp
 
 export interface DatosNuevoPlan {
   studentId: string; nombres: string; apellidos: string; grupo: string;
-  desde: string; hasta: string; motivo: string; ajustes: string[]; topeDiario: number;
+  desde: string; hasta: string; motivo: string; contextoDocentes?: string; ajustes: string[]; topeDiario: number;
   ritmo: RitmoPlan;
   modalidad: ModalidadGuias;
   /** Solo en transversal: cada asignatura del grupo en exactamente una guía. */
@@ -163,7 +163,7 @@ export async function crearPlan(d: DatosNuevoPlan): Promise<ResultadoCrear> {
 
   const ref = await addDoc(collection(bd, COL_PLANES), {
     studentId: d.studentId, nombres: d.nombres, apellidos: d.apellidos, grupo: d.grupo,
-    desde: d.desde, hasta: d.hasta, ajustes: d.ajustes, topeDiario: d.topeDiario,
+    desde: d.desde, hasta: d.hasta, ...(d.contextoDocentes?.trim() ? { contextoDocentes: d.contextoDocentes.trim() } : {}), ajustes: d.ajustes, topeDiario: d.topeDiario,
     ritmo: d.ritmo ?? 'diario', modalidad: d.modalidad, docentesCorreos,
     estado: 'activo', tokenPublico: token, creadoPor: correo, creadoEn: ahora, actualizadoEn: ahora,
   });
@@ -215,6 +215,10 @@ export async function darVistoBueno(planId: string, guiaId: string, correo: stri
 
 export async function cambiarEstadoPlan(planId: string, estado: 'activo' | 'cerrado') {
   await updateDoc(doc(baseDatos(), COL_PLANES, planId), { estado, actualizadoEn: Date.now() });
+}
+
+export async function guardarContexto(planId: string, contextoDocentes: string) {
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId), { contextoDocentes: contextoDocentes.trim(), actualizadoEn: Date.now() });
 }
 
 /** Revoca el enlace anterior y genera otro. Devuelve el token nuevo. */

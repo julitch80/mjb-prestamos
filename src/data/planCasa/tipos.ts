@@ -65,6 +65,8 @@ export interface PlanCasa {
   hasta: FechaISO;
   /** Ajustes razonables en lenguaje pedagógico, SIN diagnóstico. Es lo único que va a la IA. */
   ajustes: string[];
+  /** Contexto para los docentes del plan, en lenguaje pedagógico, SOLO LECTURA para ellos. Sin diagnóstico ni datos sensibles (eso va en el motivo reservado). No va a la IA ni al QR. */
+  contextoDocentes?: string;
   /** Máximo de momentos (25 min) por día sumando todas las asignaturas. */
   topeDiario: number;
   /** 'diario' (defecto) o 'dia_por_medio': solo un día hábil de cada dos lleva trabajo. */

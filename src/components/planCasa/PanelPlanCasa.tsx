@@ -12,7 +12,7 @@ import {
 } from '../../data/planCasa/tipos';
 import {
   asignaturasDelGrupo, cambiarEstadoPlan, crearPlan, escucharAsignaturas, escucharGuias, escucharPlanes, type GuiaTransversalDef,
-  leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
+  guardarContexto, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
 import {
@@ -40,6 +40,7 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
   const [desde, setDesde] = useState(hoyISO());
   const [hasta, setHasta] = useState('');
   const [motivo, setMotivo] = useState('');
+  const [contexto, setContexto] = useState('');
   const [ajustes, setAjustes] = useState<string[]>([]);
   const [libre, setLibre] = useState('');
   const [tope, setTope] = useState(TOPE_DIARIO_DEFECTO);
@@ -94,7 +95,7 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
     try {
       const r = await crearPlan({
         studentId: est.studentId, nombres: est.nombres, apellidos: est.apellidos, grupo: est.gradoActual,
-        desde, hasta, motivo: motivo.trim(), ajustes, topeDiario: tope, ritmo, modalidad,
+        desde, hasta, motivo: motivo.trim(), contextoDocentes: contexto, ajustes, topeDiario: tope, ritmo, modalidad,
         ...(modalidad === 'transversal' ? { guiasTransversales: defs.map(g => ({ ...g, eje: g.eje.trim() })) } : {}),
       });
       let msg = `Plan creado para ${est.nombres}.`;
@@ -161,7 +162,13 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
       </div>
 
       <div>
-        <Etiqueta>Motivo (reservado: solo equipo y coordinación)</Etiqueta>
+        <Etiqueta>Contexto para los docentes</Etiqueta>
+        <textarea value={contexto} onChange={e => setContexto(e.target.value)} rows={3} className={CLASE_INPUT} />
+        <p className="text-[11px] text-muted mt-1">Lo leen todos los docentes del plan. Escríbalo en lenguaje pedagógico, sin diagnósticos; lo sensible va en el motivo reservado.</p>
+      </div>
+
+      <div>
+        <Etiqueta>Motivo reservado (solo UAI, orientación y coordinación)</Etiqueta>
         <textarea value={motivo} onChange={e => setMotivo(e.target.value)} rows={2} className={CLASE_INPUT} />
       </div>
 
@@ -332,6 +339,8 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
   const [abierto, setAbierto] = useState(false);
   const [motivo, setMotivo] = useState<string | null>(null);
   const [verQR, setVerQR] = useState(false);
+  const [ctx, setCtx] = useState(plan.contextoDocentes ?? '');
+  const [ctxMsg, setCtxMsg] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => escucharAsignaturas(plan.id, setAsigs, e => setError(e.message)), [plan.id]);
@@ -416,6 +425,15 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
       {abierto && (
         <div className="rounded-xl bg-elevated p-3 space-y-2 text-sm">
           <p className="text-soft"><span className="font-medium text-strong">Motivo (reservado):</span> {motivo ?? 'Cargando…'}</p>
+          <div>
+            <p className="font-medium text-strong">Contexto para los docentes</p>
+            <textarea value={ctx} onChange={e => { setCtx(e.target.value); setCtxMsg(''); }} rows={3} className={CLASE_INPUT} />
+            <div className="flex items-center gap-2 mt-1">
+              <button onClick={() => guardarContexto(plan.id, ctx).then(() => setCtxMsg('Guardado.')).catch(e => setError(e.message))}
+                className={CLASE_BOTON_SEC}>Guardar contexto</button>
+              {ctxMsg && <span className="text-xs text-soft">{ctxMsg}</span>}
+            </div>
+          </div>
           <p className="text-soft"><span className="font-medium text-strong">Ajustes:</span> {plan.ajustes.length ? plan.ajustes.join(' · ') : 'ninguno'}</p>
           <p className="text-soft"><span className="font-medium text-strong">Tope diario:</span> {plan.topeDiario} momentos · ritmo {plan.ritmo === 'dia_por_medio' ? 'día por medio' : 'diario'}</p>
           <button onClick={() => cambiarEstadoPlan(plan.id, plan.estado === 'activo' ? 'cerrado' : 'activo').catch(e => setError(e.message))}

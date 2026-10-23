@@ -135,6 +135,12 @@ function CriteriosAsignatura({ plan, a, nombre, gestor }: { plan: PlanConDocente
     <div className="rounded-2xl border border-line bg-card p-4 space-y-3">
       <h3 className="text-sm font-semibold text-strong">{nombre}</h3>
       {gestor && <NotaGestor />}
+      {plan.contextoDocentes?.trim() && (
+        <div className="rounded-xl bg-elevated text-xs p-3">
+          <p className="font-medium text-strong mb-1">Contexto del estudiante</p>
+          <p className="text-soft whitespace-pre-wrap">{plan.contextoDocentes}</p>
+        </div>
+      )}
       {plan.ajustes.length > 0 && (
         <div className="rounded-xl bg-info-soft text-info-soft-fg text-xs p-3">
           <p className="font-medium mb-1">Ajustes razonables del estudiante</p>
@@ -434,6 +440,12 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
 
       {(!r.guia || editando) && (
         <div className="space-y-3">
+          {plan.contextoDocentes?.trim() && (
+            <div className="rounded-xl bg-elevated text-xs p-3">
+              <p className="font-medium text-strong mb-1">Contexto del estudiante</p>
+              <p className="text-soft whitespace-pre-wrap">{plan.contextoDocentes}</p>
+            </div>
+          )}
           {plan.ajustes.length > 0 && (
             <div className="rounded-xl bg-info-soft text-info-soft-fg text-xs p-3">
               <p className="font-medium mb-1">Ajustes razonables del estudiante</p>
