@@ -227,6 +227,8 @@ export default function Asistencia() {
 
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Aviso que no bloquea (2026-10-23): la hora la tiene otro docente, pero la planilla se ve.
+  const [aviso, setAviso] = useState<string | null>(null);
   const [sesiones, setSesiones] = useState<Session[]>([]);
   const [estudiantes, setEstudiantes] = useState<Student[]>([]);
   const [matriculas, setMatriculas] = useState<Enrollment[]>([]);
@@ -237,7 +239,7 @@ export default function Asistencia() {
   // error general (2026-10-22). Un fallo al ABRIR desde la lista no cambia `cruce`, asi
   // que ese aviso si se queda.
   useEffect(() => {
-    if (cruce === null) setError(null);
+    if (cruce === null) { setError(null); setAviso(null); }
   }, [cruce]);
   /** Navegacion interna: por estado, nunca por URL (contrato, seccion 6). */
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
@@ -878,6 +880,15 @@ export default function Asistencia() {
   const abrirCruce = useCallback(
     async (grado: string, subjectId: string, bloque: number) => {
       setError(null);
+      setAviso(null);
+      // Si la hora no se puede abrir (la tiene otro docente), la planilla SE ABRE IGUAL, sin
+      // columna de hoy: el docente ve la lista y usa las demas pestañas (alerta academica...);
+      // solo no llama lista en esa hora. Antes se quedaba en un error y sin ver nada
+      // (docentes, 2026-10-23: pasaba con los grupos que ese dia no tenian clase con ellos).
+      const abrirSinHora = (texto: string) => {
+        setCruce({ grado, subjectId });
+        setAviso(`${texto} Puede ver la planilla y usar las demás pestañas, como la alerta académica; lo que no puede es llamar lista en esa hora.`);
+      };
       try {
         // Clase de dos horas: si el horario de hoy le pone este grupo tambien en la otra
         // hora del bloque (1-2, 3-4, 5-6), se crean LAS DOS sesiones enlazadas. Se llama
@@ -890,7 +901,7 @@ export default function Asistencia() {
         const fecha = toDateKey(new Date());
         const ocupada = asignaturaQueOcupaLaHora(sesiones, grado, fecha, bloque, subjectId);
         if (ocupada) {
-          setError(mensajeHoraOcupada(grado, bloque, ocupada, subjectId));
+          abrirSinHora(mensajeHoraOcupada(grado, bloque, ocupada, subjectId));
           return;
         }
         const horasYaAbiertas = sesiones
@@ -919,7 +930,7 @@ export default function Asistencia() {
         // blanco.
         if (abierta.subjectId !== subjectId) {
           await cargarSesiones();
-          setError(mensajeHoraOcupada(grado, bloque, abierta.subjectId, subjectId));
+          abrirSinHora(mensajeHoraOcupada(grado, bloque, abierta.subjectId, subjectId));
           return;
         }
         if (pareja && otra !== null) await abrirSesion({ ...base, bloque: otra });
@@ -930,12 +941,14 @@ export default function Asistencia() {
         // (una hora de clase = una sola planilla, sin importar quien), y su planilla no se
         // puede ni leer. Se dice en claro en vez del aviso generico (Gloria, 2026-10-22).
         const texto = e instanceof Error ? e.message : String(e);
-        setError(
-          texto.includes('permission-denied') || texto.includes('insufficient permissions')
-            ? `La ${bloque}.ª hora de hoy en ${grado} ya la abrió otro docente. Revise que esté abriendo ` +
-                'la hora que le corresponde según su horario; si esa hora sí es su clase, avise a coordinación.'
-            : mensajeDeError(e),
-        );
+        if (texto.includes('permission-denied') || texto.includes('insufficient permissions')) {
+          abrirSinHora(
+            `La ${bloque}.ª hora de hoy en ${grado} ya la abrió otro docente (los estudiantes están en su clase). ` +
+              'Si esa hora sí es la suya según el horario, avise a coordinación.',
+          );
+        } else {
+          setError(mensajeDeError(e));
+        }
       }
     },
     [sede, slotId, sesiones, cargarSesiones],
@@ -1221,6 +1234,12 @@ export default function Asistencia() {
           {error}
         </div>
       )}
+      {aviso && cruce && (
+        <div className="flex items-start gap-2 rounded-xl border border-line bg-elevated p-3 text-sm text-soft">
+          <span className="flex-1">{aviso}</span>
+          <button type="button" onClick={() => setAviso(null)} className="min-h-[32px] px-2 text-muted" aria-label="Cerrar el aviso">✕</button>
+        </div>
+      )}
 
       {/*
         Sin cruce elegido, la pantalla es "Mis grupos". Antes habia una fila de pastillas
@@ -1291,9 +1310,11 @@ export default function Asistencia() {
             );
             // Si ya hay planilla, se abre y punto. Si es la primera vez de este grupo,
             // hay que saber en que bloque es la clase antes de crear la sesion.
-            if (yaTieneSesiones) setCruce({ grado, subjectId });
-            else if (puedeRegistrar) setBloqueParaAbrir({ grado, subjectId });
-            else setCruce({ grado, subjectId });
+            setAviso(null);
+            // La planilla se abre siempre; la primera vez, ademas, se pregunta la hora encima
+            // (si se cancela o la hora esta tomada, la planilla queda a la vista igual).
+            setCruce({ grado, subjectId });
+            if (!yaTieneSesiones && puedeRegistrar) setBloqueParaAbrir({ grado, subjectId });
           }}
           onSinAsignacion={() => setFormularioManual(true)}
           grupoAbierto={grupoPlanillas}
