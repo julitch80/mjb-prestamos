@@ -95,11 +95,10 @@ export function BotonFormatoUAI({ plan, guias, asigs, nombres }: {
   );
 }
 
-/** «Imprimir cuadernillo (versión PDF)»: un solo documento con todas las guías aprobadas, para el estudiante sin tecnología. */
+/** «Imprimir cuadernillo (versión PDF)»: un solo documento con todas las guías aprobadas. Sale en todos los planes; en los sin tecnología es el material principal. */
 export function BotonCuadernillo({ plan, guias, nombres }: {
   plan: Parameters<typeof construirHtmlCuadernillo>[0] & { sinTecnologia?: boolean }; guias: GuiaPlan[]; nombres: Record<string, { asignatura: string; docente: string }>;
 }) {
-  if (!plan.sinTecnologia) return null;
   const html = construirHtmlCuadernillo(plan, guias, nombres);
   const pendientes = guias.filter(g => !g.aprobada).flatMap(g => g.asignaturaIds.map(id => nombres[id]?.asignatura ?? id));
   return (
@@ -108,6 +107,7 @@ export function BotonCuadernillo({ plan, guias, nombres }: {
         title={html ? 'Abre el cuadernillo para imprimir o guardar como PDF' : 'Aún no hay guías aprobadas'}>
         <Printer size={15} />Imprimir cuadernillo (versión PDF)
       </button>
+      {!plan.sinTecnologia && <p className="text-[11px] text-muted">Versión impresa opcional: los enlaces y archivos de la agenda no salen en papel.</p>}
       {pendientes.length > 0 && <p className="text-[11px] text-muted">Falta aprobar (no entran al cuadernillo): {pendientes.join(', ')}.</p>}
     </div>
   );
