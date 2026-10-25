@@ -2,7 +2,7 @@
 // Solo funciona en modo google con Firebase configurado. En modo pin el item de
 // navegación 'chat' ni siquiera aparece (filtrado en App.tsx).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Paperclip, Mic, Trash2, Send, FileText, X, Pin, SmilePlus, Reply, Forward, ChevronDown, Pencil } from 'lucide-react';
+import { Paperclip, Mic, Trash2, Send, FileText, X, Pin, SmilePlus, Reply, Forward, ChevronDown, Pencil, Palette } from 'lucide-react';
 import { useAppStore } from '../data/store';
 import { useChatStore } from '../data/chatStore';
 import { esperarAuth, firebaseConfigurado } from '../lib/firebase';
@@ -67,6 +67,67 @@ function SelectorLetra({ valor, onChange }: { valor: number; onChange: (px: numb
   );
 }
 
+// Fondo del área de mensajes: 5 opciones, cada una con variante clara y oscura.
+// Contrastes verificados con WCAG (burbuja/fondo con anillo >= 1,38; pastilla de fecha >= 5,1).
+const FONDOS = [
+  { id: 'verde', nombre: 'Verde suave', claro: '#dfe8d8', oscuro: '#0b141a' },
+  { id: 'arena', nombre: 'Arena', claro: '#e8dfcf', oscuro: '#17130d' },
+  { id: 'azul', nombre: 'Azul suave', claro: '#d6e2ee', oscuro: '#0b1220' },
+  { id: 'gris', nombre: 'Gris suave', claro: '#dcdfe3', oscuro: '#121417' },
+  { id: 'sin', nombre: 'Sin color', claro: '#f7f8fa', oscuro: '#0a0e1a' },
+];
+const CLAVE_FONDO = 'mjb.chat.fondo';
+function leerFondo(): string {
+  try {
+    const v = localStorage.getItem(CLAVE_FONDO);
+    if (FONDOS.some((f) => f.id === v)) return v as string;
+  } catch { /* sin almacenamiento */ }
+  return 'verde';
+}
+
+function SelectorFondo({ valor, oscuro, onChange }: { valor: string; oscuro: boolean; onChange: (id: string) => void }) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <div className="relative flex-shrink-0">
+      <button
+        onClick={() => setAbierto((a) => !a)}
+        aria-label="Fondo del chat"
+        aria-expanded={abierto}
+        title="Fondo del chat"
+        className="w-11 h-11 flex items-center justify-center rounded-md bg-elevated text-muted hover:text-strong transition"
+      >
+        <Palette size={20} />
+      </button>
+      {abierto && (
+        <div
+          role="group"
+          aria-label="Fondo del chat"
+          className="absolute right-0 top-full mt-1 z-30 w-48 rounded-xl border border-line bg-card shadow-lg p-1"
+        >
+          {FONDOS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => { onChange(f.id); setAbierto(false); }}
+              aria-pressed={valor === f.id}
+              aria-label={`Fondo ${f.nombre}`}
+              className={
+                'w-full min-h-11 flex items-center gap-3 px-2 rounded-lg text-sm text-left transition ' +
+                (valor === f.id ? 'bg-accent-soft text-strong' : 'text-soft hover:bg-elevated')
+              }
+            >
+              <span
+                className={'w-7 h-7 rounded-full flex-shrink-0 border-2 ' + (valor === f.id ? 'border-accent' : 'border-line-strong')}
+                style={{ background: oscuro ? f.oscuro : f.claro }}
+              />
+              {f.nombre}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function tsToDate(ts: any): Date | null {
   if (!ts) return null;
   if (typeof ts.toDate === 'function') return ts.toDate();
@@ -121,6 +182,13 @@ export default function Chat() {
     setLetraPx(px);
     try { localStorage.setItem(CLAVE_LETRA, String(px)); } catch { /* ignorar */ }
   }
+  const temaOscuro = useAppStore((s) => s.temaOscuro);
+  const [fondoId, setFondoId] = useState<string>(leerFondo);
+  function cambiarFondo(id: string) {
+    setFondoId(id);
+    try { localStorage.setItem(CLAVE_FONDO, id); } catch { /* ignorar */ }
+  }
+  const fondoSel = FONDOS.find((f) => f.id === fondoId) ?? FONDOS[0];
   const finRef = useRef<HTMLDivElement>(null);
   const inputArchivoRef = useRef<HTMLInputElement>(null);
   const grabadoraRef = useRef<Grabadora | null>(null);
@@ -529,6 +597,7 @@ export default function Chat() {
                 {canalActual ? nombreCanal(canalActual) : ''}
               </span>
               <SelectorLetra valor={letraPx} onChange={cambiarLetra} />
+              <SelectorFondo valor={fondoId} oscuro={temaOscuro} onChange={cambiarFondo} />
             </header>
 
             {/* A1 — franja del mensaje fijado. Al tocarla, salta al original
@@ -551,14 +620,17 @@ export default function Chat() {
               </button>
             )}
 
-            <div className="flex-1 overflow-y-auto p-4">
+            <div
+              className="flex-1 overflow-y-auto p-4"
+              style={{ ['--chat-bg' as any]: temaOscuro ? fondoSel.oscuro : fondoSel.claro, background: 'var(--chat-bg)' }}
+            >
               {agruparMensajes(
                 mensajes.map((m) => ({ ...m, fecha: tsToDate(m.createdAt) })),
               ).map(({ m, separador, inicioRacha, finRacha }) => (
                 <div key={m.id} className={inicioRacha ? 'mt-3' : 'mt-0.5'}>
                   {separador && (
                     <div className="flex justify-center my-2">
-                      <span className="px-3 py-0.5 rounded-full bg-elevated text-muted" style={{ fontSize: FS_SEC }}>
+                      <span className="px-3 py-0.5 rounded-full bg-elevated text-muted ring-1 ring-line-strong/40" style={{ fontSize: FS_SEC }}>
                         {separador}
                       </span>
                     </div>
@@ -1002,7 +1074,7 @@ function Burbuja({
       <div
         className={
           'rounded-2xl px-3 py-2 ' +
-          (propio ? 'bg-accent-soft text-strong ring-1 ring-accent/30' : 'bg-elevated text-strong')
+          (propio ? 'bg-accent-soft text-strong ring-1 ring-accent/30' : 'bg-elevated text-strong ring-1 ring-line-strong/40')
         }
       >
         {!propio && inicioRacha && (
