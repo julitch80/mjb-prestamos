@@ -162,11 +162,11 @@ export default function AlertaCoordinacion({
   }
 
   /**
-   * La descarga de la jornada (Julian, 2026-10-03): coordinacion centraliza la impresion y
-   * la pide a biblioteca con UN solo correo y UN solo archivo. Por eso van juntas, en un solo
-   * documento, todas las citaciones (de las agendas guardadas) y todos los informes.
+   * La descarga de la jornada (Julian, 2026-10-03): coordinacion centraliza la impresion.
+   * Desde el 2026-10-24, UN ARCHIVO POR PARTE (citaciones, informes, planillas, soportes):
+   * en uno solo, separar y cortar al imprimir era un enredo.
    */
-  async function descargarTodo() {
+  async function descargarTodo(parte: ParteImpresion) {
     if (!conv) return;
     setGuardando(true);
     setError(null);
@@ -175,7 +175,7 @@ export default function AlertaCoordinacion({
       if (!estudiantes) setEstudiantes(todos);
       const frescas = await agendasDeJornada(sede, jornada, conv.anio, conv.periodo);
       setAgendas(frescas);
-      const titulo = `Alerta académica · jornada ${jornada === 'manana' ? 'mañana' : 'tarde'} · periodo ${conv.periodo}`;
+      const titulo = `${NOMBRE_PARTE[parte]} · alerta académica · jornada ${jornada === 'manana' ? 'mañana' : 'tarde'} · periodo ${conv.periodo}`;
       const citaciones: ReturnType<typeof citacionesDelGrupo> = [];
       const informes: ReturnType<typeof informesDelGrupo> = [];
       const firmas: NonNullable<ReturnType<typeof planillaDelGrupo>>[] = [];
@@ -201,8 +201,24 @@ export default function AlertaCoordinacion({
         const pf = planillaDelGrupo(g, cg, a, c.filas, del, nombreDirector(directores[g]), ordenPlanilla);
         if (pf) firmas.push(pf);
       }
-      const ok = imprimirTodo(sede, citaciones, informes, titulo, firmas,
-        conv.fechaEntrega ? { fecha: fechaLarga(conv.fechaEntrega), cuantas: nConstancias } : null);
+      const vacio = parte === 'citaciones' ? citaciones.length === 0
+        : parte === 'informes' ? informes.length === 0
+        : parte === 'planillas' ? firmas.length === 0
+        : !conv.fechaEntrega || nConstancias === 0;
+      if (vacio) {
+        setError(parte === 'soportes'
+          ? 'Para los soportes hace falta el día de entrega y al menos una constancia.'
+          : `No hay ${NOMBRE_PARTE[parte].toLowerCase()} para imprimir todavía.`);
+        return;
+      }
+      const ok = imprimirTodo(
+        sede,
+        parte === 'citaciones' ? citaciones : [],
+        parte === 'informes' ? informes : [],
+        titulo,
+        parte === 'planillas' ? firmas : [],
+        parte === 'soportes' && conv.fechaEntrega ? { fecha: fechaLarga(conv.fechaEntrega), cuantas: nConstancias } : null,
+      );
       if (!ok) setError('El navegador bloqueó la ventana de impresión: permita las ventanas emergentes de la app.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo preparar el documento.');
@@ -413,9 +429,9 @@ export default function AlertaCoordinacion({
 
           <div className="flex flex-col gap-2 border-t border-line pt-3">
             <p className="text-xs text-muted">
-              Todo lo que hay que imprimir de la jornada en un solo archivo: las citaciones y los informes individuales
-              (4 por hoja), la planilla de asistencia de cada grupo y las constancias de asistencia en blanco para el
-              día de la entrega. Ábralo, guárdelo como PDF y envíelo a biblioteca en un solo correo.
+              Lo que hay que imprimir de la jornada, un archivo por cada parte: las citaciones y los informes individuales
+              (4 por hoja), la planilla de asistencia de cada grupo y los soportes de asistencia (constancias en blanco)
+              para el día de la entrega. Ábralos, guárdelos como PDF y envíelos a biblioteca.
             </p>
             {sinAgenda.length > 0 && (
               <p className="rounded-xl bg-warning-soft px-3 py-2 text-xs text-warning-soft-fg">
@@ -434,9 +450,13 @@ export default function AlertaCoordinacion({
                 Constancias en blanco (sugerido {constanciasSugeridas})
                 <input type="number" min={0} step={4} value={nConstancias} onChange={(e) => setConstancias(Math.max(0, +e.target.value))} className={`${CAJA} w-24`} />
               </label>
-              <button disabled={guardando} onClick={() => void descargarTodo()} className={`${BOTON} bg-accent text-accent-fg`}>
-                Descargar todo para imprimir
-              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {PARTES.map((parte) => (
+                <button key={parte} disabled={guardando} onClick={() => void descargarTodo(parte)} className={`${BOTON} bg-accent text-accent-fg`}>
+                  {NOMBRE_PARTE[parte]}
+                </button>
+              ))}
             </div>
           </div>
         </section>
@@ -704,6 +724,15 @@ function CasosEspeciales({
     </div>
   );
 }
+
+type ParteImpresion = 'citaciones' | 'informes' | 'planillas' | 'soportes';
+const PARTES: ParteImpresion[] = ['citaciones', 'informes', 'planillas', 'soportes'];
+const NOMBRE_PARTE: Record<ParteImpresion, string> = {
+  citaciones: 'Citaciones',
+  informes: 'Informes',
+  planillas: 'Planillas de asistencia',
+  soportes: 'Soportes de asistencia',
+};
 
 const MODOS: { modo: ModoAgenda; ayuda: string }[] = [
   { modo: 'turnos', ayuda: 'Cada acudiente con su hora; más asignaturas, más tiempo.' },

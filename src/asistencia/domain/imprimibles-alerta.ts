@@ -203,7 +203,12 @@ export function htmlParaImprimir(
   return documento(
     titulo,
     cuerpo,
-    `${citaciones.length} citaciones, ${informes.length} informes, ${planillas.length} planillas de asistencia y ${nConst} constancias · ${hojas} hoja(s)`,
+    [
+      citaciones.length && `${citaciones.length} citaciones`,
+      informes.length && `${informes.length} informes`,
+      planillas.length && `${planillas.length} planillas de asistencia`,
+      nConst && `${nConst} constancias`,
+    ].filter(Boolean).join(', ') + ` · ${hojas} hoja(s)`,
   );
 }
 
