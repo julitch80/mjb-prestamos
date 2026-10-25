@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { getAsignatura } from '../data/asignacionAcademica';
 import { convocatoriasAlerta, leerResumenesAlerta, recalcularResumenAlerta } from './datos';
 import {
-  asignaturasDeResumen,
+  asignaturasPorNivel,
   filasDeResumen,
+  NOMBRE_NIVEL,
   totalesDe,
   type FilaGrupo,
   type PuntoPeriodo,
@@ -11,6 +12,7 @@ import {
   type Totales,
 } from './domain/analisis-alerta';
 import { GraficoEvolucion, GraficoGrupos } from './GraficosAlerta';
+import { asignaturasDelGrado } from './horarioDelDia';
 import type { Jornada, Sede } from './domain/types';
 
 const SEDES: Sede[] = ['central', 'gustavo_rodas', 'la_finquita'];
@@ -98,8 +100,10 @@ export default function PanoramaAlerta({ sede: sedeInicial, jornadaLimitada = nu
     const rs = todos.filter((r) => r.periodo === p && enAlcance(r));
     return { periodo: p, grupo: rs.length ? totalDe(rs).porcentajeSinAlerta : null, jornada: null };
   });
-  const asignaturas = asignaturasDeResumen(delPeriodo.flatMap((r) => Object.values(r.grupos))).slice(0, 8);
-  const maxAsig = Math.max(1, ...asignaturas.map((a) => a.n));
+  // TODAS las asignaturas, tambien las de 0, por nivel (2026-10-25). Un grado de dos sedes no
+  // se mezcla: la clave lleva la sede.
+  const gruposDelAlcance = Object.fromEntries(delPeriodo.flatMap((r) => Object.entries(r.grupos).map(([g, x]) => [`${g}@${r.sede}`, x])));
+  const niveles = asignaturasPorNivel(gruposDelAlcance, (clave) => asignaturasDelGrado(clave.split('@')[0]).map((a) => a.subjectId));
   const sedesConDatos = SEDES.filter((s) => todos.some((r) => r.periodo === periodo && r.sede === s));
 
   return (
@@ -195,21 +199,25 @@ export default function PanoramaAlerta({ sede: sedeInicial, jornadaLimitada = nu
               </section>
             ))}
 
-          {asignaturas.length > 0 && (
-            <section className="rounded-2xl border border-line bg-card p-4">
-              <h4 className="mb-3 text-sm font-semibold text-strong">Asignaturas con más estudiantes en alerta</h4>
-              <ul className="flex flex-col gap-1">
-                {asignaturas.map((a) => (
-                  <li key={a.subjectId} className="flex items-center gap-2 text-sm">
-                    <span className="w-36 shrink-0 truncate text-soft">{getAsignatura(a.subjectId)?.nombre ?? a.subjectId}</span>
-                    <span className="relative h-4 flex-1"><span className="absolute inset-y-0 left-0 rounded-r bg-accent" style={{ width: `${(a.n / maxAsig) * 100}%` }} /></span>
-                    <span className="w-10 shrink-0 text-right font-bold tabular-nums text-strong">{a.n}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2 text-xs text-muted">Número de estudiantes en alerta en cada asignatura, sumando los grupos.</p>
-            </section>
-          )}
+          {niveles.map((b) => {
+            const max = Math.max(1, ...b.asignaturas.map((a) => a.n));
+            return (
+              <section key={b.nivel} className="rounded-2xl border border-line bg-card p-4">
+                <h4 className="text-sm font-semibold text-strong">Estudiantes en alerta por asignatura · {NOMBRE_NIVEL[b.nivel]}</h4>
+                <p className="mb-3 text-xs text-muted">{b.estudiantes} estudiantes en el nivel · todas las asignaturas, también las que no tienen a nadie en alerta</p>
+                <ul className="flex flex-col gap-1">
+                  {b.asignaturas.map((a) => (
+                    <li key={a.subjectId} className="flex items-center gap-2 text-sm" title={`${getAsignatura(a.subjectId)?.nombre ?? a.subjectId}: ${a.n} estudiantes (${a.porcentaje} %)`}>
+                      <span className="w-40 shrink-0 truncate text-soft">{getAsignatura(a.subjectId)?.nombre ?? a.subjectId}</span>
+                      <span className="relative h-4 flex-1"><span className="absolute inset-y-0 left-0 rounded-r bg-accent" style={{ width: a.n ? `${Math.max(1, (a.n / max) * 100)}%` : 0 }} /></span>
+                      <span className="w-24 shrink-0 text-right tabular-nums"><b className="text-strong">{a.n}</b> <span className="text-xs text-muted">· {a.porcentaje} %</span></span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-muted">Número de estudiantes en alerta en cada asignatura, sumando los grupos, y qué parte son de los estudiantes que la ven.</p>
+              </section>
+            );
+          })}
 
           {evolucion.length > 1 && (
             <section className="rounded-2xl border border-line bg-card p-4">

@@ -21,6 +21,8 @@ export interface Barra {
   ids: string[];
   /** Barra de los que se citan (dos o mas asignaturas). */
   seCita?: boolean;
+  /** Asignatura que aun no entrega: su 0 todavia no dice nada. */
+  pendiente?: boolean;
 }
 
 export interface AnalisisGrupo {
@@ -33,7 +35,7 @@ export interface AnalisisGrupo {
   porcentajeCitados: number;
   /** 0, 1, 2, 3 y «4 o más» asignaturas en alerta. */
   distribucion: Barra[];
-  /** Asignaturas con al menos un estudiante en alerta, de mas a menos. */
+  /** TODAS las asignaturas del grupo, tambien las de 0 (Julian, 2026-10-25), de mas a menos. */
   porAsignatura: Barra[];
   /** Asignaturas que entregaron sin nadie en alerta. */
   sinNadieEnAlerta: string[];
@@ -64,8 +66,12 @@ export function analizarGrupo(
     c.ids.push(f.studentId);
     for (const s of f.enAlerta) porAsig.set(s, [...(porAsig.get(s) ?? []), f.studentId]);
   }
-  const porAsignatura = [...porAsig.entries()]
-    .map(([s, ids]) => ({ clave: s, etiqueta: nombre(s), n: ids.length, ids }))
+  const claves = [...new Set([...esperadas.map((e) => e.subjectId), ...porAsig.keys()])];
+  const porAsignatura: Barra[] = claves
+    .map((s) => {
+      const ids = porAsig.get(s) ?? [];
+      return { clave: s, etiqueta: nombre(s), n: ids.length, ids, ...(faltantes.includes(s) ? { pendiente: true } : {}) };
+    })
     .sort((a, b) => b.n - a.n || a.etiqueta.localeCompare(b.etiqueta, 'es'));
   const sinAlerta = cubos[0].n;
   const citados = filas.filter((f) => f.citar).length;
@@ -94,9 +100,11 @@ export function agruparParaSalon(barras: Barra[]): Barra[] {
   const solas = barras.filter((b) => b.n === 1);
   if (solas.length === 0) return barras;
   const ids = [...new Set(solas.flatMap((b) => b.ids))];
+  // Las de 0 se quedan (no señalan a nadie), al final.
   return [
     ...barras.filter((b) => b.n > 1),
     { clave: 'otras', etiqueta: solas.length === 1 ? 'Otra asignatura' : `Otras ${solas.length} asignaturas`, n: ids.length, ids },
+    ...barras.filter((b) => b.n === 0),
   ];
 }
 
@@ -149,6 +157,73 @@ export function gruposDeJornada(planillas: PlanillaAlerta[], propio: string): Fi
     .filter((x): x is { g: string; r: Referencia } => !!x.r)
     .map(({ g, r }) => ({ grado: g, porcentajeSinAlerta: r.porcentajeSinAlerta, propio: g === propio }))
     .sort((a, b) => b.porcentajeSinAlerta - a.porcentajeSinAlerta || a.grado.localeCompare(b.grado, 'es', { numeric: true }));
+}
+
+// ── niveles: basica y media (2026-10-25) ───────────────────────────────────────────
+
+export type Nivel = 'primaria' | 'basica' | 'media';
+
+export const NOMBRE_NIVEL: Record<Nivel, string> = {
+  primaria: 'Primaria',
+  basica: 'Básica (6° a 9°)',
+  media: 'Media (10° y 11°)',
+};
+
+/** El nivel de un grado literal (`9.1`, `6º1`, `10.2`, `Transición`...). */
+export function nivelDeGrado(grado: string): Nivel {
+  const n = parseInt(grado, 10);
+  if (Number.isNaN(n) || n <= 5) return 'primaria';
+  return n >= 10 ? 'media' : 'basica';
+}
+
+export interface AsignaturaDeNivel {
+  subjectId: string;
+  /** Estudiantes en alerta en esa asignatura, sumando los grupos del nivel. */
+  n: number;
+  /** % de los estudiantes del nivel (los de los grupos que la ven). */
+  porcentaje: number;
+}
+
+export interface BloqueNivel {
+  nivel: Nivel;
+  estudiantes: number;
+  asignaturas: AsignaturaDeNivel[];
+}
+
+/**
+ * Asignaturas por nivel (Julian, 2026-10-25: «que salgan TODAS, tambien las de 0»): en basica
+ * todos ven las mismas; media tiene las suyas. `esperadasDe` dice que asignaturas tiene cada
+ * grupo (la asignacion academica), para que las de 0 aparezcan. El % es sobre los estudiantes
+ * de los grupos que ven esa asignatura.
+ */
+export function asignaturasPorNivel(
+  grupos: Record<string, ResumenGrado>,
+  esperadasDe: (grado: string) => string[],
+): BloqueNivel[] {
+  const bloques = new Map<Nivel, { estudiantes: number; n: Map<string, number>; base: Map<string, number> }>();
+  for (const [grado, g] of Object.entries(grupos)) {
+    if (g.estudiantes === 0) continue;
+    const nivel = nivelDeGrado(grado);
+    const b = bloques.get(nivel) ?? { estudiantes: 0, n: new Map(), base: new Map() };
+    b.estudiantes += g.estudiantes;
+    for (const s of new Set([...esperadasDe(grado), ...Object.keys(g.asignaturas ?? {})])) {
+      b.n.set(s, (b.n.get(s) ?? 0) + (g.asignaturas?.[s] ?? 0));
+      b.base.set(s, (b.base.get(s) ?? 0) + g.estudiantes);
+    }
+    bloques.set(nivel, b);
+  }
+  return (['primaria', 'basica', 'media'] as Nivel[])
+    .filter((nv) => bloques.has(nv))
+    .map((nivel) => {
+      const b = bloques.get(nivel)!;
+      return {
+        nivel,
+        estudiantes: b.estudiantes,
+        asignaturas: [...b.n.entries()]
+          .map(([subjectId, n]) => ({ subjectId, n, porcentaje: porcentaje(n, b.base.get(subjectId) ?? 0) }))
+          .sort((x, y) => y.n - x.n || x.subjectId.localeCompare(y.subjectId)),
+      };
+    });
 }
 
 // ── resumen SIN NOMBRES por grupo (2026-10-24) ──────────────────────────────────────
@@ -253,7 +328,7 @@ export function frases(a: AnalisisGrupo, salon = false): string[] {
   }
   const [primera, segunda] = a.porAsignatura;
   // En el salon no se nombra una asignatura con un solo estudiante: se adivinaria quien es.
-  if (primera && !(salon && primera.n < 2)) {
+  if (primera && primera.n > 0 && !(salon && primera.n < 2)) {
     f.push(segunda && segunda.n === primera.n
       ? `Las asignaturas con más estudiantes en alerta son ${primera.etiqueta} y ${segunda.etiqueta} (${primera.n} cada una).`
       : `La asignatura con más estudiantes en alerta es ${primera.etiqueta} (${primera.n}).`);

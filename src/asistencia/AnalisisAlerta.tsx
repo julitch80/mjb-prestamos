@@ -184,7 +184,7 @@ export default function AnalisisAlerta({
       />
 
       <Grafico
-        titulo="Asignaturas con estudiantes en alerta"
+        titulo="Estudiantes en alerta por asignatura"
         barras={asignaturas}
         conNombres={conNombres}
         nombreDe={nombreDe}
@@ -263,7 +263,9 @@ function Grafico({
             const tocable = conNombres && b.ids.length > 0;
             const fila = (
               <>
-                <span className="w-28 shrink-0 truncate text-left text-sm text-soft sm:w-44">{b.etiqueta}</span>
+                <span className="w-28 shrink-0 truncate text-left text-sm text-soft sm:w-44">
+                  {b.etiqueta}{b.pendiente && <span className="text-xs text-muted"> (sin entregar)</span>}
+                </span>
                 <span className="relative h-6 flex-1">
                   <span
                     className={`absolute inset-y-0 left-0 rounded-r ${b.seCita ? 'bg-warning' : 'bg-accent'}`}

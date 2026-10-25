@@ -54,7 +54,7 @@ const CSS_AN = `
 function barras(lista: Barra[], conNombres: boolean, nombreDe: (id: string) => string, conNombresDe: (b: Barra) => boolean): string {
   const max = Math.max(1, ...lista.map((b) => b.n));
   return `<div class="barras">${lista.map((b) => `
-    <span>${esc(b.etiqueta)}</span>
+    <span>${esc(b.etiqueta)}${b.pendiente ? ' <small style="color:#777">(sin entregar)</small>' : ''}</span>
     <div class="barra" style="width:${b.n ? Math.max(2, (b.n / max) * 100) : 0}%;background:${b.seCita ? AMBAR : AZUL}"></div>
     <span class="num">${b.n}</span>
     ${conNombres && conNombresDe(b) && b.ids.length ? `<p class="quienes">${esc(b.ids.map(nombreDe).join(', '))}</p>` : ''}`).join('')}</div>`;
