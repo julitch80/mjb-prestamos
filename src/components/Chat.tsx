@@ -2,7 +2,7 @@
 // Solo funciona en modo google con Firebase configurado. En modo pin el item de
 // navegación 'chat' ni siquiera aparece (filtrado en App.tsx).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Paperclip, Mic, Trash2, Send, FileText, X, Pin, SmilePlus, Reply, Forward } from 'lucide-react';
+import { Paperclip, Mic, Trash2, Send, FileText, X, Pin, SmilePlus, Reply, Forward, ChevronDown, Pencil } from 'lucide-react';
 import { useAppStore } from '../data/store';
 import { useChatStore } from '../data/chatStore';
 import { esperarAuth, firebaseConfigurado } from '../lib/firebase';
@@ -808,7 +808,6 @@ function Burbuja({
   canal,
   miRol,
   inicioRacha,
-  finRacha,
   registrarRef,
   onIrACita,
   onResponder,
@@ -835,7 +834,25 @@ function Burbuja({
   const [editando, setEditando] = useState(false);
   const [valor, setValor] = useState(m.text);
   const [pickerAbierto, setPickerAbierto] = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const yo = miEmail();
+
+  useEffect(() => {
+    if (!menuAbierto) return;
+    const fuera = (e: MouseEvent | TouchEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuAbierto(false);
+    };
+    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuAbierto(false); };
+    document.addEventListener('mousedown', fuera);
+    document.addEventListener('touchstart', fuera);
+    document.addEventListener('keydown', tecla);
+    return () => {
+      document.removeEventListener('mousedown', fuera);
+      document.removeEventListener('touchstart', fuera);
+      document.removeEventListener('keydown', tecla);
+    };
+  }, [menuAbierto]);
 
   // C2 — reacciones bajo demanda: el listener del store solo se abre
   // mientras la burbuja está de verdad visible en pantalla (IntersectionObserver
@@ -923,14 +940,76 @@ function Burbuja({
         </div>
       )}
       <div className="relative group max-w-[80%]">
+      {!editando && (
+        <div ref={menuRef} className="absolute top-0 right-0 z-10">
+          <button
+            onClick={() => setMenuAbierto((v) => !v)}
+            aria-label="Opciones del mensaje"
+            aria-haspopup="menu"
+            aria-expanded={menuAbierto}
+            className={
+              'w-11 h-11 flex items-start justify-end p-2 text-soft hover:text-strong focus-visible:opacity-100 transition-opacity ' +
+              (menuAbierto ? 'opacity-100' : 'opacity-60 [@media(hover:hover)]:opacity-0 group-hover:opacity-100')
+            }
+          >
+            <ChevronDown size={16} />
+          </button>
+          {menuAbierto && (
+            <div
+              role="menu"
+              className="absolute top-8 right-1 min-w-[10rem] bg-card border border-line rounded-lg shadow-lg py-1"
+            >
+              {(() => {
+                const item = 'w-full text-left px-3 py-2 flex items-center gap-2 text-strong hover:bg-elevated';
+                const cerrar = () => setMenuAbierto(false);
+                return (
+                  <>
+                    {onResponder && (
+                      <button role="menuitem" className={item} style={{ fontSize: FS_SEC }}
+                        onClick={() => { cerrar(); onResponder(m); }}>
+                        <Reply size={14} /> Responder
+                      </button>
+                    )}
+                    <button role="menuitem" className={item} style={{ fontSize: FS_SEC }}
+                      onClick={() => { cerrar(); onReenviar(m); }}>
+                      <Forward size={14} /> Reenviar
+                    </button>
+                    {propio && (
+                      <button role="menuitem" className={item} style={{ fontSize: FS_SEC }}
+                        onClick={() => { cerrar(); setEditando(true); }}>
+                        <Pencil size={14} /> Editar
+                      </button>
+                    )}
+                    {puedeFijar && (
+                      <button role="menuitem" className={item} style={{ fontSize: FS_SEC }}
+                        onClick={() => { cerrar(); if (esFijado) soltarFijadoStore(channelId); else handleFijar(); }}>
+                        <Pin size={14} /> {esFijado ? 'Soltar fijado' : 'Fijar'}
+                      </button>
+                    )}
+                    {(propio || puedeModerar) && (
+                      <button role="menuitem" className={item + ' !text-danger'} style={{ fontSize: FS_SEC }}
+                        onClick={() => { cerrar(); borrarMensaje(channelId, m.id); }}>
+                        <Trash2 size={14} /> Borrar
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      )}
       <div
         className={
           'rounded-2xl px-3 py-2 ' +
-          (propio ? 'bg-accent text-strong' : 'bg-elevated text-strong')
+          (propio ? 'bg-accent-soft text-strong ring-1 ring-accent/30' : 'bg-elevated text-strong')
         }
       >
         {!propio && inicioRacha && (
-          <div className="font-semibold text-info mb-0.5" style={{ fontSize: FS_SEC }}>{m.authorName}</div>
+          <div className="flex items-baseline justify-between gap-3 mb-0.5 pr-5" style={{ fontSize: FS_SEC }}>
+            <span className="font-semibold text-info truncate">{m.authorName}</span>
+            <span className="text-soft flex-shrink-0">{horaCorta(m.createdAt)}</span>
+          </div>
         )}
         {/* D2 — etiqueta de reenvío. Deliberadamente no se puede ocultar:
             reenviar saca contenido de su contexto original y en un colegio
@@ -952,10 +1031,10 @@ function Burbuja({
               (propio ? 'border-strong/40' : 'border-line-strong')
             }
           >
-            <div className={'text-xs font-medium truncate ' + (propio ? 'text-strong/80' : 'text-info')}>
+            <div className={'text-xs font-medium truncate ' + (propio ? 'text-accent-soft-fg' : 'text-info')}>
               {m.respondeA.autorNombre}
             </div>
-            <div className={'text-xs truncate ' + (propio ? 'text-strong/60' : 'text-muted')}>
+            <div className={'text-xs truncate ' + (propio ? 'text-soft' : 'text-muted')}>
               {m.respondeA.extracto}
             </div>
           </button>
@@ -989,79 +1068,27 @@ function Burbuja({
             {m.text && <div className="whitespace-pre-wrap break-words" style={{ fontSize: 'var(--chat-fs)', lineHeight: 1.4 }}>{m.text}</div>}
           </>
         )}
-        <div className="flex items-center gap-2 justify-end mt-1">
-          {m.editedAt && <span className="text-xs text-muted">editado</span>}
-          {finRacha && (
-            <span className="text-muted" style={{ fontSize: FS_SEC }}>
-              {horaCorta(m.createdAt)}
-            </span>
-          )}
-          {!editando && onResponder && (
-            <button
-              onClick={() => onResponder(m)}
-              className="text-xs text-muted hover:text-strong flex items-center gap-0.5"
-              aria-label="Responder citando"
-            >
-              <Reply size={10} /> responder
-            </button>
-          )}
-          {!editando && (
-            <button
-              onClick={() => onReenviar(m)}
-              className="text-xs text-muted hover:text-strong flex items-center gap-0.5"
-              aria-label="Reenviar mensaje"
-            >
-              <Forward size={10} /> reenviar
-            </button>
-          )}
-          {(propio || puedeModerar) && !editando && (
-            <>
-              {propio && (
-                <button
-                  onClick={() => setEditando(true)}
-                  className="text-xs text-muted hover:text-strong"
-                >
-                  editar
-                </button>
-              )}
-              <button
-                onClick={() => borrarMensaje(channelId, m.id)}
-                className="text-xs text-muted hover:text-danger"
-              >
-                borrar
-              </button>
-            </>
-          )}
-          {puedeFijar && !editando && (
-            <button
-              onClick={() => (esFijado ? soltarFijadoStore(channelId) : handleFijar())}
-              className="text-xs text-muted hover:text-strong flex items-center gap-0.5"
-              aria-label={esFijado ? 'Soltar fijado' : 'Fijar mensaje'}
-            >
-              <Pin size={10} /> {esFijado ? 'soltar' : 'fijar'}
-            </button>
-          )}
-        </div>
-
-        {/* B1 — leído por: solo en mis propios mensajes. Sin denominador
-            fiable fuera de 'directo'/'grupo' — nunca inventar un porcentaje. */}
-        {propio && !editando && (() => {
-          const n = contarLeidoPor(m);
-          if (n <= 0) return null;
-          // El denominador tambien excluye al autor: en un directo de dos,
-          // el unico que puede leerlo es el otro, y "de 2" sugeriria que falta
-          // alguien para siempre.
-          const otros =
-            canal && (canal.type === 'directo' || canal.type === 'grupo')
-              ? (canal.members?.length ?? 0) - 1
-              : 0;
-          const denom = otros > 0 ? otros : undefined;
-          return (
-            <div className="text-xs text-muted text-right mt-0.5">
-              Leído por {n}{denom ? ` de ${denom}` : ''}
-            </div>
-          );
-        })()}
+        {/* Pie dentro de la burbuja (como WhatsApp): editado · hora · leído. */}
+        {!editando && (
+          <div className="flex items-center gap-1.5 justify-end mt-1 text-soft" style={{ fontSize: FS_SEC }}>
+            {m.editedAt && <span>editado</span>}
+            {!(!propio && inicioRacha) && <span>{horaCorta(m.createdAt)}</span>}
+            {propio && (() => {
+              const n = contarLeidoPor(m);
+              if (n <= 0) return null;
+              const otros =
+                canal && (canal.type === 'directo' || canal.type === 'grupo')
+                  ? (canal.members?.length ?? 0) - 1
+                  : 0;
+              const denom = otros > 0 ? otros : undefined;
+              return (
+                <span title={`Leído por ${n}${denom ? ` de ${denom}` : ''}`}>
+                  ✓✓{denom ? ` ${n}/${denom}` : n > 1 ? ` ${n}` : ''}
+                </span>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       {/* C2 — botón de reacción: siempre táctil, no depende de hover para
