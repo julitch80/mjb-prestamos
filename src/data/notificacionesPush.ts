@@ -57,6 +57,11 @@ function userAgentCorto(): string {
   return navigator.userAgent.slice(0, 120);
 }
 
+// Hash del último token que ESTE navegador guardó, y marca de «la persona
+// desactivó este dispositivo» (para que la re-sincronización no lo reactive).
+const CLAVE_HASH_LOCAL = 'mjb-push-hash-token';
+const CLAVE_DESACTIVADO = 'mjb-push-desactivado';
+
 let messagingCache: Messaging | null | undefined;
 async function obtenerMessaging(): Promise<Messaging | null> {
   if (messagingCache !== undefined) return messagingCache;
@@ -93,6 +98,7 @@ export async function activar(): Promise<NotificationPermission> {
     plataforma: plataformaActual(),
     userAgentCorto: userAgentCorto(),
   });
+  try { localStorage.setItem(CLAVE_HASH_LOCAL, id); localStorage.removeItem(CLAVE_DESACTIVADO); } catch { /* sin storage */ }
   return 'granted';
 }
 
@@ -100,6 +106,7 @@ export async function activar(): Promise<NotificationPermission> {
  * Los demás dispositivos de la persona (si los hay) siguen activos. */
 export async function desactivarEsteDispositivo(): Promise<void> {
   const correo = miEmail();
+  try { localStorage.setItem(CLAVE_DESACTIVADO, '1'); localStorage.removeItem(CLAVE_HASH_LOCAL); } catch { /* sin storage */ }
   const messaging = await obtenerMessaging();
   if (messaging) {
     try {
@@ -117,11 +124,19 @@ export async function desactivarEsteDispositivo(): Promise<void> {
   }
 }
 
-/** Refresca `ultimoUso` del token de este dispositivo, si ya estaba activo.
- * Se llama al abrir la app con sesión — no pide permiso ni crea nada nuevo. */
+
+/** Re-sincroniza el token de este dispositivo al abrir la app con sesión y
+ * permiso concedido. FCM ROTA tokens (renovación periódica del SDK, cambio de
+ * suscripción push, datos borrados, reinstalación de la PWA): si el token
+ * actual no estaba guardado, se guarda; y el que este mismo navegador tenía
+ * antes se borra para que no quede un token «NotRegistered» huérfano.
+ * Antes solo se tocaba `ultimoUso` si el doc ya existía: un token nuevo nunca
+ * se guardaba y el servidor seguía enviando al viejo (causa raíz, ver
+ * docs/notificaciones-push/DIAGNOSTICO-2026-10-26.md). No pide permiso. */
 export async function refrescarUltimoUso(): Promise<void> {
   const correo = miEmail();
   if (!db || !correo || Notification.permission !== 'granted') return;
+  try { if (localStorage.getItem(CLAVE_DESACTIVADO)) return; } catch { /* sin storage */ }
   const messaging = await obtenerMessaging();
   if (!messaging) return;
   try {
@@ -133,7 +148,21 @@ export async function refrescarUltimoUso(): Promise<void> {
     const snap = await getDoc(ref);
     if (snap.exists()) {
       await setDoc(ref, { ultimoUso: serverTimestamp() }, { merge: true });
+    } else {
+      await setDoc(ref, {
+        token,
+        creadoEn: serverTimestamp(),
+        ultimoUso: serverTimestamp(),
+        plataforma: plataformaActual(),
+        userAgentCorto: userAgentCorto(),
+      });
     }
+    let anterior: string | null = null;
+    try { anterior = localStorage.getItem(CLAVE_HASH_LOCAL); } catch { /* sin storage */ }
+    if (anterior && anterior !== id) {
+      await deleteDoc(doc(db, 'notifDispositivos', correo, 'items', anterior)).catch(() => {});
+    }
+    try { localStorage.setItem(CLAVE_HASH_LOCAL, id); } catch { /* sin storage */ }
   } catch {
     // No crítico: el próximo `activar()` vuelve a dejarlo al día.
   }
