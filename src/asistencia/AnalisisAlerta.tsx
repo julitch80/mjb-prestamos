@@ -180,7 +180,7 @@ export default function AnalisisAlerta({
         nombreDe={nombreDe}
         abierta={abierta}
         onAbrir={setAbierta}
-        pie={<><span className="mr-1 inline-block h-3 w-3 rounded-sm bg-warning align-[-1px]" /> Se cita a la familia (2 o más) · cada barra es un número de estudiantes</>}
+        pie={<><span className="mr-1 inline-block h-3 w-4 rounded-sm bg-warning align-[-1px]" style={{ backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,.45) 0 3px, transparent 3px 7px)' }} /> Rayada: se cita a la familia (2 o más) · cada barra es un número de estudiantes</>}
       />
 
       <Grafico
@@ -265,11 +265,13 @@ function Grafico({
               <>
                 <span className="w-28 shrink-0 truncate text-left text-sm text-soft sm:w-44">
                   {b.etiqueta}{b.pendiente && <span className="text-xs text-muted"> (sin entregar)</span>}
+                  {b.seCita && <span className="block text-xs text-warning-soft-fg">se cita</span>}
                 </span>
                 <span className="relative h-6 flex-1">
                   <span
                     className={`absolute inset-y-0 left-0 rounded-r ${b.seCita ? 'bg-warning' : 'bg-accent'}`}
-                    style={{ width: b.n ? `${Math.max(2, (b.n / max) * 100)}%` : 0 }}
+                    // Las que se citan llevan RAYADO, no solo otro color (revision visual, 2026-10-26).
+                    style={{ width: b.n ? `${Math.max(2, (b.n / max) * 100)}%` : 0, ...(b.seCita ? { backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,.45) 0 3px, transparent 3px 7px)' } : {}) }}
                   />
                 </span>
                 <span className="w-8 shrink-0 text-right text-sm font-bold tabular-nums text-strong">{b.n}</span>
@@ -278,7 +280,7 @@ function Grafico({
             return (
               <li key={b.clave}>
                 {tocable ? (
-                  <button
+                  <button aria-label={`${b.etiqueta}: ${b.n} ${b.n === 1 ? 'estudiante' : 'estudiantes'} · toque para ver quiénes`}
                     type="button"
                     onClick={() => onAbrir(abierta === clave ? null : clave)}
                     aria-expanded={abierta === clave}

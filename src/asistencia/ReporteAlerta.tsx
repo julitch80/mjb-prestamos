@@ -6,6 +6,7 @@ import { jornadaDeGrado } from './domain/ids';
 import { combinarPlanillas, consolidarGrupo, convocatoriaDelGrado, fechaCorta, horaCorta, MINIMO_PARA_CITAR, puedeCitar } from './domain/alerta-academica';
 import { toDateKey } from './domain/ids';
 import AnalisisAlerta from './AnalisisAlerta';
+import { IconoMarcaAlerta } from './IconoMarcaAlerta';
 import CitacionesAlerta from './CitacionesAlerta';
 import EntregaAlerta from './EntregaAlerta';
 import { asignaturasDelGrado } from './horarioDelDia';
@@ -216,7 +217,12 @@ export default function ReporteAlerta({
                       const m = combinadas.find((p) => p.subjectId === c.subjectId)?.estudiantes?.[e.studentId];
                       return (
                         <td key={c.subjectId} className="px-1.5 py-1.5 text-center">
-                          {m === 'alerta' ? '⚠️' : m === 'sin_alerta' ? <span className="text-muted">✓</span> : <span className="text-muted">·</span>}
+                          <span
+                            className={`inline-flex ${m === 'alerta' ? 'text-warning-soft-fg' : m === 'sin_alerta' ? 'text-success' : 'text-muted'}`}
+                            title={m === 'alerta' ? 'En alerta' : m === 'sin_alerta' ? 'Sin alerta' : 'Aún no lo marca'}
+                          >
+                            <IconoMarcaAlerta marca={m} />
+                          </span>
                         </td>
                       );
                     })}
@@ -230,7 +236,11 @@ export default function ReporteAlerta({
           </table>
         </div>
       )}
-      <p className="text-xs text-muted">⚠️ en alerta · ✓ sin alerta · «·» la asignatura aún no lo marca.</p>
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+        <span className="inline-flex items-center gap-1 text-warning-soft-fg"><IconoMarcaAlerta marca="alerta" /> en alerta</span>
+        <span className="inline-flex items-center gap-1 text-success"><IconoMarcaAlerta marca="sin_alerta" /> sin alerta</span>
+        <span className="inline-flex items-center gap-1"><IconoMarcaAlerta marca={undefined} /> la asignatura aún no lo marca</span>
+      </p>
 
       {/* La impresion la centraliza coordinacion (Julian, 2026-10-03): ni el director ni el
           docente imprimen; coordinacion descarga un solo archivo con toda la jornada. */}

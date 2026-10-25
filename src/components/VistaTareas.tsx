@@ -1260,13 +1260,13 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
           <div className="flex items-center justify-between mb-2">
             {esRec ? (
               <label className="text-[11px] text-muted">
-                Fecha del recordatorio — sin plazo mínimo; <span className="text-danger">rojo</span>: el grupo ya tiene {3} ese día
+                Fecha del recordatorio — sin plazo mínimo; <span className="text-danger">✕</span>: el grupo ya tiene {3} ese día
               </label>
             ) : (
             <label className="text-[11px] text-muted">
-              Fecha de entrega — <span className="text-success">verde</span>: cabe ·{' '}
-              <span className="text-warning">ámbar</span>: caben menos ·{' '}
-              <span className="text-danger">rojo</span>: no cabe
+              Fecha de entrega — <span className="text-success">✓</span> hay cupo ·{' '}
+              <span className="text-warning">◐</span> casi lleno ·{' '}
+              <span className="text-danger">✕</span> lleno
             </label>
             )}
             <div className="flex items-center gap-1">
@@ -1296,7 +1296,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
           </div>
           <div className="grid grid-cols-5 gap-1">
             {['Lun', 'Mar', 'Mié', 'Jue', 'Vie'].map(d => (
-              <div key={d} className="text-center text-[10px] text-muted pb-1">{d}</div>
+              <div key={d} className="text-center text-xs text-muted pb-1">{d}</div>
             ))}
             {semanas.flatMap((semana, wi) => semana.map((fecha, di) => {
               if (!fecha) return <div key={`${wi}-${di}`} />;
@@ -1307,6 +1307,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
                 : estado === 'lleno' ? 'rgba(239,68,68,0.5)' : 'transparent';
               const txt = estado === 'ok' ? 'text-success'
                 : estado === 'parcial' ? 'text-warning' : estado === 'lleno' ? 'text-danger' : 'text-muted opacity-40';
+              const marca = estado === 'ok' ? '✓' : estado === 'parcial' ? '◐' : estado === 'lleno' ? '✕' : '';
               return (
                 <button
                   key={fecha}
@@ -1322,6 +1323,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
                   style={{ backgroundColor: bg }}
                 >
                   {Number(fecha.slice(8))}
+                  {marca && <span aria-hidden className="ml-0.5 text-xs font-normal">{marca}</span>}
                 </button>
               );
             }))}

@@ -55,7 +55,7 @@ function barras(lista: Barra[], conNombres: boolean, nombreDe: (id: string) => s
   const max = Math.max(1, ...lista.map((b) => b.n));
   return `<div class="barras">${lista.map((b) => `
     <span>${esc(b.etiqueta)}${b.pendiente ? ' <small style="color:#777">(sin entregar)</small>' : ''}</span>
-    <div class="barra" style="width:${b.n ? Math.max(2, (b.n / max) * 100) : 0}%;background:${b.seCita ? AMBAR : AZUL}"></div>
+    <div class="barra" style="width:${b.n ? Math.max(2, (b.n / max) * 100) : 0}%;background:${b.seCita ? `repeating-linear-gradient(135deg, #fff8 0 1mm, transparent 1mm 2.4mm), ${AMBAR}` : AZUL}"></div>
     <span class="num">${b.n}</span>
     ${conNombres && conNombresDe(b) && b.ids.length ? `<p class="quienes">${esc(b.ids.map(nombreDe).join(', '))}</p>` : ''}`).join('')}</div>`;
 }
@@ -90,7 +90,7 @@ function evolucion(puntos: PuntoPeriodo[]): string {
 
 function grupos(filas: FilaGrupo[], promedio: number | null | undefined): string {
   return `<div class="gr">${filas.map((g) => `
-      <span class="${g.propio ? 'propio' : ''}">${esc(g.grado)}</span>
+      <span class="${g.propio ? 'propio' : ''}">${g.propio ? '▸ ' : ''}${esc(g.grado)}</span>
       <div class="pista"><div class="b" style="width:${Math.max(1, g.porcentajeSinAlerta)}%;background:${g.propio ? AZUL : GRIS}"></div>${promedio != null ? `<div class="prom" style="left:${promedio}%"></div>` : ''}</div>
       <span class="${g.propio ? 'propio' : ''}">${g.porcentajeSinAlerta} %</span>`).join('')}</div>
     <p class="ley">% de cada grupo sin ninguna alerta.<i style="background:${AZUL}"></i>Este grupo${promedio != null ? `<i class="linea"></i>Promedio de la jornada (${promedio} %)` : ''}</p>`;
@@ -124,7 +124,7 @@ export function htmlAnalisisAlerta(
 
     <h2>¿Cuántas asignaturas en alerta tiene cada estudiante?</h2>
     ${barras(a.distribucion.map((b) => ({ ...b, etiqueta: b.clave === '1' ? '1 asignatura' : `${b.etiqueta} asignaturas` })), conNombres, nombreDe, (b) => b.clave !== '0')}
-    <p class="ley">Cada barra es un número de estudiantes.<i style="background:${AMBAR}"></i>Se cita a la familia (2 o más)</p>
+    <p class="ley">Cada barra es un número de estudiantes.<i style="background:repeating-linear-gradient(135deg, #fff8 0 1mm, transparent 1mm 2.4mm), ${AMBAR}"></i>Rayada: se cita a la familia (2 o más)</p>
 
     <h2>Asignaturas con estudiantes en alerta</h2>
     ${asignaturas.length ? barras(asignaturas, conNombres, nombreDe, () => true) : '<p class="nota">Ninguna asignatura tiene estudiantes en alerta.</p>'}

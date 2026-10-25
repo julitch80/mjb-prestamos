@@ -111,7 +111,7 @@ function BadgeAlerta({ caso }: { caso: CasoResumen }) {
   const dias = diasSinSeguimiento(caso);
   return (
     <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap', ESTILO_ALERTA[nivel])}>
-      ⏳ {dias} días sin seguimiento
+      {nivel === 'roja' ? '🔴 Vencido' : '⏳ Por vencer'} · {dias} días sin seguimiento
     </span>
   );
 }

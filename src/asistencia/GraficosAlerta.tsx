@@ -48,9 +48,9 @@ export function GraficoGrupos({ filas, promedio, etiquetaPropio = 'Este grupo' }
       <ul className="flex flex-col gap-1">
         {filas.map((g) => (
           <li key={g.grado} className="flex items-center gap-2 text-sm" title={`${g.grado}: ${g.porcentajeSinAlerta} % sin ninguna alerta`}>
-            <span className={`w-20 shrink-0 truncate ${g.propio ? 'font-bold text-strong' : 'text-soft'}`}>{g.grado}</span>
+            <span className={`w-24 shrink-0 truncate ${g.propio ? 'font-bold text-strong' : 'text-soft'}`}>{g.propio ? `▸ ${g.grado}` : g.grado}</span>
             <span className="relative h-4 flex-1">
-              <span className={`absolute inset-y-0 left-0 rounded-r ${g.propio ? 'bg-accent' : 'bg-line-strong'}`} style={{ width: `${Math.max(1, g.porcentajeSinAlerta)}%` }} />
+              <span className={`absolute inset-y-0 left-0 rounded-r ${g.propio ? 'bg-accent' : 'bg-muted'}`} style={{ width: `${Math.max(1, g.porcentajeSinAlerta)}%` }} />
               {promedio !== null && <span className="absolute -bottom-0.5 -top-0.5 border-l-2 border-dashed border-strong" style={{ left: `${promedio}%` }} />}
             </span>
             <span className={`w-12 shrink-0 text-right tabular-nums ${g.propio ? 'font-bold text-strong' : 'text-soft'}`}>{g.porcentajeSinAlerta} %</span>
@@ -59,7 +59,7 @@ export function GraficoGrupos({ filas, promedio, etiquetaPropio = 'Este grupo' }
       </ul>
       <p className="mt-2 text-xs text-muted">
         % sin ninguna alerta.
-        {etiquetaPropio && filas.some((g) => g.propio) && <><span className="mx-1 inline-block h-3 w-3 rounded-sm bg-accent align-[-1px]" />{etiquetaPropio}</>}
+        {etiquetaPropio && filas.some((g) => g.propio) && <><span className="mx-1 inline-block h-3 w-3 rounded-sm bg-accent align-[-1px]" />▸ {etiquetaPropio}</>}
         {promedio !== null && <><span className="mx-1 inline-block w-5 border-t-2 border-dashed border-strong align-middle" />Promedio ({promedio} %)</>}
       </p>
     </div>

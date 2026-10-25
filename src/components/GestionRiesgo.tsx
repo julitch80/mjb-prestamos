@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Siren } from 'lucide-react';
 import { useCasosVencidos } from '../hooks/useCasosVencidos';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -1248,7 +1249,7 @@ export default function GestionRiesgo() {
               : 'border-info text-info hover:bg-elevated'
           )}
         >
-          🚨 Simulacros
+          <Siren size={14} aria-hidden className="inline mr-1 -mt-0.5" /> Simulacros
         </button>
         <button
           onClick={() => elegirPestana('brigadas')}

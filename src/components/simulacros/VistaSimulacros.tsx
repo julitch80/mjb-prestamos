@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Siren } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../data/store';
 import { JORNADA_NOMBRE, fechaLarga, formatoMinutos, horaAMinutos } from '../../data/simulacros/logica';
@@ -80,7 +81,7 @@ export default function VistaSimulacros() {
 
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-strong text-sm font-semibold">🚨 Simulacros</h3>
+      <h3 className="text-strong text-sm font-semibold flex items-center gap-1.5"><Siren size={16} aria-hidden /> Simulacros</h3>
       {error && <p className="text-danger text-xs">No se pudo leer la lista: {error}</p>}
       {visibles.length === 0 ? (
         <>

@@ -1,4 +1,5 @@
 import { horarioBase } from './horarioBase';
+import { colorPorTema, AULA_CLARO, ROL_CLARO } from './coloresTema';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -157,6 +158,11 @@ export const USUARIOS: Usuario[] = [
   { id: 'fin_leidy_v',   nombre: 'Leidy Viviana Zapata Corrales',     nombreCorto: 'Leidy V.',   rol: 'docente', jornada: 'tarde',  correo: '', color: '#f87171', sede: 'la_finquita' },
   { id: 'fin_paula',     nombre: 'Paula Andrea Zapata Martínez',      nombreCorto: 'Paula',      rol: 'docente', jornada: 'tarde',  correo: '', color: '#e2e8f0', sede: 'la_finquita' },
 ];
+
+// Color por tema (ver coloresTema.ts): oscuro = hex original; claro = variante con contraste >= 4,5.
+for (const u of USUARIOS) {
+  colorPorTema(u, 'color', u.color, u.id === 'rectora' ? ROL_CLARO.rectora : u.rol === 'coordinador' ? ROL_CLARO.coordinador : undefined);
+}
 
 // ── Sedes: autoridad y direccionamiento ─────────────────────────────────────
 //
@@ -650,6 +656,15 @@ export const COLORES_AULA: Record<string, string> = {
   'A7': '#22d3ee', 'A8': '#f87171', 'A9':  '#a3e635',
   'A10':'#fdba74',
 };
+
+// Modo claro: hex del informe para las 12 aulas base (y sus alias); el resto se oscurece por algoritmo.
+const ALIAS_CLARO: Record<string, string> = {
+  'Sala Informática': 'Sala Info.', 'Sala de Informática 1': 'Sala Info.',
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`A${i + 1}`, `Aula ${i + 1}`])),
+};
+for (const k of Object.keys(COLORES_AULA)) {
+  colorPorTema(COLORES_AULA, k, COLORES_AULA[k], AULA_CLARO[ALIAS_CLARO[k] ?? k]);
+}
 
 // ── Colores por grado ──────────────────────────────────────────────────────────
 

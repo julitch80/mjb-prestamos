@@ -5,6 +5,9 @@ export function useTheme() {
   const temaOscuro = useAppStore((s) => s.temaOscuro);
   const toggleTema = useAppStore((s) => s.toggleTema);
 
+  // Fija la clase ya en el render: los colores de maestros.ts la leen al pintar a los hijos.
+  if (typeof document !== 'undefined') document.documentElement.classList.toggle('dark', temaOscuro);
+
   useEffect(() => {
     const root = document.documentElement;
     if (temaOscuro) {

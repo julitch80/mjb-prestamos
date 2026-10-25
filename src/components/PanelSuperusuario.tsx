@@ -578,7 +578,7 @@ export default function PanelSuperusuario() {
               : 'bg-danger-soft text-danger-soft-fg')
           }
         >
-          {mensaje.texto}
+          <span aria-hidden>{mensaje.tipo === 'ok' ? '✓' : '✕'}</span> {mensaje.texto}
         </div>
       )}
 

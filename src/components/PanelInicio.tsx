@@ -37,6 +37,8 @@ import {
   IconoAgenda,
   IconoSugerencias,
   IconoRiesgo,
+  NEON,
+  colorNeon,
 } from './IconosNeon';
 
 type NavItem = { id: string; label: string; descripcion: string; roles: string[] };
@@ -179,7 +181,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   if (notifNoLeidas > 0) {
     avisos.push({
       id: 'notif',
-      color: '#38bdf8',
+      color: NEON.celeste,
       Icono: IconoCampana,
       titulo: notifNoLeidas === 1 ? '1 notificación nueva' : `${notifNoLeidas} notificaciones nuevas`,
       detalle: 'Toca para revisarlas.',
@@ -194,7 +196,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   if (casosVencidos > 0) {
     avisos.push({
       id: 'casos-vencidos',
-      color: '#f87171',
+      color: NEON.coral,
       Icono: IconoRiesgo,
       titulo: casosVencidos === 1 ? '1 caso sin seguimiento' : `${casosVencidos} casos sin seguimiento`,
       detalle: 'Llevan 8 días o más sin actualizarse.',
@@ -206,7 +208,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
     const bloquesAlterados = miDiaHoy.bloques.filter((b) => b.estado !== 'normal' && b.estado !== 'libre').length;
     avisos.push({
       id: 'mod-hoy',
-      color: '#fbbf24',
+      color: NEON.dorado,
       Icono: IconoHorario,
       titulo: 'Tu horario cambió hoy',
       detalle: `${formatearFechaLegible(hoy)} · ${bloquesAlterados} bloque${bloquesAlterados === 1 ? '' : 's'} alterado${bloquesAlterados === 1 ? '' : 's'}`,
@@ -217,7 +219,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   if (jornadaHoy) {
     avisos.push({
       id: 'jornada-hoy',
-      color: '#fb923c',
+      color: NEON.naranja,
       Icono: IconoReloj,
       titulo: 'Jornada acortada hoy',
       detalle: `${jornadaHoy.horaInicio}–${jornadaHoy.horaFin} · ${jornadaHoy.motivo}`,
@@ -227,7 +229,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   if (esDocente && proximaClase) {
     avisos.push({
       id: 'clase',
-      color: '#34d399',
+      color: NEON.menta,
       Icono: IconoReloj,
       titulo: `${proximaClase.enCurso ? 'Ahora' : 'Siguiente'}: ${proximaClase.ordinal} hora`,
       detalle: `${proximaClase.grado} en ${proximaClase.aula} · desde las ${proximaClase.hora}`,
@@ -238,7 +240,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   if (esDocente && !proximaClase) {
     avisos.push({
       id: 'sin-clases',
-      color: '#94a3b8',
+      color: NEON.gris,
       Icono: IconoDespejado,
       titulo: 'No tienes más clases hoy',
       detalle: 'Tu jornada ya terminó.',
@@ -248,7 +250,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   if (esDocente && acompanamientoHoy) {
     avisos.push({
       id: 'acompanamiento',
-      color: '#c084fc',
+      color: NEON.purpura,
       Icono: IconoBrujula,
       titulo: 'Hoy te toca acompañamiento',
       detalle: acompanamientoHoy.lugar,
@@ -258,7 +260,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   if (esCoordinador && modsProximas.length > 0) {
     avisos.push({
       id: 'coord-mods',
-      color: '#f472b6',
+      color: NEON.rosa,
       Icono: IconoGrafico,
       titulo: `${modsProximas.length} modificación${modsProximas.length === 1 ? '' : 'es'} de horario`,
       detalle: 'En los próximos 14 días.',
@@ -269,7 +271,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   for (const m of modFuturas) {
     avisos.push({
       id: `mod-${m.id}`,
-      color: '#60a5fa',
+      color: NEON.azul,
       Icono: IconoHorario,
       titulo: 'Modificación de horario próxima',
       detalle: `${formatearFechaLegible(m.fecha)} · jornada ${m.jornada}`,
@@ -280,7 +282,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   if (esSuperusuario && sugerenciasNuevas > 0) {
     avisos.push({
       id: 'sugerencias-nuevas',
-      color: '#fde047',
+      color: NEON.amarillo,
       Icono: IconoSugerencias,
       titulo: sugerenciasNuevas === 1 ? '1 sugerencia nueva' : `${sugerenciasNuevas} sugerencias nuevas`,
       detalle: 'Docentes reportaron algo — revísalo.',
@@ -295,7 +297,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       .join(' · ');
     avisos.push({
       id: 'agenda',
-      color: '#a3e635',
+      color: NEON.lima,
       Icono: IconoAgenda,
       titulo: 'Agenda institucional de hoy',
       detalle: agendaHoy.festivo || primeras,
@@ -396,7 +398,9 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
  * fondo de la franja y resplandor del trazo.
  */
 function BannerAviso({ aviso }: { aviso: Aviso }) {
-  const { color, Icono, titulo, detalle, accion } = aviso;
+  const oscuro = useAppStore((s) => s.temaOscuro);
+  const { Icono, titulo, detalle, accion } = aviso;
+  const color = colorNeon(aviso.color, oscuro);
   return (
     <div
       className="flex-shrink-0 w-[270px] sm:w-[300px] flex rounded-2xl border overflow-hidden bg-card"

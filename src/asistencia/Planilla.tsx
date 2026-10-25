@@ -580,7 +580,7 @@ export default function Planilla({
               {estudiantes.map((e) => (
                 <tr key={e.studentId}>
                   <td className="sticky left-0 z-10 min-w-[10.5rem] max-w-[10.5rem] border-b border-r border-line bg-card p-1.5">
-                    <button
+                    <button aria-label={nombreCompleto(e)}
                       onClick={() => onAbrirFicha(e.studentId)}
                       className="flex w-full items-center gap-2 text-left"
                       title={nombreCompleto(e)}
@@ -599,7 +599,11 @@ export default function Planilla({
                     const def = m ? findMark(m.estado) : undefined;
                     return (
                       <td key={s.sessionId} className="border-b border-line p-0">
-                        <button
+                        <button aria-label={
+                            def
+                              ? `${def.label} · registró ${m!.registradoPor}`
+                              : 'Sin registrar (no es una ausencia)'
+                          }
                           disabled={!puedeRegistrar}
                           onClick={() => setCelda({ sessionId: s.sessionId, studentId: e.studentId })}
                           title={
@@ -878,7 +882,7 @@ function SelectorColor({
         <p className="mb-3 text-sm font-semibold text-strong">Color de este grupo</p>
         <div className="grid grid-cols-4 gap-2">
           {COLORES_GRUPO.map((c) => (
-            <button
+            <button aria-label={c.nombre}
               key={c.id}
               onClick={() => onElegir(c.id)}
               title={c.nombre}

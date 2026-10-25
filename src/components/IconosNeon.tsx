@@ -304,6 +304,54 @@ export const IconoGenerico = (p: Props) => (
   </Svg>
 );
 
+/** Paleta neón: único origen. [oscuro, claro]. El claro tiene contraste >=3:1 sobre fondo claro (WCAG, para íconos). */
+export const NEON = {
+  cian: '#22d3ee',
+  violeta: '#a78bfa',
+  naranja: '#fb923c',
+  dorado: '#fbbf24',
+  azul: '#60a5fa',
+  menta: '#34d399',
+  lima: '#a3e635',
+  rosa: '#f472b6',
+  coral: '#f87171',
+  purpura: '#c084fc',
+  celeste: '#38bdf8',
+  turquesa: '#2dd4bf',
+  amarillo: '#fde047',
+  esmeralda: '#4ade80',
+  indigo: '#818cf8',
+  fucsia: '#e879f9',
+  durazno: '#fdba74',
+  gris: '#94a3b8',
+} as const;
+
+const NEON_CLARO: Record<string, string> = {
+  '#22d3ee': '#178fa2',
+  '#a78bfa': '#8b73cf',
+  '#fb923c': '#bc6d2d',
+  '#fbbf24': '#a37c17',
+  '#60a5fa': '#4d84c8',
+  '#34d399': '#24926a',
+  '#a3e635': '#638c20',
+  '#f472b6': '#c85d95',
+  '#f87171': '#d05f5f',
+  '#c084fc': '#9d6ccf',
+  '#38bdf8': '#298ab5',
+  '#2dd4bf': '#1f9082',
+  '#fde047': '#938229',
+  '#4ade80': '#319354',
+  '#818cf8': '#707ad8',
+  '#e879f9': '#b760c5',
+  '#fdba74': '#a4794b',
+  '#94a3b8': '#768293',
+};
+
+/** Color neón según el tema. Devuelve hex plano (sirve para concatenar alfa: `${c}1a`). */
+export function colorNeon(hex: string, oscuro: boolean): string {
+  return oscuro ? hex : (NEON_CLARO[hex.toLowerCase()] ?? hex);
+}
+
 /**
  * Icono + color de acento por sección. El color se usa para el trazo, el
  * fondo tintado de la baldosa y el resplandor: un solo tono por sección.
@@ -312,25 +360,26 @@ export const NEON_NAV: Record<
   string,
   { Icono: (p: Props) => React.ReactElement; color: string }
 > = {
-  disponibilidad: { Icono: IconoReservar,   color: '#22d3ee' }, // cian
-  historial:      { Icono: IconoHistorial,  color: '#a78bfa' }, // violeta
-  admin:          { Icono: IconoPanel,      color: '#fb923c' }, // naranja
-  rectora:        { Icono: IconoRectoria,   color: '#fbbf24' }, // dorado
-  horario:        { Icono: IconoHorario,    color: '#60a5fa' }, // azul
-  asignacion:     { Icono: IconoAsignacion, color: '#34d399' }, // verde menta
-  tareas:         { Icono: IconoTareas,     color: '#a3e635' }, // lima
-  agenda:         { Icono: IconoAgenda,     color: '#f472b6' }, // rosa
-  riesgo:         { Icono: IconoRiesgo,     color: '#f87171' }, // rojo coral
-  asistentes:     { Icono: IconoAsistentes, color: '#c084fc' }, // púrpura
-  admin_users:    { Icono: IconoUsuarios,   color: '#38bdf8' }, // celeste
-  chat:           { Icono: IconoChat,       color: '#2dd4bf' }, // turquesa
-  sugerencias:    { Icono: IconoSugerencias, color: '#fde047' }, // amarillo
-  asistencia:     { Icono: IconoAsistencia, color: '#4ade80' }, // verde esmeralda
-  generar_horario: { Icono: IconoGenerarHorario, color: '#818cf8' }, // índigo
-  notificaciones: { Icono: IconoNotificaciones, color: '#e879f9' }, // fucsia
-  sede_datos:     { Icono: IconoSedeDatos,  color: '#fdba74' }, // durazno
+  disponibilidad: { Icono: IconoReservar,   color: NEON.cian }, // cian
+  historial:      { Icono: IconoHistorial,  color: NEON.violeta }, // violeta
+  admin:          { Icono: IconoPanel,      color: NEON.naranja }, // naranja
+  rectora:        { Icono: IconoRectoria,   color: NEON.dorado }, // dorado
+  horario:        { Icono: IconoHorario,    color: NEON.azul }, // azul
+  asignacion:     { Icono: IconoAsignacion, color: NEON.menta }, // verde menta
+  tareas:         { Icono: IconoTareas,     color: NEON.lima }, // lima
+  agenda:         { Icono: IconoAgenda,     color: NEON.rosa }, // rosa
+  riesgo:         { Icono: IconoRiesgo,     color: NEON.coral }, // rojo coral
+  asistentes:     { Icono: IconoAsistentes, color: NEON.purpura }, // púrpura
+  admin_users:    { Icono: IconoUsuarios,   color: NEON.celeste }, // celeste
+  chat:           { Icono: IconoChat,       color: NEON.turquesa }, // turquesa
+  sugerencias:    { Icono: IconoSugerencias, color: NEON.amarillo }, // amarillo
+  asistencia:     { Icono: IconoAsistencia, color: NEON.esmeralda }, // verde esmeralda
+  generar_horario: { Icono: IconoGenerarHorario, color: NEON.indigo }, // índigo
+  notificaciones: { Icono: IconoNotificaciones, color: NEON.fucsia }, // fucsia
+  sede_datos:     { Icono: IconoSedeDatos,  color: NEON.durazno }, // durazno
 };
 
-export function neonDe(id: string) {
-  return NEON_NAV[id] ?? { Icono: IconoGenerico, color: '#94a3b8' };
+export function neonDe(id: string, oscuro = true) {
+  const n = NEON_NAV[id] ?? { Icono: IconoGenerico, color: NEON.gris };
+  return { Icono: n.Icono, color: colorNeon(n.color, oscuro) };
 }

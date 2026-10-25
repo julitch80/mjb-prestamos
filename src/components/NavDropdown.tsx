@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { neonDe } from './IconosNeon';
+import { useAppStore } from '../data/store';
 
 export type NavOption = {
   id: string;
@@ -27,8 +28,9 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0, bad
   const [abierto, setAbierto] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  const oscuro = useAppStore((s) => s.temaOscuro);
   const actual = opciones.find(o => o.id === activa) ?? opciones[0];
-  const { Icono: IconActual, color: colorActual } = neonDe(actual?.id ?? '');
+  const { Icono: IconActual, color: colorActual } = neonDe(actual?.id ?? '', oscuro);
 
   // Cerrar al hacer clic afuera o con Escape
   useEffect(() => {
@@ -110,12 +112,13 @@ export function MatrizMenu({ opciones, activa, onSelect, conteoDe }: {
   onSelect: (id: string) => void;
   conteoDe?: (id: string) => number;
 }) {
+  const oscuro = useAppStore((s) => s.temaOscuro);
   return (
     <>
       {bloquesMenu(opciones, leerUso()).map((bloque, i) => (
         <div key={i} className="grid grid-cols-3 gap-1 rounded-xl bg-elevated/70 p-1.5">
           {bloque.map(op => {
-            const { Icono: Icon, color } = neonDe(op.id);
+            const { Icono: Icon, color } = neonDe(op.id, oscuro);
             const activo = op.id === activa;
             const conteo = conteoDe?.(op.id) ?? 0;
             return (

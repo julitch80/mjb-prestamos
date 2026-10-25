@@ -1499,7 +1499,7 @@ function SheetGuiaColor({
                 const opcion = usados.get(c.id);
                 const elegido = actual?.colorId === c.id;
                 return (
-                  <button
+                  <button aria-label={opcion ? opcion.etiqueta : `${c.nombre} — sin usar todavía`}
                     key={c.id}
                     onClick={() => tocarColor(c.id)}
                     title={opcion ? opcion.etiqueta : `${c.nombre} — sin usar todavía`}

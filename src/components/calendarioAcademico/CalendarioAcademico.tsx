@@ -8,7 +8,7 @@ import {
   buscar, cambioReciente, diaDeSemana, estadoActual, eventosDelDia, eventosParaGrado11, filtrarPorCategoria,
   hoyISO, nombreMes, pasados, pendientesPorMes, proximos, sumarDias, textoCuentaRegresiva, textoFecha,
 } from '../../data/calendarioAcademico/logica';
-import { CATEGORIAS, colorCategoria, type CategoriaCal, type EventoCal } from '../../data/calendarioAcademico/tipos';
+import { CATEGORIAS, colorCategoria, simboloCategoria, type CategoriaCal, type EventoCal } from '../../data/calendarioAcademico/tipos';
 import { cn } from '@/lib/utils';
 import ModalEvento from './ModalEvento';
 import RegistroCambios from './RegistroCambios';
@@ -23,7 +23,7 @@ function FilaEvento({ e, hoy, extra, onEditar }: { e: EventoCal; hoy: string; ex
   const cambio = cambioReciente(e, hoy);
   return (
     <div className="flex items-start gap-3 py-2.5">
-      <span className="mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: colorCategoria(e.categoria) }} />
+      <span aria-hidden className="mt-0.5 w-3 text-center text-xs leading-5 flex-shrink-0" style={{ color: colorCategoria(e.categoria) }}>{simboloCategoria(e.categoria)}</span>
       <div className="min-w-0 flex-1">
         <p className={cn('text-sm text-strong leading-snug', e.noSeRealiza && 'line-through opacity-70')}>{e.titulo}</p>
         <p className="text-xs text-soft mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -106,7 +106,7 @@ export default function CalendarioAcademico() {
             <button key={c.id} onClick={() => alternarCat(c.id)} aria-pressed={on}
               className={cn('flex items-center gap-1.5 whitespace-nowrap text-xs px-3 py-1.5 rounded-full border transition',
                 on ? 'bg-elevated text-strong border-accent' : 'bg-card text-soft border-line hover:text-strong')}>
-              <span className="w-2 h-2 rounded-full" style={{ background: c.color }} />{c.label}
+              <span aria-hidden style={{ color: c.color }}>{c.simbolo}</span>{c.label}
             </button>
           );
         })}
@@ -226,8 +226,8 @@ function VistaMes({ eventos, mes, setMes, dia, setDia, hoy, buscando, onEditar }
                 fuera ? 'opacity-0 pointer-events-none' : 'hover:bg-elevated',
                 esHoy && 'ring-1 ring-accent', dia === f && 'bg-elevated', 'text-strong')}>
               <span>{Number(f.slice(8))}</span>
-              <span className="flex gap-0.5 h-1.5">
-                {cats.map(c => <span key={c} className="w-1.5 h-1.5 rounded-full" style={{ background: colorCategoria(c) }} />)}
+              <span className="flex gap-px h-2.5 text-[8px] leading-none">
+                {cats.map(c => <span key={c} aria-hidden style={{ color: colorCategoria(c) }}>{simboloCategoria(c)}</span>)}
               </span>
             </button>
           );

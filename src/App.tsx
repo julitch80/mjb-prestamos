@@ -2,7 +2,7 @@ import { useEffect, useState, Suspense, lazy } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import { onIdTokenChanged } from 'firebase/auth';
-import { Sun, Moon, LogOut, Bell, BellRing, Home, BookOpen } from 'lucide-react';
+import { Sun, Moon, LogOut, Bell, BellPlus, Home, BookOpen } from 'lucide-react';
 import { useAppStore } from './data/store';
 import { useTheme } from './hooks/useTheme';
 import { useNotificacionesSistema } from './hooks/useNotificacionesSistema';
@@ -350,9 +350,10 @@ export default function App() {
                 onClick={() => { setVistaActual('inicio'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 className="relative min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
                 title="Notificaciones"
+                aria-label={`Notificaciones: ${notifNoLeidas} sin leer`}
               >
-                <Bell size={16} />
-                <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-danger rounded-full" />
+                <Bell size={16} aria-hidden />
+                <span aria-hidden className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 bg-danger text-white rounded-full text-[10px] font-bold leading-4 text-center">{notifNoLeidas > 9 ? '9+' : notifNoLeidas}</span>
               </button>
             )}
 
@@ -361,9 +362,10 @@ export default function App() {
               <button
                 onClick={solicitarPermiso}
                 className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-info hover:bg-info-soft transition text-xs font-medium"
+                aria-label="Activar avisos del sistema en este dispositivo"
                 title="Recibe un aviso del sistema cuando llegue una notificación nueva"
               >
-                <BellRing size={15} />
+                <BellPlus size={15} aria-hidden />
                 <span className="hidden sm:inline">Activar avisos</span>
               </button>
             )}
@@ -377,8 +379,9 @@ export default function App() {
               rel="noopener"
               className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-muted hover:text-strong hover:bg-elevated transition text-xs font-medium"
               title="Abrir el manual de uso"
+              aria-label="Abrir el manual de uso"
             >
-              <BookOpen size={16} />
+              <BookOpen size={16} aria-hidden />
               <span className="hidden sm:inline">Manual</span>
             </a>
 
@@ -386,18 +389,19 @@ export default function App() {
             <button
               onClick={toggleTema}
               className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
-              title="Cambiar tema"
+              title={temaOscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+              aria-label={temaOscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
-                  key={temaOscuro ? 'moon' : 'sun'}
+                  key={temaOscuro ? 'sun' : 'moon'}
                   initial={{ opacity: 0, rotate: -30, scale: 0.7 }}
                   animate={{ opacity: 1, rotate: 0, scale: 1 }}
                   exit={{ opacity: 0, rotate: 30, scale: 0.7 }}
                   transition={{ duration: 0.2 }}
                   className="flex"
                 >
-                  {temaOscuro ? <Moon size={16} /> : <Sun size={16} />}
+                  {temaOscuro ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
                 </motion.span>
               </AnimatePresence>
             </button>
@@ -413,8 +417,9 @@ export default function App() {
               onClick={() => setConfirmarSalir(true)}
               className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg text-muted hover:text-danger hover:bg-danger-soft transition"
               title="Cerrar sesión"
+              aria-label="Cerrar sesión"
             >
-              <LogOut size={16} />
+              <LogOut size={16} aria-hidden />
             </button>
             )}
           </div>

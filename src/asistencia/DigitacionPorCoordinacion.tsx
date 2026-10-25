@@ -11,6 +11,7 @@ import {
   type MarcaReconstruida,
 } from './domain/alerta-academica';
 import { asignacionesDelGrado } from './horarioDelDia';
+import { IconoMarcaAlerta } from './IconoMarcaAlerta';
 import type { ConvocatoriaAlerta, PlanillaAlerta, Sede } from './domain/types';
 
 /** Nombre del docente de un puesto; el puesto tal cual si no esta en la lista de MJB. */
@@ -239,7 +240,10 @@ function VistaPrevia({
   const sin = previa.marcas.filter((m) => m.marca !== 'alerta');
   const fila = (m: MarcaReconstruida) => (
     <li key={m.studentId} className="flex flex-wrap gap-x-2">
-      <span className="text-strong">{m.marca === 'alerta' ? '⚠️' : '✓'} {nombreDe(m.studentId)}</span>
+      <span className="inline-flex items-center gap-1 text-strong">
+        <span className={m.marca === 'alerta' ? 'text-warning-soft-fg' : 'text-success'}><IconoMarcaAlerta marca={m.marca} /></span>
+        {nombreDe(m.studentId)}
+      </span>
       <span className="text-muted">· {FUENTE[m.fuente]}</span>
     </li>
   );

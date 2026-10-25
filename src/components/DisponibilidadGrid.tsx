@@ -115,7 +115,7 @@ const ESTADO_ESTILOS: Record<CeldaEstado, string> = {
 };
 
 const ESTADO_ICONO: Record<CeldaEstado, string> = {
-  libre: '', clase: '·', ocupado: '✕', propio: '●', rectoria: '★',
+  libre: '+', clase: '·', ocupado: '✕', propio: '●', rectoria: '★',
 };
 
 function toLocalDate(d: Date): string {
@@ -147,7 +147,7 @@ function Leyenda() {
     <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
       {items.map(({ estado, label }) => (
         <span key={estado} className="flex items-center gap-1.5">
-          <span className={cn('w-3.5 h-3.5 rounded border flex items-center justify-center text-[8px]', ESTADO_ESTILOS[estado])}>
+          <span className={cn('w-3.5 h-3.5 rounded border flex items-center justify-center text-xs', ESTADO_ESTILOS[estado])}>
             {ESTADO_ICONO[estado]}
           </span>
           {label}
@@ -197,14 +197,14 @@ function GridRecursos({
                 )}
               >
                 <div>{DIAS_NOMBRES[fi]}</div>
-                <div className={cn('text-[10px] font-normal', f === hoy ? 'text-info' : 'text-muted')}>
+                <div className={cn('text-xs font-normal', f === hoy ? 'text-info' : 'text-muted')}>
                   {formatFecha(f)}
                 </div>
               </th>
             ))}
           </tr>
           <tr className="border-b border-line">
-            <th className="sticky left-0 bg-card z-10 text-[10px] text-muted px-3 py-1 font-normal text-left">
+            <th className="sticky left-0 bg-card z-10 text-xs text-muted px-3 py-1 font-normal text-left">
               Espacio
             </th>
             {fechas.map((f, fi) =>
@@ -216,8 +216,8 @@ function GridRecursos({
                     bi === 0 && fi > 0 ? 'border-l-[3px] border-line-strong' : ''
                   )}
                 >
-                  <div className="text-soft text-[10px]">{horaOrdinal(b.id)}</div>
-                  <div className="text-muted opacity-70 text-[9px]">{b.inicio}</div>
+                  <div className="text-soft text-xs">{horaOrdinal(b.id)}</div>
+                  <div className="text-muted opacity-70 text-xs">{b.inicio}</div>
                 </th>
               ))
             )}
@@ -250,7 +250,7 @@ function GridRecursos({
                       title={`${recurso.nombre} · ${formatFecha(fecha)} · ${horaOrdinal(bloque.id)} hora (${bloque.inicio}–${bloque.fin})`}
                     >
                       <div className={cn(
-                        'h-8 rounded border flex items-center justify-center text-[10px] font-medium transition-all',
+                        'h-8 rounded border flex items-center justify-center text-xs font-medium transition-all',
                         bloqueado ? 'bg-elevated/40 border-line cursor-not-allowed opacity-40' :
                         (rol === 'rectora' && puedeReservar) ? cn(ESTADO_ESTILOS[estado], 'cursor-pointer hover:brightness-110') :
                         ESTADO_ESTILOS[estado]

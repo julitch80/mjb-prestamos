@@ -270,7 +270,7 @@ export default function ValoracionCentro({
           const v = porEstudiante.get(e.studentId);
           return (
             <li key={e.studentId} className="flex items-center gap-2 p-2">
-              <button
+              <button aria-label={`Abrir la ficha de ${nombreCompleto(e)}`}
                 onClick={() => onAbrirFicha(e.studentId)}
                 title={`Abrir la ficha de ${nombreCompleto(e)}`}
                 className="flex min-w-0 grow items-center gap-2 text-left"

@@ -367,15 +367,15 @@ export default function Chat() {
               {/* Diagnóstico: sin esto, una lista vacía por falta de sesión o
                   por permisos se ve idéntica a una lista vacía legítima. */}
               <div className="mx-auto max-w-xs text-left rounded-lg border border-line bg-elevated px-3 py-2 space-y-1">
-                <p className="text-[10px] uppercase tracking-wide text-muted">Diagnóstico</p>
-                <p className="text-[11px] text-soft break-all">
+                <p className="text-xs uppercase tracking-wide text-muted">Diagnóstico</p>
+                <p className="text-xs text-soft break-all">
                   Sesión: {emailSesion ?? <span className="text-danger">ninguna</span>}
                 </p>
                 {errorCanales && (
-                  <p className="text-[11px] text-danger break-all">Fallo: {errorCanales}</p>
+                  <p className="text-xs text-danger break-all">Fallo: {errorCanales}</p>
                 )}
                 {!errorCanales && emailSesion && (
-                  <p className="text-[11px] text-soft">Sin errores: no hay canales visibles.</p>
+                  <p className="text-xs text-soft">Sin errores: no hay canales visibles.</p>
                 )}
               </div>
             </div>
@@ -452,7 +452,7 @@ export default function Chat() {
               >
                 <Pin size={14} className="text-accent flex-shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[10px] text-muted">
+                  <div className="text-xs text-muted">
                     Fijado por {dirMap.get(canalActual.fijado.fijadoPor) || canalActual.fijado.fijadoPor}
                   </div>
                   <div className="text-xs text-strong truncate">
@@ -497,7 +497,7 @@ export default function Chat() {
               {respondiendoA && (
                 <div className="mx-3 mt-2 flex items-start gap-2 px-3 py-2 rounded-lg bg-elevated border-l-2 border-accent">
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10px] text-accent font-medium">
+                    <div className="text-xs text-accent font-medium">
                       Respondiendo a {respondiendoA.authorName}
                     </div>
                     <div className="text-xs text-muted truncate">
@@ -534,7 +534,7 @@ export default function Chat() {
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-strong truncate">{archivoPendiente.name}</div>
-                    <div className="text-[10px] text-muted">{pesoLegible(archivoPendiente.size)}</div>
+                    <div className="text-xs text-muted">{pesoLegible(archivoPendiente.size)}</div>
                     {subiendoPct !== null && (
                       <div className="mt-1 h-1 rounded-full bg-card overflow-hidden">
                         <div
@@ -805,7 +805,7 @@ function Burbuja({
       className={'flex flex-col ' + (propio ? 'items-end' : 'items-start')}
     >
       {esFijado && (
-        <div className="flex items-center gap-1 text-[10px] text-accent mb-0.5">
+        <div className="flex items-center gap-1 text-xs text-accent mb-0.5">
           <Pin size={10} /> fijado
         </div>
       )}
@@ -823,7 +823,7 @@ function Burbuja({
             reenviar saca contenido de su contexto original y en un colegio
             eso puede exponer a alguien; el mínimo es que siempre se vea. */}
         {m.reenviadoDe && (
-          <div className="flex items-center gap-1 text-[10px] text-muted italic mb-1">
+          <div className="flex items-center gap-1 text-xs text-muted italic mb-1">
             <Forward size={10} className="flex-shrink-0" />
             Reenviado de {m.reenviadoDe.canalNombre} · {m.reenviadoDe.autorNombre}
           </div>
@@ -839,10 +839,10 @@ function Burbuja({
               (propio ? 'border-strong/40' : 'border-line-strong')
             }
           >
-            <div className={'text-[10px] font-medium truncate ' + (propio ? 'text-strong/80' : 'text-info')}>
+            <div className={'text-xs font-medium truncate ' + (propio ? 'text-strong/80' : 'text-info')}>
               {m.respondeA.autorNombre}
             </div>
-            <div className={'text-[11px] truncate ' + (propio ? 'text-strong/60' : 'text-muted')}>
+            <div className={'text-xs truncate ' + (propio ? 'text-strong/60' : 'text-muted')}>
               {m.respondeA.extracto}
             </div>
           </button>
@@ -877,14 +877,14 @@ function Burbuja({
           </>
         )}
         <div className="flex items-center gap-2 justify-end mt-1">
-          {m.editedAt && <span className="text-[10px] text-muted">editado</span>}
-          <span className="text-[10px] text-muted">
+          {m.editedAt && <span className="text-xs text-muted">editado</span>}
+          <span className="text-xs text-muted">
             {fechaCorta(m.createdAt)} {horaCorta(m.createdAt)}
           </span>
           {!editando && onResponder && (
             <button
               onClick={() => onResponder(m)}
-              className="text-[10px] text-muted hover:text-strong flex items-center gap-0.5"
+              className="text-xs text-muted hover:text-strong flex items-center gap-0.5"
               aria-label="Responder citando"
             >
               <Reply size={10} /> responder
@@ -893,7 +893,7 @@ function Burbuja({
           {!editando && (
             <button
               onClick={() => onReenviar(m)}
-              className="text-[10px] text-muted hover:text-strong flex items-center gap-0.5"
+              className="text-xs text-muted hover:text-strong flex items-center gap-0.5"
               aria-label="Reenviar mensaje"
             >
               <Forward size={10} /> reenviar
@@ -904,14 +904,14 @@ function Burbuja({
               {propio && (
                 <button
                   onClick={() => setEditando(true)}
-                  className="text-[10px] text-muted hover:text-strong"
+                  className="text-xs text-muted hover:text-strong"
                 >
                   editar
                 </button>
               )}
               <button
                 onClick={() => borrarMensaje(channelId, m.id)}
-                className="text-[10px] text-muted hover:text-danger"
+                className="text-xs text-muted hover:text-danger"
               >
                 borrar
               </button>
@@ -920,7 +920,7 @@ function Burbuja({
           {puedeFijar && !editando && (
             <button
               onClick={() => (esFijado ? soltarFijadoStore(channelId) : handleFijar())}
-              className="text-[10px] text-muted hover:text-strong flex items-center gap-0.5"
+              className="text-xs text-muted hover:text-strong flex items-center gap-0.5"
               aria-label={esFijado ? 'Soltar fijado' : 'Fijar mensaje'}
             >
               <Pin size={10} /> {esFijado ? 'soltar' : 'fijar'}
@@ -942,7 +942,7 @@ function Burbuja({
               : 0;
           const denom = otros > 0 ? otros : undefined;
           return (
-            <div className="text-[10px] text-muted text-right mt-0.5">
+            <div className="text-xs text-muted text-right mt-0.5">
               Leído por {n}{denom ? ` de ${denom}` : ''}
             </div>
           );
@@ -1047,7 +1047,7 @@ function AdjuntoVista({ adjunto }: { adjunto: NonNullable<Mensaje['adjunto']> })
       <div className="mb-1 flex items-center gap-2">
         <audio controls preload="metadata" src={adjunto.url} className="max-w-full" onError={() => setExpirado(true)} />
         {typeof adjunto.duracionSeg === 'number' && (
-          <span className="text-[10px] text-muted flex-shrink-0">
+          <span className="text-xs text-muted flex-shrink-0">
             {Math.floor(adjunto.duracionSeg / 60)}:{String(adjunto.duracionSeg % 60).padStart(2, '0')}
           </span>
         )}
@@ -1071,7 +1071,7 @@ function AdjuntoVista({ adjunto }: { adjunto: NonNullable<Mensaje['adjunto']> })
       <FileText size={18} className="text-muted flex-shrink-0" />
       <div className="min-w-0">
         <div className="text-xs text-strong truncate">{adjunto.nombre}</div>
-        <div className="text-[10px] text-muted">{pesoLegible(adjunto.bytes)}</div>
+        <div className="text-xs text-muted">{pesoLegible(adjunto.bytes)}</div>
       </div>
     </a>
   );

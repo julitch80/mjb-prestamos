@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PastillaNivel } from './NivelLlegadas';
 import { MessageSquare } from 'lucide-react';
 import { leerAvisosDeTope, leerEstudiante, registrarContacto } from './datos';
 import { nombreCompleto } from './domain/nombres';
@@ -139,7 +140,6 @@ export default function SeguimientoLlegadas({
   cuentas,
   ventana,
   config,
-  estiloAlerta,
   onJustificar,
 }: {
   sede: string;
@@ -151,7 +151,6 @@ export default function SeguimientoLlegadas({
   cuentas: Record<string, CuentaLlegadas>;
   ventana: Ventana;
   config: AlertConfig;
-  estiloAlerta: (c: ColorAlerta) => React.CSSProperties;
   onJustificar: (l: LateArrival) => void;
 }) {
   const diasVence = config.diasVencePendiente ?? 8;
@@ -226,12 +225,7 @@ export default function SeguimientoLlegadas({
                   <span className="ml-2 text-xs text-muted">{gradoDe[studentId]}</span>
                   <span className="block text-xs text-muted">{describirCuenta(cuenta)}</span>
                 </span>
-                <span
-                  className="rounded-full border px-1.5 py-0.5 text-xs font-semibold"
-                  style={estiloAlerta(paso!.color)}
-                >
-                  {paso!.color}
-                </span>
+                <PastillaNivel color={paso!.color} />
                 <BotonAvisoSms
                   estudiante={fichas[studentId]}
                   etiqueta="Avisar tope"

@@ -1010,7 +1010,11 @@ export default function PlanillaCentro({
                 </th>
                 {columnas.map((c) => (
                   <th key={c.fecha} className="border-b border-line p-0 align-top">
-                    <button
+                    <button aria-label={
+                        c.sesion
+                          ? `Sesión del ${fechaLegible(c.fecha)}`
+                          : `${fechaLegible(c.fecha)} · todavía sin registrar`
+                      }
                       onClick={() => setFechaActiva(c.fecha)}
                       title={
                         c.sesion
@@ -1031,7 +1035,7 @@ export default function PlanillaCentro({
                       {diaSemana(c.fecha)}
                     </button>
                     {puedeRegistrar && (
-                      <button
+                      <button aria-label="Llenar las casillas vacías de esta columna"
                         onClick={() => setMenuColumna(c.fecha)}
                         title="Llenar las casillas vacías de esta columna"
                         className="block w-full text-center text-xs text-strong"
@@ -1077,7 +1081,7 @@ export default function PlanillaCentro({
                             ver: `asistenciaStudents` es legible por cualquier docente activo,
                             y lo que si es de coordinacion y direccion (editar, registrar una
                             llamada) la propia ficha no se lo ofrece. */}
-                        <button
+                        <button aria-label={`Abrir la ficha de ${nombreCompleto(e)}`}
                           onClick={() => onAbrirFicha(e.studentId)}
                           title={`Abrir la ficha de ${nombreCompleto(e)}`}
                           className="flex w-full items-center gap-2 text-left"
@@ -1103,7 +1107,11 @@ export default function PlanillaCentro({
                       const def = m ? findMark(m.estado) : undefined;
                       return (
                         <td key={c.fecha} className="border-b border-line p-0">
-                          <button
+                          <button aria-label={
+                              def
+                                ? `${def.label} · registró ${m!.registradoPor}`
+                                : 'Sin registrar (no es una ausencia)'
+                            }
                             disabled={!puedeRegistrar}
                             onClick={() => {
                               setFechaActiva(c.fecha);

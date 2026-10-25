@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Avatar from './Avatar';
+import { IconoMarcaAlerta } from './IconoMarcaAlerta';
 import {
   convocatoriasAlerta,
   entregarPlanillaAlerta,
@@ -313,10 +314,10 @@ export default function AlertaAcademica({
                         ? 'bg-warning-soft text-warning-soft-fg'
                         : m === 'sin_alerta'
                           ? 'bg-success-soft text-success-soft-fg'
-                          : 'border border-dashed border-line text-muted'
+                          : 'border-2 border-dashed border-line-strong text-soft'
                     }`}
                   >
-                    {m === 'alerta' ? '⚠️' : m === 'sin_alerta' ? '✓' : '·'}
+                    <IconoMarcaAlerta marca={m} />
                   </span>
                 </button>
               </li>
@@ -381,7 +382,7 @@ export function RecuadroAlerta({
   onElegir: (m: MarcaAlerta) => void;
   onCerrar: () => void;
 }) {
-  const opcion = (m: MarcaAlerta, icono: string, texto: string, color: string) => (
+  const opcion = (m: MarcaAlerta, icono: React.ReactNode, texto: string, color: string) => (
     <button
       onClick={() => onElegir(m)}
       aria-pressed={actual === m}
@@ -408,8 +409,8 @@ export function RecuadroAlerta({
           <p className="text-xs text-muted">{detalle}</p>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
-          {opcion('alerta', '⚠️', 'En alerta', 'bg-warning-soft text-warning-soft-fg')}
-          {opcion('sin_alerta', '✓', 'Sin alerta', 'bg-success-soft text-success-soft-fg')}
+          {opcion('alerta', <IconoMarcaAlerta marca="alerta" grande />, 'En alerta', 'bg-warning-soft text-warning-soft-fg')}
+          {opcion('sin_alerta', <IconoMarcaAlerta marca="sin_alerta" grande />, 'Sin alerta', 'bg-success-soft text-success-soft-fg')}
         </div>
         <button onClick={onCerrar} className="mt-3 w-full rounded-lg border border-line p-2 text-sm text-soft">
           Cerrar

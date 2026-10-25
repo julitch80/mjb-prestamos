@@ -312,7 +312,6 @@ const CSS_PF = `
 .pf-m { width: 34mm; white-space: nowrap; }
 .pf-f { width: 48mm; } .pf-tel { width: 32mm; }
 .pf-t td:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
-.pf-citado td { background: #f7eef0; }
 .pf-t tr.pf-sec td { height: var(--alto, 6.5mm); font-weight: 700; font-size: var(--letra, 8.4pt); background: #eef2f7; border-bottom: 0.3mm solid #111; }
 .pf-cita { font-weight: 700; color: #b3122a; font-size: 7.8pt; }
 .pf-inf { color: #555; font-size: 7.8pt; }

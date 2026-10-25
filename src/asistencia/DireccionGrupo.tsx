@@ -494,7 +494,7 @@ export default function DireccionGrupo({
               {estudiantes.map((e) => (
                 <tr key={e.studentId}>
                   <td className="sticky left-0 z-10 min-w-[10.5rem] max-w-[10.5rem] border-b border-r border-line bg-card p-1.5">
-                    <button
+                    <button aria-label={`Abrir la ficha de ${nombreCompleto(e)}`}
                       onClick={() => onAbrirFicha(e.studentId)}
                       title={`Abrir la ficha de ${nombreCompleto(e)}`}
                       className="flex w-full items-center gap-2 text-left"

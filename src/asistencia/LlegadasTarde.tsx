@@ -34,31 +34,13 @@ import {
   nivelDeRegistroIndividual,
   pasoLlegadasTarde,
   sumarMinutos,
-  type ColorAlerta,
   type CuentaLlegadas,
 } from './domain/alertas';
 import { filtroEfectivo, filtroInicial, gradoEnJornada, type FiltroJornada } from './domain/filtro-jornada';
 import type { AlertConfig, FamilyContact, Jornada, LateArrival, Student } from './domain/types';
 import SelectorJornada from './SelectorJornada';
+import { PastillaNivel } from './NivelLlegadas';
 import { BLOQUES_MANANA, BLOQUES_TARDE } from '../data/maestros';
-
-/** Colores de la escala de reincidencia. Via `style`, no clase: son tres tonos fijos de
- * severidad, no un token de la app (mismo patron que domain/colores.ts usa para el color
- * de grupo). */
-const COLOR_ALERTA: Record<ColorAlerta, string> = {
-  amarillo: '#eab308',
-  naranja: '#f97316',
-  rojo: '#b91c1c',
-};
-
-function estiloAlerta(color: ColorAlerta): React.CSSProperties {
-  const hex = COLOR_ALERTA[color];
-  return {
-    color: hex,
-    backgroundColor: `color-mix(in srgb, ${hex} 16%, transparent)`,
-    borderColor: `color-mix(in srgb, ${hex} 50%, transparent)`,
-  };
-}
 
 /**
  * Llegadas tarde a la institucion — pantalla de porteria del coordinador.
@@ -484,11 +466,8 @@ export default function LlegadasTarde({
                   const paso = pasoLlegadasTarde(cuentaDe(e.studentId), config);
                   return (
                     paso && (
-                      <span
-                        className="mt-0.5 inline-block rounded-full border px-1.5 py-0.5 text-xs font-semibold"
-                        style={estiloAlerta(paso.color)}
-                      >
-                        {paso.mensaje}
+                      <span className="mt-0.5 inline-block">
+                        <PastillaNivel color={paso.color}>{paso.mensaje}</PastillaNivel>
                       </span>
                     )
                   );
@@ -644,13 +623,9 @@ export default function LlegadasTarde({
                   const paso = pasoLlegadasTarde(cuenta, config);
                   return (
                     paso && (
-                      <span
-                        className="rounded-full border px-1.5 py-0.5 text-xs font-semibold"
-                        style={estiloAlerta(paso.color)}
-                        title={paso.mensaje}
-                      >
+                      <PastillaNivel color={paso.color} title={paso.mensaje}>
                         {cuenta.llegadas} {ventana.nombre}{cuenta.segundoNivel > 0 ? ` (${cuenta.segundoNivel} de 2º)` : ''}
-                      </span>
+                      </PastillaNivel>
                     )
                   );
                 })()}
@@ -713,7 +688,6 @@ export default function LlegadasTarde({
         cuentas={conteoAnual}
         ventana={ventana}
         config={config}
-        estiloAlerta={estiloAlerta}
         onJustificar={setAResolver}
       />
 

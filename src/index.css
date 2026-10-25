@@ -18,19 +18,19 @@
 
   /* Bordes */
   --color-line: #d8dde6;         /* divisores sutiles */
-  --color-line-strong: #b3bac8;  /* recuadros activos */
+  --color-line-strong: #8590a5;  /* recuadros activos */
 
   /* Acento e intención semántica */
-  --color-accent: #2563eb;
+  --color-accent: #1d4ed8;
   --color-accent-fg: #ffffff;
   --color-accent-soft: #dbeafe;
   --color-accent-soft-fg: #1e3a8a;
 
-  --color-success: #15803d;
+  --color-success: #166534;
   --color-success-soft: #dcfce7;
   --color-success-soft-fg: #14532d;
 
-  --color-warning: #b45309;
+  --color-warning: #92400e;
   --color-warning-soft: #fef3c7;
   --color-warning-soft-fg: #78350f;
 
@@ -46,7 +46,7 @@
   --color-purple-soft: #ede9fe;
   --color-purple-soft-fg: #4c1d95;
 
-  --color-teal: #0d9488;
+  --color-teal: #0f766e;
   --color-teal-soft: #ccfbf1;
   --color-teal-soft-fg: #134e4a;
 
@@ -72,10 +72,10 @@
     --color-muted: #94a0b6;
 
     --color-line: #252b3d;
-    --color-line-strong: #3a425a;
+    --color-line-strong: #6b7690;
 
-    --color-accent: #3b82f6;
-    --color-accent-fg: #ffffff;
+    --color-accent: #60a5fa;
+    --color-accent-fg: #0a0e1a;
     --color-accent-soft: #1e3a8a40;
     --color-accent-soft-fg: #93c5fd;
 
@@ -87,7 +87,7 @@
     --color-warning-soft: #78350f40;
     --color-warning-soft-fg: #fcd34d;
 
-    --color-danger: #ef4444;
+    --color-danger: #f87171;
     --color-danger-soft: #7f1d1d40;
     --color-danger-soft-fg: #fca5a5;
 
