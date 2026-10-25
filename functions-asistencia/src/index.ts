@@ -35,7 +35,7 @@ import { normalizarSexo, normalizarTipoDocumento, type CampoFicha } from '../../
 import { enrollmentId } from '../../src/asistencia/domain/ids';
 import { censoDiaId, construirCensoDeSesion } from '../../src/asistencia/domain/evasion';
 import { confirmacionEliminarValida, rolPuedeEliminarSesion } from '../../src/asistencia/domain/columna';
-import type { DocType, Session, Student } from '../../src/asistencia/domain/types';
+import type { DocType, Jornada, PlanillaAlerta, Sede, Session, Student } from '../../src/asistencia/domain/types';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import {
   avisoVencido,
@@ -58,6 +58,8 @@ import {
 import { mensajeAvisoConEnlace } from '../../src/asistencia/domain/sms';
 import { nombreCompleto, nombresDePila } from '../../src/asistencia/domain/nombres';
 import { jornadaDeGrado, sessionId } from '../../src/asistencia/domain/ids';
+import { convocatoriaAlertaId } from '../../src/asistencia/domain/alerta-academica';
+import { resumenDeGrado } from '../../src/asistencia/domain/analisis-alerta';
 import { findMark, isJustified } from '../../src/asistencia/domain/marks';
 import { MOTIVOS_SEMILLA, type MotivoFamilia } from '../../src/asistencia/domain/permanencia';
 import { claveDeAvisos, firmaValida, firmarAviso, nuevoIdDeAviso } from './firma-aviso';
@@ -847,6 +849,54 @@ export const onAlertaUpdated = onDocumentUpdated(
     await batch.commit();
   },
 );
+
+// ---------------------------------------------------------------------------
+//  Resumen SIN NOMBRES de la alerta academica (2026-10-24)
+// ---------------------------------------------------------------------------
+
+/**
+ * Recalcula el resumen de UN grupo (cuantos sin alerta, cuantos citados, estudiantes en
+ * alerta por asignatura) y lo guarda en `asistenciaAlertaResumen/{anio_periodo_sede_jornada}`,
+ * en `grupos.{grado}`. Solo cuentas: con el, el director compara su grupo con los demas y las
+ * directivas ven el panorama por jornada y por sede, sin abrir las planillas de nadie.
+ */
+async function recalcularResumenGrado(d: { sede: string; jornada: string; anio: number; periodo: number; grado: string }): Promise<void> {
+  const snap = await db.collection('asistenciaAlertas')
+    .where('sede', '==', d.sede).where('jornada', '==', d.jornada)
+    .where('anio', '==', d.anio).where('periodo', '==', d.periodo)
+    .where('grado', '==', d.grado).get();
+  const resumen = resumenDeGrado(snap.docs.map((x) => x.data() as PlanillaAlerta));
+  const id = convocatoriaAlertaId(d.anio, d.periodo, d.sede as Sede, d.jornada as Jornada);
+  await db.collection('asistenciaAlertaResumen').doc(id).set(
+    { resumenId: id, sede: d.sede, jornada: d.jornada, anio: d.anio, periodo: d.periodo, grupos: { [d.grado]: resumen }, actualizadoEn: FieldValue.serverTimestamp() },
+    { merge: true },
+  );
+}
+
+/** Cada vez que una planilla de alerta se crea, se marca o se entrega. */
+export const onAlertaEscrita = onDocumentWritten(
+  { region: REGION, document: 'asistenciaAlertas/{alertaId}' },
+  async (event) => {
+    const d = (event.data?.after?.data() ?? event.data?.before?.data()) as PlanillaAlerta | undefined;
+    if (!d?.grado || !d.sede || !d.jornada || typeof d.anio !== 'number' || typeof d.periodo !== 'number') return;
+    await recalcularResumenGrado(d);
+  },
+);
+
+/**
+ * Rehace el resumen de un periodo completo (sede + jornada): para los periodos marcados antes
+ * de que existiera el resumen, o si alguna vez queda desfasado. Lo piden coordinacion o rectoria.
+ */
+export const recalcularResumenAlerta = onCall({ region: REGION, cors: true, invoker: 'public' }, async (request) => {
+  await requireRole(request.auth, ['coordinador', 'rectora', 'superusuario']);
+  const { sede, jornada, anio, periodo } = (request.data ?? {}) as { sede?: string; jornada?: string; anio?: number; periodo?: number };
+  if (!sede || !jornada || typeof anio !== 'number' || typeof periodo !== 'number') throw new HttpsError('invalid-argument', 'Datos incompletos.');
+  const snap = await db.collection('asistenciaAlertas')
+    .where('sede', '==', sede).where('jornada', '==', jornada).where('anio', '==', anio).where('periodo', '==', periodo).get();
+  const grados = [...new Set(snap.docs.map((x) => (x.data() as PlanillaAlerta).grado))];
+  for (const grado of grados) await recalcularResumenGrado({ sede, jornada, anio, periodo, grado });
+  return { grupos: grados.length };
+});
 
 function archivador(coleccion: string) {
   return onDocumentUpdated(

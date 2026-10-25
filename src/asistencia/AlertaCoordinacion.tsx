@@ -43,6 +43,7 @@ import ReporteAlerta from './ReporteAlerta';
 import AlertaAcademica from './AlertaAcademica';
 import DigitacionPorCoordinacion, { nombreDelPuesto } from './DigitacionPorCoordinacion';
 import SeguimientoCoordinacion from './SeguimientoCoordinacion';
+import PanoramaAlerta from './PanoramaAlerta';
 import { fechaLarga } from './domain/imprimibles-alerta';
 import { PLAZO_EXCUSA_DIAS } from './domain/seguimiento-alerta';
 import type { AgendaCitaciones, BandaAgenda, ConvocatoriaAlerta, ExcepcionAgenda, Jornada, ModoAgenda, ParametrosAgenda, PlanillaAlerta, Sede, Student } from './domain/types';
@@ -75,6 +76,8 @@ export default function AlertaCoordinacion({
   const [elegida, setElegida] = useState<string | null>(null);
   const [planillas, setPlanillas] = useState<PlanillaAlerta[] | null>(null);
   const [grupoAbierto, setGrupoAbierto] = useState<string | null>(null);
+  // «Gestión» (lo de siempre) o «Panorama» (por jornada y por sede, sin nombres; 2026-10-24).
+  const [verPanorama, setVerPanorama] = useState(false);
   // Asignatura del grupo abierto que coordinacion digita en nombre del docente (2026-10-22).
   const [digitando, setDigitando] = useState<FilaDigitacion | null>(null);
   const [agendas, setAgendas] = useState<AgendaCitaciones[]>([]);
@@ -298,11 +301,39 @@ export default function AlertaCoordinacion({
 
   const yaExiste = (convocatorias ?? []).some((c) => c.anio === hoy.getFullYear() && c.periodo === periodoNuevo);
   const editable = convocatoriaEditable(conv, toDateKey(hoy));
+  const selectorVista = (
+    <div className="inline-flex rounded-xl border border-line p-0.5" role="group" aria-label="Vista">
+      {[false, true].map((v) => (
+        <button
+          key={String(v)}
+          type="button"
+          aria-pressed={verPanorama === v}
+          onClick={() => setVerPanorama(v)}
+          className={`min-h-[40px] rounded-lg px-3 text-sm font-semibold ${verPanorama === v ? 'bg-accent text-accent-fg' : 'text-strong'}`}
+        >
+          {v ? 'Panorama' : 'Gestión'}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (verPanorama) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="flex-1 text-lg font-semibold text-strong">Alerta académica</h2>
+          {selectorVista}
+        </div>
+        <PanoramaAlerta sede={sede} jornadaLimitada={jornadaLimitada ?? null} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="flex-1 text-lg font-semibold text-strong">Alerta académica</h2>
+        {selectorVista}
         {!jornadaLimitada && (
           <div className="flex gap-1.5">
             {(['manana', 'tarde'] as const).map((j) => (

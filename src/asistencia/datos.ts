@@ -67,6 +67,7 @@ import {
 import type { MarkCode } from './domain/marks';
 import { planCambioColumna, type PlanCambioColumna } from './domain/columna';
 import { alertaId, citacionAlertaId, convocatoriaAlertaId, instanteColombia, normalizarBandas, normalizarParametros, type EntradaHistorialAlerta } from './domain/alerta-academica';
+import type { ResumenJornada } from './domain/analisis-alerta';
 import type {
   AlertConfig,
   AvisoEvasion,
@@ -3869,6 +3870,20 @@ export async function entregarPlanillaAlertaPorCoordinacion(
   };
   for (const [studentId, marca] of Object.entries(cambios)) escritura[`estudiantes.${studentId}`] = marca;
   await updateDoc(doc(baseDatos(), 'asistenciaAlertas', id), escritura);
+}
+
+/** Los resumenes SIN NOMBRES de la alerta de un año (todas las sedes y jornadas): los escribe el servidor. */
+export async function leerResumenesAlerta(anio: number): Promise<ResumenJornada[]> {
+  if (!(await listo())) return [];
+  const snap = await getDocs(query(collection(baseDatos(), 'asistenciaAlertaResumen'), where('anio', '==', anio)));
+  return aLista<ResumenJornada>(snap);
+}
+
+/** Rehace el resumen de un periodo (sede + jornada): para los periodos marcados antes de que existiera. */
+export async function recalcularResumenAlerta(x: { sede: Sede; jornada: Jornada; anio: number; periodo: number }): Promise<void> {
+  if (!functions) throw new Error('Firebase no está configurado en esta instalación.');
+  await esperarAuth();
+  await httpsCallable(functions, 'recalcularResumenAlerta')(x);
 }
 
 /** El historial de correcciones de una planilla de alerta (solo coordinacion lo lee). */

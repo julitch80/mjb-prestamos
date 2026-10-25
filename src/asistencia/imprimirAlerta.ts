@@ -3,6 +3,7 @@
  * arma informes y citaciones con nombres reales y abre la ventana de impresion, donde se
  * imprime o se guarda como PDF. Lo usan el director (su grupo) y coordinacion (la jornada).
  */
+import { htmlAnalisisAlerta, type DatosImprimibleAnalisis } from './domain/imprimible-analisis-alerta';
 import { USUARIOS } from '../data/maestros';
 import { nombreCompleto } from './domain/nombres';
 import { bandaDe, motivoCitacion, textoRango, type FilaConsolidado } from './domain/alerta-academica';
@@ -191,6 +192,16 @@ export function imprimirTodo(
 
 export function imprimirCitaciones(sede: Sede, citaciones: CitacionAlerta[], titulo: string): boolean {
   return abrirImpresion(htmlCitaciones(institucion(sede), citaciones, titulo));
+}
+
+/** El analisis de la alerta de un grupo, con o sin nombres (para el salon). */
+export function imprimirAnalisisAlerta(
+  sede: Sede,
+  d: DatosImprimibleAnalisis,
+  conNombres: boolean,
+  nombreDe: (studentId: string) => string,
+): boolean {
+  return abrirImpresion(htmlAnalisisAlerta(institucion(sede), d, conNombres, nombreDe));
 }
 
 /** El «Resumen del periodo» de permanencia, en una ventana lista para imprimir. */

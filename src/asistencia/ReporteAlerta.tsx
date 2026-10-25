@@ -5,6 +5,7 @@ import { nombreCompleto, ordenarEstudiantes } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import { combinarPlanillas, consolidarGrupo, convocatoriaDelGrado, fechaCorta, horaCorta, MINIMO_PARA_CITAR, puedeCitar } from './domain/alerta-academica';
 import { toDateKey } from './domain/ids';
+import AnalisisAlerta from './AnalisisAlerta';
 import CitacionesAlerta from './CitacionesAlerta';
 import EntregaAlerta from './EntregaAlerta';
 import { asignaturasDelGrado } from './horarioDelDia';
@@ -43,6 +44,8 @@ export default function ReporteAlerta({
   const [periodoElegido, setPeriodoElegido] = useState<string | null>(null);
   const [planillas, setPlanillas] = useState<PlanillaAlerta[] | null>(null);
   const [soloCitados, setSoloCitados] = useState(false);
+  // «Cuadro» (el de siempre) o «Análisis» (graficos para analizar con el grupo, 2026-10-24).
+  const [vista, setVista] = useState<'cuadro' | 'analisis'>('cuadro');
 
   useEffect(() => {
     void convocatoriasAlerta(sede, jornada)
@@ -117,6 +120,35 @@ export default function ReporteAlerta({
         )}
       </div>
 
+      <div className="inline-flex self-start rounded-xl border border-line p-0.5" role="group" aria-label="Vista del reporte">
+        {(['cuadro', 'analisis'] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={vista === v}
+            onClick={() => setVista(v)}
+            className={`min-h-[40px] rounded-lg px-4 text-sm font-semibold ${vista === v ? 'bg-accent text-accent-fg' : 'text-strong'}`}
+          >
+            {v === 'cuadro' ? 'Cuadro' : 'Análisis'}
+          </button>
+        ))}
+      </div>
+
+      {vista === 'analisis' ? (
+        planillas === null ? (
+          <p className="p-3 text-sm text-muted">Cargando…</p>
+        ) : (
+          <AnalisisAlerta
+            grado={grado}
+            sede={sede}
+            conv={conv}
+            consolidado={consolidado}
+            esperadas={esperadas}
+            estudiantes={activos}
+            director={director}
+          />
+        )
+      ) : (<>
       <div className="grid gap-2 sm:grid-cols-3">
         <div className="rounded-xl border border-line bg-card p-3">
           <p className="text-xs text-muted">Asignaturas entregadas</p>
@@ -225,6 +257,7 @@ export default function ReporteAlerta({
       ) : (
         <p className="rounded-xl bg-elevated px-3 py-2 text-sm text-soft">Las citaciones se arman cuando coordinación cierre la alerta: hasta entonces la lista de citados puede cambiar.</p>
       ))}
+      </>)}
     </div>
   );
 }

@@ -75,6 +75,7 @@ const ALERTA_ACADEMICA_ACTIVA = true;
 const AlertaAcademica = lazy(() => import('./AlertaAcademica'));
 const ReporteAlerta = lazy(() => import('./ReporteAlerta'));
 const AlertaCoordinacion = lazy(() => import('./AlertaCoordinacion'));
+const PanoramaAlerta = lazy(() => import('./PanoramaAlerta'));
 import {
   abrirSesion,
   borrarSesionesDeCruce,
@@ -1087,6 +1088,19 @@ export default function Asistencia() {
             <ConfigPermanencia sede={sede as Sede} jornadaLimitada={alcanceUsuario.jornadaLimitada} />
           </div>
         </details>
+      </div>
+    );
+  }
+
+  // Alerta academica, RECTORIA: solo el panorama por jornada y por sede, sin nombres
+  // (Julian, 2026-10-24). La gestion de la convocatoria sigue siendo de coordinacion.
+  if (ALERTA_ACADEMICA_ACTIVA && rol === 'rectora' && vista === 'alerta') {
+    return (
+      <div className="space-y-3">
+        <Pestanas vista={vista} onCambiar={cambiarVista} rol={rol} />
+        <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando…</p>}>
+          <PanoramaAlerta sede={sede as Sede} />
+        </Suspense>
       </div>
     );
   }
@@ -2233,8 +2247,8 @@ const SECCIONES: {
     vista: 'alerta',
     nombre: 'Alerta académica',
     descripcion:
-      'La alerta de la 7.ª semana de cada periodo: abrirla con su fecha límite, cerrarla, poner el día y la franja de entrega a las familias, y ver qué grupos ya entregaron y a cuántos hay que citar.',
-    soloCoordinador: true,
+      'La alerta de la 7.ª semana de cada periodo: abrirla con su fecha límite, cerrarla, poner el día y la franja de entrega a las familias, y ver qué grupos ya entregaron y a cuántos hay que citar. Rectoría ve el panorama por jornada y por sede.',
+    coordinacionYRectoria: true,
   },
   {
     vista: 'eventos',

@@ -2293,6 +2293,15 @@ service cloud.firestore {
       allow delete: if !esSuplantacion() && (false);
     }
 
+    // ---------- Alerta: resumen SIN NOMBRES (2026-10-24) ----------
+    // Solo cuentas por grupo (cuantos sin alerta, cuantos citados, por asignatura): ningun
+    // estudiante. Lo escribe el servidor (`onAlertaEscrita`); lo lee cualquier usuario activo,
+    // para comparar grupos y para el panorama de las directivas.
+    match /asistenciaAlertaResumen/{resumenId} {
+      allow read: if isActiveUser();
+      allow write: if !esSuplantacion() && (false);
+    }
+
     // ---------- Alerta: un documento por planilla (grado + asignatura) ----------
     match /asistenciaAlertas/{alertaId} {
 

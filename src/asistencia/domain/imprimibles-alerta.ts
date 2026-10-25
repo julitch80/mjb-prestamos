@@ -199,7 +199,7 @@ export function htmlParaImprimir(
       ? `<style>${CSS_CS}</style>` + paginas(Array.from({ length: Math.ceil(constancias.cuantas / 4) * 4 }, () => constancia(inst, constancias.fecha)))
       : '');
   const nConst = constancias && constancias.cuantas > 0 ? Math.ceil(constancias.cuantas / 4) * 4 : 0;
-  const hojas = Math.ceil(citaciones.length / 4) + Math.ceil(informes.length / 4) + planillas.length + nConst / 4;
+  const hojas = Math.ceil(citaciones.length / 4) + Math.ceil(informes.length / 4) + planillas.reduce((n, p) => n + hojasDePlanilla(p), 0) + nConst / 4;
   return documento(
     titulo,
     cuerpo,
@@ -240,37 +240,53 @@ export interface PlanillaFirmas {
  * hora de citacion) lo elige coordinacion al descargar: las filas llegan ya ordenadas.
  * La firma en papel sigue siendo la prueba de la presencia del acudiente.
  */
+/**
+ * Renglones por hoja carta (2026-10-24: con listas largas la hoja se cortaba o llegaba al
+ * borde). Con renglones de 7,5 mm y margenes de 14 mm caben 26 con la firma (medido).
+ * Si no caben, la planilla sigue en otra hoja con el mismo encabezado («continuación»).
+ */
+export const RENGLONES_POR_HOJA = 26;
+
+/** Cuantas hojas ocupa la planilla de un grupo (renglones de estudiantes y de reunion). */
+export function hojasDePlanilla(p: PlanillaFirmas): number {
+  const citadas = p.filas.filter((f) => f.horaCita);
+  const secciones = citadas.filter((f, i) => f.seccion && f.seccion !== citadas[i - 1]?.seccion).length;
+  return Math.max(1, Math.ceil((citadas.length + secciones) / RENGLONES_POR_HOJA));
+}
+
 function planillaFirmas(inst: DatosInstitucion, p: PlanillaFirmas): string {
   // Las filas llegan ya ordenadas (lo decide coordinacion); solo las de los citados.
   const citadas = p.filas.filter((f) => f.horaCita);
-  const filas = citadas.map((f, i) =>
-    (f.seccion && f.seccion !== citadas[i - 1]?.seccion
-      ? `<tr class="pf-sec"><td colspan="5">${esc(f.seccion)}</td></tr>`
-      : '') +
-    `<tr><td class="pf-n">${i + 1}</td><td>${esc(f.estudiante)}</td><td class="pf-m"><span class="pf-cita">${esc(f.horaCita!)}</span> · ${f.alertas} asig.</td><td></td><td></td></tr>`);
-  return `<section class="hoja pf">
-    ${encabezado(inst, 'Entrega de alerta académica · registro de asistencia', `Grupo ${p.grado} · periodo ${p.periodo} · ${p.anio} · ${p.fecha}`)}
-    <p class="pf-res">Director(a) de grupo: <b>${esc(p.director)}</b> · ${citadas.length} acudientes citados</p>
+  const renglones = citadas.flatMap((f, i) => [
+    ...(f.seccion && f.seccion !== citadas[i - 1]?.seccion ? [`<tr class="pf-sec"><td colspan="5">${esc(f.seccion)}</td></tr>`] : []),
+    `<tr><td class="pf-n">${i + 1}</td><td>${esc(f.estudiante)}</td><td class="pf-m"><span class="pf-cita">${esc(f.horaCita!)}</span> · ${f.alertas} asig.</td><td></td><td></td></tr>`,
+  ]);
+  const hojas: string[][] = [];
+  for (let i = 0; i < Math.max(1, renglones.length); i += RENGLONES_POR_HOJA) hojas.push(renglones.slice(i, i + RENGLONES_POR_HOJA));
+  return hojas.map((filas, n) => `<section class="hoja pf">
+    ${encabezado(inst, 'Entrega de alerta académica · registro de asistencia', `Grupo ${p.grado} · periodo ${p.periodo} · ${p.anio} · ${p.fecha}${hojas.length > 1 ? ` · hoja ${n + 1} de ${hojas.length}` : ''}`)}
+    ${n === 0 ? `<p class="pf-res">Director(a) de grupo: <b>${esc(p.director)}</b> · ${citadas.length} acudientes citados</p>` : '<p class="pf-res">(continuación)</p>'}
     <table class="pf-t">
       <thead><tr><th class="pf-n">N.º</th><th>Estudiante</th><th class="pf-m">Hora citada</th><th class="pf-f">Firma del acudiente</th><th class="pf-tel">Teléfono de contacto</th></tr></thead>
       <tbody>${filas.join('')}</tbody>
     </table>
-    ${firma(p.director)}
-  </section>`;
+    ${n === hojas.length - 1 ? firma(p.director) : ''}
+  </section>`).join('');
 }
 
 const CSS_PF = `
-.hoja.pf { display: flex; flex-direction: column; padding: 12mm 12mm 10mm; gap: 2.5mm; }
+.hoja.pf { display: flex; flex-direction: column; padding: 14mm 14mm 12mm; gap: 2.5mm; }
 .hoja.pf::before, .hoja.pf::after { display: none; }
 .pf-res { margin: 0; font-size: 8.5pt; color: #333; }
 .pf-t { width: 100%; border-collapse: collapse; font-size: 8.6pt; }
 .pf-t th { text-align: left; font-size: 7.6pt; color: #444; border-bottom: 0.4mm solid #111; padding: 1mm 1.5mm; }
-.pf-t td { border-bottom: 0.2mm solid #bbb; padding: 0 1.5mm; height: 9mm; }
+.pf-t td { border-bottom: 0.2mm solid #bbb; padding: 0 1.5mm; height: 7.5mm; }
 .pf-n { width: 8mm; text-align: right; color: #555; }
-.pf-m { width: 36mm; white-space: nowrap; }
-.pf-f { width: 50mm; } .pf-tel { width: 34mm; }
+.pf-m { width: 34mm; white-space: nowrap; }
+.pf-f { width: 48mm; } .pf-tel { width: 32mm; }
+.pf-t td:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
 .pf-citado td { background: #f7eef0; }
-.pf-t tr.pf-sec td { height: 7mm; font-weight: 700; font-size: 8.4pt; background: #eef2f7; border-bottom: 0.3mm solid #111; }
+.pf-t tr.pf-sec td { height: 6.5mm; font-weight: 700; font-size: 8.4pt; background: #eef2f7; border-bottom: 0.3mm solid #111; }
 .pf-cita { font-weight: 700; color: #b3122a; font-size: 7.8pt; }
 .pf-inf { color: #555; font-size: 7.8pt; }
 .hoja.pf .firma .linea { margin-top: 6mm; }
