@@ -2,6 +2,7 @@
 // cambios de horario, próxima clase (docentes), agenda institucional del día,
 // accesos rápidos por rol y un resumen de chat (solo modo google + Firebase).
 import { ChevronDown } from 'lucide-react';
+import Avatar from './Avatar';
 import { cn } from '../lib/utils';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import MiDiaModificado from './MiDiaModificado';
@@ -630,10 +631,19 @@ function ChatResumenActivo({ onIrAlChat }: { onIrAlChat: () => void }) {
                 onClick={() => handleAbrir(c.id)}
                 className="w-full text-left px-3 py-2.5 hover:bg-hover transition flex items-center gap-2"
               >
+                <Avatar nombre={nombreCanal(c)} grupo={c.type !== 'directo'} tamano={36} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-strong truncate">{nombreCanal(c)}</span>
-                    {noLeidos(c) && <span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />}
+                    {noLeidos(c) && (
+                      <span
+                        className="inline-flex items-center justify-center rounded-full bg-accent text-strong font-bold flex-shrink-0"
+                        style={{ minWidth: 20, height: 20, fontSize: 12 }}
+                        aria-label="Mensajes sin leer"
+                      >
+                        •
+                      </span>
+                    )}
                   </div>
                   {c.lastMessagePreview && (
                     <div className="text-xs text-muted truncate mt-0.5">{c.lastMessagePreview}</div>

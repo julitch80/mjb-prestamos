@@ -1,25 +1,10 @@
-import { useEffect, useState } from 'react';
-import { useAppStore } from '../data/store';
-import { getReservas } from '../data/api';
-import type { Reserva } from '../data/api';
-import { nombreRecurso, fechaLegible, bloqueLegible, marcaLegible } from '../data/formatoReserva';
+import { useState } from 'react';
 import PopupRectora from './PopupRectora';
+import MiHistorial from './MiHistorial';
 
+// Un solo lugar para la rectora: asignación directa + sus reservas (antes también existía «Mis reservas» con la misma consulta).
 export default function PanelRectora() {
-  const { userId, reservas, setReservas } = useAppStore();
-  const [cargando, setCargando] = useState(false);
   const [popupAbierto, setPopupAbierto] = useState(false);
-
-  useEffect(() => {
-    setCargando(true);
-    getReservas()
-      .then(todas => {
-        const mias = todas.filter(r => r.solicitante === userId);
-        setReservas(mias);
-      })
-      .catch(() => {})
-      .finally(() => setCargando(false));
-  }, [userId, setReservas]);
 
   return (
     <div className="space-y-4">
@@ -33,29 +18,7 @@ export default function PanelRectora() {
         </button>
       </div>
 
-      {/* Historial de asignaciones */}
-      {cargando ? (
-        <div className="text-center py-12 text-soft">Cargando...</div>
-      ) : reservas.length === 0 ? (
-        <div className="text-center py-12 text-muted">Sin asignaciones registradas.</div>
-      ) : (
-        <div className="space-y-3">
-          {reservas.map((r: Reserva) => (
-            <div key={r.id} className="bg-card border border-gray-800 rounded-xl p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-strong font-medium">{nombreRecurso(r.recurso)}</p>
-                  <p className="text-sm text-soft">{fechaLegible(r.fecha)} · {bloqueLegible(r)}</p>
-                  <p className="text-sm text-soft">{r.proposito}</p>
-                  {r.motivo && <p className="text-xs text-muted mt-1">{r.motivo}</p>}
-                </div>
-                <span className="text-xs text-yellow-400 font-medium">Directa</span>
-              </div>
-              <p className="text-xs text-muted mt-2">Registrada el {marcaLegible(r.timestamp)}</p>
-            </div>
-          ))}
-        </div>
-      )}
+      <MiHistorial titulo="Mis asignaciones y reservas" />
 
       {popupAbierto && <PopupRectora onCerrar={() => setPopupAbierto(false)} />}
     </div>

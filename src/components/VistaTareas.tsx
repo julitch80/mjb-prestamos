@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BadgeBeta from './BadgeBeta';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertTriangle, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, Link2, Gift, Image as ImageIcon, ListChecks, Paperclip, HandCoins, Loader2, QrCode, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, Link2, Gift, Image as ImageIcon, ListChecks, LayoutGrid, List, Paperclip, HandCoins, Loader2, QrCode, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
+import SelectorVista, { useVistaRecordada, type OpcionVista } from './SelectorVista';
 import AgendaGrupo from './AgendaGrupo';
 import ModalReplicarTarea from './ModalReplicarTarea';
 import VincularClassroom from './VincularClassroom';
@@ -207,6 +208,11 @@ function diaCortoDe(f: FechaISO): string {
   const [y, m, d] = f.split('-').map(Number);
   return ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][new Date(y, m - 1, d).getDay()];
 }
+
+const OPCIONES_CAL_LISTA: OpcionVista<'calendario' | 'lista'>[] = [
+  { id: 'calendario', label: 'Calendario', Icono: CalendarDays },
+  { id: 'lista', label: 'Lista', Icono: List },
+];
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -675,6 +681,10 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
   const [replicando, setReplicando] = useState<Tarea | null>(null);
   // Pestaña del docente: publicar (formulario + vigentes) o su historial.
   const [vistaDoc, setVistaDoc] = useState<'publicar' | 'historial'>('publicar');
+  // «Ver: calendario / lista» de Mis tareas vigentes (se recuerda). El calendario-semáforo de arriba es un selector de fecha del formulario, no una vista.
+  const [vistaMis, setVistaMis] = useVistaRecordada<'calendario' | 'lista'>('tareas-docente', 'lista', ['calendario', 'lista']);
+  const [mesMis, setMesMis] = useState(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
+  const [diaMis, setDiaMis] = useState<FechaISO | null>(null);
   const [editandoAnclas, setEditandoAnclas] = useState(false);
   const soyDirector = !!grupo && esDirectorDeGrupo(userId, grupo);
 
@@ -1435,11 +1445,51 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
 
       {/* ── Mis tareas ─────────────────────────────────────── */}
       <section className="space-y-2">
-        <h3 className="font-bold text-strong text-sm">Mis tareas y recordatorios vigentes</h3>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h3 className="font-bold text-strong text-sm">Mis tareas y recordatorios vigentes</h3>
+          <SelectorVista valor={vistaMis} onCambio={setVistaMis} opciones={OPCIONES_CAL_LISTA} />
+        </div>
+        {vistaMis === 'calendario' && (
+          <div className="rounded-2xl border border-line bg-elevated/40 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <button aria-label="Mes anterior" onClick={() => setMesMis(m => m.month === 0 ? { year: m.year - 1, month: 11 } : { ...m, month: m.month - 1 })} className="min-h-[44px] min-w-[44px] rounded-lg text-muted hover:text-strong"><ChevronLeft size={16} className="mx-auto" /></button>
+              <span className="text-sm font-semibold text-strong capitalize">{MESES[mesMis.month]} {mesMis.year}</span>
+              <button aria-label="Mes siguiente" onClick={() => setMesMis(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { ...m, month: m.month + 1 })} className="min-h-[44px] min-w-[44px] rounded-lg text-muted hover:text-strong"><ChevronRight size={16} className="mx-auto" /></button>
+            </div>
+            <table className="w-full text-xs border-collapse">
+              <thead><tr>{['Lun', 'Mar', 'Mié', 'Jue', 'Vie'].map(d => <th key={d} className="text-muted font-medium pb-1">{d}</th>)}</tr></thead>
+              <tbody>
+                {gridMes(mesMis.year, mesMis.month).map((sem, i) => (
+                  <tr key={i}>
+                    {sem.map((f, j) => {
+                      if (!f) return <td key={j} />;
+                      const n = misTareas.filter(t => t.fechaEntrega === f).length;
+                      const sel = diaMis === f;
+                      return (
+                        <td key={j} className="p-0.5 text-center">
+                          <button
+                            onClick={() => setDiaMis(sel ? null : f)}
+                            aria-pressed={sel}
+                            aria-label={`${f.slice(8)} de ${MESES[mesMis.month]}${n ? `: ${n} ${n === 1 ? 'tarea' : 'tareas'}` : ''}`}
+                            className={cn('w-full min-h-[44px] rounded-lg border text-xs font-semibold',
+                              sel ? 'bg-accent-soft border-accent text-accent' : n ? 'bg-card border-line-strong text-strong' : 'border-line text-muted')}
+                          >
+                            {Number(f.slice(8))}{n > 0 && <span className="block text-[10px] text-accent">{n}</span>}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {diaMis && <p className="text-[11px] text-muted">Mostrando solo el {fechaLegible(diaMis)}. Toca el día otra vez para ver todas.</p>}
+          </div>
+        )}
         {misTareas.length === 0 && (
           <p className="text-xs text-muted">No tienes tareas ni recordatorios activos.</p>
         )}
-        {misTareas.map(t => (
+        {(vistaMis === 'calendario' && diaMis ? misTareas.filter(t => t.fechaEntrega === diaMis) : misTareas).map(t => (
           <div key={t.id} className="flex items-center gap-3 rounded-xl border border-line bg-elevated/40 px-3 py-2.5 text-sm">
             <span className="font-bold text-xs" style={{ color: colorGrado(t.grupo) }}>{t.grupo}</span>
             <div className="flex-1 min-w-0">
@@ -1984,6 +2034,7 @@ function PanelDirectivo({ tareas, cesiones, cuposOverride, anclasPorGrupo }: {
   const { userId, jornada } = useAppStore();
   const qc = useQueryClient();
   const hoy = hoyISO();
+  const [vistaDir, setVistaDir] = useVistaRecordada<'matriz' | 'lista'>('tareas-directivo', 'matriz', ['matriz', 'lista']);
   const [filtroJornada, setFiltroJornada] = useState<'manana' | 'tarde'>(
     jornada === 'tarde' ? 'tarde' : 'manana'
   );
@@ -2114,7 +2165,10 @@ function PanelDirectivo({ tareas, cesiones, cuposOverride, anclasPorGrupo }: {
         </div>
       </div>
 
+      <SelectorVista valor={vistaDir} onCambio={setVistaDir} opciones={[{ id: 'matriz', label: 'Mapa', Icono: LayoutGrid }, { id: 'lista', label: 'Lista', Icono: List }]} />
+
       {/* ── Mapa de calor grupo × día ───────────────────────── */}
+      {vistaDir === 'matriz' && (<>
       <div className="overflow-x-auto rounded-2xl border border-line bg-elevated/40">
         <table className="text-xs border-collapse w-full">
           <thead>
@@ -2188,9 +2242,10 @@ function PanelDirectivo({ tareas, cesiones, cuposOverride, anclasPorGrupo }: {
         Cada celda: momentos agendados / tope diario. El punto verde marca días con entrega.
         Los días punteados no reciben tareas (festivo o contrajornada de media técnica).
       </p>
+      </>)}
 
       {/* ── Tareas activas ─────────────────────────────────── */}
-      <section className="space-y-2">
+      {vistaDir === 'lista' && (<section className="space-y-2">
         <h3 className="font-bold text-strong text-sm">Tareas y recordatorios vigentes ({activas.length})</h3>
         {activas.length === 0 && <p className="text-xs text-muted">No hay tareas activas en esta jornada.</p>}
         {activas.map(t => {
@@ -2215,7 +2270,7 @@ function PanelDirectivo({ tareas, cesiones, cuposOverride, anclasPorGrupo }: {
             </div>
           );
         })}
-      </section>
+      </section>)}
 
       {/* ── Cesiones ───────────────────────────────────────── */}
       {cesionesVigentes.length > 0 && (

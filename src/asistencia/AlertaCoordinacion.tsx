@@ -457,23 +457,8 @@ export default function AlertaCoordinacion({
       {/* 2. La convocatoria elegida */}
       {conv && (
         <section className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="flex-1 text-sm font-semibold text-strong">
-              {conv.anio} · periodo {conv.periodo} ·{' '}
-              {editable ? (
-                <span className="text-success">abierta hasta el {conv.fechaLimite}{conv.horaLimite ? ` a las ${horaCorta(conv.horaLimite)}` : ''}</span>
-              ) : conv.abierta && alertaPorEmpezar(conv) && conv.fechaInicio && conv.horaInicio ? (
-                <span className="text-info-soft-fg">programada: se habilita el {conv.fechaInicio} a las {horaCorta(conv.horaInicio)}</span>
-              ) : (
-                <span className="text-muted">cerrada</span>
-              )}
-            </h3>
-            {convocatorias && convocatorias.length > 1 && (
-              <select value={elegida ?? ''} onChange={(e) => setElegida(e.target.value)} className={CAJA} aria-label="Periodo">
-                {convocatorias.map((c) => <option key={c.convocatoriaId} value={c.convocatoriaId}>{c.anio} · periodo {c.periodo}</option>)}
-              </select>
-            )}
-          </div>
+          {/* El estado y el selector de periodo ya van en la franja de arriba (2026-10-26). */}
+          <h3 className="text-sm font-semibold text-strong">Periodo {conv.periodo} de {conv.anio}</h3>
 
           <div className="flex flex-wrap items-end gap-2">
             {conv.abierta ? (

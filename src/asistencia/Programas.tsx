@@ -739,7 +739,9 @@ function DetallePrograma({
         </div>
       )}
 
-      {cargando ? (
+      {/* Solo en «Centros» (2026-10-26): sin esta condicion la lista se repetia debajo de
+          «Por confirmar», «Cobertura y asistencia» y «Cargar lista de Excel». */}
+      {seccion !== 'centros' ? null : cargando ? (
         <p className="text-sm text-muted">Cargando centros de interés…</p>
       ) : grupos.length === 0 ? (
         <div className="rounded-xl border border-line bg-card p-4 text-center">

@@ -226,59 +226,23 @@ export default function MisGrupos({
       )}
 
       {/*
-        PANORAMA DEL COLEGIO — solo para quien no dicta clase (coordinacion y cargos de
-        apoyo). Para ellos la pregunta util no es "que grupos tengo" sino "quien NO esta
-        pasando lista", y esa no se puede responder con una lista que solo muestra los
-        grupos que ya tienen sesiones.
+        GRUPOS DEL COLEGIO — solo para quien no dicta clase (coordinacion, rectoria y cargos
+        de apoyo). Antes salia DOS veces lo mismo: «Todos los grupos del colegio» en pastillas
+        y «Planillas disponibles» en filas (Julian, 2026-10-26, viendo como coordinadora).
+        Ahora es una sola seccion con «Ver: matriz / lista». La pregunta util sigue siendo
+        «quien NO esta pasando lista»: los grupos sin planillas salen en gris.
       */}
-      {perfil !== 'docente' && (todosLosGrados?.length ?? 0) > 0 && (
-        <div className="rounded-xl border border-line bg-card p-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm font-semibold text-strong">Todos los grupos del colegio</p>
-            <p className="text-xs text-muted">
-              {conSesiones.size} de {todosLosGrados!.length} están registrando asistencia
-            </p>
-          </div>
-          <p className="mt-0.5 text-xs text-muted">
-            Los grupos en gris todavía no tienen ninguna planilla: nadie ha pasado lista
-            ahí. No es que falten permisos.
-            {onListaDelGrupo && ' Toque un grupo para ver su lista de estudiantes.'}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {[...todosLosGrados!]
-              .sort((a, b) => gradoSortKey(a).localeCompare(gradoSortKey(b)))
-              .map((g) => {
-                const activo = conSesiones.has(g);
-                // Con `onListaDelGrupo` la pastilla es un boton: TODOS los grupos, tambien
-                // los grises, tienen estudiantes y ficha aunque nadie haya pasado lista.
-                const Etiqueta = onListaDelGrupo ? 'button' : 'span';
-                return (
-                  <Etiqueta
-                    key={g}
-                    {...(onListaDelGrupo ? { onClick: () => onListaDelGrupo(g) } : {})}
-                    title={
-                      activo
-                        ? `${g}: ${conSesiones.get(g)} planilla(s) registradas`
-                        : `${g}: todavía sin asistencia registrada`
-                    }
-                    style={activo ? { borderColor: colorGrado(g), color: colorGrado(g) } : undefined}
-                    className={[
-                      'rounded-full border px-2.5 py-1 text-sm font-semibold',
-                      activo ? 'bg-card' : 'border-line bg-elevated text-muted opacity-60',
-                    ].join(' ')}
-                  >
-                    {g}
-                    {activo && (
-                      <span className="ml-1 text-xs font-normal">· {conSesiones.get(g)}</span>
-                    )}
-                  </Etiqueta>
-                );
-              })}
-          </div>
-        </div>
-      )}
+      {perfil !== 'docente' && (todosLosGrados?.length || otros.length) ? (
+        <GruposDelColegio
+          grados={[...new Set([...(todosLosGrados ?? []), ...otros.map((o) => o.grado)])]}
+          cruces={otros}
+          grupoAbierto={grupoAbierto}
+          onElegir={onElegir}
+          onListaDelGrupo={onListaDelGrupo}
+        />
+      ) : null}
 
-      {otros.length > 0 && (
+      {perfil === 'docente' && otros.length > 0 && (
         <div className="space-y-2">
           {/* Aparte y explicado: son planillas reales, pero fuera de la asignacion. Si se
               mezclaran con las de arriba, el docente no distinguiria su horario oficial de
@@ -286,30 +250,17 @@ export default function MisGrupos({
               Para quien es solo de consulta no hay "arriba" (no dicta clase), asi que el
               texto no puede decir "suyos": son las planillas del colegio, no las de esta
               cuenta. */}
-          <p className="text-xs text-muted">
-            {perfil === 'docente'
-              ? 'Otras planillas con registros suyos, fuera de la asignación académica:'
-              : 'Planillas disponibles:'}
-          </p>
-          {perfil === 'docente' ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {otros.map((e) => (
-                <TarjetaGrupo
-                  key={`${e.grado}|${e.subjectId}`}
-                  grado={e.grado}
-                  detalle={getAsignatura(e.subjectId)?.nombre ?? e.subjectId}
-                  onElegir={() => onElegir(e.grado, e.subjectId)}
-                />
-              ))}
-            </div>
-          ) : (
-            <PlanillasPorGrupo
-              cruces={otros}
-              grupoAbierto={grupoAbierto}
-              onElegir={onElegir}
-              onListaDelGrupo={onListaDelGrupo}
-            />
-          )}
+          <p className="text-xs text-muted">Otras planillas con registros suyos, fuera de la asignación académica:</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {otros.map((e) => (
+              <TarjetaGrupo
+                key={`${e.grado}|${e.subjectId}`}
+                grado={e.grado}
+                detalle={getAsignatura(e.subjectId)?.nombre ?? e.subjectId}
+                onElegir={() => onElegir(e.grado, e.subjectId)}
+              />
+            ))}
+          </div>
         </div>
       )}
 
@@ -385,20 +336,28 @@ function TarjetaGrupoConMaterias({
  * 9.2 catorce—: una lista larga en la que no se encontraba nada. Ahora es un renglon por
  * grupo con cuantas planillas tiene, y al tocarlo se despliegan sus asignaturas.
  *
+ * Desde el 2026-10-26 es ademas el panorama: TODOS los grupos (en gris los que no tienen
+ * planillas), una sola vez, con «Ver: matriz (pastillas) / lista (filas)».
+ *
  * El grupo que llega desde el tablero de tercera hora viene abierto y se desplaza a la
  * vista, para no obligar a buscarlo otra vez.
  */
-function PlanillasPorGrupo({
+function GruposDelColegio({
+  grados,
   cruces,
   grupoAbierto,
   onElegir,
   onListaDelGrupo,
 }: {
+  /** Todos los grupos del alcance, tengan o no planillas. */
+  grados: string[];
+  /** Las planillas que existen (grado + asignatura). */
   cruces: { grado: string; subjectId: string }[];
   grupoAbierto: string | null;
   onElegir: (grado: string, subjectId: string) => void;
   onListaDelGrupo?: (grado: string) => void;
 }) {
+  const [vista, setVista] = useVistaRecordada<'matriz' | 'lista'>('mis-grupos-coordinacion', 'matriz', ['matriz', 'lista']);
   const [abiertos, setAbiertos] = useState<Set<string>>(() => new Set(grupoAbierto ? [grupoAbierto] : []));
   const refAbierto = useRef<HTMLDivElement | null>(null);
 
@@ -409,73 +368,119 @@ function PlanillasPorGrupo({
   }, [grupoAbierto]);
 
   const porGrado = new Map<string, string[]>();
-  for (const c of cruces) {
-    if (!porGrado.has(c.grado)) porGrado.set(c.grado, []);
-    porGrado.get(c.grado)!.push(c.subjectId);
-  }
-  const grupos = [...porGrado.entries()].sort((a, b) => gradoSortKey(a[0]).localeCompare(gradoSortKey(b[0])));
+  for (const c of cruces) porGrado.set(c.grado, [...(porGrado.get(c.grado) ?? []), c.subjectId]);
+  const ordenados = [...grados].sort((a, b) => gradoSortKey(a).localeCompare(gradoSortKey(b)));
+  const conPlanillas = ordenados.filter((g) => porGrado.has(g)).length;
+  const sePuedeAbrir = (g: string) => porGrado.has(g) || !!onListaDelGrupo;
+  const alternar = (g: string) => setAbiertos((s) => {
+    const n = new Set(vista === 'matriz' ? [] : s);
+    if (s.has(g)) n.delete(g); else n.add(g);
+    return n;
+  });
+
+  /** Lo que se ve al abrir un grupo: su lista y sus planillas. */
+  const contenido = (grado: string) => {
+    const materias = [...(porGrado.get(grado) ?? [])]
+      .map((id) => ({ id, nombre: getAsignatura(id)?.nombre ?? id }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    return (
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {onListaDelGrupo && (
+          <button
+            onClick={() => onListaDelGrupo(grado)}
+            className="min-h-[44px] rounded-lg border border-accent px-2 text-left text-sm font-semibold text-accent hover:bg-hover sm:col-span-2"
+          >
+            Lista del grupo (fichas y estudiantes nuevos)
+          </button>
+        )}
+        {materias.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => onElegir(grado, m.id)}
+            className="min-h-[44px] rounded-lg border border-line bg-elevated px-2 text-left text-sm font-semibold text-strong hover:bg-hover"
+          >
+            {m.nombre}
+          </button>
+        ))}
+        {materias.length === 0 && <p className="text-sm text-muted sm:col-span-2">Todavía nadie ha pasado lista en {grado}.</p>}
+      </div>
+    );
+  };
+
+  const abiertoMatriz = vista === 'matriz' ? ordenados.find((g) => abiertos.has(g)) ?? null : null;
 
   return (
-    <div className="space-y-1.5">
-      {grupos.map(([grado, materias]) => {
-        const abierto = abiertos.has(grado);
-        return (
-          <div
-            key={grado}
-            ref={grado === grupoAbierto ? refAbierto : undefined}
-            style={{ borderLeftColor: colorGrado(grado) }}
-            className="rounded-xl border border-line border-l-4 bg-card"
-          >
-            <button
-              onClick={() =>
-                setAbiertos((s) => {
-                  const n = new Set(s);
-                  if (n.has(grado)) n.delete(grado);
-                  else n.add(grado);
-                  return n;
-                })
-              }
-              aria-expanded={abierto}
-              className="flex min-h-12 w-full items-center gap-2 px-3 text-left"
-            >
-              <b style={{ color: colorGrado(grado) }} className="text-xl">
-                {grado}
-              </b>
-              <span className="text-sm text-muted">
-                {materias.length} planilla{materias.length === 1 ? '' : 's'}
-              </span>
-              <span className="grow" />
-              <span className={`text-muted transition-transform ${abierto ? 'rotate-180' : ''}`} aria-hidden>
-                ▾
-              </span>
-            </button>
-            {abierto && (
-              <div className="grid gap-1.5 px-3 pb-3 sm:grid-cols-2">
-                {onListaDelGrupo && (
-                  <button
-                    onClick={() => onListaDelGrupo(grado)}
-                    className="rounded-lg border border-accent px-2 py-1.5 text-left text-sm font-semibold text-accent hover:bg-hover sm:col-span-2"
-                  >
-                    Lista del grupo (fichas y estudiantes nuevos)
-                  </button>
-                )}
-                {[...materias]
-                  .map((id) => ({ id, nombre: getAsignatura(id)?.nombre ?? id }))
-                  .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-                  .map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => onElegir(grado, m.id)}
-                      className="rounded-lg border border-line bg-elevated px-2 py-1.5 text-left text-sm font-semibold text-strong hover:bg-hover"
-                    >
-                      {m.nombre}
-                    </button>
-                  ))}
-              </div>
-            )}
+    <div className="rounded-xl border border-line bg-card p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-strong">Grupos del colegio</p>
+          <p className="text-xs text-muted">{conPlanillas} de {ordenados.length} están registrando asistencia · en gris, los que aún no tienen planillas</p>
+        </div>
+        <SelectorVista valor={vista} onCambio={(v) => { setVista(v); setAbiertos(new Set()); }} />
+      </div>
+
+      {vista === 'matriz' ? (
+        <>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {ordenados.map((g) => {
+              const n = porGrado.get(g)?.length ?? 0;
+              const abierto = abiertoMatriz === g;
+              return (
+                <button
+                  key={g}
+                  disabled={!sePuedeAbrir(g)}
+                  onClick={() => alternar(g)}
+                  aria-expanded={abierto}
+                  title={n ? `${g}: ${n} planilla(s)` : `${g}: todavía sin asistencia registrada`}
+                  style={n ? { borderColor: colorGrado(g), color: colorGrado(g) } : undefined}
+                  className={[
+                    'min-h-[44px] rounded-full border px-3 text-sm font-semibold',
+                    n ? 'bg-card' : 'border-line bg-elevated text-muted',
+                    abierto ? 'ring-2 ring-accent' : '',
+                  ].join(' ')}
+                >
+                  {g}
+                  {n > 0 && <span className="ml-1 text-xs font-normal">· {n}</span>}
+                </button>
+              );
+            })}
           </div>
-        );
-      })}
+          {abiertoMatriz && (
+            <div ref={refAbierto} className="mt-3 rounded-xl border border-line border-l-4 p-3" style={{ borderLeftColor: colorGrado(abiertoMatriz) }}>
+              <p className="mb-2 text-sm font-semibold" style={{ color: colorGrado(abiertoMatriz) }}>{abiertoMatriz}</p>
+              {contenido(abiertoMatriz)}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="mt-3 space-y-1.5">
+          {ordenados.map((g) => {
+            const n = porGrado.get(g)?.length ?? 0;
+            const abierto = abiertos.has(g);
+            return (
+              <div
+                key={g}
+                ref={g === grupoAbierto ? refAbierto : undefined}
+                style={{ borderLeftColor: n ? colorGrado(g) : undefined }}
+                className={`rounded-xl border border-line border-l-4 ${n ? 'bg-card' : 'bg-elevated'}`}
+              >
+                <button
+                  disabled={!sePuedeAbrir(g)}
+                  onClick={() => alternar(g)}
+                  aria-expanded={abierto}
+                  className="flex min-h-12 w-full items-center gap-2 px-3 text-left"
+                >
+                  <b style={n ? { color: colorGrado(g) } : undefined} className={`text-xl ${n ? '' : 'text-muted'}`}>{g}</b>
+                  <span className="text-sm text-muted">{n ? `${n} planilla${n === 1 ? '' : 's'}` : 'sin asistencia registrada'}</span>
+                  <span className="grow" />
+                  {sePuedeAbrir(g) && <span className={`text-muted transition-transform ${abierto ? 'rotate-180' : ''}`} aria-hidden>▾</span>}
+                </button>
+                {abierto && <div className="px-3 pb-3">{contenido(g)}</div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

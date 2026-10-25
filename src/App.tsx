@@ -71,7 +71,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'asistentes',     label: 'Manual de convivencia', descripcion: 'Chatbots, versión digital y versión clásica del manual', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'riesgo',         label: 'Gestión del Riesgo', descripcion: 'Emergencia escolar, brigadas y números', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'disponibilidad', label: 'Reservas',        descripcion: 'Solicita un aula o recurso',        roles: ['docente', 'coordinador'] },
-  { id: 'historial',      label: 'Mis reservas',    descripcion: 'Tus solicitudes y su estado',       roles: ['rectora'] },
   { id: 'asignacion',     label: 'Académico',       descripcion: 'Calendario académico y asignación', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'chat',           label: 'Chat',            descripcion: 'Mensajería interna',                roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',          roles: ['superusuario'] },

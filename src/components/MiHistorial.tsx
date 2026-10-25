@@ -11,7 +11,7 @@ const ESTADO_CONFIG = {
   cancelada: { label: 'Cancelada', color: 'text-soft',   bg: 'bg-elevated/30' },
 } as const;
 
-export default function MiHistorial() {
+export default function MiHistorial({ titulo = 'Mis reservas' }: { titulo?: string } = {}) {
   const { userId, reservas, setReservas } = useAppStore();
   const [cargando, setCargando] = useState(false);
 
@@ -46,7 +46,7 @@ export default function MiHistorial() {
 
   return (
     <div className="space-y-3">
-      <h2 className="text-lg font-semibold text-strong mb-4">Mis reservas</h2>
+      <h2 className="text-lg font-semibold text-strong mb-4">{titulo}</h2>
       {reservas.map((r: Reserva) => {
         const cfg = ESTADO_CONFIG[r.estado];
         return (

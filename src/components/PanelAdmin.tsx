@@ -4,13 +4,13 @@ import { getReservas, actualizarReserva } from '../data/api';
 import type { Reserva } from '../data/api';
 import { USUARIOS } from '../data/maestros';
 import { nombreRecurso, nombreSolicitante, fechaLegible, bloqueLegible } from '../data/formatoReserva';
-import VistaHorario from './VistaHorario';
-import TableroCasos from './TableroCasos';
+import { useCasosVencidos } from '../hooks/useCasosVencidos';
 
-type Pestaña = 'pendientes' | 'hoy' | 'historial' | 'informes' | 'horario' | 'config';
+type Pestaña = 'pendientes' | 'hoy' | 'historial' | 'config';
 
 export default function PanelAdmin() {
-  const { reservas, setReservas, temaOscuro, toggleTema, actualizarReserva: actualizarStore, jornada } = useAppStore();
+  const { reservas, setReservas, temaOscuro, toggleTema, actualizarReserva: actualizarStore, jornada, userId, setVistaActual } = useAppStore();
+  const casosVencidos = useCasosVencidos(userId);
   const [pestaña, setPestaña] = useState<Pestaña>('pendientes');
   const [cargando, setCargando] = useState(false);
   const [enviando, setEnviando] = useState<string | null>(null);
@@ -61,8 +61,6 @@ export default function PanelAdmin() {
     { id: 'pendientes', label: 'Pendientes', badge: pendientes.length },
     { id: 'hoy',        label: 'Hoy',        badge: deHoy.length },
     { id: 'historial',  label: 'Historial' },
-    { id: 'informes',   label: 'Informes' },
-    { id: 'horario',    label: 'Horario del J' },
     { id: 'config',     label: 'Configuración' },
   ];
 
@@ -89,6 +87,16 @@ export default function PanelAdmin() {
           </button>
         ))}
       </div>
+
+      {/* Casos de riesgo y Horario viven UNA sola vez (menú → Gestión del Riesgo → Casos; menú → Horario). */}
+      {casosVencidos > 0 && (
+        <button
+          onClick={() => setVistaActual('riesgo')}
+          className="w-full min-h-[44px] text-left rounded-xl border border-danger bg-danger-soft text-danger-soft-fg text-sm px-4 py-2"
+        >
+          🔴 {casosVencidos} {casosVencidos === 1 ? 'caso vencido' : 'casos vencidos'} sin seguimiento · Ver en Gestión del Riesgo → Casos
+        </button>
+      )}
 
       {errorDecision && (
         <div role="alert" className="flex items-start justify-between gap-3 rounded-xl border border-danger bg-danger-soft text-danger-soft-fg text-sm p-3">
@@ -137,12 +145,6 @@ export default function PanelAdmin() {
           )}
         </div>
       )}
-
-      {/* Informes — tablero de casos único (docs/plan-gestor-casos.md sección 5) */}
-      {pestaña === 'informes' && <TableroCasos />}
-
-      {/* Horario */}
-      {pestaña === 'horario' && <VistaHorario />}
 
       {/* Configuración */}
       {pestaña === 'config' && (

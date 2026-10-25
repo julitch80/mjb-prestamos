@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LayoutGrid, List, type LucideIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -15,6 +15,9 @@ export const OPCIONES_MATRIZ_LISTA: OpcionVista<'matriz' | 'lista'>[] = [
 
 const PREFIJO = 'mjb.vista.';
 
+// Suscriptores en vivo por clave: dos pantallas con la misma clave (Inicio y el menú) cambian a la vez.
+const suscriptores = new Map<string, Set<(v: string) => void>>();
+
 /** Estado de la vista recordado por pantalla y por dispositivo (si el almacenamiento falla, no recuerda y ya). */
 export function useVistaRecordada<T extends string>(clave: string, inicial: T, validas?: readonly T[]): [T, (v: T) => void] {
   const [vista, setVista] = useState<T>(() => {
@@ -24,9 +27,18 @@ export function useVistaRecordada<T extends string>(clave: string, inicial: T, v
     } catch { /* sin almacenamiento */ }
     return inicial;
   });
+  useEffect(() => {
+    const fn = (v: string) => { if (!validas || (validas as readonly string[]).includes(v)) setVista(v as T); };
+    let set = suscriptores.get(clave);
+    if (!set) { set = new Set(); suscriptores.set(clave, set); }
+    set.add(fn);
+    return () => { set!.delete(fn); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clave]);
   function cambiar(v: T) {
     setVista(v);
     try { localStorage.setItem(PREFIJO + clave, v); } catch { /* sin almacenamiento */ }
+    suscriptores.get(clave)?.forEach(fn => fn(v));
   }
   return [vista, cambiar];
 }

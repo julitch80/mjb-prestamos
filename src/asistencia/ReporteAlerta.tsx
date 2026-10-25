@@ -161,7 +161,8 @@ export default function ReporteAlerta({
         </div>
       </div>
 
-      {consolidado.faltantes.length > 0 && (
+      {/* Para coordinacion ya lo dice «Digitación por coordinación», justo arriba (2026-10-26). */}
+      {esDirector && consolidado.faltantes.length > 0 && (
         <div className="rounded-xl bg-elevated px-3 py-2 text-sm text-soft">
           <b>Faltan por entregar:</b>{' '}
           {consolidado.faltantes

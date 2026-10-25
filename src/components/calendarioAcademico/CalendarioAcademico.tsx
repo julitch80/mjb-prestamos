@@ -1,6 +1,6 @@
 // Calendario académico 2026: Próximo / Lo que falta / Mes, con búsqueda y filtros.
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, History, Pencil, Plus, Search } from 'lucide-react';
+import { CalendarDays, List, ChevronDown, ChevronLeft, ChevronRight, History, Pencil, Plus, Search } from 'lucide-react';
 import { useAppStore } from '../../data/store';
 import { ASIGNACION_2026 } from '../../data/asignacionAcademica';
 import { useCalendario } from '../../data/calendarioAcademico/persistencia';
@@ -10,10 +10,16 @@ import {
 } from '../../data/calendarioAcademico/logica';
 import { CATEGORIAS, colorCategoria, simboloCategoria, type CategoriaCal, type EventoCal } from '../../data/calendarioAcademico/tipos';
 import { cn } from '@/lib/utils';
+import SelectorVista, { useVistaRecordada, type OpcionVista } from '../SelectorVista';
 import ModalEvento from './ModalEvento';
 import RegistroCambios from './RegistroCambios';
 
 type Vista = 'proximo' | 'falta' | 'mes';
+
+const OPCIONES_MES_LISTA: OpcionVista<'mes' | 'lista'>[] = [
+  { id: 'mes', label: 'Mes', Icono: CalendarDays },
+  { id: 'lista', label: 'Lista', Icono: List },
+];
 
 function Insignia({ children, className }: { children: React.ReactNode; className?: string }) {
   return <span className={cn('inline-block text-[11px] font-medium px-2 py-0.5 rounded-full', className)}>{children}</span>;
@@ -55,7 +61,10 @@ export default function CalendarioAcademico() {
   const rol = useAppStore(s => s.rol);
   const { eventos, desdeFirestore, puedeEditar, guardar } = useCalendario();
   const hoy = hoyISO();
-  const [vista, setVista] = useState<Vista>('proximo');
+  // «Ver: mes / lista» (se recuerda). Dentro de la lista, «Próximo» y «Lo que falta» son un filtro.
+  const [formaVer, setFormaVer] = useVistaRecordada<'mes' | 'lista'>('calendario-academico', 'lista', ['mes', 'lista']);
+  const [filtroLista, setFiltroLista] = useState<'proximo' | 'falta'>('proximo');
+  const vista: Vista = formaVer === 'mes' ? 'mes' : filtroLista;
   const [texto, setTexto] = useState('');
   const [cats, setCats] = useState<CategoriaCal[]>([]);
   const [verPasados, setVerPasados] = useState(false);
@@ -112,14 +121,17 @@ export default function CalendarioAcademico() {
         })}
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="flex gap-1.5 flex-1">
-          {([['proximo', 'Próximo'], ['falta', 'Lo que falta'], ['mes', 'Mes']] as const).map(([id, label]) => (
-            <button key={id} onClick={() => setVista(id)}
-              className={cn('flex-1 text-xs font-medium px-3 py-2 rounded-full transition',
-                vista === id ? 'bg-accent text-strong' : 'bg-elevated text-soft hover:text-strong')}>{label}</button>
-          ))}
-        </div>
+      <div className="flex items-center gap-3 flex-wrap">
+        <SelectorVista valor={formaVer} onCambio={setFormaVer} opciones={OPCIONES_MES_LISTA} />
+        {formaVer === 'lista' && (
+          <div className="flex gap-1.5">
+            {([['proximo', 'Próximo'], ['falta', 'Lo que falta']] as const).map(([id, label]) => (
+              <button key={id} onClick={() => setFiltroLista(id)} aria-pressed={filtroLista === id}
+                className={cn('min-h-[44px] text-xs font-medium px-3 py-2 rounded-full transition',
+                  filtroLista === id ? 'bg-accent text-strong' : 'bg-elevated text-soft hover:text-strong')}>{label}</button>
+            ))}
+          </div>
+        )}
       </div>
 
       {puedeEditar && (

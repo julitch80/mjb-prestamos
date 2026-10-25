@@ -719,10 +719,21 @@ export default function GuiaSimulacro({ sim }: { sim: SimulacroConId }) {
           <div className="live-in">
             <div className="live-top">
               <button className="iconbtn" type="button" aria-label="Cerrar el paso a paso" onClick={cerrarLive} autoFocus><IcoCerrar /></button>
-              <label className="sr" htmlFor="simu-live-rol">Tu rol</label>
-              <select className="sel" id="simu-live-rol" value={rol} onChange={e => setRol(e.target.value as RolClave)}>
-                {ROLES.map(r => <option key={r.k} value={r.k}>{r.n}</option>)}
-              </select>
+              {/* Una sola forma de elegir el rol: chips si la persona tiene 2 a 4 roles propios; select solo si hay más (hay 12 roles en total). */}
+              {rolesPersona.length > 1 && rolesPersona.length <= 4 && rolesPersona.includes(rol) ? (
+                <div className="chips" role="group" aria-label="Tu rol" style={{ marginTop: 0, flex: 1 }}>
+                  {rolesPersona.map(k => (
+                    <button key={k} className="chipbtn" type="button" aria-pressed={rol === k} onClick={() => setRol(k)}>{rolInfo(k).n}</button>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <label className="sr" htmlFor="simu-live-rol">Tu rol</label>
+                  <select className="sel" id="simu-live-rol" value={rol} onChange={e => setRol(e.target.value as RolClave)}>
+                    {ROLES.map(r => <option key={r.k} value={r.k}>{r.n}</option>)}
+                  </select>
+                </>
+              )}
             </div>
             <div className="live-prog">
               {PASOS.map((q, i) => (

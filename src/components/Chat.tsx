@@ -24,6 +24,48 @@ import {
 import { subirAdjunto, pesoLegible, TAMANO_MAXIMO_BYTES, type AdjuntoSubido } from '../data/adjuntos';
 import { crearGrabadora, grabadoraSoportada, type Grabadora } from '../data/audioVoz';
 import { FlechaNeon } from './FlechaNeon';
+import Avatar from './Avatar';
+import { agruparMensajes, etiquetaLista } from '../data/chatFormato';
+
+// Tamaño de letra del chat: 3 niveles, guardado en localStorage.
+const NIVELES_LETRA = [
+  { px: 16, etiqueta: 'Normal' },
+  { px: 18, etiqueta: 'Grande' },
+  { px: 20, etiqueta: 'Muy grande' },
+];
+const CLAVE_LETRA = 'mjb.chat.fs';
+function leerLetra(): number {
+  try {
+    const v = Number(localStorage.getItem(CLAVE_LETRA));
+    if (NIVELES_LETRA.some((n) => n.px === v)) return v;
+  } catch { /* sin almacenamiento */ }
+  return 16;
+}
+// Secundarios proporcionales, nunca por debajo de 12 px.
+const FS_SEC = 'max(12px, calc(var(--chat-fs) * 0.8))';
+
+function SelectorLetra({ valor, onChange }: { valor: number; onChange: (px: number) => void }) {
+  return (
+    <div className="flex items-center gap-1 flex-shrink-0" role="group" aria-label="Tamaño de letra">
+      {NIVELES_LETRA.map((n, i) => (
+        <button
+          key={n.px}
+          onClick={() => onChange(n.px)}
+          aria-label={`Letra ${n.etiqueta.toLowerCase()}`}
+          aria-pressed={valor === n.px}
+          title={n.etiqueta}
+          className={
+            'px-2 py-1 rounded-md font-semibold transition ' +
+            (valor === n.px ? 'bg-accent text-strong' : 'bg-elevated text-muted hover:text-strong')
+          }
+          style={{ fontSize: 12 + i * 3 }}
+        >
+          Aa
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function tsToDate(ts: any): Date | null {
   if (!ts) return null;
@@ -36,12 +78,6 @@ function horaCorta(ts: any): string {
   const d = tsToDate(ts);
   if (!d) return '';
   return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-}
-
-function fechaCorta(ts: any): string {
-  const d = tsToDate(ts);
-  if (!d) return '';
-  return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
 }
 
 export default function Chat() {
@@ -80,6 +116,11 @@ export default function Chat() {
   const [respondiendoA, setRespondiendoA] = useState<Mensaje | null>(null);
   // D2 — mensaje pendiente de reenviar: abre el selector de canal destino.
   const [reenviandoMensaje, setReenviandoMensaje] = useState<Mensaje | null>(null);
+  const [letraPx, setLetraPx] = useState<number>(leerLetra);
+  function cambiarLetra(px: number) {
+    setLetraPx(px);
+    try { localStorage.setItem(CLAVE_LETRA, String(px)); } catch { /* ignorar */ }
+  }
   const finRef = useRef<HTMLDivElement>(null);
   const inputArchivoRef = useRef<HTMLInputElement>(null);
   const grabadoraRef = useRef<Grabadora | null>(null);
@@ -265,7 +306,10 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row gap-4 md:h-[70vh]">
+    <div
+      className="flex flex-col md:flex-row gap-4 md:h-[70vh]"
+      style={{ ['--chat-fs' as any]: `${letraPx}px` }}
+    >
       {/* ── Lista de canales ─────────────────────────────────────────── */}
       <aside
         className={
@@ -300,6 +344,11 @@ export default function Chat() {
           </button>
         </div>
 
+        <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-line">
+          <span className="text-muted" style={{ fontSize: FS_SEC }}>Letra</span>
+          <SelectorLetra valor={letraPx} onChange={cambiarLetra} />
+        </div>
+
         {pestana === 'docentes' ? (
           <>
             <div className="p-3 border-b border-line">
@@ -327,10 +376,13 @@ export default function Chat() {
                   <button
                     key={u.email}
                     onClick={() => handleAbrirDm(u.email)}
-                    className="w-full text-left px-3 py-2.5 border-b border-line/50 hover:bg-elevated transition"
+                    className="w-full text-left px-3 py-2.5 border-b border-line/50 hover:bg-elevated transition flex items-center gap-3"
                   >
-                    <div className="text-sm text-strong truncate">{u.displayName}</div>
-                    <div className="text-xs text-muted truncate">{u.email}</div>
+                    <Avatar nombre={u.displayName} email={u.email} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-strong truncate" style={{ fontSize: 'var(--chat-fs)' }}>{u.displayName}</div>
+                      <div className="text-muted truncate" style={{ fontSize: FS_SEC }}>{u.email}</div>
+                    </div>
                   </button>
                 ))
               )}
@@ -392,22 +444,50 @@ export default function Chat() {
                     (activo ? 'bg-elevated' : 'hover:bg-elevated/60')
                   }
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm text-strong font-medium truncate">
-                      {nombreCanal(c)}
-                      {c.type === 'grupo' && (
-                        <span className="text-xs text-muted font-normal ml-1">
-                          ({(c.members ?? []).length})
+                  <div className="flex items-center gap-3">
+                    <Avatar
+                      nombre={nombreCanal(c)}
+                      email={c.type === 'directo' ? (c.members ?? []).find((e) => e !== yo) : undefined}
+                      grupo={c.type !== 'directo'}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-strong font-medium truncate" style={{ fontSize: 'var(--chat-fs)' }}>
+                          {nombreCanal(c)}
+                          {c.type === 'grupo' && (
+                            <span className="text-muted font-normal ml-1" style={{ fontSize: FS_SEC }}>
+                              ({(c.members ?? []).length})
+                            </span>
+                          )}
                         </span>
-                      )}
-                    </span>
-                    {nuevo && <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
-                  </div>
-                  {c.lastMessagePreview && (
-                    <div className="text-xs text-muted truncate mt-0.5">
-                      {c.lastMessagePreview}
+                        {tsToDate(c.lastMessageAt) && (
+                          <span
+                            className={'flex-shrink-0 ' + (nuevo ? 'text-accent font-semibold' : 'text-muted')}
+                            style={{ fontSize: FS_SEC }}
+                          >
+                            {etiquetaLista(tsToDate(c.lastMessageAt)!)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <span className="text-muted truncate" style={{ fontSize: FS_SEC }}>
+                          {c.lastMessagePreview ?? ''}
+                        </span>
+                        {/* El store solo sabe SI hay no leídos (lastMessageAt vs lastReadAt),
+                            no cuántos. Contar exacto exigiría leer mensajes de cada canal;
+                            se muestra «•» en un círculo, sin inventar un número. */}
+                        {nuevo && (
+                          <span
+                            className="flex-shrink-0 inline-flex items-center justify-center rounded-full bg-accent text-strong font-bold"
+                            style={{ minWidth: 22, height: 22, fontSize: 12 }}
+                            aria-label="Mensajes sin leer"
+                          >
+                            •
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </button>
               );
             })
@@ -437,9 +517,18 @@ export default function Chat() {
               >
                 <FlechaNeon direccion="izquierda" tamano="sm" />
               </button>
-              <span className="text-strong font-semibold text-sm">
+              {canalActual && (
+                <Avatar
+                  nombre={nombreCanal(canalActual)}
+                  email={canalActual.type === 'directo' ? (canalActual.members ?? []).find((e) => e !== yo) : undefined}
+                  grupo={canalActual.type !== 'directo'}
+                  tamano={36}
+                />
+              )}
+              <span className="text-strong font-semibold flex-1 truncate" style={{ fontSize: 'var(--chat-fs)' }}>
                 {canalActual ? nombreCanal(canalActual) : ''}
               </span>
+              <SelectorLetra valor={letraPx} onChange={cambiarLetra} />
             </header>
 
             {/* A1 — franja del mensaje fijado. Al tocarla, salta al original
@@ -462,23 +551,35 @@ export default function Chat() {
               </button>
             )}
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {mensajes.map((m) => (
-                <Burbuja
-                  key={m.id}
-                  m={m}
-                  propio={m.authorEmail === yo}
-                  puedeModerar={esSuper}
-                  channelId={canalActivo}
-                  canal={canalActual}
-                  miRol={rol}
-                  registrarRef={registrarRefMensaje}
-                  onIrACita={saltarAMensaje}
-                  onResponder={
-                    !canalActual || puedoPublicarEn(canalActual, rol) ? setRespondiendoA : undefined
-                  }
-                  onReenviar={setReenviandoMensaje}
-                />
+            <div className="flex-1 overflow-y-auto p-4">
+              {agruparMensajes(
+                mensajes.map((m) => ({ ...m, fecha: tsToDate(m.createdAt) })),
+              ).map(({ m, separador, inicioRacha, finRacha }) => (
+                <div key={m.id} className={inicioRacha ? 'mt-3' : 'mt-0.5'}>
+                  {separador && (
+                    <div className="flex justify-center my-2">
+                      <span className="px-3 py-0.5 rounded-full bg-elevated text-muted" style={{ fontSize: FS_SEC }}>
+                        {separador}
+                      </span>
+                    </div>
+                  )}
+                  <Burbuja
+                    m={m}
+                    propio={m.authorEmail === yo}
+                    puedeModerar={esSuper}
+                    channelId={canalActivo}
+                    canal={canalActual}
+                    miRol={rol}
+                    inicioRacha={inicioRacha}
+                    finRacha={finRacha}
+                    registrarRef={registrarRefMensaje}
+                    onIrACita={saltarAMensaje}
+                    onResponder={
+                      !canalActual || puedoPublicarEn(canalActual, rol) ? setRespondiendoA : undefined
+                    }
+                    onReenviar={setReenviandoMensaje}
+                  />
+                </div>
               ))}
               <div ref={finRef} />
             </div>
@@ -613,7 +714,8 @@ export default function Chat() {
                     }}
                     rows={1}
                     placeholder="Escribe un mensaje…"
-                    className="flex-1 resize-none px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong max-h-32"
+                    className="flex-1 resize-none px-3 py-2 rounded-lg bg-elevated border border-line text-strong placeholder:text-muted focus:outline-none focus:border-line-strong max-h-32"
+                    style={{ fontSize: 'var(--chat-fs)' }}
                   />
                   <button
                     onClick={handleEnviar}
@@ -705,11 +807,15 @@ function Burbuja({
   channelId,
   canal,
   miRol,
+  inicioRacha,
+  finRacha,
   registrarRef,
   onIrACita,
   onResponder,
   onReenviar,
 }: {
+  inicioRacha: boolean;
+  finRacha: boolean;
   m: Mensaje;
   propio: boolean;
   puedeModerar: boolean;
@@ -725,6 +831,7 @@ function Burbuja({
   /** D2 — abre el selector de canal destino para reenviar este mensaje. */
   onReenviar: (m: Mensaje) => void;
 }) {
+  const conAvatar = !!canal && canal.type !== 'directo';
   const [editando, setEditando] = useState(false);
   const [valor, setValor] = useState(m.text);
   const [pickerAbierto, setPickerAbierto] = useState(false);
@@ -802,8 +909,14 @@ function Burbuja({
         bubbleElRef.current = el;
         registrarRef(m.id, el);
       }}
-      className={'flex flex-col ' + (propio ? 'items-end' : 'items-start')}
+      className={'flex gap-2 ' + (propio ? 'justify-end' : 'justify-start')}
     >
+      {!propio && conAvatar && (
+        <div className="w-10 flex-shrink-0 self-start">
+          {inicioRacha && <Avatar nombre={m.authorName} email={m.authorEmail} />}
+        </div>
+      )}
+      <div className={'flex flex-col min-w-0 max-w-full ' + (propio ? 'items-end' : 'items-start')}>
       {esFijado && (
         <div className="flex items-center gap-1 text-xs text-accent mb-0.5">
           <Pin size={10} /> fijado
@@ -816,8 +929,8 @@ function Burbuja({
           (propio ? 'bg-accent text-strong' : 'bg-elevated text-strong')
         }
       >
-        {!propio && (
-          <div className="text-xs font-semibold text-info mb-0.5">{m.authorName}</div>
+        {!propio && inicioRacha && (
+          <div className="font-semibold text-info mb-0.5" style={{ fontSize: FS_SEC }}>{m.authorName}</div>
         )}
         {/* D2 — etiqueta de reenvío. Deliberadamente no se puede ocultar:
             reenviar saca contenido de su contexto original y en un colegio
@@ -873,14 +986,16 @@ function Burbuja({
         ) : (
           <>
             {m.adjunto && <AdjuntoVista adjunto={m.adjunto} />}
-            {m.text && <div className="text-sm whitespace-pre-wrap break-words">{m.text}</div>}
+            {m.text && <div className="whitespace-pre-wrap break-words" style={{ fontSize: 'var(--chat-fs)', lineHeight: 1.4 }}>{m.text}</div>}
           </>
         )}
         <div className="flex items-center gap-2 justify-end mt-1">
           {m.editedAt && <span className="text-xs text-muted">editado</span>}
-          <span className="text-xs text-muted">
-            {fechaCorta(m.createdAt)} {horaCorta(m.createdAt)}
-          </span>
+          {finRacha && (
+            <span className="text-muted" style={{ fontSize: FS_SEC }}>
+              {horaCorta(m.createdAt)}
+            </span>
+          )}
           {!editando && onResponder && (
             <button
               onClick={() => onResponder(m)}
@@ -1010,6 +1125,7 @@ function Burbuja({
           })}
         </div>
       )}
+      </div>
     </div>
   );
 }

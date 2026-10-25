@@ -44,13 +44,6 @@ const ROL_LABEL: Record<RolUsuario, string> = {
 
 type Mensaje = { tipo: 'ok' | 'error'; texto: string };
 
-const ROL_VER_COMO_LABEL: Record<string, string> = {
-  rectora: 'Rectora',
-  coordinador: 'Coordinador',
-  docente: 'Docente',
-  superusuario: 'Superusuario',
-};
-
 export default function PanelSuperusuario() {
   const { userId, nombre, rol } = useAppStore();
   const [usuarios, setUsuarios] = useState<UsuarioFirestore[]>([]);
@@ -156,8 +149,6 @@ export default function PanelSuperusuario() {
   }
 
   // ── Reemplazo de docente (Etapa 5) ──────────────────────────────────
-  const salientes = usuarios.filter((u) => u.active && u.slotId);
-  const entrantes = usuarios.filter((u) => u.active && !u.slotId && u.email !== salienteEmail);
 
   async function handlePrevisualizar() {
     setMensajeReemplazo(null);
@@ -225,10 +216,9 @@ export default function PanelSuperusuario() {
   // cuentas activas que no sean superusuario (la función las rechaza igual,
   // pero no tiene sentido mostrar un botón que va a fallar siempre).
   const yoEmailLower = (userId ?? '').toLowerCase();
-  const candidatosVerComo = usuarios.filter((u) => {
-    if (!u.active) return false;
-    if (u.role === 'superusuario') return false;
-    if (u.email.toLowerCase() === yoEmailLower) return false;
+  const puedeVerComo = (u: UsuarioFirestore) =>
+    rol === 'superusuario' && u.active && u.role !== 'superusuario' && u.email.toLowerCase() !== yoEmailLower;
+  const personasFiltradas = usuarios.filter((u) => {
     const q = busquedaVerComo.trim().toLowerCase();
     if (!q) return true;
     return u.displayName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.includes(q);
@@ -248,52 +238,6 @@ export default function PanelSuperusuario() {
       setSuplantando(null);
     }
   }
-
-  const seccionVerComo = rol === 'superusuario' && (
-    <div className="bg-card rounded-xl p-5 space-y-3 max-w-xl">
-      <h3 className="text-strong font-semibold">👁 Ver como otro usuario</h3>
-      <p className="text-muted text-xs leading-snug">
-        Abre una sesión real y de <b>solo lectura</b> como esa persona: el servidor
-        también la ve como ella, así que ve exactamente lo que ella ve. No se puede
-        escribir nada mientras dure. Usa «Salir» en la barra de arriba para volver.
-      </p>
-
-      <input
-        type="text"
-        placeholder="Buscar por nombre, correo o rol…"
-        value={busquedaVerComo}
-        onChange={(e) => setBusquedaVerComo(e.target.value)}
-        className="w-full sm:w-64 px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
-      />
-
-      {errorSuplantacion && <p className="text-xs text-danger">{errorSuplantacion}</p>}
-
-      <div className="max-h-64 overflow-y-auto divide-y divide-line/60">
-        {candidatosVerComo.length === 0 ? (
-          <p className="text-muted text-xs py-2">Sin resultados.</p>
-        ) : (
-          candidatosVerComo.map((u) => (
-            <div key={u.email} className="flex items-center justify-between gap-3 py-1.5">
-              <div className="min-w-0">
-                <p className="text-strong text-sm truncate">{u.displayName}</p>
-                <p className="text-muted text-xs truncate">
-                  {u.email} · {ROL_VER_COMO_LABEL[u.role] ?? u.role}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleVerComo(u.email)}
-                disabled={suplantando !== null}
-                className="flex-shrink-0 px-3 py-1.5 rounded-md bg-accent text-strong text-xs font-medium hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {suplantando === u.email ? 'Entrando…' : 'Ver como'}
-              </button>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
 
   async function handleSincronizarDirectores() {
     setSincronizandoDir(true);
@@ -373,7 +317,6 @@ export default function PanelSuperusuario() {
   if (!firebaseConfigurado) {
     return (
       <div className="space-y-5">
-        {seccionVerComo}
         <div className="max-w-md mx-auto">
           <div className="rounded-xl bg-info-soft text-info-soft-fg text-sm px-4 py-4 leading-snug">
             Disponible solo con autenticación Google activa.
@@ -385,8 +328,6 @@ export default function PanelSuperusuario() {
 
   return (
     <div className="space-y-5">
-      {seccionVerComo}
-
       <div>
         <h2 className="text-strong text-lg font-semibold">Gestión de usuarios</h2>
         <p className="text-muted text-xs mt-1">
@@ -668,45 +609,67 @@ export default function PanelSuperusuario() {
         El superusuario no puede cambiarse el propio rol ni desactivarse (regla de seguridad).
       </div>
 
-      {/* ── Tabla de usuarios ──────────────────────────────────────── */}
-      {cargando ? (
-        <div className="text-center py-10 text-soft">Cargando…</div>
-      ) : usuarios.length === 0 ? (
-        <div className="text-center py-10 text-muted">No hay usuarios registrados.</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="text-left text-muted border-b border-line">
-                <th className="py-2 pr-4 font-medium">Nombre</th>
-                <th className="py-2 pr-4 font-medium">Correo</th>
-                <th className="py-2 pr-4 font-medium">Rol</th>
-                <th className="py-2 pr-4 font-medium">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usuarios.map((u) => {
-                const esYo = u.email.toLowerCase() === yoEmail;
-                return (
-                  <tr key={u.email} className="border-b border-line/60">
-                    <td className="py-2 pr-4 text-strong">{u.displayName}</td>
-                    <td className="py-2 pr-4 text-soft">{u.email}</td>
-                    <td className="py-2 pr-4">
-                      <select
-                        value={u.role}
-                        disabled={esYo}
-                        onChange={(e) => handleRol(u, e.target.value as RolUsuario)}
-                        className="px-2 py-1 rounded-md bg-elevated border border-line text-strong text-xs focus:outline-none focus:border-line-strong disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {ROL_LABEL[r]}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="py-2 pr-4">
-                      <div className="flex items-center gap-2">
+      {/* ── Personas: UNA sola lista con buscador; Ver como, rol y reemplazo son acciones por fila ── */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <h3 className="text-strong font-semibold">Personas</h3>
+          <input
+            type="search"
+            placeholder="Buscar por nombre, correo o rol…"
+            value={busquedaVerComo}
+            onChange={(e) => setBusquedaVerComo(e.target.value)}
+            className="w-full sm:w-72 min-h-[44px] px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
+          />
+        </div>
+        <p className="text-muted text-xs leading-snug max-w-2xl">
+          «Ver como» abre una sesión real y de <b>solo lectura</b> como esa persona (usa «Salir» en la barra de arriba para volver).
+          «Reemplazar» elige al saliente; luego pulsa «Entra en su lugar» en quien lo sustituye.
+        </p>
+        {errorSuplantacion && <p className="text-xs text-danger">{errorSuplantacion}</p>}
+        {cargando ? (
+          <div className="text-center py-10 text-soft">Cargando…</div>
+        ) : usuarios.length === 0 ? (
+          <div className="text-center py-10 text-muted">No hay usuarios registrados.</div>
+        ) : personasFiltradas.length === 0 ? (
+          <p className="text-muted text-xs py-2">Sin resultados.</p>
+        ) : (
+          <div className="overflow-x-auto max-h-[28rem] overflow-y-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead className="sticky top-0 bg-app">
+                <tr className="text-left text-muted border-b border-line">
+                  <th className="py-2 pr-4 font-medium">Persona</th>
+                  <th className="py-2 pr-4 font-medium">Rol</th>
+                  <th className="py-2 pr-4 font-medium">Estado</th>
+                  <th className="py-2 pr-4 font-medium">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {personasFiltradas.map((u) => {
+                  const esYo = u.email.toLowerCase() === yoEmail;
+                  const esSaliente = u.email === salienteEmail;
+                  const puedeEntrar = !!salienteEmail && u.active && !u.slotId && !esSaliente;
+                  return (
+                    <tr key={u.email} className="border-b border-line/60 align-top">
+                      <td className="py-2 pr-4">
+                        <p className="text-strong">{u.displayName}</p>
+                        <p className="text-soft text-xs">{u.email}</p>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <select
+                          value={u.role}
+                          disabled={esYo}
+                          aria-label={`Rol de ${u.displayName}`}
+                          onChange={(e) => handleRol(u, e.target.value as RolUsuario)}
+                          className="px-2 py-1 min-h-[44px] rounded-md bg-elevated border border-line text-strong text-xs focus:outline-none focus:border-line-strong disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {ROLES.map((r) => (
+                            <option key={r} value={r}>
+                              {ROL_LABEL[r]}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-2 pr-4">
                         <span
                           className={
                             'text-xs rounded-full px-2 py-0.5 ' +
@@ -717,22 +680,56 @@ export default function PanelSuperusuario() {
                         >
                           {u.active ? 'Activo' : 'Inactivo'}
                         </span>
-                        <button
-                          onClick={() => handleActivo(u, !u.active)}
-                          disabled={esYo}
-                          className="text-xs px-2 py-1 rounded-md bg-elevated text-soft hover:text-strong transition disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          {u.active ? 'Desactivar' : 'Activar'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                      </td>
+                      <td className="py-2 pr-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            onClick={() => handleActivo(u, !u.active)}
+                            disabled={esYo}
+                            className="text-xs px-2 min-h-[44px] rounded-md bg-elevated text-soft hover:text-strong transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {u.active ? 'Desactivar' : 'Activar'}
+                          </button>
+                          {puedeVerComo(u) && (
+                            <button
+                              type="button"
+                              onClick={() => handleVerComo(u.email)}
+                              disabled={suplantando !== null}
+                              className="px-3 min-h-[44px] rounded-md bg-accent text-strong text-xs font-medium hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {suplantando === u.email ? 'Entrando…' : 'Ver como'}
+                            </button>
+                          )}
+                          {u.active && u.slotId && (
+                            <button
+                              type="button"
+                              onClick={() => { setSalienteEmail(esSaliente ? '' : u.email); setEntranteEmail(''); setPrevia(null); }}
+                              aria-pressed={esSaliente}
+                              className={'px-3 min-h-[44px] rounded-md text-xs font-medium transition ' + (esSaliente ? 'bg-warning-soft text-warning-soft-fg' : 'bg-elevated text-soft hover:text-strong')}
+                            >
+                              {esSaliente ? 'Saliente ✓ (quitar)' : 'Reemplazar'}
+                            </button>
+                          )}
+                          {puedeEntrar && (
+                            <button
+                              type="button"
+                              onClick={() => { setEntranteEmail(u.email); setPrevia(null); }}
+                              aria-pressed={entranteEmail === u.email}
+                              className={'px-3 min-h-[44px] rounded-md text-xs font-medium transition ' + (entranteEmail === u.email ? 'bg-success-soft text-success-soft-fg' : 'bg-elevated text-soft hover:text-strong')}
+                            >
+                              {entranteEmail === u.email ? 'Entra ✓' : 'Entra en su lugar'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* ── Reemplazar docente ─────────────────────────────────────── */}
       <div className="bg-card rounded-xl p-5 space-y-3 max-w-xl">
@@ -756,38 +753,11 @@ export default function PanelSuperusuario() {
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="text-muted text-xs">Saliente</label>
-            <select
-              value={salienteEmail}
-              onChange={(e) => { setSalienteEmail(e.target.value); setPrevia(null); }}
-              className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm focus:outline-none focus:border-line-strong"
-            >
-              <option value="">Seleccionar…</option>
-              {salientes.map((u) => (
-                <option key={u.email} value={u.email}>
-                  {u.displayName} ({u.slotId})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-muted text-xs">Entrante</label>
-            <select
-              value={entranteEmail}
-              onChange={(e) => { setEntranteEmail(e.target.value); setPrevia(null); }}
-              className="w-full px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm focus:outline-none focus:border-line-strong"
-            >
-              <option value="">Seleccionar…</option>
-              {entrantes.map((u) => (
-                <option key={u.email} value={u.email}>
-                  {u.displayName}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <p className="text-sm text-soft" aria-live="polite">
+          {salienteEmail
+            ? <>Saliente: <b className="text-strong">{usuarios.find((u) => u.email === salienteEmail)?.displayName ?? salienteEmail}</b> → Entrante: <b className="text-strong">{entranteEmail ? (usuarios.find((u) => u.email === entranteEmail)?.displayName ?? entranteEmail) : 'elige en la lista de personas'}</b></>
+            : 'Elige «Reemplazar» en la persona que sale, en la lista de personas.'}
+        </p>
 
         <div className="flex items-center gap-3">
           <button

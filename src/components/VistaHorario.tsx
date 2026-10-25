@@ -45,7 +45,7 @@ import type { HorarioModificado, JornadaReducida } from '../data/horarioModifica
 import { publicacionesPendientesDeRevisar } from '../data/publicacion';
 import type { PublicacionPendiente } from '../data/publicacion';
 import { FlechaNeon } from './FlechaNeon';
-import SelectorVista from './SelectorVista';
+import SelectorVista, { useVistaRecordada } from './SelectorVista';
 import { OPCIONES_DIA_SEMANA } from './opcionesVista';
 
 
@@ -316,7 +316,7 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
 function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab: 'manana' | 'tarde' }) {
   const horario = useHorario();
   // «Mi horario» abre en vista Día y en HOY (fin de semana: lunes).
-  const [vistaDetalle, setVistaDetalle] = useState<VistaDetalle>('dia');
+  const [vistaDetalle, setVistaDetalle] = useVistaRecordada<VistaDetalle>('horario-docente', 'dia', ['dia', 'semana']);
   const [diaSeleccionado, setDiaSeleccionado] = useState(() => {
     const hoyKey = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'][new Date().getDay()];
     return (DIAS as readonly string[]).includes(hoyKey) ? hoyKey : 'lunes';
@@ -602,7 +602,7 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
 
 function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana' | 'tarde' }) {
   const horario = useHorario();
-  const [vistaDetalle, setVistaDetalle] = useState<VistaDetalle>('semana');
+  const [vistaDetalle, setVistaDetalle] = useVistaRecordada<VistaDetalle>('horario-grupo', 'semana', ['dia', 'semana']);
   const [diaSeleccionado, setDiaSeleccionado] = useState('lunes');
 
   const bloques   = jornadaTab === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
@@ -1247,7 +1247,7 @@ function VistaHorarioContenido() {
   const { vigente: acompVigente, proxima: acompProxima, publicaciones: acompPublicaciones, error: acompError } = useAcompanamientos(jornadaTab, fechaHoyLocal());
   const [docenteSel, setDocenteSel]   = useState(rol === 'docente' ? (userId ?? '') : '');
   const [grupoSel, setGrupoSel]       = useState('');
-  const [vistaOverview, setVistaOverview] = useState<VistaDetalle>('semana');
+  const [vistaOverview, setVistaOverview] = useVistaRecordada<VistaDetalle>('horario-resumen', 'semana', ['dia', 'semana']);
   const [diaOverview, setDiaOverview]     = useState('lunes');
 
   // Editor de horario

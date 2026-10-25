@@ -12,6 +12,7 @@ import {
   type Totales,
 } from './domain/analisis-alerta';
 import { GraficoEvolucion, GraficoGrupos } from './GraficosAlerta';
+import SelectorVista, { useVistaRecordada } from '../components/SelectorVista';
 import { asignaturasDelGrado } from './horarioDelDia';
 import type { Jornada, Sede } from './domain/types';
 
@@ -38,6 +39,8 @@ export default function PanoramaAlerta({ sede: sedeInicial, jornadaLimitada = nu
   const [periodo, setPeriodo] = useState<number | null>(null);
   const [actualizando, setActualizando] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  // Todas las sedes: la misma cifra por sede en tarjetas (matriz) o en barras (lista) (2026-10-26).
+  const [vistaSedes, setVistaSedes] = useVistaRecordada<'matriz' | 'lista'>('panorama-sedes', 'matriz', ['matriz', 'lista']);
 
   function cargar() {
     return leerResumenesAlerta(anio).then(setResumenes).catch(() => setResumenes([]));
@@ -161,18 +164,23 @@ export default function PanoramaAlerta({ sede: sedeInicial, jornadaLimitada = nu
         </p>
       ) : (
         <>
+          {alcance === 'colegio' && sedesConDatos.length > 1 && (
+            <div className="flex justify-end">
+              <SelectorVista valor={vistaSedes} onCambio={setVistaSedes} etiqueta="Ver las sedes:" />
+            </div>
+          )}
           {/* Tarjetas: por jornada (jornada o sede) o por sede (todas las sedes), y el total. */}
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {alcance !== 'jornada' && <TarjetaTotales titulo={alcance === 'colegio' ? 'Colegio completo' : `${NOMBRE_SEDE[sede]} (las dos jornadas)`} t={totalDe(delPeriodo)} destacada />}
             {alcance === 'colegio'
-              ? sedesConDatos.map((s) => <TarjetaTotales key={s} titulo={NOMBRE_SEDE[s]} t={totalDe(delPeriodo.filter((r) => r.sede === s))} />)
+              ? (vistaSedes === 'matriz' || sedesConDatos.length < 2) && sedesConDatos.map((s) => <TarjetaTotales key={s} titulo={NOMBRE_SEDE[s]} t={totalDe(delPeriodo.filter((r) => r.sede === s))} />)
               : JORNADAS.filter((j) => alcance === 'sede' || j === jornada).map((j) => {
                   const rs = delPeriodo.filter((r) => r.jornada === j);
                   return <TarjetaTotales key={j} titulo={`Jornada de la ${NOMBRE_JORNADA[j]}`} t={rs.length ? totalDe(rs) : null} />;
                 })}
           </section>
 
-          {alcance === 'colegio' && sedesConDatos.length > 1 && (
+          {alcance === 'colegio' && sedesConDatos.length > 1 && vistaSedes === 'lista' && (
             <section className="rounded-2xl border border-line bg-card p-4">
               <h4 className="mb-3 text-sm font-semibold text-strong">Comparación por sede</h4>
               <GraficoGrupos

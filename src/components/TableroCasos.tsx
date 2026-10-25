@@ -21,6 +21,8 @@ import type { SeguimientoCaso as SeguimientoCasoTipo } from '../data/api';
 import { VistaImprimibleHistorial } from './HistorialCaso';
 import type { DatosHistorialCaso } from './HistorialCaso';
 import { FlechaNeon } from './FlechaNeon';
+import SelectorVista, { useVistaRecordada, type OpcionVista } from './SelectorVista';
+import { LayoutGrid, List } from 'lucide-react';
 
 // Un caso conserva el registro original (informe o remisión) para poder
 // mostrar los datos completos en el detalle — CasoResumen (el contrato del
@@ -127,6 +129,25 @@ function BadgeTipo({ tipo }: { tipo: CasoResumen['tipo'] }) {
       <span aria-hidden="true">{ICONO_TIPO[tipo]}</span>
       {LABEL_TIPO[tipo]}
     </span>
+  );
+}
+
+const OPCIONES_TARJ_LISTA: OpcionVista<'tarjetas' | 'lista'>[] = [
+  { id: 'tarjetas', label: 'Tarjetas', Icono: LayoutGrid },
+  { id: 'lista', label: 'Lista', Icono: List },
+];
+
+function FilaCasoCompacta({ caso, onClick }: { caso: CasoCompleto; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left min-h-[44px] px-3 py-2 flex items-center gap-2 hover:bg-hover active:bg-elevated transition"
+    >
+      <span aria-hidden="true">{ICONO_TIPO[caso.tipo]}</span>
+      <span className="text-sm text-strong truncate flex-1">{caso.estudianteNombre} <span className="text-muted text-xs">· {caso.grado}</span></span>
+      <BadgeAlerta caso={caso} />
+      <PastillaEstado estado={caso.estado} />
+    </button>
   );
 }
 
@@ -329,6 +350,7 @@ export default function TableroCasos() {
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('todos');
   const [casoSeleccionadoId, setCasoSeleccionadoId] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
+  const [formaCasos, setFormaCasos] = useVistaRecordada<'tarjetas' | 'lista'>('casos', 'tarjetas', ['tarjetas', 'lista']);
 
   const cargar = useCallback(() => {
     setCargando(true);
@@ -399,6 +421,7 @@ export default function TableroCasos() {
         placeholder="Buscar estudiante por nombre"
         className="w-full min-h-[44px] rounded-xl border border-line bg-card text-strong text-sm px-3 placeholder:text-muted"
       />
+      <SelectorVista valor={formaCasos} onCambio={setFormaCasos} opciones={OPCIONES_TARJ_LISTA} />
       <div className="flex items-center gap-1.5 flex-wrap">
         <ChipFiltro activo={filtroTipo === 'todos'} onClick={() => setFiltroTipo('todos')}>Todos</ChipFiltro>
         <ChipFiltro activo={filtroTipo === 'contencion'} onClick={() => setFiltroTipo('contencion')}>💚 Contención emocional</ChipFiltro>
@@ -429,11 +452,19 @@ export default function TableroCasos() {
       )}
 
       {!cargando && !error && casosFiltrados.length > 0 && (
-        <div className="flex flex-col gap-2.5">
-          {casosFiltrados.map(c => (
-            <TarjetaCaso key={c.id} caso={c} onClick={() => setCasoSeleccionadoId(c.id)} />
-          ))}
-        </div>
+        formaCasos === 'tarjetas' ? (
+          <div className="flex flex-col gap-2.5">
+            {casosFiltrados.map(c => (
+              <TarjetaCaso key={c.id} caso={c} onClick={() => setCasoSeleccionadoId(c.id)} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-line bg-card divide-y divide-line overflow-hidden">
+            {casosFiltrados.map(c => (
+              <FilaCasoCompacta key={c.id} caso={c} onClick={() => setCasoSeleccionadoId(c.id)} />
+            ))}
+          </div>
+        )
       )}
     </div>
   );
