@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { neonDe } from './IconosNeon';
 
@@ -46,6 +46,7 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0, bad
   }, [abierto]);
 
   function elegir(id: string) {
+    registrarUso(id);
     onSelect(id);
     setAbierto(false);
   }
@@ -75,7 +76,9 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0, bad
         </motion.span>
       </button>
 
-      {/* Menú desplegable */}
+      {/* Menú en matriz (Julián, 25-oct-2026): bloques de 3 columnas con fondo suave y
+          sin títulos. El primero son las 6 secciones que este usuario más abre; luego
+          consulta, reporte y administración, sin repetir lo que ya salió arriba. */}
       <AnimatePresence>
         {abierto && (
           <motion.div
@@ -84,46 +87,72 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0, bad
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.16 }}
-            className="absolute left-0 top-full mt-1.5 w-64 max-w-[calc(100vw-2rem)] z-50 rounded-2xl border border-line bg-card shadow-xl overflow-hidden p-1.5"
+            className="absolute left-0 top-full mt-1.5 w-[22rem] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-5rem)] overflow-y-auto z-50 rounded-2xl border border-line bg-card shadow-xl p-2 space-y-2"
           >
-            {opciones.map(op => {
-              const { Icono: Icon, color } = neonDe(op.id);
-              const activo = op.id === activa;
-              const conteo = op.id === 'disponibilidad' ? badge : (badges[op.id] ?? 0);
-              return (
-                <button
-                  key={op.id}
-                  role="menuitem"
-                  onClick={() => elegir(op.id)}
-                  className={cn(
-                    'w-full flex items-start gap-3 px-2.5 py-2 rounded-xl text-left transition',
-                    activo ? 'bg-elevated' : 'hover:bg-elevated/60',
-                  )}
-                >
-                  <span
-                    className="mt-0.5 flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
-                    style={{ background: `${color}1a` }}
-                  >
-                    <Icon className="w-4 h-4" style={{ color }} />
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span className="flex items-center gap-1.5">
-                      <span className="text-sm font-medium text-strong">{op.label}</span>
+            {bloquesMenu(opciones, leerUso()).map((bloque, i) => (
+              <div key={i} className="grid grid-cols-3 gap-1 rounded-xl bg-elevated/70 p-1.5">
+                {bloque.map(op => {
+                  const { Icono: Icon, color } = neonDe(op.id);
+                  const activo = op.id === activa;
+                  const conteo = op.id === 'disponibilidad' ? badge : (badges[op.id] ?? 0);
+                  return (
+                    <button
+                      key={op.id}
+                      role="menuitem"
+                      title={op.descripcion}
+                      onClick={() => elegir(op.id)}
+                      className={cn(
+                        'relative flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-center transition',
+                        activo ? 'bg-card ring-1 ring-line-strong' : 'hover:bg-card',
+                      )}
+                    >
+                      <span className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${color}1a` }}>
+                        <Icon className="w-5 h-5" style={{ color }} />
+                      </span>
+                      <span className="text-[11px] font-medium text-strong leading-tight">{op.label}</span>
                       {conteo > 0 && (
-                        <span className="min-w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                        <span className="absolute top-1 right-1 min-w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
                           {conteo}
                         </span>
                       )}
-                      {activo && <Check size={13} className="ml-auto text-info flex-shrink-0" />}
-                    </span>
-                    <span className="block text-[11px] text-muted leading-tight mt-0.5">{op.descripcion}</span>
-                  </span>
-                </button>
-              );
-            })}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
     </div>
   );
+}
+
+// ── Orden del menú en matriz ──────────────────────────────────────────────
+
+const CLAVE_USO = 'mjb_uso_menu';
+const FRECUENTES_INICIALES = ['inicio', 'asistencia', 'horario', 'agenda', 'tareas', 'chat'];
+const CONSULTA = ['inicio', 'agenda', 'horario', 'asignacion', 'asistentes', 'notificaciones', 'historial'];
+const REPORTE = ['asistencia', 'tareas', 'riesgo', 'plan_casa', 'disponibilidad', 'chat'];
+const ADMINISTRACION = ['admin', 'rectora', 'generar_horario', 'admin_users', 'sugerencias', 'sede_datos'];
+
+/** Veces que este navegador abrió cada sección desde el menú. Solo local: es una comodidad. */
+function leerUso(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(CLAVE_USO) ?? '{}') ?? {}; } catch { return {}; }
+}
+function registrarUso(id: string) {
+  try { const u = leerUso(); u[id] = (u[id] ?? 0) + 1; localStorage.setItem(CLAVE_USO, JSON.stringify(u)); } catch { /* sin almacenamiento */ }
+}
+
+/** Bloques de hasta 6: los más usados, y después consulta, reporte y administración. */
+export function bloquesMenu<T extends { id: string }>(opciones: T[], uso: Record<string, number>): T[][] {
+  const pos = (id: string) => { const i = FRECUENTES_INICIALES.indexOf(id); return i < 0 ? 99 : i; };
+  const frecuentes = [...opciones]
+    .sort((a, b) => (uso[b.id] ?? 0) - (uso[a.id] ?? 0) || pos(a.id) - pos(b.id))
+    .slice(0, 6);
+  const usados = new Set(frecuentes.map(o => o.id));
+  const resto = opciones.filter(o => !usados.has(o.id));
+  const de = (ids: string[]) => resto.filter(o => ids.includes(o.id));
+  const conocidos = [...REPORTE, ...ADMINISTRACION];
+  const consulta = resto.filter(o => CONSULTA.includes(o.id) || !conocidos.includes(o.id));
+  return [frecuentes, consulta, de(REPORTE), de(ADMINISTRACION)].filter(b => b.length > 0);
 }
