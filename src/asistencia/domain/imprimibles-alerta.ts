@@ -247,11 +247,33 @@ export interface PlanillaFirmas {
  */
 export const RENGLONES_POR_HOJA = 26;
 
+/**
+ * UNA HOJA POR GRUPO (Julian, 2026-10-25): con mas de 26 renglones, en vez de pasar a otra
+ * hoja se achican el renglon y la letra para que quepan en los ~205 mm que deja la hoja
+ * (medido: 26 × 7,5 mm + 16 mm libres). Hasta 4,5 mm por renglon (unos 45 renglones) sigue
+ * siendo firmable; si ni asi caben, recien ahi pasa a otra hoja.
+ */
+const ALTO_TABLA_MM = 205;
+const ALTO_NORMAL_MM = 7.5;
+const ALTO_MINIMO_MM = 4.5;
+
+/** Alto del renglon y tamaño de letra para `n` renglones; null = no caben en una hoja. */
+export function medidaRenglon(n: number): { altoMm: number; letraPt: number } | null {
+  if (n <= RENGLONES_POR_HOJA) return { altoMm: ALTO_NORMAL_MM, letraPt: 8.6 };
+  const alto = Math.floor((ALTO_TABLA_MM / n) * 10) / 10;
+  if (alto < ALTO_MINIMO_MM) return null;
+  return { altoMm: alto, letraPt: Math.round(Math.max(6.8, 8.6 * (alto / ALTO_NORMAL_MM) + 1.4) * 10) / 10 };
+}
+
+function renglonesDe(p: PlanillaFirmas): number {
+  const citadas = p.filas.filter((f) => f.horaCita);
+  return citadas.length + citadas.filter((f, i) => f.seccion && f.seccion !== citadas[i - 1]?.seccion).length;
+}
+
 /** Cuantas hojas ocupa la planilla de un grupo (renglones de estudiantes y de reunion). */
 export function hojasDePlanilla(p: PlanillaFirmas): number {
-  const citadas = p.filas.filter((f) => f.horaCita);
-  const secciones = citadas.filter((f, i) => f.seccion && f.seccion !== citadas[i - 1]?.seccion).length;
-  return Math.max(1, Math.ceil((citadas.length + secciones) / RENGLONES_POR_HOJA));
+  const n = renglonesDe(p);
+  return medidaRenglon(n) ? 1 : Math.ceil(n / RENGLONES_POR_HOJA);
 }
 
 function planillaFirmas(inst: DatosInstitucion, p: PlanillaFirmas): string {
@@ -261,9 +283,13 @@ function planillaFirmas(inst: DatosInstitucion, p: PlanillaFirmas): string {
     ...(f.seccion && f.seccion !== citadas[i - 1]?.seccion ? [`<tr class="pf-sec"><td colspan="5">${esc(f.seccion)}</td></tr>`] : []),
     `<tr><td class="pf-n">${i + 1}</td><td>${esc(f.estudiante)}</td><td class="pf-m"><span class="pf-cita">${esc(f.horaCita!)}</span> · ${f.alertas} asig.</td><td></td><td></td></tr>`,
   ]);
+  const medida = medidaRenglon(renglones.length);
+  const porHoja = medida ? Math.max(1, renglones.length) : RENGLONES_POR_HOJA;
+  const estilo = medida && medida.altoMm < ALTO_NORMAL_MM
+    ? ` style="--alto:${medida.altoMm}mm;--letra:${medida.letraPt}pt" data-compacta="1"` : '';
   const hojas: string[][] = [];
-  for (let i = 0; i < Math.max(1, renglones.length); i += RENGLONES_POR_HOJA) hojas.push(renglones.slice(i, i + RENGLONES_POR_HOJA));
-  return hojas.map((filas, n) => `<section class="hoja pf">
+  for (let i = 0; i < Math.max(1, renglones.length); i += porHoja) hojas.push(renglones.slice(i, i + porHoja));
+  return hojas.map((filas, n) => `<section class="hoja pf"${estilo}>
     ${encabezado(inst, 'Entrega de alerta académica · registro de asistencia', `Grupo ${p.grado} · periodo ${p.periodo} · ${p.anio} · ${p.fecha}${hojas.length > 1 ? ` · hoja ${n + 1} de ${hojas.length}` : ''}`)}
     ${n === 0 ? `<p class="pf-res">Director(a) de grupo: <b>${esc(p.director)}</b> · ${citadas.length} acudientes citados</p>` : '<p class="pf-res">(continuación)</p>'}
     <table class="pf-t">
@@ -278,15 +304,16 @@ const CSS_PF = `
 .hoja.pf { display: flex; flex-direction: column; padding: 14mm 14mm 12mm; gap: 2.5mm; }
 .hoja.pf::before, .hoja.pf::after { display: none; }
 .pf-res { margin: 0; font-size: 8.5pt; color: #333; }
-.pf-t { width: 100%; border-collapse: collapse; font-size: 8.6pt; }
+.pf-t { width: 100%; border-collapse: collapse; font-size: var(--letra, 8.6pt); }
 .pf-t th { text-align: left; font-size: 7.6pt; color: #444; border-bottom: 0.4mm solid #111; padding: 1mm 1.5mm; }
-.pf-t td { border-bottom: 0.2mm solid #bbb; padding: 0 1.5mm; height: 7.5mm; }
+.pf-t td { border-bottom: 0.2mm solid #bbb; padding: 0 1.5mm; height: var(--alto, 7.5mm); }
+.hoja.pf[data-compacta] .pf-t td { white-space: nowrap; line-height: 1.1; }
 .pf-n { width: 8mm; text-align: right; color: #555; }
 .pf-m { width: 34mm; white-space: nowrap; }
 .pf-f { width: 48mm; } .pf-tel { width: 32mm; }
 .pf-t td:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
 .pf-citado td { background: #f7eef0; }
-.pf-t tr.pf-sec td { height: 6.5mm; font-weight: 700; font-size: 8.4pt; background: #eef2f7; border-bottom: 0.3mm solid #111; }
+.pf-t tr.pf-sec td { height: var(--alto, 6.5mm); font-weight: 700; font-size: var(--letra, 8.4pt); background: #eef2f7; border-bottom: 0.3mm solid #111; }
 .pf-cita { font-weight: 700; color: #b3122a; font-size: 7.8pt; }
 .pf-inf { color: #555; font-size: 7.8pt; }
 .hoja.pf .firma .linea { margin-top: 6mm; }
