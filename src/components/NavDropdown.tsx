@@ -106,17 +106,22 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0, bad
 
 /** Matriz del menú: bloques de 3 columnas con fondo suave y sin títulos. La usan el
  *  menú desplegable y la pantalla de Inicio, para que se vean idénticos. */
-export function MatrizMenu({ opciones, activa, onSelect, conteoDe }: {
+export function MatrizMenu({ opciones, activa, onSelect, conteoDe, soloPrimero = false, grande = false }: {
   opciones: NavOption[];
   activa?: string;
   onSelect: (id: string) => void;
   conteoDe?: (id: string) => number;
+  /** Solo el bloque de los 6 más usados (Inicio); el resto, plegado. */
+  soloPrimero?: boolean;
+  /** Baldosas grandes, para la pantalla de Inicio en el celular. */
+  grande?: boolean;
 }) {
   const oscuro = useAppStore((s) => s.temaOscuro);
+  const bloques = bloquesMenu(opciones, leerUso());
   return (
     <>
-      {bloquesMenu(opciones, leerUso()).map((bloque, i) => (
-        <div key={i} className="grid grid-cols-3 gap-1 rounded-xl bg-elevated/70 p-1.5">
+      {(soloPrimero ? bloques.slice(0, 1) : bloques).map((bloque, i) => (
+        <div key={i} className={cn('grid grid-cols-3 rounded-xl bg-elevated/70', grande ? 'gap-2 p-2' : 'gap-1 p-1.5')}>
           {bloque.map(op => {
             const { Icono: Icon, color } = neonDe(op.id, oscuro);
             const activo = op.id === activa;
@@ -128,14 +133,15 @@ export function MatrizMenu({ opciones, activa, onSelect, conteoDe }: {
                 title={op.descripcion}
                 onClick={() => onSelect(op.id)}
                 className={cn(
-                  'relative flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-center transition',
+                  'relative flex flex-col items-center rounded-lg text-center transition',
+                  grande ? 'gap-2 px-1 py-3 min-h-[112px] justify-center' : 'gap-1.5 px-1 py-2.5',
                   activo ? 'bg-card ring-1 ring-line-strong' : 'hover:bg-card',
                 )}
               >
-                <span className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${color}1a` }}>
-                  <Icon className="w-5 h-5" style={{ color }} />
+                <span className={cn('rounded-xl flex items-center justify-center', grande ? 'w-16 h-16' : 'w-12 h-12')} style={{ background: `${color}1a` }}>
+                  <Icon className={grande ? 'w-11 h-11' : 'w-8 h-8'} style={{ color }} />
                 </span>
-                <span className="text-[11px] font-medium text-strong leading-tight">{op.label}</span>
+                <span className={cn('font-medium text-strong leading-tight', grande ? 'text-sm' : 'text-xs')}>{op.label}</span>
                 {conteo > 0 && (
                   <span className="absolute top-1 right-1 min-w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
                     {conteo}

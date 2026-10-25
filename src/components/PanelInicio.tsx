@@ -1,6 +1,8 @@
 // Panel de inicio — primera pantalla al entrar a la app. Resume notificaciones,
 // cambios de horario, próxima clase (docentes), agenda institucional del día,
 // accesos rápidos por rol y un resumen de chat (solo modo google + Firebase).
+import { ChevronDown } from 'lucide-react';
+import { cn } from '../lib/utils';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import MiDiaModificado from './MiDiaModificado';
 import { MatrizMenu, registrarUso } from './NavDropdown';
@@ -317,6 +319,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   // trackpad que lo disimulara), tapando el scroll horizontal aunque scrollLeft si se
   // actualizara. Por eso el listener se registra a mano con { passive: false }.
   const filaARef = useRef<HTMLDivElement>(null);
+  const [verTodo, setVerTodo] = useState(false);
   useEffect(() => {
     const listener = (e: WheelEvent) => {
       const el = e.currentTarget as HTMLDivElement;
@@ -367,9 +370,23 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
           <div className="space-y-2">
             <MatrizMenu
               opciones={accesos}
+              soloPrimero={!verTodo}
+              grande
               onSelect={(id) => { registrarUso(id); setVistaActual(id as never); }}
             />
           </div>
+          {/* Inicio muestra solo las 6 más usadas; el resto se despliega abajo (Julián, 26-oct). */}
+          {accesos.length > 6 && (
+            <button
+              type="button"
+              onClick={() => setVerTodo((v) => !v)}
+              className="mt-2 w-full min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl text-sm font-medium text-soft hover:text-strong hover:bg-elevated transition"
+              aria-expanded={verTodo}
+            >
+              {verTodo ? 'Ver menos' : 'Ver todo'}
+              <ChevronDown size={18} className={cn('transition-transform', verTodo && 'rotate-180')} />
+            </button>
+          )}
         </section>
       )}
 
