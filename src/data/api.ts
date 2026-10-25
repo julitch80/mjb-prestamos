@@ -90,9 +90,12 @@ async function callApi<T>(params: Record<string, string>): Promise<T> {
 // así que el backend no necesita ningún cambio. Sin respaldo JSONP posible
 // (es solo GET): si falla, se propaga el error en vez de tragarlo, para que
 // quien llame pueda avisar en vez de creer que se publicó.
-async function callApiPost<T>(params: Record<string, string>): Promise<T> {
+// `esperaMs`: las acciones que mandan muchos correos (GmailApp, ~1 s cada uno)
+// tardan más de 20 s; cortarlas a los 20 s dejaba el aviso «signal is aborted
+// without reason» aunque el Apps Script siguiera enviando (27-oct-2026).
+async function callApiPost<T>(params: Record<string, string>, esperaMs = 20000): Promise<T> {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 20000);
+  const t = setTimeout(() => ctrl.abort(new Error('tiempo')), esperaMs);
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
@@ -101,6 +104,11 @@ async function callApiPost<T>(params: Record<string, string>): Promise<T> {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return (await res.json()) as T;
+  } catch (e) {
+    if (ctrl.signal.aborted) {
+      throw new Error('El servidor tardó demasiado en responder. Puede que el envío sí se haya hecho: revise antes de repetirlo.');
+    }
+    throw e;
   } finally {
     clearTimeout(t);
   }
@@ -716,5 +724,5 @@ export async function enviarCitacionesAlerta(
     action: 'enviarCitacionesAlerta',
     grupo,
     citaciones: JSON.stringify(citaciones),
-  }));
+  }), 300000); // Apps Script corta a los 6 min; 30-40 correos caben de sobra.
 }
