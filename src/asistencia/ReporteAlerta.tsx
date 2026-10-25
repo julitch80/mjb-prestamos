@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { USUARIOS } from '../data/maestros';
 import { alertasDeJornada, alertasDelGrado, convocatoriasAlerta } from './datos';
 import { nombreCompleto, ordenarEstudiantes } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import { combinarPlanillas, consolidarGrupo, convocatoriaDelGrado, fechaCorta, horaCorta, MINIMO_PARA_CITAR, puedeCitar } from './domain/alerta-academica';
 import { toDateKey } from './domain/ids';
-import { BarChart3, Table } from 'lucide-react';
-import SelectorVista, { useVistaRecordada, type OpcionVista } from '../components/SelectorVista';
+import { useVistaRecordada } from '../components/SelectorVista';
 import AnalisisAlerta from './AnalisisAlerta';
 import { IconoMarcaAlerta } from './IconoMarcaAlerta';
 import CitacionesAlerta from './CitacionesAlerta';
@@ -22,9 +21,13 @@ import type { ConvocatoriaAlerta, PlanillaAlerta, Sede, Student } from './domain
  * asignacion academica: «9 de 12» dice la verdad. Quien tiene dos o mas queda resaltado:
  * a su acudiente se le cita.
  */
-const VISTAS_REPORTE: OpcionVista<'cuadro' | 'analisis'>[] = [
-  { id: 'cuadro', label: 'Cuadro', Icono: Table },
-  { id: 'analisis', label: 'Análisis', Icono: BarChart3 },
+type Pestana = 'cuadro' | 'analisis' | 'citaciones' | 'dia' | 'seguimiento';
+const PESTANAS: { id: Pestana; nombre: string; soloDirector?: boolean }[] = [
+  { id: 'cuadro', nombre: 'Cuadro' },
+  { id: 'analisis', nombre: 'Análisis' },
+  { id: 'citaciones', nombre: 'Citaciones', soloDirector: true },
+  { id: 'dia', nombre: 'Día de la entrega', soloDirector: true },
+  { id: 'seguimiento', nombre: 'Seguimiento', soloDirector: true },
 ];
 
 export default function ReporteAlerta({
@@ -52,9 +55,10 @@ export default function ReporteAlerta({
   const [periodoElegido, setPeriodoElegido] = useState<string | null>(null);
   const [planillas, setPlanillas] = useState<PlanillaAlerta[] | null>(null);
   const [soloCitados, setSoloCitados] = useState(false);
-  // «Cuadro» (el de siempre) o «Análisis» (graficos para analizar con el grupo, 2026-10-24).
-  // Con el conmutador comun de la app, y recordado en el dispositivo (2026-10-26).
-  const [vista, setVista] = useVistaRecordada<'cuadro' | 'analisis'>('reporte-alerta', 'cuadro', ['cuadro', 'analisis']);
+  // PESTAÑAS (Julian, 2026-10-27: «no sabia que debajo de las citaciones seguian el dia de la
+  // entrega y el seguimiento»): una seccion a la vez, recordada por grupo. Coordinacion ve
+  // Cuadro y Analisis; las citaciones, la entrega y el seguimiento son del director.
+  const [vista, setVista] = useVistaRecordada<Pestana>(`reporte-alerta.${grado}`, 'cuadro', PESTANAS.map((p) => p.id));
 
   useEffect(() => {
     void convocatoriasAlerta(sede, jornada)
@@ -69,6 +73,13 @@ export default function ReporteAlerta({
   const convGeneral = convocatorias?.find((c) => c.convocatoriaId === periodoElegido) ?? null;
   const conv = useMemo(() => (convGeneral ? convocatoriaDelGrado(convGeneral, grado) : null), [convGeneral, grado]);
   const especial = convGeneral?.excepcionesAgenda?.[grado] ?? null;
+  // El dia de la entrega el director entra directo a marcar quien vino.
+  const yaAbrioDia = useRef(false);
+  useEffect(() => {
+    if (!conv || !esDirector || yaAbrioDia.current) return;
+    yaAbrioDia.current = true;
+    if (conv.fechaEntrega === toDateKey(new Date())) setVista('dia');
+  }, [conv, esDirector]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!conv) { setPlanillas([]); return; }
@@ -129,9 +140,48 @@ export default function ReporteAlerta({
         )}
       </div>
 
-      <SelectorVista valor={vista} onCambio={setVista} opciones={VISTAS_REPORTE} className="self-start" />
+      <FilaPestanas
+        pestanas={PESTANAS.filter((p) => esDirector || !p.soloDirector)}
+        activa={esDirector || !PESTANAS.find((p) => p.id === vista)?.soloDirector ? vista : 'cuadro'}
+        onCambiar={setVista}
+        pendiente={(id) => {
+          const hoy = toDateKey(new Date());
+          if (id === 'citaciones') return !puedeCitar(conv, hoy) || (!!conv.fechaEntrega && hoy >= conv.fechaEntrega);
+          if (id === 'dia' || id === 'seguimiento') return !puedeCitar(conv, hoy) || !conv.fechaEntrega || hoy < conv.fechaEntrega;
+          return false;
+        }}
+      />
 
-      {vista === 'analisis' ? (
+      {especial && (
+        <p className="rounded-xl bg-elevated px-3 py-2 text-xs text-soft">
+          Caso especial definido por coordinación: este grupo entrega el {fechaCorta(especial.fechaEntrega)}, de {horaCorta(especial.franjaInicio)} a {horaCorta(especial.franjaFin)}
+          {especial.motivo ? ` (${especial.motivo})` : ''}.
+        </p>
+      )}
+
+      {vista === 'citaciones' && esDirector ? (
+        !puedeCitar(conv, toDateKey(new Date())) ? (
+          <p className="rounded-xl bg-elevated px-3 py-2 text-sm text-soft">Las citaciones se arman cuando coordinación cierre la alerta: hasta entonces la lista de citados puede cambiar.</p>
+        ) : conv.fechaEntrega && toDateKey(new Date()) >= conv.fechaEntrega ? (
+          // Desde el dia de la entrega la agenda ya no se edita: guardarla reescribiria el mapa
+          // de citas y borraria la asistencia y el seguimiento registrados.
+          <p className="rounded-xl bg-elevated px-3 py-2 text-sm text-soft">Desde el día de la entrega la agenda ya no se edita. La asistencia de las familias va en «Día de la entrega».</p>
+        ) : (
+          <>
+            {/* La impresion la centraliza coordinacion (Julian, 2026-10-03). */}
+            {citados > 0 && (
+              <p className="text-xs text-muted">Los informes individuales y las citaciones de sus {citados} citados los descarga coordinación para toda la jornada: usted no tiene que imprimir nada.</p>
+            )}
+            <CitacionesAlerta grado={grado} sede={sede} conv={conv} filas={consolidado.filas} estudiantes={activos} director={director} />
+          </>
+        )
+      ) : (vista === 'dia' || vista === 'seguimiento') && esDirector ? (
+        !puedeCitar(conv, toDateKey(new Date())) ? (
+          <p className="rounded-xl bg-elevated px-3 py-2 text-sm text-soft">La entrega y el seguimiento se habilitan cuando coordinación cierre la alerta y fije el día de la entrega.</p>
+        ) : (
+          <EntregaAlerta grado={grado} sede={sede} conv={conv} estudiantes={activos} director={director} slotDirector={slotDirector} fase={vista} />
+        )
+      ) : vista === 'analisis' ? (
         planillas === null ? (
           <p className="p-3 text-sm text-muted">Cargando…</p>
         ) : (
@@ -239,32 +289,48 @@ export default function ReporteAlerta({
         <span className="inline-flex items-center gap-1"><IconoMarcaAlerta marca={undefined} /> la asignatura aún no lo marca</span>
       </p>
 
-      {/* La impresion la centraliza coordinacion (Julian, 2026-10-03): ni el director ni el
-          docente imprimen; coordinacion descarga un solo archivo con toda la jornada. */}
-      {citados > 0 && (
-        <p className="text-xs text-muted">Los informes individuales y las citaciones de sus {citados} citados los descarga coordinación para toda la jornada: usted no tiene que imprimir nada.</p>
-      )}
-
-      {especial && (
-        <p className="rounded-xl bg-elevated px-3 py-2 text-xs text-soft">
-          Caso especial definido por coordinación: este grupo entrega el {fechaCorta(especial.fechaEntrega)}, de {horaCorta(especial.franjaInicio)} a {horaCorta(especial.franjaFin)}
-          {especial.motivo ? ` (${especial.motivo})` : ''}.
-        </p>
-      )}
-
-      {esDirector && (puedeCitar(conv, toDateKey(new Date())) ? (
-        <>
-          {/* Desde el dia de la entrega la agenda ya no se edita: guardarla reescribiria el mapa
-              de citas y borraria la asistencia y el seguimiento registrados. */}
-          {(!conv.fechaEntrega || toDateKey(new Date()) < conv.fechaEntrega) && (
-            <CitacionesAlerta grado={grado} sede={sede} conv={conv} filas={consolidado.filas} estudiantes={activos} director={director} />
-          )}
-          <EntregaAlerta grado={grado} sede={sede} conv={conv} estudiantes={activos} director={director} slotDirector={slotDirector} />
-        </>
-      ) : (
-        <p className="rounded-xl bg-elevated px-3 py-2 text-sm text-soft">Las citaciones se arman cuando coordinación cierre la alerta: hasta entonces la lista de citados puede cambiar.</p>
-      ))}
       </>)}
+    </div>
+  );
+}
+
+/**
+ * Pestañas del reporte en UNA fila desplazable de 44 px (como las del modulo). La que todavia
+ * no aplica por la fecha se ve atenuada pero se puede abrir: adentro dice cuando se habilita.
+ */
+function FilaPestanas({
+  pestanas,
+  activa,
+  onCambiar,
+  pendiente,
+}: {
+  pestanas: { id: Pestana; nombre: string }[];
+  activa: Pestana;
+  onCambiar: (p: Pestana) => void;
+  pendiente: (p: Pestana) => boolean;
+}) {
+  const fila = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    fila.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [activa]);
+  return (
+    <div ref={fila} className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]" aria-label="Secciones del reporte">
+      {pestanas.map((p) => (
+        <button
+          key={p.id}
+          type="button"
+          aria-current={activa === p.id ? 'page' : undefined}
+          onClick={() => onCambiar(p.id)}
+          className={[
+            'min-h-[44px] shrink-0 whitespace-nowrap rounded-full border px-3 text-sm',
+            activa === p.id
+              ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+              : pendiente(p.id) ? 'border-dashed border-line text-muted' : 'border-line text-soft',
+          ].join(' ')}
+        >
+          {p.nombre}
+        </button>
+      ))}
     </div>
   );
 }

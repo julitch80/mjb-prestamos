@@ -64,6 +64,7 @@ export default function EntregaAlerta({
   estudiantes,
   director,
   slotDirector,
+  fase,
 }: {
   grado: string;
   sede: Sede;
@@ -71,6 +72,11 @@ export default function EntregaAlerta({
   estudiantes: Student[];
   director: string;
   slotDirector: string | null;
+  /**
+   * Pestaña del reporte que la muestra (2026-10-27): «dia» marca quien vino; «seguimiento»
+   * atiende a quien no. Sin ella, la que toque segun si la entrega ya se cerro (como antes).
+   */
+  fase?: 'dia' | 'seguimiento';
 }) {
   const idDoc = citacionAlertaId(conv.anio, conv.periodo, sede, grado);
   const [agenda, setAgenda] = useState<AgendaCitaciones | null | undefined>(undefined);
@@ -90,15 +96,16 @@ export default function EntregaAlerta({
     sinClases: diaSinClases,
   } : null, [conv.fechaEntrega, conv.plazoExcusaDias, agenda?.entregaCerradaEn, hoy]);
 
-  if (!conv.fechaEntrega || !ctx) return null;
+  const nota = (texto: string) => <p className="rounded-xl bg-elevated px-3 py-2 text-sm text-soft">{texto}</p>;
+  if (!conv.fechaEntrega || !ctx) return fase ? nota('Coordinación todavía no ha puesto el día de la entrega.') : null;
   if (agenda === undefined) return <p className="p-3 text-sm text-muted">Cargando la entrega…</p>;
-  if (!agenda || Object.keys(agenda.citas).length === 0) return null;
+  if (!agenda || Object.keys(agenda.citas).length === 0) {
+    return fase ? nota('Todavía no hay agenda de citaciones guardada para este grupo (pestaña «Citaciones»).') : null;
+  }
   if (hoy < conv.fechaEntrega) {
-    return (
-      <p className="rounded-xl bg-elevated px-3 py-2 text-sm text-soft">
-        El {fechaLarga(conv.fechaEntrega)}, aquí marcará quién vino a la entrega y hará el seguimiento de quien no.
-      </p>
-    );
+    return nota(fase === 'seguimiento'
+      ? `El seguimiento de quien no venga empieza después de la entrega (${fechaLarga(conv.fechaEntrega)}).`
+      : `El ${fechaLarga(conv.fechaEntrega)}, aquí marcará quién vino a la entrega y hará el seguimiento de quien no.`);
   }
 
   const ids = Object.keys(agenda.citas).sort((a, b) => agenda.citas[a].hora.localeCompare(agenda.citas[b].hora));
@@ -120,6 +127,14 @@ export default function EntregaAlerta({
     } finally {
       setOcupado(false);
     }
+  }
+
+  if (fase === 'seguimiento' && !cerrada) {
+    return nota('El seguimiento se abre cuando cierre la entrega en la pestaña «Día de la entrega» (botón al final de la lista).');
+  }
+  if (fase === 'dia' && cerrada) {
+    const vinieron = ids.filter((id) => agenda.citas[id].asistio === true).length;
+    return nota(`La entrega del ${fechaLarga(conv.fechaEntrega)} ya se cerró: vinieron ${vinieron} de ${ids.length}. El trabajo con quien no vino sigue en «Seguimiento».`);
   }
 
   // ── 1. Dia de la entrega: marcar asistencia ─────────────────────────────────
