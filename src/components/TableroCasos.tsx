@@ -87,7 +87,7 @@ function ChipFiltro({ activo, onClick, children }: { activo: boolean; onClick: (
     <button
       onClick={onClick}
       className={cn(
-        'px-3 py-1.5 rounded-full text-xs font-medium border transition-all whitespace-nowrap',
+        'px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium border transition-all whitespace-nowrap',
         activo ? 'bg-accent-soft border-accent text-accent' : 'border-line text-muted hover:text-soft hover:bg-hover',
       )}
     >
@@ -99,7 +99,7 @@ function ChipFiltro({ activo, onClick, children }: { activo: boolean; onClick: (
 function PastillaEstado({ estado }: { estado: CasoResumen['estado'] }) {
   const e = ESTILO_ESTADO[estado];
   return (
-    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap', e.chip)}>
+    <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap', e.chip)}>
       {e.label}
     </span>
   );
@@ -110,7 +110,7 @@ function BadgeAlerta({ caso }: { caso: CasoResumen }) {
   if (nivel === 'ninguna') return null;
   const dias = diasSinSeguimiento(caso);
   return (
-    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap', ESTILO_ALERTA[nivel])}>
+    <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap', ESTILO_ALERTA[nivel])}>
       ⏳ {dias} días sin seguimiento
     </span>
   );
@@ -138,11 +138,11 @@ function TarjetaCaso({ caso, onClick }: { caso: CasoCompleto; onClick: () => voi
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold text-strong truncate">{caso.estudianteNombre}</span>
-        <span className="text-[11px] text-muted whitespace-nowrap">{caso.fecha}</span>
+        <span className="text-xs text-muted whitespace-nowrap">{caso.fecha}</span>
       </div>
       <BadgeTipo tipo={caso.tipo} />
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-[11px] text-muted">Grado {caso.grado}</span>
+        <span className="text-xs text-muted">Grado {caso.grado}</span>
         <PastillaEstado estado={caso.estado} />
         <BadgeAlerta caso={caso} />
       </div>
@@ -162,13 +162,13 @@ function LineaTiempo({ seguimientos }: { seguimientos: SeguimientoCasoTipo[] }) 
         <div key={s.id} className="rounded-xl border border-line bg-elevated px-3 py-2.5 flex flex-col gap-1">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-strong">{s.autorNombre}</span>
-            <span className="text-[11px] text-muted whitespace-nowrap">{s.fecha}</span>
+            <span className="text-xs text-muted whitespace-nowrap">{s.fecha}</span>
           </div>
           <p className="text-xs text-soft leading-relaxed">{s.texto}</p>
           {s.decision === 'cerrar' ? (
-            <span className="text-[10px] font-medium text-danger-soft-fg w-fit px-1.5 py-0.5 rounded bg-danger-soft">Cerró el caso</span>
+            <span className="text-xs font-medium text-danger-soft-fg w-fit px-1.5 py-0.5 rounded bg-danger-soft">Cerró el caso</span>
           ) : (
-            <span className="text-[10px] font-medium text-info-soft-fg w-fit px-1.5 py-0.5 rounded bg-info-soft">
+            <span className="text-xs font-medium text-info-soft-fg w-fit px-1.5 py-0.5 rounded bg-info-soft">
               Próximo seguimiento: {s.proximaFecha || '—'}
             </span>
           )}
@@ -319,6 +319,8 @@ function DetalleCaso({ caso, onVolver, onActualizado }: {
   );
 }
 
+const quitarTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
 export default function TableroCasos() {
   const [casos, setCasos] = useState<CasoCompleto[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -326,6 +328,7 @@ export default function TableroCasos() {
   const [filtroTipo, setFiltroTipo] = useState<FiltroTipo>('todos');
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('todos');
   const [casoSeleccionadoId, setCasoSeleccionadoId] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState('');
 
   const cargar = useCallback(() => {
     setCargando(true);
@@ -373,6 +376,11 @@ export default function TableroCasos() {
   const casosFiltrados = casos
     .filter(c => filtroTipo === 'todos' || c.tipo === filtroTipo)
     .filter(c => filtroEstado === 'todos' || c.estado === filtroEstado)
+    // Buscador por nombre de estudiante (sin distinguir mayúsculas ni tildes).
+    .filter(c => {
+      const q = quitarTildes(busqueda.trim());
+      return !q || quitarTildes(c.estudianteNombre).includes(q);
+    })
     // Los casos con alerta van primero (los que necesitan atención hoy),
     // luego por fecha de creación más reciente.
     .sort((a, b) => {
@@ -384,6 +392,13 @@ export default function TableroCasos() {
 
   return (
     <div className="flex flex-col gap-4">
+      <input
+        type="search"
+        value={busqueda}
+        onChange={e => setBusqueda(e.target.value)}
+        placeholder="Buscar estudiante por nombre"
+        className="w-full min-h-[44px] rounded-xl border border-line bg-card text-strong text-sm px-3 placeholder:text-muted"
+      />
       <div className="flex items-center gap-1.5 flex-wrap">
         <ChipFiltro activo={filtroTipo === 'todos'} onClick={() => setFiltroTipo('todos')}>Todos</ChipFiltro>
         <ChipFiltro activo={filtroTipo === 'contencion'} onClick={() => setFiltroTipo('contencion')}>💚 Contención emocional</ChipFiltro>

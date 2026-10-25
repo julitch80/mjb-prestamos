@@ -89,43 +89,66 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0, bad
             transition={{ duration: 0.16 }}
             className="absolute left-0 top-full mt-1.5 w-[22rem] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-5rem)] overflow-y-auto z-50 rounded-2xl border border-line bg-card shadow-xl p-2 space-y-2"
           >
-            {bloquesMenu(opciones, leerUso()).map((bloque, i) => (
-              <div key={i} className="grid grid-cols-3 gap-1 rounded-xl bg-elevated/70 p-1.5">
-                {bloque.map(op => {
-                  const { Icono: Icon, color } = neonDe(op.id);
-                  const activo = op.id === activa;
-                  const conteo = op.id === 'disponibilidad' ? badge : (badges[op.id] ?? 0);
-                  return (
-                    <button
-                      key={op.id}
-                      role="menuitem"
-                      title={op.descripcion}
-                      onClick={() => elegir(op.id)}
-                      className={cn(
-                        'relative flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-center transition',
-                        activo ? 'bg-card ring-1 ring-line-strong' : 'hover:bg-card',
-                      )}
-                    >
-                      <span className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${color}1a` }}>
-                        <Icon className="w-5 h-5" style={{ color }} />
-                      </span>
-                      <span className="text-[11px] font-medium text-strong leading-tight">{op.label}</span>
-                      {conteo > 0 && (
-                        <span className="absolute top-1 right-1 min-w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                          {conteo}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
+            <MatrizMenu
+              opciones={opciones}
+              activa={activa}
+              onSelect={elegir}
+              conteoDe={id => (id === 'disponibilidad' ? badge : (badges[id] ?? 0))}
+            />
           </motion.div>
         )}
       </AnimatePresence>
     </div>
   );
 }
+
+/** Matriz del menú: bloques de 3 columnas con fondo suave y sin títulos. La usan el
+ *  menú desplegable y la pantalla de Inicio, para que se vean idénticos. */
+export function MatrizMenu({ opciones, activa, onSelect, conteoDe }: {
+  opciones: NavOption[];
+  activa?: string;
+  onSelect: (id: string) => void;
+  conteoDe?: (id: string) => number;
+}) {
+  return (
+    <>
+      {bloquesMenu(opciones, leerUso()).map((bloque, i) => (
+        <div key={i} className="grid grid-cols-3 gap-1 rounded-xl bg-elevated/70 p-1.5">
+          {bloque.map(op => {
+            const { Icono: Icon, color } = neonDe(op.id);
+            const activo = op.id === activa;
+            const conteo = conteoDe?.(op.id) ?? 0;
+            return (
+              <button
+                key={op.id}
+                role="menuitem"
+                title={op.descripcion}
+                onClick={() => onSelect(op.id)}
+                className={cn(
+                  'relative flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-center transition',
+                  activo ? 'bg-card ring-1 ring-line-strong' : 'hover:bg-card',
+                )}
+              >
+                <span className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${color}1a` }}>
+                  <Icon className="w-5 h-5" style={{ color }} />
+                </span>
+                <span className="text-[11px] font-medium text-strong leading-tight">{op.label}</span>
+                {conteo > 0 && (
+                  <span className="absolute top-1 right-1 min-w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                    {conteo}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** Registra el uso de una sección (para ordenar los más usados). */
+export { registrarUso };
 
 // ── Orden del menú en matriz ──────────────────────────────────────────────
 

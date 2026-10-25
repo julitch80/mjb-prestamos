@@ -61,7 +61,7 @@ export default function TelefonoAcudiente({
           {formatearTelefono(numero)}
         </b>
         {tipo !== 'desconocido' && (
-          <span className="rounded-full bg-elevated px-1.5 py-0.5 text-[0.65rem] text-muted">
+          <span className="rounded-full bg-elevated px-1.5 py-0.5 text-xs text-muted">
             {tipo === 'movil' ? 'móvil' : 'fijo'}
           </span>
         )}

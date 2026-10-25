@@ -903,7 +903,11 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
     .filter(t => t.docenteId === userId && t.estado === 'activa' && t.fechaEntrega >= hoy)
     .sort((a, b) => a.fechaEntrega.localeCompare(b.fechaEntrega));
 
+  // Confirmación en la propia página (sin window.confirm): id de la tarea que se está por cancelar.
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
+
   async function cancelar(id: string) {
+    setConfirmandoId(null);
     if (!userId) return;
     const r = await cancelarTarea(id, userId);
     if (!r.ok) return;
@@ -1474,13 +1478,26 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
             >
               <CopyPlus size={14} />
             </button>
-            <button
-              onClick={() => cancelar(t.id)}
-              title={esRecordatorio(t) ? 'Cancelar recordatorio' : 'Cancelar tarea'}
-              className="p-1.5 rounded-lg text-muted hover:text-danger hover:bg-danger-soft transition"
-            >
-              <Trash2 size={14} />
-            </button>
+            {confirmandoId === t.id ? (
+              <div role="alertdialog" aria-label="Confirmar cancelación" className="flex flex-col items-end gap-1.5 max-w-[14rem]">
+                <p className="text-xs text-strong text-right">
+                  ¿Cancelar {esRecordatorio(t) ? 'este recordatorio' : 'esta tarea'}? Si ya se publicó en Classroom, también se borra allá.
+                </p>
+                <div className="flex gap-1.5">
+                  <button onClick={() => setConfirmandoId(null)} className="min-h-[44px] px-3 rounded-lg text-xs bg-elevated text-soft hover:text-strong transition">Conservar</button>
+                  <button onClick={() => cancelar(t.id)} className="min-h-[44px] px-3 rounded-lg text-xs font-semibold bg-danger text-accent-fg hover:opacity-90 transition">Sí, cancelar</button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmandoId(t.id)}
+                title={esRecordatorio(t) ? 'Cancelar recordatorio' : 'Cancelar tarea'}
+                aria-label={esRecordatorio(t) ? 'Cancelar recordatorio' : 'Cancelar tarea'}
+                className="p-1.5 rounded-lg text-muted hover:text-danger hover:bg-danger-soft transition"
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
           </div>
         ))}
       </section>

@@ -3,6 +3,7 @@ import { useAppStore } from '../data/store';
 import { getReservas, actualizarReserva } from '../data/api';
 import type { Reserva } from '../data/api';
 import { USUARIOS } from '../data/maestros';
+import { nombreRecurso, nombreSolicitante, fechaLegible, bloqueLegible } from '../data/formatoReserva';
 import VistaHorario from './VistaHorario';
 import TableroCasos from './TableroCasos';
 
@@ -12,6 +13,8 @@ export default function PanelAdmin() {
   const { reservas, setReservas, temaOscuro, toggleTema, actualizarReserva: actualizarStore, jornada } = useAppStore();
   const [pestaña, setPestaña] = useState<Pestaña>('pendientes');
   const [cargando, setCargando] = useState(false);
+  const [enviando, setEnviando] = useState<string | null>(null);
+  const [errorDecision, setErrorDecision] = useState<string | null>(null);
 
   const hoy = new Date().toISOString().split('T')[0];
 
@@ -40,11 +43,17 @@ export default function PanelAdmin() {
   const deHoy = reservasJornada.filter(r => r.fecha === hoy && r.estado === 'aprobada');
 
   async function handleDecision(r: Reserva, estado: 'aprobada' | 'rechazada') {
+    if (enviando) return;
+    setEnviando(r.id);
+    setErrorDecision(null);
     try {
       await actualizarReserva(r.id, estado);
       actualizarStore(r.id, { estado });
-    } catch {
-      // silencioso
+    } catch (e) {
+      const detalle = e instanceof Error && e.message ? ` (${e.message})` : '';
+      setErrorDecision(`No se pudo ${estado === 'aprobada' ? 'aprobar' : 'rechazar'} la solicitud${detalle}. Revisa la conexión e inténtalo de nuevo.`);
+    } finally {
+      setEnviando(null);
     }
   }
 
@@ -81,6 +90,13 @@ export default function PanelAdmin() {
         ))}
       </div>
 
+      {errorDecision && (
+        <div role="alert" className="flex items-start justify-between gap-3 rounded-xl border border-danger bg-danger-soft text-danger-soft-fg text-sm p-3">
+          <span>{errorDecision}</span>
+          <button onClick={() => setErrorDecision(null)} aria-label="Cerrar aviso" className="min-h-[44px] min-w-[44px] -my-2 -mr-2">✕</button>
+        </div>
+      )}
+
       {cargando && <div className="text-center py-8 text-soft">Cargando...</div>}
 
       {/* Pendientes */}
@@ -90,7 +106,7 @@ export default function PanelAdmin() {
             <div className="text-center py-12 text-muted">No hay solicitudes pendientes.</div>
           ) : (
             pendientes.map(r => (
-              <ReservaCard key={r.id} reserva={r} onDecision={handleDecision} />
+              <ReservaCard key={r.id} reserva={r} onDecision={handleDecision} enviando={enviando !== null} />
             ))
           )}
         </div>
@@ -161,19 +177,21 @@ const ESTADO_CONFIG = {
 function ReservaCard({
   reserva,
   onDecision,
+  enviando = false,
 }: {
   reserva: Reserva;
   onDecision?: (r: Reserva, estado: 'aprobada' | 'rechazada') => void;
+  enviando?: boolean;
 }) {
   const cfg = ESTADO_CONFIG[reserva.estado];
   return (
     <div className="bg-card border border-gray-800 rounded-xl p-4">
       <div className="flex items-start justify-between gap-3 mb-2">
         <div>
-          <p className="text-strong font-medium">{reserva.recurso}</p>
-          <p className="text-sm text-soft">{reserva.fecha} · Bloque {reserva.bloque}</p>
+          <p className="text-strong font-medium">{nombreRecurso(reserva.recurso)}</p>
+          <p className="text-sm text-soft">{fechaLegible(reserva.fecha)} · {bloqueLegible(reserva)}</p>
           <p className="text-sm text-soft">{reserva.proposito}</p>
-          <p className="text-xs text-muted mt-0.5">Solicitante: {reserva.solicitante}</p>
+          <p className="text-xs text-muted mt-0.5">Solicitante: {nombreSolicitante(reserva.solicitante)}</p>
         </div>
         <span className={`text-xs font-medium flex-shrink-0 ${cfg.color}`}>{cfg.label}</span>
       </div>
@@ -181,13 +199,15 @@ function ReservaCard({
         <div className="flex gap-2 mt-3">
           <button
             onClick={() => onDecision(reserva, 'rechazada')}
-            className="flex-1 py-2 rounded-lg bg-danger-soft hover:bg-red-800/60 text-danger-soft-fg text-sm transition"
+            disabled={enviando}
+            className="flex-1 min-h-[44px] py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed bg-danger-soft hover:bg-red-800/60 text-danger-soft-fg text-sm transition"
           >
             Rechazar
           </button>
           <button
             onClick={() => onDecision(reserva, 'aprobada')}
-            className="flex-1 py-2 rounded-lg bg-success-soft hover:bg-green-800/60 text-success-soft-fg text-sm transition"
+            disabled={enviando}
+            className="flex-1 min-h-[44px] py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed bg-success-soft hover:bg-green-800/60 text-success-soft-fg text-sm transition"
           >
             Aprobar
           </button>

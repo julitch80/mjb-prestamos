@@ -249,7 +249,7 @@ export default function CitacionesAlerta({
             onClick={() => proponer(metodo)}
             disabled={!!ocupado}
             title="Vuelve a repartir las horas con la forma que definió coordinación. Se pierden los cambios hechos a mano; los envíos registrados se conservan."
-            className="min-h-[36px] rounded-xl border border-line px-3 text-sm text-strong disabled:opacity-50"
+            className="min-h-[44px] rounded-xl border border-line px-3 text-sm text-strong disabled:opacity-50"
           >
             Volver a proponer
           </button>

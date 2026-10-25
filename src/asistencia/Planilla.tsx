@@ -275,6 +275,13 @@ export default function Planilla({
    */
   const columnas = useMemo(() => [...ordenadas].reverse(), [ordenadas]);
 
+  /** Las clases de hoy aun abiertas (una sola por bloque de dos horas: se llenan juntas). */
+  const deHoyAbiertas = useMemo(() => {
+    const hoy = toDateKey(new Date());
+    const abiertas = ordenadas.filter((s) => s.fecha === hoy && !s.closed);
+    return abiertas.filter((s) => !s.pareja || s.bloque === s.pareja[0] || !abiertas.some((o) => o.bloque === s.pareja![0]));
+  }, [ordenadas]);
+
   /** Al crearse una columna, la tabla vuelve al inicio aunque el docente estuviera
    * mirando dias anteriores: la columna nueva es la primera y tiene que verse. */
   const refTabla = useRef<HTMLDivElement>(null);
@@ -343,7 +350,7 @@ export default function Planilla({
               : 'Elegir un color para este grupo'
           }
           title={color ? `Color del grupo: ${color.nombre}` : 'Elegir un color para este grupo'}
-          className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-line px-2 text-xs text-muted"
+          className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-line px-3 text-xs text-muted"
         >
           <span
             style={color ? { backgroundColor: color.hex } : {}}
@@ -389,14 +396,14 @@ export default function Planilla({
         <button
           onClick={() => setMosaico(true)}
           title="Mosaico de fotos del grupo para la carátula del observador"
-          className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
+          className="min-h-[44px] shrink-0 rounded-lg border border-line px-3 text-sm font-medium text-strong"
         >
           Mosaico de fotos
         </button>
         {puedeRegistrar && (
           <button
             onClick={manejarPasarListaQr}
-            className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
+            className="min-h-[44px] shrink-0 rounded-lg border border-line px-3 text-sm font-medium text-strong"
           >
             Pasar lista con QR
           </button>
@@ -404,7 +411,7 @@ export default function Planilla({
         {puedeRegistrar && (
           <button
             onClick={onNuevaSesion}
-            className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
+            className="min-h-[44px] shrink-0 rounded-lg bg-accent px-3 text-sm font-medium text-accent-fg"
           >
             + Sesión de hoy
           </button>
@@ -430,7 +437,7 @@ export default function Planilla({
               setAvisoSinSesionHoy(false);
               onNuevaSesion();
             }}
-            className="ml-2 min-h-[36px] rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
+            className="ml-2 min-h-[44px] rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
           >
             + Sesión de hoy
           </button>
@@ -481,6 +488,36 @@ export default function Planilla({
           sesión de hoy para empezar a registrar.
         </p>
       ) : (
+        <>
+        {/* Clase de hoy (revision de UX, 2026-10-25): lo normal es que casi todos vengan, asi
+            que «Todos presentes» va a la vista —llena SOLO las casillas vacias— y despues se
+            toca a los ausentes. Antes estaba escondido en el «⋯» de la columna. */}
+        {puedeRegistrar && deHoyAbiertas.map((s) => {
+          const vacias = estudiantes.filter((e) => !s.estudiantes?.[e.studentId]).length;
+          return (
+            <div key={s.sessionId} className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-accent-soft p-3">
+              <p className="flex-1 text-sm text-accent-soft-fg">
+                <b>Clase de hoy · {s.pareja ? `bloque ${s.pareja[0]}–${s.pareja[1]}` : `${s.bloque}.ª hora`}</b>
+                {' · '}
+                {vacias === 0 ? 'todos registrados' : `${vacias} sin registrar de ${estudiantes.length}`}
+              </p>
+              {vacias > 0 && (
+                <button
+                  onClick={() => onLlenarColumna(s.sessionId, 'asistencia')}
+                  className="min-h-[44px] rounded-lg bg-accent px-4 text-sm font-semibold text-accent-fg"
+                >
+                  {vacias === estudiantes.length ? 'Todos presentes' : `Los ${vacias} restantes presentes`}
+                </button>
+              )}
+              <button
+                onClick={() => cerrar(s)}
+                className="min-h-[44px] rounded-lg border border-line bg-card px-3 text-sm font-medium text-strong"
+              >
+                Cerrar clase
+              </button>
+            </div>
+          );
+        })}
         <div
           ref={refTabla}
           className="overflow-x-auto rounded-xl border border-line bg-card"
@@ -498,13 +535,13 @@ export default function Planilla({
                 {columnas.map((s) => (
                   <th
                     key={s.sessionId}
-                    className="border-b border-line p-1 text-center text-[0.65rem] font-normal text-muted"
+                    className="border-b border-line p-1 text-center text-xs font-normal text-muted"
                   >
                     <span className="block font-semibold text-strong">{s.fecha.slice(5)}</span>
                     b{s.bloque}
                     {companeraEnLista(s, ordenadas) && s.pareja && (
                       <span
-                        className="block rounded bg-info-soft px-1 text-[0.6rem] font-semibold text-info-soft-fg"
+                        className="block rounded bg-info-soft px-1 text-xs font-semibold text-info-soft-fg"
                         title="Clase de dos horas: se llama lista una vez y cuenta en las dos"
                       >
                         bloque {s.pareja[0]}–{s.pareja[1]}
@@ -514,6 +551,8 @@ export default function Planilla({
                       <button
                         onClick={() => puedeRegistrar && !s.closed && cerrar(s)}
                         title={s.closed ? 'Sesión cerrada' : 'Cerrar sesión de clase'}
+                        aria-label={s.closed ? 'Sesión cerrada' : 'Cerrar sesión de clase'}
+                        className="grid min-h-[44px] min-w-[44px] place-items-center rounded"
                       >
                         {s.closed ? '🔒' : '🔓'}
                       </button>
@@ -521,7 +560,8 @@ export default function Planilla({
                         <button
                           onClick={() => setColumnaMenu(s.sessionId)}
                           title="Llenar, corregir o eliminar esta columna"
-                          className="rounded px-1 text-strong"
+                          aria-label="Llenar, corregir o eliminar esta columna"
+                          className="grid min-h-[44px] min-w-[44px] place-items-center rounded text-base text-strong"
                         >
                           ⋯
                         </button>
@@ -568,7 +608,7 @@ export default function Planilla({
                               : 'Sin registrar (no es una ausencia)'
                           }
                           className={[
-                            'h-9 w-14 text-xs font-bold',
+                            'h-11 w-14 text-xs font-bold',
                             def
                               ? CLASE_MARCA[def.code]
                               : 'bg-elevated text-muted font-normal opacity-70',
@@ -595,6 +635,7 @@ export default function Planilla({
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {!soloLista && (
@@ -850,7 +891,7 @@ function SelectorColor({
                   actual?.id === c.id ? 'ring-2 ring-offset-2 ring-line-strong' : '',
                 ].join(' ')}
               />
-              <span className="truncate text-[0.65rem] text-muted">{c.nombre}</span>
+              <span className="truncate text-xs text-muted">{c.nombre}</span>
             </button>
           ))}
         </div>
@@ -1243,7 +1284,7 @@ function MenuMarcas({
             >
               {m.goesToMaster2000 && (
                 <span
-                  className="absolute right-1 top-1 text-[0.6rem] text-muted"
+                  className="absolute right-1 top-1 text-xs text-muted"
                   title="Esta marca se transcribe a Master2000"
                 >
                   M
@@ -1262,7 +1303,7 @@ function MenuMarcas({
             se usa sobre todo desde el celular, donde no hay puntero y el tooltip no
             existe. Un indicador que solo se entiende con raton es un indicador invisible
             para quien de verdad pasa lista. */}
-        <p className="mt-2 text-center text-[0.65rem] text-muted">
+        <p className="mt-2 text-center text-xs text-muted">
           Las marcas con <b className="text-soft">M</b> son las que se transcriben a
           Master2000.
         </p>

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCasosVencidos } from '../hooks/useCasosVencidos';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useBrigadasVisibles } from '../data/brigadasVisibilidad';
@@ -895,6 +896,7 @@ function SubmenuEmergencia({ onSeleccionar }: { onSeleccionar: (vista: VistaEmer
           subtitulo="Docente o directivo que se lesiona en el colegio"
           onClick={() => onSeleccionar('accidente_laboral')}
         />
+        <p className="text-muted text-xs font-semibold uppercase tracking-wide pt-2">Para consultar con calma</p>
         <TarjetaSubmenu
           icono="📋"
           titulo="Consultar el protocolo completo"
@@ -1165,7 +1167,15 @@ export default function GestionRiesgo() {
   const userId = useAppStore(s => s.userId);
   const rol = useAppStore(s => s.rol);
   const sedeActual = useAppStore(s => s.sedeActual);
-  const [pestana, setPestana] = useState<Pestana>('brigadas');
+  const [pestana, setPestana] = useState<Pestana>('protocolo');
+  const casosVencidos = useCasosVencidos(userId);
+  // Si el usuario ya eligió una pestaña a mano, no se la cambiamos al llegar los casos vencidos.
+  const eligioPestana = useRef(false);
+  const elegirPestana = (p: Pestana) => { eligioPestana.current = true; setPestana(p); };
+  useEffect(() => {
+    // Coordinación y rectoría con casos vencidos abren directo en «Casos».
+    if (!eligioPestana.current && casosVencidos > 0 && (rol === 'coordinador' || rol === 'rectora')) setPestana('casos');
+  }, [casosVencidos, rol]);
   const { visible: brigadasVisibles, publicas, privilegiado } = useBrigadasVisibles();
   const [confirmando, setConfirmando] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -1197,31 +1207,9 @@ export default function GestionRiesgo() {
       {/* Pestañas */}
       <div className="flex flex-wrap items-center gap-1.5 border-b border-line pb-2">
         <button
-          onClick={() => setPestana('brigadas')}
+          onClick={() => elegirPestana('protocolo')}
           className={cn(
-            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-            pestana === 'brigadas'
-              ? 'bg-accent-soft border-accent text-accent'
-              : 'border-success text-success hover:bg-elevated'
-          )}
-        >
-          🧑‍🚒 Brigadas
-        </button>
-        <button
-          onClick={() => setPestana('emergencias')}
-          className={cn(
-            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-            pestana === 'emergencias'
-              ? 'bg-accent-soft border-accent text-accent'
-              : 'border-warning text-warning hover:bg-elevated'
-          )}
-        >
-          📞 Números de emergencia
-        </button>
-        <button
-          onClick={() => setPestana('protocolo')}
-          className={cn(
-            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex items-center gap-1.5',
+            'px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium border transition-all flex items-center gap-1.5',
             pestana === 'protocolo'
               ? 'bg-accent-soft border-accent text-accent'
               : 'border-danger text-danger hover:bg-elevated'
@@ -1230,9 +1218,9 @@ export default function GestionRiesgo() {
           🚑 Emergencia escolar <BadgeBeta />
         </button>
         <button
-          onClick={() => setPestana('casos')}
+          onClick={() => elegirPestana('casos')}
           className={cn(
-            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+            'px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium border transition-all',
             pestana === 'casos'
               ? 'bg-accent-soft border-accent text-accent'
               : 'border-purple text-purple hover:bg-elevated'
@@ -1241,9 +1229,20 @@ export default function GestionRiesgo() {
           📁 Casos
         </button>
         <button
-          onClick={() => setPestana('simulacros')}
+          onClick={() => elegirPestana('emergencias')}
           className={cn(
-            'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+            'px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium border transition-all',
+            pestana === 'emergencias'
+              ? 'bg-accent-soft border-accent text-accent'
+              : 'border-warning text-warning hover:bg-elevated'
+          )}
+        >
+          📞 Números de emergencia
+        </button>
+        <button
+          onClick={() => elegirPestana('simulacros')}
+          className={cn(
+            'px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium border transition-all',
             pestana === 'simulacros'
               ? 'bg-accent-soft border-accent text-accent'
               : 'border-info text-info hover:bg-elevated'
@@ -1251,7 +1250,27 @@ export default function GestionRiesgo() {
         >
           🚨 Simulacros
         </button>
+        <button
+          onClick={() => elegirPestana('brigadas')}
+          className={cn(
+            'px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium border transition-all',
+            pestana === 'brigadas'
+              ? 'bg-accent-soft border-accent text-accent'
+              : 'border-success text-success hover:bg-elevated'
+          )}
+        >
+          🧑‍🚒 Brigadas
+        </button>
       </div>
+
+      {pestana === 'protocolo' && (
+        <a
+          href="tel:123"
+          className="sticky top-0 z-20 flex items-center justify-center gap-2 min-h-[44px] rounded-xl bg-danger text-white text-base font-bold py-3 shadow-lg"
+        >
+          📞 Llamar al 123
+        </a>
+      )}
 
       {pestana === 'protocolo' ? (
         <EmergenciaEscolar onIrANumeros={() => setPestana('emergencias')} />

@@ -1251,7 +1251,7 @@ export default function Asistencia() {
       {aviso && cruce && (
         <div className="flex items-start gap-2 rounded-xl border border-line bg-elevated p-3 text-sm text-soft">
           <span className="flex-1">{aviso}</span>
-          <button type="button" onClick={() => setAviso(null)} className="min-h-[32px] px-2 text-muted" aria-label="Cerrar el aviso">✕</button>
+          <button type="button" onClick={() => setAviso(null)} className="min-h-[44px] px-2 text-muted" aria-label="Cerrar el aviso">✕</button>
         </div>
       )}
 
@@ -1354,7 +1354,7 @@ export default function Asistencia() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setCruce(null)}
-              className="group inline-flex min-h-[36px] items-center gap-1 text-sm text-accent"
+              className="group inline-flex min-h-[44px] items-center gap-1 text-sm text-accent"
             >
               <FlechaNeon direccion="izquierda" tamano="sm" /> Mis grupos
             </button>
@@ -1376,7 +1376,7 @@ export default function Asistencia() {
                   <button
                     onClick={() => setVistaGrupo('asistencia')}
                     className={[
-                      'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                      'min-h-[44px] rounded-full border px-3 py-1 text-sm',
                       vistaGrupo === 'asistencia'
                         ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                         : 'border-line text-soft',
@@ -1390,7 +1390,7 @@ export default function Asistencia() {
                     <button
                       onClick={() => setVistaGrupo('alerta')}
                       className={[
-                        'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                        'min-h-[44px] rounded-full border px-3 py-1 text-sm',
                         vistaGrupo === 'alerta'
                           ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                           : 'border-line text-soft',
@@ -1405,7 +1405,7 @@ export default function Asistencia() {
                     <button
                       onClick={() => setVistaGrupo('reporte_alerta')}
                       className={[
-                        'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                        'min-h-[44px] rounded-full border px-3 py-1 text-sm',
                         vistaGrupo === 'reporte_alerta'
                           ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                           : 'border-line text-soft',
@@ -1420,7 +1420,7 @@ export default function Asistencia() {
                     <button
                       onClick={() => setVistaGrupo('centros')}
                       className={[
-                        'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                        'min-h-[44px] rounded-full border px-3 py-1 text-sm',
                         vistaGrupo === 'centros'
                           ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                           : 'border-line text-soft',
@@ -1435,7 +1435,7 @@ export default function Asistencia() {
                     <button
                       onClick={() => setVistaGrupo('direccion')}
                       className={[
-                        'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                        'min-h-[44px] rounded-full border px-3 py-1 text-sm',
                         vistaGrupo === 'direccion'
                           ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                           : 'border-line text-soft',
@@ -1450,7 +1450,7 @@ export default function Asistencia() {
                   <button
                     onClick={() => setVistaGrupo('fotos')}
                     className={[
-                      'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                      'min-h-[44px] rounded-full border px-3 py-1 text-sm',
                       vistaGrupo === 'fotos'
                         ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                         : 'border-line text-soft',
@@ -1679,7 +1679,7 @@ function BotonesMarcaQr({ onElegir }: { onElegir: (m: MarkCode) => void }) {
     <div className="flex w-full flex-col gap-2">
       <button
         onClick={() => onElegir('asistencia')}
-        className="min-h-[36px] w-full rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-fg"
+        className="min-h-[44px] w-full rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-fg"
       >
         Asistencia
       </button>
@@ -1752,7 +1752,7 @@ function BuscadorFichas({
       {/* Apagada por defecto: mezclar retirados con activos en la busqueda de todos los
           dias confundiria a quien solo quiere pasar lista. Se prende a proposito, solo
           para reintegrar a alguien que el boton de retirar dejo inalcanzable. */}
-      <label className="mt-2 flex min-h-[36px] w-fit items-center gap-2 text-sm text-strong">
+      <label className="mt-2 flex min-h-[44px] w-fit items-center gap-2 text-sm text-strong">
         <input
           type="checkbox"
           checked={incluirRetirados}
@@ -1971,7 +1971,7 @@ function LimpiezaPlanillas() {
       <button
         disabled={!listoParaVerificar || verificando}
         onClick={() => void verVerificacion()}
-        className="mt-3 min-h-[36px] w-full rounded-lg border border-danger-soft bg-card px-3 py-2 text-sm font-medium text-danger-soft-fg disabled:opacity-50"
+        className="mt-3 min-h-[44px] w-full rounded-lg border border-danger-soft bg-card px-3 py-2 text-sm font-medium text-danger-soft-fg disabled:opacity-50"
       >
         {verificando ? 'Consultando…' : 'Ver qué se borraría'}
       </button>
@@ -2011,7 +2011,7 @@ function LimpiezaPlanillas() {
           <button
             disabled={confirmacion !== grado || borrando}
             onClick={() => void borrarDeVerdad()}
-            className="mt-2 min-h-[36px] w-full rounded-lg bg-danger px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-50"
+            className="mt-2 min-h-[44px] w-full rounded-lg bg-danger px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-50"
           >
             {borrando ? 'Borrando…' : 'Borrar estas clases definitivamente'}
           </button>
@@ -2177,7 +2177,7 @@ function MenuBloque({
                 className="rounded-lg border border-line bg-elevated p-2 text-center text-muted opacity-60"
               >
                 <span className="block text-lg font-semibold">{b}</span>
-                <span className="block truncate text-[11px]">{ocupadas[b]}</span>
+                <span className="block truncate text-xs">{ocupadas[b]}</span>
               </button>
             ) : (
               <button
@@ -2294,7 +2294,7 @@ function Pestanas({
           <button
             onClick={() => onCambiar(v)}
             className={[
-              'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+              'min-h-[44px] rounded-full border px-3 py-1 text-sm',
               vista === v
                 ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                 : 'border-line text-soft',

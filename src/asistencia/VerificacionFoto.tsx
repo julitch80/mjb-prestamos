@@ -47,7 +47,7 @@ export default function VerificacionFoto({
         {!estudiante.fotoPath && (
           // Sin foto cargada no hay verificacion posible. Decirlo, en vez de
           // mostrar unas iniciales que aparentan una comprobacion que no existe.
-          <span className="block text-[0.65rem] text-warning-soft-fg">
+          <span className="block text-xs text-warning-soft-fg">
             Sin fotografía: no se puede verificar la identidad
           </span>
         )}

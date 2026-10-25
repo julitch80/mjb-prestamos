@@ -100,6 +100,7 @@ export default function App() {
   const [sugerenciaAbierta, setSugerenciaAbierta] = useState(false);
   const [hash, setHash] = useState(() => window.location.hash);
   const { temaOscuro, toggleTema } = useTheme();
+  const [confirmarSalir, setConfirmarSalir] = useState(false);
   const { permiso, solicitarPermiso, soportado } = useNotificacionesSistema();
   const { userId, nombre, rol, cerrarSesion, vistaActual, setVistaActual, setNotificaciones, mergeSync } =
     useAppStore();
@@ -346,8 +347,8 @@ export default function App() {
             {/* Bell (solo docentes con notifs) */}
             {rol === 'docente' && notifNoLeidas > 0 && (
               <button
-                onClick={() => setVistaActual('disponibilidad' as typeof vistaActual)}
-                className="relative p-2 rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
+                onClick={() => { setVistaActual('inicio'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                className="relative min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
                 title="Notificaciones"
               >
                 <Bell size={16} />
@@ -384,7 +385,7 @@ export default function App() {
             {/* Toggle tema */}
             <button
               onClick={toggleTema}
-              className="p-2 rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
+              className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
               title="Cambiar tema"
             >
               <AnimatePresence mode="wait" initial={false}>
@@ -402,13 +403,20 @@ export default function App() {
             </button>
 
             {/* Logout */}
+            {confirmarSalir ? (
+              <span className="inline-flex items-center gap-1 text-xs">
+                <button onClick={cerrarSesion} className="min-h-[44px] px-3 rounded-lg bg-danger-soft text-danger font-medium">¿Salir?</button>
+                <button onClick={() => setConfirmarSalir(false)} className="min-h-[44px] px-2 rounded-lg text-muted">No</button>
+              </span>
+            ) : (
             <button
-              onClick={cerrarSesion}
-              className="p-2 rounded-lg text-muted hover:text-danger hover:bg-danger-soft transition"
+              onClick={() => setConfirmarSalir(true)}
+              className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg text-muted hover:text-danger hover:bg-danger-soft transition"
               title="Cerrar sesión"
             >
               <LogOut size={16} />
             </button>
+            )}
           </div>
         </div>
       </header>

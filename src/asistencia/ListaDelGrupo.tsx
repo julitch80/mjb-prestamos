@@ -60,7 +60,7 @@ export default function ListaDelGrupo({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <button onClick={onVolver} className="group inline-flex min-h-[36px] items-center gap-1 text-sm text-accent">
+        <button onClick={onVolver} className="group inline-flex min-h-[44px] items-center gap-1 text-sm text-accent">
           <FlechaNeon direccion="izquierda" tamano="sm" /> Planillas
         </button>
         {/* Correo con las direcciones en copia oculta, el mismo del director de grupo.
@@ -187,7 +187,7 @@ export function BuscarEstudiante({
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
           placeholder="Buscar estudiante por nombre o apellido"
-          className="min-h-[36px] w-full bg-transparent text-sm text-strong outline-none placeholder:text-muted"
+          className="min-h-[44px] w-full bg-transparent text-sm text-strong outline-none placeholder:text-muted"
         />
       </label>
       {texto.trim().length >= 2 && (

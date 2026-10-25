@@ -160,7 +160,7 @@ export default function ResultadoCentros({
         <button
           onClick={() => void descargar()}
           disabled={descargando || resumen.valorados === 0}
-          className="mt-2 min-h-[36px] rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong disabled:opacity-50"
+          className="mt-2 min-h-[44px] rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong disabled:opacity-50"
         >
           {descargando ? 'Generando…' : 'Descargar Excel'}
         </button>
@@ -196,7 +196,7 @@ export default function ResultadoCentros({
                           {nombresDePila(f.apellidos, f.nombres)}
                         </span>
                         {f.duplicadas.length > 0 && (
-                          <span className="block text-[0.65rem] font-semibold text-warning-soft-fg">
+                          <span className="block text-xs font-semibold text-warning-soft-fg">
                             En dos centros
                           </span>
                         )}
@@ -224,7 +224,7 @@ export default function ResultadoCentros({
                     )}
                     {/* Las dos, sin escoger: quien decide es el director, no la aplicación. */}
                     {f.duplicadas.length > 1 && (
-                      <span className="mt-0.5 block text-[0.65rem] text-warning-soft-fg">
+                      <span className="mt-0.5 block text-xs text-warning-soft-fg">
                         {f.duplicadas
                           .map((d) => `${d.grupoId}: ${d.nivel} (${d.codigos.join(', ')})`)
                           .join(' — ')}

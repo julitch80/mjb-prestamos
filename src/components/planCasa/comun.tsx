@@ -11,9 +11,9 @@ import { abrirImprimibleUAI, construirHtmlUAI, type PlanParaUAI } from '../../da
 export const CLASE_INPUT =
   'w-full px-3 py-2.5 rounded-xl bg-elevated border border-line text-sm text-strong placeholder:text-muted focus:outline-none focus:border-line-strong';
 export const CLASE_BOTON =
-  'inline-flex items-center justify-center gap-1.5 text-sm font-medium px-4 py-2.5 rounded-xl bg-accent text-strong hover:opacity-90 disabled:opacity-40 transition';
+  'inline-flex items-center justify-center gap-1.5 text-sm font-medium min-h-[44px] px-4 py-2.5 rounded-xl bg-accent text-strong hover:opacity-90 disabled:opacity-40 transition';
 export const CLASE_BOTON_SEC =
-  'inline-flex items-center justify-center gap-1.5 text-sm font-medium px-4 py-2.5 rounded-xl bg-elevated text-soft hover:text-strong disabled:opacity-40 transition';
+  'inline-flex items-center justify-center gap-1.5 text-sm font-medium min-h-[44px] px-4 py-2.5 rounded-xl bg-elevated text-soft hover:text-strong disabled:opacity-40 transition';
 
 export function Etiqueta({ children }: { children: ReactNode }) {
   return <label className="block text-xs font-medium text-soft mb-1">{children}</label>;

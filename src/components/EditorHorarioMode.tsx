@@ -441,6 +441,8 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
   const [resultadoCorreo, setResultadoCorreo] = useState<ResultadoCorreoMasivo | null>(null);
   const [envioAutomaticoHecho, setEnvioAutomaticoHecho] = useState(false);
   const [toastNotificacion, setToastNotificacion] = useState<string | null>(null);
+  // Aviso persistente si falló avisar a los docentes tras guardar.
+  const [errorAviso, setErrorAviso] = useState<string | null>(null);
   // No se auto-oculta como el toast: un fallo de publicación deja a los
   // docentes sin ver el cambio (ver nota junto a guardarSyncEditor en
   // api.ts), así que debe quedar visible hasta que el coordinador reintente.
@@ -753,7 +755,7 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
 
   // Núcleo compartido entre el envío automático (al guardar) y el botón manual
   // de reenvío. Actualiza los estados de progreso/resultado del correo.
-  async function enviarCorreoConResumen(resumen: ResumenDifusion) {
+  async function enviarCorreoConResumen(resumen: ResumenDifusion): Promise<boolean> {
     setEnviandoCorreo(true);
     setResultadoCorreo(null);
     const destinatarios = resumen.docentesAfectados
@@ -764,8 +766,10 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
     try {
       const res = await enviarCorreoMasivo(destinatarios, asunto, resumen.html, cc);
       setResultadoCorreo(res);
+      return !!res.ok;
     } catch {
       setResultadoCorreo({ ok: false, error: 'Error de red. Verifica tu conexión.' });
+      return false;
     } finally {
       setEnviandoCorreo(false);
     }
@@ -850,15 +854,24 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
         items.forEach(it => {
           it.mensaje = agregarSufijoHorarioModificado(it.mensaje, borrador.fecha, borrador.jornada);
         });
+        const fallos: string[] = [];
         if (items.length > 0) {
-          await crearNotificacionesLote(items).catch(() => {});
+          try { await crearNotificacionesLote(items); } catch { fallos.push('las notificaciones de la app'); }
         }
         // Envío automático de correo (usa la misma lógica del botón manual)
-        await enviarCorreoConResumen(resumen);
-        setEnvioAutomaticoHecho(true);
-        setToastNotificacion(`✅ Se notificó a ${items.length} docente${items.length === 1 ? '' : 's'} (app + correo)`);
-      } catch {
-        // Silencioso: el guardado ya se completó; el botón manual sigue disponible.
+        try {
+          if (await enviarCorreoConResumen(resumen)) setEnvioAutomaticoHecho(true);
+          else fallos.push('el correo');
+        } catch { fallos.push('el correo'); }
+        if (fallos.length === 0) {
+          setToastNotificacion(`✅ Se notificó a ${items.length} docente${items.length === 1 ? '' : 's'} (app + correo)`);
+        } else {
+          setErrorAviso(`Se guardó el horario, pero NO se envió ${fallos.join(' ni ')}. Avisa a los docentes con los botones de difusión de abajo o inténtalo de nuevo.`);
+        }
+      } catch (e) {
+        // El guardado ya se completó; se muestra el fallo en pantalla (antes era silencioso).
+        const detalle = e instanceof Error && e.message ? ` (${e.message})` : '';
+        setErrorAviso(`Se guardó el horario, pero NO se pudo avisar a los docentes${detalle}. Usa los botones de difusión de abajo.`);
       }
     })();
   }
@@ -1305,6 +1318,14 @@ export default function EditorHorarioMode({ borrador, onSalir }: Props) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Aviso persistente: el aviso a los docentes falló */}
+      {errorAviso && (
+        <div role="alert" className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md z-40 bg-danger-soft border border-danger rounded-2xl px-4 py-3 text-danger-soft-fg text-sm shadow-2xl flex items-start gap-3">
+          <div className="flex-1">{errorAviso}</div>
+          <button onClick={() => setErrorAviso(null)} className="min-h-[44px] min-w-[44px] -my-2 -mr-2" aria-label="Cerrar">✕</button>
+        </div>
+      )}
 
       {/* Toast de notificación automática enviada */}
       <AnimatePresence>

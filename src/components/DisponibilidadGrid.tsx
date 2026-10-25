@@ -7,6 +7,8 @@ import { RECURSOS, BLOQUES_MANANA, BLOQUES_TARDE, horaOrdinal, getUsuario } from
 import type { Recurso } from '../data/maestros';
 import { horarioBase } from '../data/horarioBase';
 import { cn } from '@/lib/utils';
+import { useDevice } from '../hooks/useDevice';
+import { nombreSolicitante } from '../data/formatoReserva';
 import PanelConfirmacion from './PanelConfirmacion';
 import PopupRectora from './PopupRectora';
 import ModalDesplazamientoRectora from './ModalDesplazamientoRectora';
@@ -74,6 +76,36 @@ function getEstado(
   return 'libre';
 }
 
+// Decide si la celda se puede tocar y, si no, por qué (en celular no hay tooltip).
+function analizarCelda(
+  recurso: Recurso, fecha: string, bloqueId: number, indiceDia: number,
+  userId: string, reservas: Reserva[], rol: string | null
+): { estado: CeldaEstado; puede: boolean; motivo: string } {
+  const estado = getEstado(recurso, fecha, bloqueId, userId, reservas);
+  const puedeRol = rol === 'rectora'
+    ? (estado === 'libre' || estado === 'clase' || estado === 'ocupado')
+    : (estado === 'libre' || estado === 'propio');
+  const pasada = fecha < fechaHoy() && rol !== 'rectora';
+  if (indiceDia >= 5 && rol === 'docente') {
+    return { estado, puede: false, motivo: 'Los sábados los docentes no pueden reservar.' };
+  }
+  if (pasada && estado === 'libre') {
+    return { estado, puede: false, motivo: 'Esa hora ya pasó: no se puede reservar.' };
+  }
+  if (puedeRol) return { estado, puede: true, motivo: '' };
+  const ocupante = getOcupante(recurso, fecha, bloqueId, reservas);
+  let motivo = 'No se puede reservar este espacio.';
+  if (estado === 'clase') {
+    motivo = `Clase regular${ocupante?.tipo === 'clase' ? ` (${ocupante.descripcion})` : ''}: el espacio está en uso.`;
+  } else if (estado === 'ocupado' && ocupante?.tipo === 'reserva') {
+    const { solicitante, estado: est } = ocupante.reserva;
+    motivo = `Ya reservado por ${nombreSolicitante(solicitante)}${est === 'pendiente' ? ' (pendiente de aprobación)' : ''}.`;
+  } else if (estado === 'rectoria') {
+    motivo = 'Asignado por Rectoría para ese momento.';
+  }
+  return { estado, puede: false, motivo };
+}
+
 const ESTADO_ESTILOS: Record<CeldaEstado, string> = {
   libre:    'bg-success-soft border-success cursor-pointer hover:bg-success/25',
   clase:    'bg-elevated/60 border-line cursor-default',
@@ -129,7 +161,7 @@ function Leyenda() {
 
 function GridRecursos({
   recursos, fechas, bloques, userId, reservas, rol,
-  onSeleccionar,
+  onSeleccionar, onMotivo,
 }: {
   recursos: Recurso[];
   fechas: string[];
@@ -138,6 +170,7 @@ function GridRecursos({
   reservas: Reserva[];
   rol: string | null;
   onSeleccionar: (recursoId: string, fecha: string, bloqueId: number, estado: CeldaEstado) => void;
+  onMotivo: (texto: string) => void;
 }) {
   const hoy = fechaHoy();
   if (recursos.length === 0) return (
@@ -198,12 +231,9 @@ function GridRecursos({
               </td>
               {fechas.map((fecha, fi) =>
                 bloques.map((bloque, bi) => {
-                  const estado = getEstado(recurso, fecha, bloque.id, userId, reservas);
                   // La rectora puede desplazar espacios ocupados/con clase regular
                   // (asignación jerárquica); los demás roles solo libre/propio.
-                  const puedeReservar = rol === 'rectora'
-                    ? (estado === 'libre' || estado === 'clase' || estado === 'ocupado')
-                    : (estado === 'libre' || estado === 'propio');
+                  const { estado, puede: puedeReservar, motivo } = analizarCelda(recurso, fecha, bloque.id, fi, userId, reservas, rol);
                   // Docentes no pueden reservar en sábado (índice 5+)
                   const bloqueado = fi >= 5 && rol === 'docente';
                   return (
@@ -211,6 +241,7 @@ function GridRecursos({
                       key={`${fecha}-${bloque.id}`}
                       onClick={() => {
                         if (puedeReservar && !bloqueado) onSeleccionar(recurso.id, fecha, bloque.id, estado);
+                        else onMotivo(`${recurso.nombre}, ${horaOrdinal(bloque.id)} hora: ${motivo}`);
                       }}
                       className={cn(
                         'p-0.5',
@@ -238,11 +269,91 @@ function GridRecursos({
   );
 }
 
+// ── Vista móvil: un día a la vez ────────────────────────────────────────────
+
+function VistaDiaMovil({
+  recursos, fechas, bloques, userId, reservas, rol, indiceDia, onCambiarDia,
+  onSeleccionar, onMotivo,
+}: {
+  recursos: Recurso[];
+  fechas: string[];
+  bloques: typeof BLOQUES_MANANA;
+  userId: string;
+  reservas: Reserva[];
+  rol: string | null;
+  indiceDia: number;
+  onCambiarDia: (i: number) => void;
+  onSeleccionar: (recursoId: string, fecha: string, bloqueId: number, estado: CeldaEstado) => void;
+  onMotivo: (texto: string) => void;
+}) {
+  const hoy = fechaHoy();
+  const fecha = fechas[indiceDia];
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="Día de la semana">
+        {fechas.map((f, i) => (
+          <button
+            key={f}
+            role="tab"
+            aria-selected={i === indiceDia}
+            onClick={() => onCambiarDia(i)}
+            className={cn(
+              'flex-shrink-0 min-w-[56px] min-h-[44px] px-2 rounded-xl border text-center transition',
+              i === indiceDia ? 'bg-accent text-strong border-accent' : 'bg-elevated text-soft border-line',
+              f === hoy && i !== indiceDia ? 'border-info text-info' : ''
+            )}
+          >
+            <div className="text-xs font-semibold">{DIAS_NOMBRES[i].slice(0, 3)}</div>
+            <div className="text-[11px] opacity-80">{formatFecha(f)}</div>
+          </button>
+        ))}
+      </div>
+      {recursos.length === 0 && (
+        <div className="text-center py-12 text-muted text-sm rounded-2xl border border-line">
+          Sin espacios disponibles en esta categoría.
+        </div>
+      )}
+      {recursos.map(recurso => (
+        <div key={recurso.id} className="rounded-2xl border border-line bg-card p-3">
+          <p className="text-strong text-sm font-semibold mb-2">{recurso.nombre}</p>
+          <div className="grid grid-cols-3 gap-2">
+            {bloques.map(bloque => {
+              const { estado, puede, motivo } = analizarCelda(recurso, fecha, bloque.id, indiceDia, userId, reservas, rol);
+              return (
+                <button
+                  key={bloque.id}
+                  onClick={() => {
+                    if (puede) onSeleccionar(recurso.id, fecha, bloque.id, estado);
+                    else onMotivo(`${recurso.nombre}, ${horaOrdinal(bloque.id)} hora: ${motivo}`);
+                  }}
+                  className={cn(
+                    'min-h-[44px] rounded-lg border flex flex-col items-center justify-center text-xs font-medium',
+                    ESTADO_ESTILOS[estado], !puede && 'opacity-70'
+                  )}
+                >
+                  <span className="text-soft">{horaOrdinal(bloque.id)} {ESTADO_ICONO[estado]}</span>
+                  <span className="text-muted text-[11px]">{bloque.inicio}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Componente principal ─────────────────────────────────────────────────────
 
 export default function DisponibilidadGrid() {
   const { userId, jornada, rol, reservas, setReservas } = useAppStore();
+  const { isMobile } = useDevice();
   const [semanaOffset, setSemanaOffset] = useState(0);
+  const [diaMovil, setDiaMovil]         = useState(() => {
+    const d = new Date().getDay(); // lunes=1 ... viernes=5; fin de semana -> lunes
+    return d >= 1 && d <= 5 ? d - 1 : 0;
+  });
+  const [avisoMotivo, setAvisoMotivo]   = useState<string | null>(null);
   const [cargando, setCargando]         = useState(false);
   const [tab, setTab]                   = useState<TabDisp>('aulas');
   const [seleccion, setSeleccion]       = useState<{ recursoId: string; fecha: string; bloqueId: number } | null>(null);
@@ -293,6 +404,24 @@ export default function DisponibilidadGrid() {
     equipos:  'Equipos',
   };
 
+  // La selección compartida por la tabla ancha y la vista móvil.
+  function alSeleccionar(recursoId: string, fecha: string, bloqueId: number, estado: CeldaEstado) {
+    setAvisoMotivo(null);
+    if (rol === 'rectora') {
+      if (estado === 'clase' || estado === 'ocupado') {
+        const recurso = RECURSOS.find(r => r.id === recursoId);
+        const ocupante = recurso ? getOcupante(recurso, fecha, bloqueId, reservas) : null;
+        if (ocupante) {
+          setSeleccionDesplazamiento({ recursoId, fecha, bloqueId, ocupante });
+        }
+      } else {
+        setSeleccionRectoraLibre({ recursoId, fecha, bloqueId });
+      }
+      return;
+    }
+    setSeleccion({ recursoId, fecha, bloqueId });
+  }
+
   return (
     <div className="space-y-4">
 
@@ -300,7 +429,7 @@ export default function DisponibilidadGrid() {
       <div className="flex items-center gap-3 p-3 rounded-2xl border border-line bg-elevated/60">
         <button
           onClick={() => setSemanaOffset(v => v - 1)}
-          className="px-3 py-1.5 rounded-xl bg-elevated text-soft hover:bg-hover text-sm transition flex-shrink-0"
+          className="px-3 min-h-[44px] min-w-[44px] rounded-xl bg-elevated text-soft hover:bg-hover text-sm transition flex-shrink-0"
         >
           ←
         </button>
@@ -322,14 +451,14 @@ export default function DisponibilidadGrid() {
 
         <button
           onClick={() => setSemanaOffset(0)}
-          className="px-3 py-1.5 rounded-xl bg-elevated text-soft hover:bg-hover text-xs transition flex-shrink-0"
+          className="px-3 min-h-[44px] rounded-xl bg-elevated text-soft hover:bg-hover text-sm transition flex-shrink-0"
         >
           Hoy
         </button>
 
         <button
           onClick={() => setSemanaOffset(v => v + 1)}
-          className="px-3 py-1.5 rounded-xl bg-elevated text-soft hover:bg-hover text-sm transition flex-shrink-0"
+          className="px-3 min-h-[44px] min-w-[44px] rounded-xl bg-elevated text-soft hover:bg-hover text-sm transition flex-shrink-0"
         >
           →
         </button>
@@ -342,7 +471,7 @@ export default function DisponibilidadGrid() {
             key={t}
             onClick={() => setTab(t)}
             className={cn(
-              'relative px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200',
+              'relative px-4 py-2 min-h-[44px] rounded-xl text-sm font-medium transition-all duration-200',
               tab === t ? 'text-strong' : 'text-muted hover:text-soft hover:bg-elevated'
             )}
           >
@@ -370,31 +499,41 @@ export default function DisponibilidadGrid() {
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.2 }}
         >
-          <GridRecursos
-            recursos={recursosActuales}
-            fechas={fechas}
-            bloques={bloques}
-            userId={userId ?? ''}
-            reservas={reservas}
-            rol={rol}
-            onSeleccionar={(recursoId, fecha, bloqueId, estado) => {
-              if (rol === 'rectora') {
-                if (estado === 'clase' || estado === 'ocupado') {
-                  const recurso = RECURSOS.find(r => r.id === recursoId);
-                  const ocupante = recurso ? getOcupante(recurso, fecha, bloqueId, reservas) : null;
-                  if (ocupante) {
-                    setSeleccionDesplazamiento({ recursoId, fecha, bloqueId, ocupante });
-                  }
-                } else {
-                  setSeleccionRectoraLibre({ recursoId, fecha, bloqueId });
-                }
-                return;
-              }
-              setSeleccion({ recursoId, fecha, bloqueId });
-            }}
-          />
+          {isMobile ? (
+            <VistaDiaMovil
+              recursos={recursosActuales}
+              fechas={fechas}
+              bloques={bloques}
+              userId={userId ?? ''}
+              reservas={reservas}
+              rol={rol}
+              indiceDia={Math.min(diaMovil, fechas.length - 1)}
+              onCambiarDia={i => { setDiaMovil(i); setAvisoMotivo(null); }}
+              onSeleccionar={alSeleccionar}
+              onMotivo={setAvisoMotivo}
+            />
+          ) : (
+            <GridRecursos
+              recursos={recursosActuales}
+              fechas={fechas}
+              bloques={bloques}
+              userId={userId ?? ''}
+              reservas={reservas}
+              rol={rol}
+              onSeleccionar={alSeleccionar}
+              onMotivo={setAvisoMotivo}
+            />
+          )}
         </motion.div>
       </AnimatePresence>
+
+      {/* Por qué no se puede reservar la celda tocada */}
+      {avisoMotivo && (
+        <div role="status" className="flex items-start justify-between gap-3 rounded-xl border border-line bg-elevated text-soft text-sm p-3">
+          <span>{avisoMotivo}</span>
+          <button onClick={() => setAvisoMotivo(null)} aria-label="Cerrar aviso" className="min-h-[44px] min-w-[44px] -my-2 -mr-2 text-muted">✕</button>
+        </div>
+      )}
 
       {/* Leyenda */}
       <Leyenda />

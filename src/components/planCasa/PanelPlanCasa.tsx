@@ -51,6 +51,9 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
   const [defs, setDefs] = useState<GuiaTransversalDef[]>([{ eje: '', asignaturaIds: [], responsableDocenteId: '' }]);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+  const [paso, setPaso] = useState(1);
+  // Errores por campo: se muestran junto al campo que falla.
+  const [errs, setErrs] = useState<Record<string, string>>({});
 
   // Búsqueda por nombre en los estudiantes de asistencia (solo lectura).
   useEffect(() => {
@@ -88,15 +91,38 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
     setLibre('');
   }
 
-  async function guardar() {
-    if (!est) return setError('Escoja al estudiante.');
-    if (!desde || !hasta || hasta < desde) return setError('Revise las fechas: «hasta» debe ser posterior a «desde».');
-    if (!motivo.trim()) return setError('Escriba el motivo (queda reservado).');
-    if (!asigs.length) return setError(`No hay asignación académica para el grupo ${est.gradoActual}.`);
-    if (modalidad === 'transversal') {
-      if (sinAsignar.length) return setError(`Faltan asignaturas por ubicar en una guía: ${sinAsignar.map(a => a.asignaturaNombre).join(', ')}.`);
-      if (defs.some(g => !g.asignaturaIds.length || !g.responsableDocenteId)) return setError('Cada guía necesita asignaturas y responsable (quite las guías vacías).');
+  // Valida un paso y devuelve los errores por campo (vacío = todo bien).
+  function validar(p: number): Record<string, string> {
+    const e: Record<string, string> = {};
+    if (p === 1) {
+      if (!est) e.est = 'Escoja al estudiante.';
+      else if (!asigs.length) e.est = `No hay asignación académica para el grupo ${est.gradoActual}.`;
+      if (!desde) e.desde = 'Indique la fecha de inicio.';
+      if (!hasta) e.hasta = 'Indique la fecha final.';
+      else if (desde && hasta < desde) e.hasta = '«Hasta» debe ser posterior a «desde».';
     }
+    if (p === 2 && !motivo.trim()) e.motivo = 'Escriba el motivo (queda reservado).';
+    if (p === 3 && modalidad === 'transversal') {
+      if (sinAsignar.length) e.guias = `Faltan asignaturas por ubicar en una guía: ${sinAsignar.map(a => a.asignaturaNombre).join(', ')}.`;
+      else if (defs.some(g => !g.asignaturaIds.length || !g.responsableDocenteId)) e.guias = 'Cada guía necesita asignaturas y responsable (quite las guías vacías).';
+    }
+    return e;
+  }
+  function siguiente() {
+    const e = validar(paso);
+    setErrs(e);
+    if (Object.keys(e).length === 0) setPaso(paso + 1);
+  }
+  function atras() { setErrs({}); setError(''); setPaso(paso - 1); }
+
+  async function guardar() {
+    if (!est) return;
+    // Revalida todos los pasos y vuelve al primero que falle.
+    for (const p of [1, 2, 3]) {
+      const e = validar(p);
+      if (Object.keys(e).length) { setErrs(e); setPaso(p); return; }
+    }
+    setErrs({});
     setError(''); setGuardando(true);
     try {
       const r = await crearPlan({
@@ -118,8 +144,14 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
     <div className="rounded-2xl border border-line bg-card p-4 space-y-4">
       <div className="flex items-center">
         <h3 className="text-base font-semibold text-strong">Nuevo plan</h3>
-        <button onClick={onCerrar} aria-label="Cerrar" className="ml-auto p-1.5 rounded-lg text-muted hover:text-strong hover:bg-elevated"><X size={16} /></button>
+        <span className="ml-3 text-xs font-medium text-soft" aria-live="polite">Paso {paso} de 3</span>
+        <button onClick={onCerrar} aria-label="Cerrar" className="ml-auto min-w-[44px] min-h-[44px] grid place-items-center rounded-lg text-muted hover:text-strong hover:bg-elevated"><X size={16} /></button>
       </div>
+      <div className="flex gap-1.5" aria-hidden>
+        {[1, 2, 3].map(n => <div key={n} className={cn('h-1 flex-1 rounded-full', n <= paso ? 'bg-accent' : 'bg-elevated')} />)}
+      </div>
+
+      {paso === 1 && (<>
 
       <div>
         <Etiqueta>Estudiante</Etiqueta>
@@ -160,22 +192,27 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
             )}
           </>
         )}
+        {errs.est && <p role="alert" className="text-xs text-danger mt-1">{errs.est}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div><Etiqueta>Desde</Etiqueta><input type="date" value={desde} onChange={e => setDesde(e.target.value)} className={CLASE_INPUT} /></div>
-        <div><Etiqueta>Hasta</Etiqueta><input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className={CLASE_INPUT} /></div>
+        <div><Etiqueta>Desde</Etiqueta><input type="date" value={desde} onChange={e => setDesde(e.target.value)} className={CLASE_INPUT} />{errs.desde && <p role="alert" className="text-xs text-danger mt-1">{errs.desde}</p>}</div>
+        <div><Etiqueta>Hasta</Etiqueta><input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className={CLASE_INPUT} />{errs.hasta && <p role="alert" className="text-xs text-danger mt-1">{errs.hasta}</p>}</div>
       </div>
 
+      </>)}
+
+      {paso === 2 && (<>
       <div>
         <Etiqueta>Contexto para los docentes</Etiqueta>
         <textarea value={contexto} onChange={e => setContexto(e.target.value)} rows={3} className={CLASE_INPUT} />
-        <p className="text-[11px] text-muted mt-1">Lo leen todos los docentes del plan. Escríbalo en lenguaje pedagógico, sin diagnósticos; lo sensible va en el motivo reservado.</p>
+        <p className="text-xs text-muted mt-1">Lo leen todos los docentes del plan. Escríbalo en lenguaje pedagógico, sin diagnósticos; lo sensible va en el motivo reservado.</p>
       </div>
 
       <div>
         <Etiqueta>Motivo reservado (solo UAI, orientación y coordinación)</Etiqueta>
         <textarea value={motivo} onChange={e => setMotivo(e.target.value)} rows={2} className={CLASE_INPUT} />
+        {errs.motivo && <p role="alert" className="text-xs text-danger mt-1">{errs.motivo}</p>}
       </div>
 
       <div>
@@ -205,9 +242,12 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
       <label className="flex items-start gap-2 text-sm text-strong cursor-pointer">
         <input type="checkbox" checked={sinTec} onChange={e => cambiarSinTec(e.target.checked)} className="mt-1" />
         <span>Sin uso de tecnología (guía impresa)
-          <span className="block text-[11px] text-muted">El estudiante no tiene acceso a celular, computador ni internet: la guía se entrega impresa y las entregas y la sustentación son en papel, presenciales u orales.</span></span>
+          <span className="block text-xs text-muted">El estudiante no tiene acceso a celular, computador ni internet: la guía se entrega impresa y las entregas y la sustentación son en papel, presenciales u orales.</span></span>
       </label>
 
+      </>)}
+
+      {paso === 3 && (<>
       <div>
         <Etiqueta>Máximo de momentos por día (1 momento = 25 min)</Etiqueta>
         <input type="number" min={1} max={8} value={tope} onChange={e => setTope(Math.max(1, Number(e.target.value) || 1))}
@@ -219,10 +259,10 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
         <div className="flex gap-2">
           {([['diario', 'Diario'], ['dia_por_medio', 'Día por medio']] as const).map(([v, t]) => (
             <button key={v} onClick={() => setRitmo(v)} aria-pressed={ritmo === v}
-              className={cn('text-sm px-4 py-2 rounded-full transition', ritmo === v ? 'bg-accent text-strong' : 'bg-elevated text-soft hover:text-strong')}>{t}</button>
+              className={cn('text-sm px-4 py-2 min-h-[44px] rounded-full transition', ritmo === v ? 'bg-accent text-strong' : 'bg-elevated text-soft hover:text-strong')}>{t}</button>
           ))}
         </div>
-        <p className="text-[11px] text-muted mt-1.5">UAI: máximo 2–3 momentos por día, o trabajo solo un día hábil de cada dos. Con «día por medio» las fechas se reparten saltando un día hábil.</p>
+        <p className="text-xs text-muted mt-1.5">UAI: máximo 2–3 momentos por día, o trabajo solo un día hábil de cada dos. Con «día por medio» las fechas se reparten saltando un día hábil.</p>
       </div>
 
       <div>
@@ -230,10 +270,10 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
         <div className="flex gap-2">
           {([['por_asignatura', 'Por asignatura'], ['transversal', 'Transversal']] as const).map(([v, t]) => (
             <button key={v} onClick={() => setModalidad(v)} aria-pressed={modalidad === v}
-              className={cn('text-sm px-4 py-2 rounded-full transition', modalidad === v ? 'bg-accent text-strong' : 'bg-elevated text-soft hover:text-strong')}>{t}</button>
+              className={cn('text-sm px-4 py-2 min-h-[44px] rounded-full transition', modalidad === v ? 'bg-accent text-strong' : 'bg-elevated text-soft hover:text-strong')}>{t}</button>
           ))}
         </div>
-        <p className="text-[11px] text-muted mt-1.5">Transversal: menos guías que integran varias áreas. La pregunta orientadora la define después el responsable de cada guía.</p>
+        <p className="text-xs text-muted mt-1.5">Transversal: menos guías que integran varias áreas. La pregunta orientadora la define después el responsable de cada guía.</p>
       </div>
 
       {modalidad === 'transversal' && est && (
@@ -270,6 +310,7 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
           <p className={cn('text-xs', sinAsignar.length ? 'text-warning' : 'text-success')}>
             {sinAsignar.length ? `Sin guía: ${sinAsignar.map(a => a.asignaturaNombre).join(', ')}.` : 'Todas las asignaturas están ubicadas.'}
           </p>
+          {errs.guias && <p role="alert" className="text-xs text-danger mt-1">{errs.guias}</p>}
         </div>
       )}
 
@@ -279,10 +320,16 @@ function NuevoPlan({ onCerrar, onCreado }: { onCerrar: () => void; onCreado: (ms
         </p>
       )}
 
+      </>)}
+
       {error && <CajaError>{error}</CajaError>}
       <div className="flex gap-2 justify-end">
-        <button onClick={onCerrar} className={CLASE_BOTON_SEC}>Cancelar</button>
-        <button onClick={guardar} disabled={guardando} className={CLASE_BOTON}>{guardando ? 'Creando…' : 'Crear plan'}</button>
+        {paso === 1
+          ? <button onClick={onCerrar} className={CLASE_BOTON_SEC}>Cancelar</button>
+          : <button onClick={atras} disabled={guardando} className={CLASE_BOTON_SEC}>Atrás</button>}
+        {paso < 3
+          ? <button onClick={siguiente} className={CLASE_BOTON}>Siguiente</button>
+          : <button onClick={guardar} disabled={guardando} className={CLASE_BOTON}>{guardando ? 'Creando…' : 'Crear plan'}</button>}
       </div>
     </div>
   );

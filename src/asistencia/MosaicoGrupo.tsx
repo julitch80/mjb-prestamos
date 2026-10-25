@@ -223,14 +223,14 @@ export default function MosaicoGrupo({
         <button
           onClick={() => window.print()}
           disabled={!puedeImprimir}
-          className="flex min-h-[36px] items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg disabled:opacity-50"
+          className="flex min-h-[44px] items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg disabled:opacity-50"
         >
           <Printer size={16} aria-hidden />
           Imprimir
         </button>
         <button
           onClick={onCerrar}
-          className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-strong"
+          className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-strong"
         >
           <X size={16} aria-hidden />
           Cerrar

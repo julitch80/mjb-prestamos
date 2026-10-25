@@ -200,7 +200,7 @@ export default function ValoracionCentro({
           {puedeEscribir && (
             <button
               onClick={() => setConfigurando(true)}
-              className="mt-2 min-h-[36px] rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
+              className="mt-2 min-h-[44px] rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
             >
               Definir los indicadores
             </button>
@@ -288,7 +288,7 @@ export default function ValoracionCentro({
                 onClick={() => puedeEscribir && faltanNiveles.length === 0 && setEligiendo(e)}
                 disabled={!puedeEscribir || faltanNiveles.length > 0}
                 className={[
-                  'min-h-[36px] shrink-0 rounded-lg px-3 py-1 text-sm font-semibold disabled:opacity-60',
+                  'min-h-[44px] shrink-0 rounded-lg px-3 py-1 text-sm font-semibold disabled:opacity-60',
                   v ? CLASE_NIVEL[v.nivel] : 'border border-dashed border-line-strong text-muted',
                 ].join(' ')}
               >

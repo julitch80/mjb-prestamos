@@ -104,7 +104,7 @@ export default function Eventos({
         {(puedeRegistrar || consultaCreaEventos) && (
           <button
             onClick={() => setCreando(true)}
-            className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
+            className="min-h-[44px] shrink-0 rounded-lg bg-accent px-3 text-sm font-medium text-accent-fg"
           >
             + Crear evento
           </button>

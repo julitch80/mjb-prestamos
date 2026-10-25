@@ -3,9 +3,9 @@
 // accesos rápidos por rol y un resumen de chat (solo modo google + Firebase).
 import { useEffect, useMemo, useRef, useState } from 'react';
 import MiDiaModificado from './MiDiaModificado';
+import { MatrizMenu, registrarUso } from './NavDropdown';
 import { FlechaNeon } from './FlechaNeon';
 import TarjetaDatosSede from './sedeDatos/TarjetaDatosSede';
-import { motion } from 'motion/react';
 import { useAppStore } from '../data/store';
 import { useChatStore } from '../data/chatStore';
 import { AUTH_MODE } from '../data/authStore';
@@ -28,7 +28,6 @@ import {
 } from '../data/horarioModificado';
 import { AGENDA_ACTUAL } from '../data/agendaSemanal';
 import {
-  neonDe,
   IconoCampana,
   IconoReloj,
   IconoBrujula,
@@ -184,7 +183,11 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       Icono: IconoCampana,
       titulo: notifNoLeidas === 1 ? '1 notificación nueva' : `${notifNoLeidas} notificaciones nuevas`,
       detalle: 'Toca para revisarlas.',
-      accion: { label: 'Ver', onClick: () => setVistaActual('disponibilidad' as never) },
+      accion: { label: 'Ver', onClick: () => {
+        // Las notificaciones sin leer salen en el banner de arriba de la pantalla
+        setVistaActual('inicio' as never);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } },
     });
   }
 
@@ -312,7 +315,6 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   // trackpad que lo disimulara), tapando el scroll horizontal aunque scrollLeft si se
   // actualizara. Por eso el listener se registra a mano con { passive: false }.
   const filaARef = useRef<HTMLDivElement>(null);
-  const filaBRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const listener = (e: WheelEvent) => {
       const el = e.currentTarget as HTMLDivElement;
@@ -324,7 +326,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       el.scrollLeft += delta;
       e.preventDefault();
     };
-    const filas = [filaARef.current, filaBRef.current].filter((el): el is HTMLDivElement => el !== null);
+    const filas = [filaARef.current].filter((el): el is HTMLDivElement => el !== null);
     filas.forEach(el => el.addEventListener('wheel', listener, { passive: false }));
     return () => filas.forEach(el => el.removeEventListener('wheel', listener));
   });
@@ -360,16 +362,12 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       {accesos.length > 0 && (
         <section>
           <h2 className="text-base font-semibold text-strong mb-3">¿Qué deseas hacer?</h2>
-          <FilaConFlechas filaRef={filaBRef}>
-            {accesos.map((item) => (
-              <BaldosaNeon
-                key={item.id}
-                id={item.id}
-                label={item.label}
-                onClick={() => setVistaActual(item.id as never)}
-              />
-            ))}
-          </FilaConFlechas>
+          <div className="space-y-2">
+            <MatrizMenu
+              opciones={accesos}
+              onSelect={(id) => { registrarUso(id); setVistaActual(id as never); }}
+            />
+          </div>
         </section>
       )}
 
@@ -427,35 +425,6 @@ function BannerAviso({ aviso }: { aviso: Aviso }) {
         )}
       </div>
     </div>
-  );
-}
-
-/**
- * Baldosa de "¿Qué deseas hacer?": cuadro tintado con el icono de línea
- * resplandeciente y la etiqueta debajo, al estilo de las acciones rápidas
- * de Acrobat.
- */
-function BaldosaNeon({ id, label, onClick }: { id: string; label: string; onClick: () => void }) {
-  const { Icono, color } = neonDe(id);
-  return (
-    <motion.button
-      whileTap={{ scale: 0.94 }}
-      onClick={onClick}
-      className="group flex-shrink-0 w-[84px] flex flex-col items-center gap-2 focus:outline-none"
-    >
-      <div
-        className="w-[70px] h-[70px] rounded-2xl border flex items-center justify-center transition-colors"
-        style={{ background: `${color}14`, borderColor: `${color}33` }}
-      >
-        <Icono
-          className="w-8 h-8 transition-transform group-hover:scale-110"
-          style={{ color, filter: `drop-shadow(0 0 7px ${color}80)` }}
-        />
-      </div>
-      <span className="text-[11px] leading-tight text-center text-soft group-hover:text-strong transition-colors">
-        {label}
-      </span>
-    </motion.button>
   );
 }
 

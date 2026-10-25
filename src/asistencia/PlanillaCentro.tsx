@@ -768,7 +768,7 @@ export default function PlanillaCentro({
         <button
           onClick={() => setMosaico(true)}
           title="Mosaico de fotos del centro para la carátula de su carpeta"
-          className="min-h-[36px] shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
+          className="min-h-[44px] shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
         >
           Mosaico de fotos
         </button>
@@ -779,7 +779,7 @@ export default function PlanillaCentro({
           <Ayuda texto="Inscribir o retirar estudiantes de este centro. Solo la coordinación del programa puede hacerlo.">
             <button
               onClick={() => setInscribiendo((v) => !v)}
-              className="min-h-[36px] shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
+              className="min-h-[44px] shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
             >
               {inscribiendo ? 'Cerrar inscripción' : 'Inscribir o retirar'}
             </button>
@@ -788,7 +788,7 @@ export default function PlanillaCentro({
         {puedeRegistrar && (
           <button
             onClick={abrirEscaner}
-            className="min-h-[36px] shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
+            className="min-h-[44px] shrink-0 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
           >
             Escanear código
           </button>
@@ -797,7 +797,7 @@ export default function PlanillaCentro({
           <button
             onClick={abrirSelector}
             title="Abrir la columna de un día nuevo para empezar a marcar"
-            className="min-h-[36px] shrink-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-fg"
+            className="min-h-[44px] shrink-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-fg"
           >
             + Nueva sesión
           </button>
@@ -832,12 +832,12 @@ export default function PlanillaCentro({
               Cancelar
             </button>
           </div>
-          <p className="mt-1 text-[0.7rem]">
+          <p className="mt-1 text-xs">
             Abrirla no guarda nada todavía: la sesión queda registrada con la primera marca
             que usted ponga.
           </p>
           {(borradorFecha < programa.desde || borradorFecha > programa.hasta) && (
-            <p className="mt-1 text-[0.7rem] font-semibold">
+            <p className="mt-1 text-xs font-semibold">
               Esa fecha queda fuera del semestre del programa ({programa.desde} a{' '}
               {programa.hasta}). Se puede registrar igual, pero revise que sea la correcta.
             </p>
@@ -957,7 +957,7 @@ export default function PlanillaCentro({
             <button
               onClick={() => setMenuColumna(fechaActiva)}
               title="Llenar de una vez las casillas vacías de este día"
-              className="min-h-[36px] rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
+              className="min-h-[44px] rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-strong"
             >
               Llenar la lista
             </button>
@@ -1018,7 +1018,7 @@ export default function PlanillaCentro({
                           : `${fechaLegible(c.fecha)} · todavía sin registrar`
                       }
                       className={[
-                        'w-14 px-1 py-1 text-center text-[0.65rem] font-normal',
+                        'w-14 px-1 py-1 text-center text-xs font-normal',
                         c.fecha === fechaActiva
                           ? 'bg-accent-soft text-accent-soft-fg'
                           : 'text-muted',
@@ -1086,11 +1086,11 @@ export default function PlanillaCentro({
                           <span className="min-w-0 truncate text-xs leading-tight text-strong">
                             <span className="block truncate font-semibold">{e.apellidos}</span>
                             <span className="block truncate text-muted">{e.nombres}</span>
-                            <span className="block truncate text-[0.6rem] text-muted">
+                            <span className="block truncate text-xs text-muted">
                               {e.gradoActual}
                             </span>
                             {conflicto && (
-                              <span className="block truncate text-[0.6rem] font-semibold text-warning-soft-fg">
+                              <span className="block truncate text-xs font-semibold text-warning-soft-fg">
                                 En dos centros de interés
                               </span>
                             )}
@@ -1255,7 +1255,7 @@ function MarcaConflicto() {
     <Ayuda texto={AVISO_CONFLICTO}>
       <span
         tabIndex={0}
-        className="mt-0.5 inline-block cursor-help rounded-full border border-warning-soft bg-card px-2 py-0.5 text-[0.65rem] font-semibold text-warning-soft-fg"
+        className="mt-0.5 inline-block cursor-help rounded-full border border-warning-soft bg-card px-2 py-0.5 text-xs font-semibold text-warning-soft-fg"
       >
         En dos centros de interés
       </span>
@@ -1358,7 +1358,7 @@ function TarjetaSinUbicar({
               abierto.
             </p>
           ) : (
-            <p className="mt-2 text-[0.7rem] text-muted">
+            <p className="mt-2 text-xs text-muted">
               Tocar un nombre <b>no lo inscribe</b>: solo señala quién cree usted que es.
               Coordinación lo confirma y queda inscrito. Usted no tiene que hacer nada más.
             </p>

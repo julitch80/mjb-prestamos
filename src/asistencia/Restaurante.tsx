@@ -281,7 +281,7 @@ export default function Restaurante({
   function etiquetaLista(studentId: string) {
     if (inscritos.size === 0 || inscritos.has(studentId)) return null;
     return (
-      <span className="mt-0.5 inline-block rounded-full bg-elevated px-1.5 py-0.5 text-[0.65rem] text-muted">
+      <span className="mt-0.5 inline-block rounded-full bg-elevated px-1.5 py-0.5 text-xs text-muted">
         No figura en la lista
       </span>
     );

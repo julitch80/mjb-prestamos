@@ -179,7 +179,7 @@ export default function Evasiones({
                 {a.estado === 'abierto' && (
                   <button
                     onClick={() => setResolviendo({ aviso: a, nota: '' })}
-                    className="mt-2 min-h-[36px] rounded-lg border border-line bg-card px-3 py-1.5 text-sm font-medium text-strong"
+                    className="mt-2 min-h-[44px] rounded-lg border border-line bg-card px-3 py-1.5 text-sm font-medium text-strong"
                   >
                     Resolver
                   </button>

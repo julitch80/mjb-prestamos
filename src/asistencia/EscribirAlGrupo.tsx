@@ -41,7 +41,7 @@ export default function EscribirAlGrupo({
         aria-label={`Escribir al grupo, ${correos.length} con correo`}
         className={
           conTexto
-            ? 'flex min-h-[36px] items-center gap-1.5 rounded-full border border-accent px-3 py-1 text-sm font-medium text-accent'
+            ? 'flex min-h-[44px] items-center gap-1.5 rounded-full border border-accent px-3 py-1 text-sm font-medium text-accent'
             : 'flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-card text-soft'
         }
       >
@@ -78,7 +78,7 @@ export default function EscribirAlGrupo({
 
             <button
               onClick={() => void navigator.clipboard.writeText(correos.join(', ')).then(() => setCopiado(true))}
-              className="mt-2 min-h-[36px] w-full rounded-xl border border-line px-3 text-sm text-soft"
+              className="mt-2 min-h-[44px] w-full rounded-xl border border-line px-3 text-sm text-soft"
             >
               {copiado ? 'Direcciones copiadas' : 'Copiar direcciones'}
             </button>

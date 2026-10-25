@@ -23,6 +23,7 @@ const ROL_LABEL: Record<string, string> = {
 
 export default function LoginScreen() {
   const setUsuario = useAppStore((s) => s.setUsuario);
+  const temaOscuro = useAppStore((s) => s.temaOscuro);
 
   const [busqueda, setBusqueda]               = useState('');
   const [usuarioSeleccionado, setUsuarioSel]  = useState<string | null>(null);
@@ -210,7 +211,7 @@ export default function LoginScreen() {
                   src="/mjb-prestamos/mjb_escudo.png"
                   alt="Escudo MJB"
                   className="relative w-36 h-36 object-contain drop-shadow-2xl"
-                  style={{ mixBlendMode: 'lighten' }}
+                  style={{ mixBlendMode: temaOscuro ? 'lighten' : 'normal' }}
                 />
               </div>
               <h1 className="mt-4 text-xl font-bold text-strong tracking-wide text-center">

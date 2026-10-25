@@ -311,7 +311,7 @@ export default function PlanillaEvento({
               <button
                 onClick={() => setPestana(clave)}
                 className={[
-                  'min-h-[36px] rounded-full border px-3 py-1 text-sm',
+                  'min-h-[44px] rounded-full border px-3 py-1 text-sm',
                   pestana === clave
                     ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                     : 'border-line text-soft',
@@ -420,7 +420,7 @@ export default function PlanillaEvento({
                           ].join(' ')}
                         >
                           {etiquetaDia(f)}
-                          {!registrada && <span className="block text-[10px] font-normal">nueva</span>}
+                          {!registrada && <span className="block text-xs font-normal">nueva</span>}
                         </button>
                       </th>
                     );
@@ -929,7 +929,7 @@ function ZonaEliminarEvento({
       </p>
       <button
         onClick={() => setConfirmando(true)}
-        className="mt-3 min-h-[36px] w-full rounded-lg border border-danger-soft bg-card px-3 py-2 text-sm font-medium text-danger-soft-fg"
+        className="mt-3 min-h-[44px] w-full rounded-lg border border-danger-soft bg-card px-3 py-2 text-sm font-medium text-danger-soft-fg"
       >
         Eliminar este evento
       </button>
@@ -994,7 +994,7 @@ function ConfirmarEliminarEvento({
         <button
           disabled={!habilitado || eliminando}
           onClick={onConfirmar}
-          className="mt-3 min-h-[36px] w-full rounded-lg bg-danger px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-50"
+          className="mt-3 min-h-[44px] w-full rounded-lg bg-danger px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-50"
         >
           {eliminando ? 'Eliminando…' : 'Eliminar definitivamente'}
         </button>

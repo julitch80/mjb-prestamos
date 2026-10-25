@@ -281,7 +281,7 @@ export default function AlertaAcademica({
                 type="button"
                 aria-pressed={modo === x}
                 onClick={() => { setModo(x); guardarModo(x); }}
-                className={`rounded-md px-2 py-1 ${modo === x ? 'bg-elevated font-semibold text-strong' : 'text-muted'}`}
+                className={`min-h-[44px] rounded-md px-3 ${modo === x ? 'bg-elevated font-semibold text-strong' : 'text-muted'}`}
               >
                 {x === 'recuadro' ? 'Recuadro con foto' : 'Toque directo'}
               </button>
@@ -341,17 +341,24 @@ export default function AlertaAcademica({
         );
       })()}
 
+      {/* Barra fija abajo (revision de UX, 2026-10-25): el avance y «Entregar» siempre a la
+          vista mientras se marca. Al final de 30-45 estudiantes el boton quedaba fuera de la
+          pantalla y la planilla se quedaba «Sin entregar» sin que el docente lo notara. */}
       {editable && !estado.completa && (
-        <button
-          type="button"
-          onClick={() => void entregar()}
-          disabled={entregando}
-          className="min-h-[44px] rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-50"
-        >
-          {entregando
-            ? 'Entregando…'
-            : `Entregar${estado.sinMarcar ? ` (los ${estado.sinMarcar} sin marcar quedan sin alerta)` : ''}`}
-        </button>
+        <div className="sticky bottom-2 z-20 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-card p-2 shadow-lg">
+          <p className="flex-1 px-1 text-sm text-strong">
+            Marcados <b>{estado.alerta + estado.sinAlerta}</b> de {ids.length}
+            {estado.sinMarcar > 0 && <span className="block text-xs text-muted">Al entregar, los {estado.sinMarcar} sin marcar quedan sin alerta.</span>}
+          </p>
+          <button
+            type="button"
+            onClick={() => void entregar()}
+            disabled={entregando}
+            className="min-h-[44px] rounded-xl bg-accent px-5 text-sm font-semibold text-accent-fg disabled:opacity-50"
+          >
+            {entregando ? 'Entregando…' : 'Entregar'}
+          </button>
+        </div>
       )}
     </div>
   );

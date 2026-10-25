@@ -356,7 +356,7 @@ function Gestion({
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-1 text-xs text-muted">Fecha<input type="date" min={hoy} max={venceReprogramar} value={fecha} onChange={(e) => setFecha(e.target.value)} className="rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong" /></label>
             <label className="flex flex-col gap-1 text-xs text-muted">Hora<input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="rounded-lg border border-line bg-elevated px-2 py-1 text-sm text-strong" /></label>
-            <button disabled={ocupado || !fecha || !hora} onClick={() => onReprogramar(fecha, hora)} className="min-h-[36px] rounded-xl bg-accent px-3 text-sm font-semibold text-accent-fg disabled:opacity-50">
+            <button disabled={ocupado || !fecha || !hora} onClick={() => onReprogramar(fecha, hora)} className="min-h-[44px] rounded-xl bg-accent px-3 text-sm font-semibold text-accent-fg disabled:opacity-50">
               Generar nueva citación
             </button>
           </div>

@@ -106,7 +106,7 @@ export default function DiagnosticoPermisos() {
         <button
           disabled={correo.trim() === '' || cargando}
           onClick={() => void consultar()}
-          className="min-h-[36px] rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg disabled:opacity-50"
+          className="min-h-[44px] rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg disabled:opacity-50"
         >
           {cargando ? 'Consultando…' : 'Consultar'}
         </button>

@@ -391,7 +391,7 @@ export default function LlegadasTarde({
         </div>
         <button
           onClick={() => setAjustandoConfig(true)}
-          className="shrink-0 rounded-lg border border-line px-2 py-1 text-xs text-muted"
+          className="min-h-[44px] shrink-0 rounded-lg border border-line px-3 text-xs text-muted"
         >
           Ajustar alertas
         </button>
@@ -485,7 +485,7 @@ export default function LlegadasTarde({
                   return (
                     paso && (
                       <span
-                        className="mt-0.5 inline-block rounded-full border px-1.5 py-0.5 text-[0.65rem] font-semibold"
+                        className="mt-0.5 inline-block rounded-full border px-1.5 py-0.5 text-xs font-semibold"
                         style={estiloAlerta(paso.color)}
                       >
                         {paso.mensaje}
@@ -645,7 +645,7 @@ export default function LlegadasTarde({
                   return (
                     paso && (
                       <span
-                        className="rounded-full border px-1.5 py-0.5 text-[0.65rem] font-semibold"
+                        className="rounded-full border px-1.5 py-0.5 text-xs font-semibold"
                         style={estiloAlerta(paso.color)}
                         title={paso.mensaje}
                       >

@@ -122,7 +122,7 @@ export const useAppStore = create<AppState>()(
       jornada: null,
       sedeActual: 'central',
       vistaActual: 'inicio',
-      temaOscuro: true,
+      temaOscuro: typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : true,
       notificaciones: [],
       notifCargadas: false,
       reservas: [],

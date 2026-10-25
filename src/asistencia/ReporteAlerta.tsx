@@ -192,7 +192,7 @@ export default function ReporteAlerta({
                 {columnas.map((c) => (
                   <th key={c.subjectId} title={c.nombre} className="px-1.5 py-2 text-center font-medium">
                     {c.abrev}
-                    {!consolidado.entregadas.includes(c.subjectId) && <span className="block text-[0.6rem] text-warning-soft-fg">pend.</span>}
+                    {!consolidado.entregadas.includes(c.subjectId) && <span className="block text-xs text-warning-soft-fg">pend.</span>}
                   </th>
                 ))}
                 <th className="px-2 py-2 text-center font-medium">Total</th>

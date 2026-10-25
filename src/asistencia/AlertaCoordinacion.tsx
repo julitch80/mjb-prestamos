@@ -340,7 +340,7 @@ export default function AlertaCoordinacion({
               <button
                 key={j}
                 onClick={() => { setJornada(j); setGrupoAbierto(null); setDigitando(null); }}
-                className={`min-h-[36px] rounded-full border px-3 text-sm ${jornada === j ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg' : 'border-line text-soft'}`}
+                className={`min-h-[44px] rounded-full border px-3 text-sm ${jornada === j ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg' : 'border-line text-soft'}`}
               >
                 {j === 'manana' ? 'Mañana' : 'Tarde'}
               </button>
@@ -349,6 +349,79 @@ export default function AlertaCoordinacion({
         )}
       </div>
 
+      {/* Revision de UX (2026-10-25): lo que se consulta a diario va primero —el estado y el
+          avance por grupo—; abrir, configurar e imprimir quedan plegados abajo. */}
+      {conv && (
+        <section className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-card p-3">
+          <p className="flex-1 text-sm text-strong">
+            <b>Periodo {conv.periodo}</b> ·{' '}
+            {editable ? (
+              <span className="text-success">abierta hasta el {conv.fechaLimite}{conv.horaLimite ? ` a las ${horaCorta(conv.horaLimite)}` : ''}</span>
+            ) : conv.abierta && alertaPorEmpezar(conv) && conv.fechaInicio && conv.horaInicio ? (
+              <span className="text-info-soft-fg">se habilita el {conv.fechaInicio} a las {horaCorta(conv.horaInicio)}</span>
+            ) : (
+              <span className="text-muted">cerrada</span>
+            )}
+            {planillas !== null && (
+              <> · {avance.filter((a) => a.esperadas > 0 && a.entregadas === a.esperadas).length} de {avance.length} grupos completos · {avance.reduce((n, a) => n + a.citados, 0)} por citar</>
+            )}
+          </p>
+          {convocatorias && convocatorias.length > 1 && (
+            <select value={elegida ?? ''} onChange={(e) => setElegida(e.target.value)} className={CAJA} aria-label="Periodo">
+              {convocatorias.map((c) => <option key={c.convocatoriaId} value={c.convocatoriaId}>{c.anio} · periodo {c.periodo}</option>)}
+            </select>
+          )}
+        </section>
+      )}
+
+      {/* 3. Avance por grupo */}
+      {conv && (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-sm font-semibold text-strong">Avance por grupo</h3>
+          {planillas === null ? (
+            <p className="p-3 text-sm text-muted">Cargando…</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {avance.map((a) => (
+                <button
+                  key={a.grado}
+                  onClick={() => setGrupoAbierto(a.grado)}
+                  className="flex items-center gap-3 rounded-xl border border-line bg-card p-3 text-left hover:bg-elevated"
+                >
+                  <span className="text-lg font-bold text-strong">{a.grado}</span>
+                  <span className="flex-1 text-xs text-muted">
+                    {a.entregadas} de {a.esperadas} entregadas
+                    {a.entregadas === a.esperadas && a.esperadas > 0 && <span className="text-success"> ✓</span>}
+                  </span>
+                  {conv.excepcionesAgenda?.[a.grado] && (
+                    <span className="rounded-full bg-elevated px-2 py-0.5 text-xs font-semibold text-strong">caso especial</span>
+                  )}
+                  {a.citados > 0 && (
+                    <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-soft-fg">{a.citados} por citar</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {conv && (
+        <SeguimientoCoordinacion
+          sede={sede}
+          conv={conv}
+          agendas={agendas}
+          directores={directores}
+          onRecargar={() => void agendasDeJornada(sede, jornada, conv.anio, conv.periodo).then(setAgendas)}
+        />
+      )}
+      {error && <p className="text-sm text-danger">{error}</p>}
+
+      <details className="group rounded-2xl border border-line bg-card" open={!conv}>
+        <summary className="flex min-h-[48px] cursor-pointer items-center px-4 text-sm font-semibold text-strong">
+          Administrar la alerta: abrir un periodo, horario, entrega, forma de citar e imprimir
+        </summary>
+        <div className="flex flex-col gap-3 p-3 pt-0">
       {/* 1. Abrir una convocatoria */}
       <section className="flex flex-col gap-2 rounded-2xl border border-line bg-card p-4">
         <h3 className="text-sm font-semibold text-strong">Abrir la alerta de un periodo</h3>
@@ -493,49 +566,8 @@ export default function AlertaCoordinacion({
         </section>
       )}
 
-      {error && <p className="text-sm text-danger">{error}</p>}
-
-      {/* 3. Avance por grupo */}
-      {conv && (
-        <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-strong">Avance por grupo</h3>
-          {planillas === null ? (
-            <p className="p-3 text-sm text-muted">Cargando…</p>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {avance.map((a) => (
-                <button
-                  key={a.grado}
-                  onClick={() => setGrupoAbierto(a.grado)}
-                  className="flex items-center gap-3 rounded-xl border border-line bg-card p-3 text-left hover:bg-elevated"
-                >
-                  <span className="text-lg font-bold text-strong">{a.grado}</span>
-                  <span className="flex-1 text-xs text-muted">
-                    {a.entregadas} de {a.esperadas} entregadas
-                    {a.entregadas === a.esperadas && a.esperadas > 0 && <span className="text-success"> ✓</span>}
-                  </span>
-                  {conv.excepcionesAgenda?.[a.grado] && (
-                    <span className="rounded-full bg-elevated px-2 py-0.5 text-xs font-semibold text-strong">caso especial</span>
-                  )}
-                  {a.citados > 0 && (
-                    <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-soft-fg">{a.citados} por citar</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {conv && (
-        <SeguimientoCoordinacion
-          sede={sede}
-          conv={conv}
-          agendas={agendas}
-          directores={directores}
-          onRecargar={() => void agendasDeJornada(sede, jornada, conv.anio, conv.periodo).then(setAgendas)}
-        />
-      )}
+        </div>
+      </details>
     </div>
   );
 }
@@ -845,7 +877,7 @@ function MetodoCitacion({
             title={m.ayuda}
             aria-pressed={modo === m.modo}
             onClick={() => setModo(m.modo)}
-            className={`min-h-[36px] rounded-full border px-3 text-sm ${modo === m.modo ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg' : 'border-line text-soft'}`}
+            className={`min-h-[44px] rounded-full border px-3 text-sm ${modo === m.modo ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg' : 'border-line text-soft'}`}
           >
             {NOMBRE_MODO[m.modo]}
           </button>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '../data/store';
 import { getReservas } from '../data/api';
 import type { Reserva } from '../data/api';
+import { nombreRecurso, fechaLegible, bloqueLegible, marcaLegible } from '../data/formatoReserva';
 
 const ESTADO_CONFIG = {
   pendiente: { label: 'Pendiente', color: 'text-yellow-400', bg: 'bg-warning-soft' },
@@ -55,9 +56,9 @@ export default function MiHistorial() {
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-strong font-medium">{r.recurso}</p>
+                <p className="text-strong font-medium">{nombreRecurso(r.recurso)}</p>
                 <p className="text-sm text-soft mt-0.5">
-                  {r.fecha} · Bloque {r.bloque}
+                  {fechaLegible(r.fecha)} · {bloqueLegible(r)}
                 </p>
                 <p className="text-sm text-soft">{r.proposito}</p>
                 {r.equipos && (
@@ -71,7 +72,7 @@ export default function MiHistorial() {
                 {cfg.label}
               </span>
             </div>
-            <p className="text-xs text-muted mt-2">{r.timestamp}</p>
+            <p className="text-xs text-muted mt-2">Solicitada el {marcaLegible(r.timestamp)}</p>
           </div>
         );
       })}

@@ -312,8 +312,12 @@ function VistaAulas({ jornadaTab, vistaDetalle, diaSeleccionado, onSetDia }: {
 
 function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab: 'manana' | 'tarde' }) {
   const horario = useHorario();
-  const [vistaDetalle, setVistaDetalle] = useState<VistaDetalle>('semana');
-  const [diaSeleccionado, setDiaSeleccionado] = useState('lunes');
+  // «Mi horario» abre en vista Día y en HOY (fin de semana: lunes).
+  const [vistaDetalle, setVistaDetalle] = useState<VistaDetalle>('dia');
+  const [diaSeleccionado, setDiaSeleccionado] = useState(() => {
+    const hoyKey = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'][new Date().getDay()];
+    return (DIAS as readonly string[]).includes(hoyKey) ? hoyKey : 'lunes';
+  });
 
   const bloques   = jornadaTab === 'tarde' ? BLOQUES_TARDE : BLOQUES_MANANA;
   const descansos = jornadaTab === 'tarde' ? DESCANSOS_TARDE : DESCANSOS_MANANA;

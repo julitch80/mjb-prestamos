@@ -143,7 +143,7 @@ export default function MisGrupos({
           {perfil === 'coordinacion' && (
             <button
               onClick={onSinAsignacion}
-              className="mt-3 min-h-[36px] rounded-lg border border-line px-3 py-2 text-sm font-medium text-strong"
+              className="mt-3 min-h-[44px] rounded-lg border border-line px-3 py-2 text-sm font-medium text-strong"
             >
               Abrir una sesión a mano
             </button>
@@ -165,7 +165,7 @@ export default function MisGrupos({
         </p>
         <button
           onClick={onSinAsignacion}
-          className="mt-3 min-h-[36px] rounded-lg border border-line px-3 py-2 text-sm font-medium text-strong"
+          className="mt-3 min-h-[44px] rounded-lg border border-line px-3 py-2 text-sm font-medium text-strong"
         >
           Abrir sesión sin asignación
         </button>
@@ -296,7 +296,7 @@ export default function MisGrupos({
       {perfil !== 'consulta' && (
         <button
           onClick={onSinAsignacion}
-          className="min-h-[36px] text-xs text-muted underline"
+          className="min-h-[44px] text-xs text-muted underline"
         >
           Abrir una sesión de un grupo que no aparece aquí
         </button>

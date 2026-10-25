@@ -227,7 +227,7 @@ export default function SeguimientoLlegadas({
                   <span className="block text-xs text-muted">{describirCuenta(cuenta)}</span>
                 </span>
                 <span
-                  className="rounded-full border px-1.5 py-0.5 text-[0.65rem] font-semibold"
+                  className="rounded-full border px-1.5 py-0.5 text-xs font-semibold"
                   style={estiloAlerta(paso!.color)}
                 >
                   {paso!.color}

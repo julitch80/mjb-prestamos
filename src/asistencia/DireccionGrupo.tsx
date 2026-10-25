@@ -393,7 +393,7 @@ export default function DireccionGrupo({
         <div className="flex justify-end">
           <button
             onClick={alternarAutomaticas}
-            className="flex min-h-[36px] items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs font-medium text-soft hover:bg-hover"
+            className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs font-medium text-soft hover:bg-hover"
           >
             {ocultarAutomaticas ? <EyeOff size={14} /> : <Eye size={14} />}
             {fuente.tipo === 'grado'
@@ -416,7 +416,7 @@ export default function DireccionGrupo({
           </p>
           <button
             onClick={() => setSheetNuevaColumna(true)}
-            className="min-h-[36px] rounded-lg border border-dashed border-line-strong px-3 text-sm font-medium text-accent"
+            className="min-h-[44px] rounded-lg border border-dashed border-line-strong px-3 text-sm font-medium text-accent"
           >
             + Crear la primera columna
           </button>
@@ -454,7 +454,7 @@ export default function DireccionGrupo({
                         <Ellipsis size={14} />
                       </button>
                     </div>
-                    <div className="mt-0.5 truncate text-[0.65rem] text-muted" title={totales.get(c.columnaId)?.texto}>
+                    <div className="mt-0.5 truncate text-xs text-muted" title={totales.get(c.columnaId)?.texto}>
                       {totales.get(c.columnaId)?.texto}
                     </div>
                   </th>
@@ -475,12 +475,12 @@ export default function DireccionGrupo({
                     >
                       <span className="truncate font-semibold text-strong">{c.nombre}</span>
                       <div className="mt-0.5 flex justify-center">
-                        <span className="rounded-full border border-line-strong px-1.5 py-px text-[0.55rem] uppercase tracking-wide text-muted">
+                        <span className="rounded-full border border-line-strong px-1.5 py-px text-xs uppercase tracking-wide text-muted">
                           automática
                         </span>
                       </div>
                       <div
-                        className="mt-0.5 truncate text-[0.65rem] text-muted"
+                        className="mt-0.5 truncate text-xs text-muted"
                         title={totalesAutomaticas.get(c.id)?.texto}
                       >
                         {totalesAutomaticas.get(c.id)?.texto}
@@ -537,7 +537,7 @@ export default function DireccionGrupo({
                           i % 2 === 1 ? 'bg-elevated' : '',
                         ].join(' ')}
                       >
-                        <div className="grid h-9 min-h-[36px] place-items-center text-xs font-semibold text-strong">
+                        <div className="grid h-9 min-h-[44px] place-items-center text-xs font-semibold text-strong">
                           {valor === undefined ? <span className="text-muted opacity-70">·</span> : valor}
                         </div>
                       </td>
@@ -553,7 +553,7 @@ export default function DireccionGrupo({
       {columnas.length > 0 && (
         <button
           onClick={() => setSheetNuevaColumna(true)}
-          className="min-h-[36px] w-full rounded-xl border border-dashed border-line-strong bg-card p-3 text-sm font-medium text-accent"
+          className="min-h-[44px] w-full rounded-xl border border-dashed border-line-strong bg-card p-3 text-sm font-medium text-accent"
         >
           + Columna
         </button>
@@ -563,7 +563,7 @@ export default function DireccionGrupo({
         <button
           onClick={descargarExcel}
           disabled={descargando}
-          className="flex min-h-[36px] w-full items-center justify-center gap-2 rounded-xl border border-line bg-card p-2.5 text-sm font-medium text-soft disabled:opacity-60"
+          className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-line bg-card p-2.5 text-sm font-medium text-soft disabled:opacity-60"
         >
           <Download size={16} aria-hidden />
           {descargando ? 'Generando Excel…' : 'Descargar a Excel'}
@@ -640,7 +640,7 @@ function CeldaColumna({
     return (
       <button
         onClick={onCasilla}
-        className={`grid h-9 w-full min-h-[36px] place-items-center text-xs font-bold ${clase}`}
+        className={`grid h-9 w-full min-h-[44px] place-items-center text-xs font-bold ${clase}`}
         aria-label={valor === true ? 'Marcado sí' : valor === false ? 'Marcado no' : 'Sin asignar'}
         title={valor === true ? 'Sí' : valor === false ? 'No' : 'Sin asignar — toque para marcar'}
       >
@@ -653,7 +653,7 @@ function CeldaColumna({
     const total = typeof valor === 'number' ? valor : 0;
     const signo = total > 0 ? '+' : '';
     return (
-      <div className="flex h-9 min-h-[36px] items-center justify-center gap-1 px-1">
+      <div className="flex h-9 min-h-[44px] items-center justify-center gap-1 px-1">
         <button
           onClick={() => onPuntos(-1)}
           aria-label="Restar un punto"
@@ -682,13 +682,13 @@ function CeldaColumna({
   return (
     <button
       onClick={onAbrirIcono}
-      className="flex h-9 min-h-[36px] w-full items-center justify-center gap-1 px-1"
+      className="flex h-9 min-h-[44px] w-full items-center justify-center gap-1 px-1"
       aria-label={opcion ? opcion.etiqueta : 'Sin asignar'}
       title={opcion ? opcion.etiqueta : 'Sin asignar — toque para elegir'}
     >
       {opcion ? (
         <span
-          className="flex max-w-full items-center gap-1 truncate rounded-full border px-1.5 py-0.5 text-[0.65rem]"
+          className="flex max-w-full items-center gap-1 truncate rounded-full border px-1.5 py-0.5 text-xs"
           style={estiloEtiqueta(color)}
         >
           {Icono && <Icono size={12} />}
@@ -743,7 +743,7 @@ function CeldaNumero({
       }}
       placeholder="·"
       aria-label="Valor"
-      className="h-9 min-h-[36px] w-full border-0 bg-transparent px-1 text-center text-sm text-strong outline-none focus:ring-2 focus:ring-accent"
+      className="h-9 min-h-[44px] w-full border-0 bg-transparent px-1 text-center text-sm text-strong outline-none focus:ring-2 focus:ring-accent"
     />
   );
 }
@@ -788,7 +788,7 @@ function SheetOpcionIcono({
                 key={o.opcionId}
                 onClick={() => onElegir(o.opcionId)}
                 className={[
-                  'flex min-h-[36px] flex-col items-center gap-1 rounded-lg border p-2 text-center',
+                  'flex min-h-[44px] flex-col items-center gap-1 rounded-lg border p-2 text-center',
                   activa ? 'border-accent' : 'border-line',
                 ].join(' ')}
               >
@@ -848,20 +848,20 @@ function MenuColumna({
           <button
             onClick={() => onMover(-1)}
             disabled={esPrimera}
-            className="flex min-h-[36px] w-full items-center gap-2 rounded-lg border border-line p-2 text-sm text-strong disabled:opacity-40"
+            className="flex min-h-[44px] w-full items-center gap-2 rounded-lg border border-line p-2 text-sm text-strong disabled:opacity-40"
           >
             <ChevronLeft size={16} /> Mover a la izquierda
           </button>
           <button
             onClick={() => onMover(1)}
             disabled={esUltima}
-            className="flex min-h-[36px] w-full items-center gap-2 rounded-lg border border-line p-2 text-sm text-strong disabled:opacity-40"
+            className="flex min-h-[44px] w-full items-center gap-2 rounded-lg border border-line p-2 text-sm text-strong disabled:opacity-40"
           >
             <ChevronRight size={16} /> Mover a la derecha
           </button>
           <button
             onClick={onQuitar}
-            className="flex min-h-[36px] w-full items-center gap-2 rounded-lg border border-danger-soft p-2 text-sm text-danger-soft-fg"
+            className="flex min-h-[44px] w-full items-center gap-2 rounded-lg border border-danger-soft p-2 text-sm text-danger-soft-fg"
           >
             <X size={16} /> Quitar columna
           </button>
@@ -969,7 +969,7 @@ function SheetNuevaColumna({
               <button
                 onClick={() => setTipo(t.tipo)}
                 className={[
-                  'min-h-[36px] w-full rounded-lg border px-2 py-1.5 text-sm',
+                  'min-h-[44px] w-full rounded-lg border px-2 py-1.5 text-sm',
                   tipo === t.tipo
                     ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                     : 'border-line text-soft',
@@ -1033,7 +1033,7 @@ function SheetNuevaColumna({
                           title={ic.etiqueta}
                           aria-label={ic.etiqueta}
                           className={[
-                            'grid min-h-[36px] place-items-center rounded-lg border p-1.5',
+                            'grid min-h-[44px] place-items-center rounded-lg border p-1.5',
                             elegido ? 'border-accent bg-accent-soft' : 'border-line',
                           ].join(' ')}
                         >
@@ -1057,14 +1057,14 @@ function SheetNuevaColumna({
         <div className="mt-4 flex gap-2">
           <button
             onClick={onCerrar}
-            className="min-h-[36px] flex-1 rounded-lg border border-line p-2 text-sm text-soft"
+            className="min-h-[44px] flex-1 rounded-lg border border-line p-2 text-sm text-soft"
           >
             Cancelar
           </button>
           <button
             onClick={confirmar}
             disabled={!nombre.trim() || !!errorValidacion}
-            className="flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent p-2 text-sm font-semibold text-accent-fg disabled:opacity-40"
+            className="flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent p-2 text-sm font-semibold text-accent-fg disabled:opacity-40"
           >
             <Plus size={15} /> Crear columna
           </button>

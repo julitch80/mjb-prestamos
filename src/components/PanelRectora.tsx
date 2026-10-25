@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '../data/store';
 import { getReservas } from '../data/api';
 import type { Reserva } from '../data/api';
+import { nombreRecurso, fechaLegible, bloqueLegible, marcaLegible } from '../data/formatoReserva';
 import PopupRectora from './PopupRectora';
 
 export default function PanelRectora() {
@@ -26,7 +27,7 @@ export default function PanelRectora() {
         <h2 className="text-lg font-semibold text-strong">Panel Rectoría</h2>
         <button
           onClick={() => setPopupAbierto(true)}
-          className="px-4 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-strong text-sm font-medium transition"
+          className="px-4 py-2 min-h-[44px] rounded-lg bg-yellow-600 hover:bg-yellow-500 text-strong text-sm font-medium transition"
         >
           + Asignación directa
         </button>
@@ -43,14 +44,14 @@ export default function PanelRectora() {
             <div key={r.id} className="bg-card border border-gray-800 rounded-xl p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-strong font-medium">{r.recurso}</p>
-                  <p className="text-sm text-soft">{r.fecha} · Bloque {r.bloque}</p>
+                  <p className="text-strong font-medium">{nombreRecurso(r.recurso)}</p>
+                  <p className="text-sm text-soft">{fechaLegible(r.fecha)} · {bloqueLegible(r)}</p>
                   <p className="text-sm text-soft">{r.proposito}</p>
                   {r.motivo && <p className="text-xs text-muted mt-1">{r.motivo}</p>}
                 </div>
                 <span className="text-xs text-yellow-400 font-medium">Directa</span>
               </div>
-              <p className="text-xs text-muted mt-2">{r.timestamp}</p>
+              <p className="text-xs text-muted mt-2">Registrada el {marcaLegible(r.timestamp)}</p>
             </div>
           ))}
         </div>

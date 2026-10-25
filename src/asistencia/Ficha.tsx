@@ -308,7 +308,7 @@ export default function Ficha({
                     : 'Tomar foto'}
               </button>
             ) : (
-              <p className="mt-1 text-[0.65rem] leading-tight text-muted">Sin permiso de edición</p>
+              <p className="mt-1 text-xs leading-tight text-muted">Sin permiso de edición</p>
             )}
 
             {/* GUIA DE COLOR — solo para el director de ESTE grupo. Va pegada a la foto
@@ -319,7 +319,7 @@ export default function Ficha({
               <button
                 onClick={() => setGuiaAbierta(true)}
                 title="Color de clasificación de este estudiante"
-                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[0.7rem]"
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs"
                 style={
                   colorClasificacion
                     ? estiloEtiqueta(tonoClasificacion)
@@ -1517,7 +1517,7 @@ function SheetGuiaColor({
                         para que se vea de un golpe cuales ya significan algo. */}
                     <span
                       className={[
-                        'w-full truncate text-center text-[0.65rem]',
+                        'w-full truncate text-center text-xs',
                         opcion ? 'font-semibold text-strong' : 'text-muted',
                       ].join(' ')}
                     >

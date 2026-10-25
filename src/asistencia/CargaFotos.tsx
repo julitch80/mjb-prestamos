@@ -258,7 +258,7 @@ export default function CargaFotos({
         </p>
       </div>
 
-      <label className="flex min-h-[36px] w-fit cursor-pointer items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-sm font-medium text-strong">
+      <label className="flex min-h-[44px] w-fit cursor-pointer items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-sm font-medium text-strong">
         Elegir carpeta…
         <input
           type="file"
@@ -392,14 +392,14 @@ function ResumenSubida({
           <button
             disabled={paraSubir.length === 0}
             onClick={onSubir}
-            className="min-h-[36px] rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg disabled:opacity-50"
+            className="min-h-[44px] rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg disabled:opacity-50"
           >
             Subir fotografías
           </button>
         ) : (
           <button
             onClick={onDetener}
-            className="min-h-[36px] rounded-lg border border-danger-soft bg-danger-soft px-4 py-2 text-sm font-medium text-danger-soft-fg"
+            className="min-h-[44px] rounded-lg border border-danger-soft bg-danger-soft px-4 py-2 text-sm font-medium text-danger-soft-fg"
           >
             Detener
           </button>
@@ -431,7 +431,7 @@ function ResumenSubida({
               </ul>
               <button
                 onClick={onReintentar}
-                className="mt-2 min-h-[36px] rounded-lg border border-danger-soft bg-card px-3 py-1 text-xs font-medium text-danger-soft-fg"
+                className="mt-2 min-h-[44px] rounded-lg border border-danger-soft bg-card px-3 py-1 text-xs font-medium text-danger-soft-fg"
               >
                 Reintentar las que fallaron
               </button>
@@ -499,7 +499,7 @@ function GrupoFotos({
                       <p className="text-xs text-warning-soft-fg">Reemplaza la foto actual</p>
                     )}
                   </div>
-                  <label className="flex min-h-[36px] shrink-0 items-center gap-1 text-xs text-muted">
+                  <label className="flex min-h-[44px] shrink-0 items-center gap-1 text-xs text-muted">
                     <input
                       type="checkbox"
                       checked={!excluida}
@@ -603,7 +603,7 @@ function SelectorManual({
         <select
           value={valor}
           onChange={(e) => onElegir(e.target.value)}
-          className="mt-1 w-full min-h-[36px] rounded-lg border border-line bg-elevated px-1 text-xs text-strong"
+          className="mt-1 w-full min-h-[44px] rounded-lg border border-line bg-elevated px-1 text-xs text-strong"
         >
           <option value="">— Saltar —</option>
           {opciones.map((e) => (
