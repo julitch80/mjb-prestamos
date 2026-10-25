@@ -76,16 +76,17 @@ const FONDOS = [
   { id: 'gris', nombre: 'Gris suave', claro: '#dcdfe3', oscuro: '#121417' },
   { id: 'sin', nombre: 'Sin color', claro: '#f7f8fa', oscuro: '#0a0e1a' },
 ];
+import { leerImagenFondo, guardarImagenFondo, borrarImagenFondo, reducirImagen } from '../data/fondoChat';
 const CLAVE_FONDO = 'mjb.chat.fondo';
 function leerFondo(): string {
   try {
     const v = localStorage.getItem(CLAVE_FONDO);
-    if (FONDOS.some((f) => f.id === v)) return v as string;
+    if (v === 'imagen' || FONDOS.some((f) => f.id === v)) return v as string;
   } catch { /* sin almacenamiento */ }
   return 'verde';
 }
 
-function SelectorFondo({ valor, oscuro, onChange }: { valor: string; oscuro: boolean; onChange: (id: string) => void }) {
+function SelectorFondo({ valor, oscuro, onChange, miniatura, onElegirImagen, onQuitarImagen }: { valor: string; oscuro: boolean; onChange: (id: string) => void; miniatura: string | null; onElegirImagen: () => void; onQuitarImagen: () => void }) {
   const [abierto, setAbierto] = useState(false);
   return (
     <div className="relative flex-shrink-0">
@@ -122,6 +123,39 @@ function SelectorFondo({ valor, oscuro, onChange }: { valor: string; oscuro: boo
               {f.nombre}
             </button>
           ))}
+          <button
+            onClick={() => { if (miniatura) onChange('imagen'); else onElegirImagen(); setAbierto(false); }}
+            aria-pressed={valor === 'imagen'}
+            aria-label="Fondo Mi imagen"
+            className={
+              'w-full min-h-11 flex items-center gap-3 px-2 rounded-lg text-sm text-left transition ' +
+              (valor === 'imagen' ? 'bg-accent-soft text-strong' : 'text-soft hover:bg-elevated')
+            }
+          >
+            <span
+              className={'w-7 h-7 rounded-full flex-shrink-0 border-2 bg-cover bg-center ' + (valor === 'imagen' ? 'border-accent' : 'border-line-strong')}
+              style={miniatura ? { backgroundImage: `url(${miniatura})` } : { background: oscuro ? '#0a0e1a' : '#f7f8fa' }}
+            />
+            Mi imagen…
+          </button>
+          {miniatura && (
+            <>
+              <button
+                onClick={() => { onElegirImagen(); setAbierto(false); }}
+                aria-label="Cambiar imagen"
+                className="w-full min-h-11 px-2 rounded-lg text-sm text-left text-soft hover:bg-elevated transition"
+              >
+                Cambiar imagen
+              </button>
+              <button
+                onClick={() => { onQuitarImagen(); setAbierto(false); }}
+                aria-label="Quitar imagen"
+                className="w-full min-h-11 px-2 rounded-lg text-sm text-left text-soft hover:bg-elevated transition"
+              >
+                Quitar imagen
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -189,6 +223,45 @@ export default function Chat() {
     try { localStorage.setItem(CLAVE_FONDO, id); } catch { /* ignorar */ }
   }
   const fondoSel = FONDOS.find((f) => f.id === fondoId) ?? FONDOS[0];
+  // Imagen propia: vive en IndexedDB de este aparato; se carga sin bloquear el render.
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
+  const [avisoImg, setAvisoImg] = useState('');
+  const inputImgRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    let vivo = true;
+    let url: string | null = null;
+    leerImagenFondo().then((b) => {
+      if (!vivo || !b) return;
+      url = URL.createObjectURL(b);
+      setImgUrl(url);
+    }).catch(() => { /* sin imagen */ });
+    return () => { vivo = false; if (url) URL.revokeObjectURL(url); };
+  }, []);
+  function reemplazarUrl(nueva: string | null) {
+    setImgUrl((vieja) => { if (vieja) URL.revokeObjectURL(vieja); return nueva; });
+  }
+  async function alElegirImagen(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      const blob = await reducirImagen(f);
+      await guardarImagenFondo(blob);
+      reemplazarUrl(URL.createObjectURL(blob));
+      cambiarFondo('imagen');
+    } catch {
+      setAvisoImg('No se pudo guardar la imagen en este aparato');
+      setTimeout(() => setAvisoImg(''), 4000);
+    }
+  }
+  async function quitarImagen() {
+    try { await borrarImagenFondo(); } catch { /* ignorar */ }
+    reemplazarUrl(null);
+    cambiarFondo('verde');
+  }
+  const usaImagen = fondoId === 'imagen' && !!imgUrl;
+  const fondoBase = temaOscuro ? fondoSel.oscuro : fondoSel.claro;
+  const velo = temaOscuro ? 'rgba(10,14,26,0.6)' : 'rgba(255,255,255,0.55)';
   const finRef = useRef<HTMLDivElement>(null);
   const inputArchivoRef = useRef<HTMLInputElement>(null);
   const grabadoraRef = useRef<Grabadora | null>(null);
@@ -597,7 +670,8 @@ export default function Chat() {
                 {canalActual ? nombreCanal(canalActual) : ''}
               </span>
               <SelectorLetra valor={letraPx} onChange={cambiarLetra} />
-              <SelectorFondo valor={fondoId} oscuro={temaOscuro} onChange={cambiarFondo} />
+              <SelectorFondo valor={fondoId} oscuro={temaOscuro} onChange={cambiarFondo} miniatura={imgUrl} onElegirImagen={() => inputImgRef.current?.click()} onQuitarImagen={quitarImagen} />
+              <input ref={inputImgRef} type="file" accept="image/*" className="hidden" onChange={alElegirImagen} />
             </header>
 
             {/* A1 — franja del mensaje fijado. Al tocarla, salta al original
@@ -620,9 +694,18 @@ export default function Chat() {
               </button>
             )}
 
+            {avisoImg && <div role="alert" className="px-4 py-1 text-xs text-strong bg-elevated border-b border-line">{avisoImg}</div>}
             <div
               className="flex-1 overflow-y-auto p-4"
-              style={{ ['--chat-bg' as any]: temaOscuro ? fondoSel.oscuro : fondoSel.claro, background: 'var(--chat-bg)' }}
+              style={{
+                ['--chat-bg' as any]: fondoBase,
+                background: usaImagen ? undefined : 'var(--chat-bg)',
+                backgroundColor: usaImagen ? fondoBase : undefined,
+                backgroundImage: usaImagen ? `linear-gradient(${velo}, ${velo}), url(${imgUrl})` : undefined,
+                backgroundSize: usaImagen ? 'cover' : undefined,
+                backgroundPosition: usaImagen ? 'center' : undefined,
+                backgroundRepeat: usaImagen ? 'no-repeat' : undefined,
+              }}
             >
               {agruparMensajes(
                 mensajes.map((m) => ({ ...m, fecha: tsToDate(m.createdAt) })),
