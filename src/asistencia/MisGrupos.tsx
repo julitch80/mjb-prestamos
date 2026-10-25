@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { asignacionDeDocente, getAsignatura } from '../data/asignacionAcademica';
 import { colorGrado } from '../data/maestros';
+import SelectorVista, { useVistaRecordada } from '../components/SelectorVista';
 import { gradoSortKey } from './domain/ids';
 import TarjetaClaseAhora from './TarjetaClaseAhora';
 
@@ -76,6 +77,8 @@ export default function MisGrupos({
   onListaDelGrupo?: (grado: string) => void;
 }) {
   const resumenes = slotId ? asignacionDeDocente(slotId) : [];
+  // Con mas de 6 grupos, «Ver: matriz (tarjetas) / lista compacta» (revision visual, 2026-10-26).
+  const [vista, setVista] = useVistaRecordada<'matriz' | 'lista'>('mis-grupos', 'matriz', ['matriz', 'lista']);
 
   // El Centro de Interés (`asignaturaId: 'ci'`, grupo `'CI mañana'` / `'CI tarde'`) NO es
   // un grupo de clase: es la franja institucional donde participan TODOS los grupos de
@@ -178,6 +181,29 @@ export default function MisGrupos({
       {perfil === 'docente' && onPasarLista && (
         <TarjetaClaseAhora slotId={slotId} sesionesHoy={sesionesHoy} onPasarLista={onPasarLista} />
       )}
+      {tarjetas.length > 6 && (
+        <div className="flex justify-end">
+          <SelectorVista valor={vista} onCambio={setVista} />
+        </div>
+      )}
+      {tarjetas.length > 6 && vista === 'lista' ? (
+        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-card">
+          {tarjetas.map((t) => (
+            <li key={t.grado} className="flex flex-wrap items-center gap-2 px-3 py-1.5" style={{ borderLeft: `4px solid ${colorGrado(t.grado)}` }}>
+              <span style={{ color: colorGrado(t.grado) }} className="w-14 shrink-0 text-lg font-bold">{t.grado}</span>
+              {t.materias.map((m) => (
+                <button
+                  key={m.asignatura.id}
+                  onClick={() => onElegir(t.grado, m.asignatura.id)}
+                  className="min-h-[44px] rounded-lg border border-line px-3 text-left text-sm text-strong hover:bg-hover"
+                >
+                  {m.asignatura.nombre} <span className="text-xs text-muted">· {m.horas}h</span>
+                </button>
+              ))}
+            </li>
+          ))}
+        </ul>
+      ) : (
       <div className="grid gap-2 sm:grid-cols-2">
         {tarjetas.map((t) =>
           t.materias.length === 1 ? (
@@ -197,6 +223,7 @@ export default function MisGrupos({
           ),
         )}
       </div>
+      )}
 
       {/*
         PANORAMA DEL COLEGIO — solo para quien no dicta clase (coordinacion y cargos de

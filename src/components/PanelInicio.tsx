@@ -5,7 +5,8 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import MiDiaModificado from './MiDiaModificado';
-import { MatrizMenu, registrarUso } from './NavDropdown';
+import { MatrizMenu, ListaMenu, registrarUso } from './NavDropdown';
+import SelectorVista, { useVistaRecordada } from './SelectorVista';
 import { FlechaNeon } from './FlechaNeon';
 import TarjetaDatosSede from './sedeDatos/TarjetaDatosSede';
 import { useAppStore } from '../data/store';
@@ -102,6 +103,8 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   // Casos con alerta ámbar/roja (docs/plan-gestor-casos.md sección 4). Mismo
   // hook que el badge del menú: una sola consulta compartida entre ambos.
   const casosVencidos = useCasosVencidos(userId);
+  const chatSinLeer = useChatStore((s) => s.canales.filter((c) => s.noLeidos(c)).length);
+  const conteoDe = (id: string) => (id === 'chat' ? chatSinLeer : id === 'riesgo' ? casosVencidos : 0);
 
   // ── Mi día efectivo de hoy (solo si el docente logueado específicamente
   //    tiene bloques alterados; no basta con que exista un HorarioModificado
@@ -320,6 +323,7 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
   // actualizara. Por eso el listener se registra a mano con { passive: false }.
   const filaARef = useRef<HTMLDivElement>(null);
   const [verTodo, setVerTodo] = useState(false);
+  const [vistaInicio, setVistaInicio] = useVistaRecordada<'matriz' | 'lista'>('inicio', 'matriz', ['matriz', 'lista']);
   useEffect(() => {
     const listener = (e: WheelEvent) => {
       const el = e.currentTarget as HTMLDivElement;
@@ -366,14 +370,27 @@ export default function PanelInicio({ navItems }: PanelInicioProps) {
       {/* ── Bloque B: ¿Qué deseas hacer? — baldosas con scroll lateral ───── */}
       {accesos.length > 0 && (
         <section>
-          <h2 className="text-base font-semibold text-strong mb-3">¿Qué deseas hacer?</h2>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="text-base font-semibold text-strong">¿Qué deseas hacer?</h2>
+            <SelectorVista valor={vistaInicio} onCambio={setVistaInicio} />
+          </div>
           <div className="space-y-2">
-            <MatrizMenu
-              opciones={accesos}
-              soloPrimero={!verTodo}
-              grande
-              onSelect={(id) => { registrarUso(id); setVistaActual(id as never); }}
-            />
+            {vistaInicio === 'matriz' ? (
+              <MatrizMenu
+                conteoDe={conteoDe}
+                opciones={accesos}
+                soloPrimero={!verTodo}
+                grande
+                onSelect={(id) => { registrarUso(id); setVistaActual(id as never); }}
+              />
+            ) : (
+              <ListaMenu
+                conteoDe={conteoDe}
+                opciones={accesos}
+                soloPrimero={!verTodo}
+                onSelect={(id) => { registrarUso(id); setVistaActual(id as never); }}
+              />
+            )}
           </div>
           {/* Inicio muestra solo las 6 más usadas; el resto se despliega abajo (Julián, 26-oct). */}
           {accesos.length > 6 && (

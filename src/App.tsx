@@ -137,6 +137,8 @@ export default function App() {
   // (docs/plan-gestor-casos.md sección 4). El backend ya filtra qué casos ve
   // cada rol (sección 3); aquí solo se cuenta lo que llega.
   const casosVencidos = useCasosVencidos(userId);
+  // Mensajes de chat sin leer, para el numerito del botón Chat (como WhatsApp).
+  const chatSinLeer = useChatStore(s => s.canales.filter(c => s.noLeidos(c)).length);
 
   // El boton atras de Android debe volver a la seccion anterior, no cerrar la app.
   useHistorialDeVistas();
@@ -309,7 +311,7 @@ export default function App() {
             activa={vistaActual}
             onSelect={id => setVistaActual(id as typeof vistaActual)}
             badge={notifNoLeidas}
-            badges={{ riesgo: casosVencidos }}
+            badges={{ riesgo: casosVencidos, chat: chatSinLeer }}
           />
 
           {/* Regreso explícito al inicio: el escudo ya lleva allí, pero no es

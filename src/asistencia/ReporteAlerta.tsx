@@ -5,6 +5,8 @@ import { nombreCompleto, ordenarEstudiantes } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import { combinarPlanillas, consolidarGrupo, convocatoriaDelGrado, fechaCorta, horaCorta, MINIMO_PARA_CITAR, puedeCitar } from './domain/alerta-academica';
 import { toDateKey } from './domain/ids';
+import { BarChart3, Table } from 'lucide-react';
+import SelectorVista, { useVistaRecordada, type OpcionVista } from '../components/SelectorVista';
 import AnalisisAlerta from './AnalisisAlerta';
 import { IconoMarcaAlerta } from './IconoMarcaAlerta';
 import CitacionesAlerta from './CitacionesAlerta';
@@ -20,6 +22,11 @@ import type { ConvocatoriaAlerta, PlanillaAlerta, Sede, Student } from './domain
  * asignacion academica: «9 de 12» dice la verdad. Quien tiene dos o mas queda resaltado:
  * a su acudiente se le cita.
  */
+const VISTAS_REPORTE: OpcionVista<'cuadro' | 'analisis'>[] = [
+  { id: 'cuadro', label: 'Cuadro', Icono: Table },
+  { id: 'analisis', label: 'Análisis', Icono: BarChart3 },
+];
+
 export default function ReporteAlerta({
   grado,
   sede,
@@ -46,7 +53,8 @@ export default function ReporteAlerta({
   const [planillas, setPlanillas] = useState<PlanillaAlerta[] | null>(null);
   const [soloCitados, setSoloCitados] = useState(false);
   // «Cuadro» (el de siempre) o «Análisis» (graficos para analizar con el grupo, 2026-10-24).
-  const [vista, setVista] = useState<'cuadro' | 'analisis'>('cuadro');
+  // Con el conmutador comun de la app, y recordado en el dispositivo (2026-10-26).
+  const [vista, setVista] = useVistaRecordada<'cuadro' | 'analisis'>('reporte-alerta', 'cuadro', ['cuadro', 'analisis']);
 
   useEffect(() => {
     void convocatoriasAlerta(sede, jornada)
@@ -121,19 +129,7 @@ export default function ReporteAlerta({
         )}
       </div>
 
-      <div className="inline-flex self-start rounded-xl border border-line p-0.5" role="group" aria-label="Vista del reporte">
-        {(['cuadro', 'analisis'] as const).map((v) => (
-          <button
-            key={v}
-            type="button"
-            aria-pressed={vista === v}
-            onClick={() => setVista(v)}
-            className={`min-h-[40px] rounded-lg px-4 text-sm font-semibold ${vista === v ? 'bg-accent text-accent-fg' : 'text-strong'}`}
-          >
-            {v === 'cuadro' ? 'Cuadro' : 'Análisis'}
-          </button>
-        ))}
-      </div>
+      <SelectorVista valor={vista} onCambio={setVista} opciones={VISTAS_REPORTE} className="self-start" />
 
       {vista === 'analisis' ? (
         planillas === null ? (

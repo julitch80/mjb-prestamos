@@ -4,6 +4,7 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { neonDe } from './IconosNeon';
 import { useAppStore } from '../data/store';
+import SelectorVista, { useVistaRecordada } from './SelectorVista';
 
 export type NavOption = {
   id: string;
@@ -26,6 +27,7 @@ interface Props {
 
 export default function NavDropdown({ opciones, activa, onSelect, badge = 0, badges = {} }: Props) {
   const [abierto, setAbierto] = useState(false);
+  const [vistaMenu, setVistaMenu] = useVistaRecordada<'matriz' | 'lista'>('inicio', 'matriz', ['matriz', 'lista']);
   const ref = useRef<HTMLDivElement>(null);
 
   const oscuro = useAppStore((s) => s.temaOscuro);
@@ -68,11 +70,13 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0, bad
       >
         <IconActual className="w-4 h-4 flex-shrink-0" style={{ color: colorActual }} />
         <span className="truncate">{actual?.label}</span>
-        {badge > 0 && actual?.id !== 'disponibilidad' && (
-          <span className="min-w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-            {badge}
-          </span>
-        )}
+        {/* Avisos + mensajes de chat sin leer: que se note sin abrir el menú. */}
+        {(() => { const total = (actual?.id !== 'disponibilidad' ? badge : 0) + (actual?.id !== 'chat' ? (badges.chat ?? 0) : 0);
+          return total > 0 && (
+            <span className="min-w-5 h-5 bg-danger text-white text-[11px] font-bold rounded-full flex items-center justify-center px-1">
+              {total > 99 ? '99+' : total}
+            </span>
+          ); })()}
         <motion.span animate={{ rotate: abierto ? 180 : 0 }} transition={{ duration: 0.18 }} className="ml-0.5 text-muted">
           <ChevronDown size={15} />
         </motion.span>
@@ -91,12 +95,24 @@ export default function NavDropdown({ opciones, activa, onSelect, badge = 0, bad
             transition={{ duration: 0.16 }}
             className="absolute left-0 top-full mt-1.5 w-[22rem] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-5rem)] overflow-y-auto z-50 rounded-2xl border border-line bg-card shadow-xl p-2 space-y-2"
           >
-            <MatrizMenu
-              opciones={opciones}
-              activa={activa}
-              onSelect={elegir}
-              conteoDe={id => (id === 'disponibilidad' ? badge : (badges[id] ?? 0))}
-            />
+            <div className="flex justify-end px-1">
+              <SelectorVista valor={vistaMenu} onCambio={setVistaMenu} />
+            </div>
+            {vistaMenu === 'matriz' ? (
+              <MatrizMenu
+                opciones={opciones}
+                activa={activa}
+                onSelect={elegir}
+                conteoDe={id => (id === 'disponibilidad' ? badge : (badges[id] ?? 0))}
+              />
+            ) : (
+              <ListaMenu
+                opciones={opciones}
+                activa={activa}
+                onSelect={elegir}
+                conteoDe={id => (id === 'disponibilidad' ? badge : (badges[id] ?? 0))}
+              />
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -143,8 +159,12 @@ export function MatrizMenu({ opciones, activa, onSelect, conteoDe, soloPrimero =
                 </span>
                 <span className={cn('font-medium text-strong leading-tight', grande ? 'text-sm' : 'text-xs')}>{op.label}</span>
                 {conteo > 0 && (
-                  <span className="absolute top-1 right-1 min-w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                    {conteo}
+                  <span
+                    aria-label={`${conteo} sin leer`}
+                    className={cn('absolute bg-danger text-white font-bold rounded-full flex items-center justify-center ring-2 ring-card',
+                      grande ? 'top-1.5 right-2 min-w-6 h-6 px-1.5 text-xs' : 'top-1 right-1 min-w-5 h-5 px-1 text-[11px]')}
+                  >
+                    {conteo > 99 ? '99+' : conteo}
                   </span>
                 )}
               </button>
@@ -153,6 +173,53 @@ export function MatrizMenu({ opciones, activa, onSelect, conteoDe, soloPrimero =
         </div>
       ))}
     </>
+  );
+}
+
+/** Lista vertical del menú: ícono neón, etiqueta y descripción. */
+export function ListaMenu({ opciones, activa, onSelect, conteoDe, soloPrimero = false }: {
+  opciones: NavOption[];
+  activa?: string;
+  onSelect: (id: string) => void;
+  conteoDe?: (id: string) => number;
+  /** Solo las 6 más usadas (Inicio); el resto, plegado. */
+  soloPrimero?: boolean;
+}) {
+  const oscuro = useAppStore((s) => s.temaOscuro);
+  const bloques = bloquesMenu(opciones, leerUso());
+  const items = (soloPrimero ? bloques.slice(0, 1) : bloques).flat();
+  return (
+    <div className="space-y-1">
+      {items.map(op => {
+        const { Icono: Icon, color } = neonDe(op.id, oscuro);
+        const activo = op.id === activa;
+        const conteo = conteoDe?.(op.id) ?? 0;
+        return (
+          <button
+            key={op.id}
+            role="menuitem"
+            onClick={() => onSelect(op.id)}
+            className={cn(
+              'w-full min-h-[44px] flex items-center gap-3 rounded-lg px-2.5 py-2 text-left transition',
+              activo ? 'bg-elevated ring-1 ring-line-strong' : 'hover:bg-elevated',
+            )}
+          >
+            <span className="w-10 h-10 shrink-0 rounded-lg flex items-center justify-center" style={{ background: `${color}1a` }}>
+              <Icon className="w-6 h-6" style={{ color }} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium text-strong leading-tight">{op.label}</span>
+              <span className="block text-xs text-muted leading-snug">{op.descripcion}</span>
+            </span>
+            {conteo > 0 && (
+              <span className="min-w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                {conteo}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

@@ -45,6 +45,9 @@ import type { HorarioModificado, JornadaReducida } from '../data/horarioModifica
 import { publicacionesPendientesDeRevisar } from '../data/publicacion';
 import type { PublicacionPendiente } from '../data/publicacion';
 import { FlechaNeon } from './FlechaNeon';
+import SelectorVista from './SelectorVista';
+import { OPCIONES_DIA_SEMANA } from './opcionesVista';
+
 
 type Modo         = 'aulas' | 'docente' | 'grupo' | 'acompanamiento';
 type VistaDetalle = 'semana' | 'dia';
@@ -355,10 +358,7 @@ function VistaDocente({ docenteId, jornadaTab }: { docenteId: string; jornadaTab
           </span>
         </div>
       )}
-      <div className="flex gap-1">
-        <TabButton active={vistaDetalle === 'semana'} onClick={() => setVistaDetalle('semana')} color="docente">Semana</TabButton>
-        <TabButton active={vistaDetalle === 'dia'} onClick={() => setVistaDetalle('dia')} color="docente">Día</TabButton>
-      </div>
+      <SelectorVista valor={vistaDetalle} onCambio={setVistaDetalle} opciones={OPCIONES_DIA_SEMANA} />
 
       <AnimatePresence mode="wait">
         {vistaDetalle === 'semana' ? (
@@ -635,10 +635,7 @@ function VistaGrupo({ grado, jornadaTab }: { grado: string; jornadaTab: 'manana'
         </div>
       )}
 
-      <div className="flex gap-1">
-        <TabButton active={vistaDetalle === 'semana'} onClick={() => setVistaDetalle('semana')} color="grupo">Semana</TabButton>
-        <TabButton active={vistaDetalle === 'dia'} onClick={() => setVistaDetalle('dia')} color="grupo">Día</TabButton>
-      </div>
+      <SelectorVista valor={vistaDetalle} onCambio={setVistaDetalle} opciones={OPCIONES_DIA_SEMANA} />
 
       <AnimatePresence mode="wait">
         {vistaDetalle === 'semana' ? (
@@ -1460,10 +1457,7 @@ function VistaHorarioContenido() {
         {enOverview && <div className="h-5 w-px bg-elevated/400 flex-shrink-0" />}
 
         {enOverview && (
-          <div className="flex gap-1 p-1 rounded-xl bg-elevated border border-line">
-            <TabButton active={vistaOverview === 'semana'} onClick={() => setVistaOverview('semana')} color="overview">Semana</TabButton>
-            <TabButton active={vistaOverview === 'dia'}    onClick={() => setVistaOverview('dia')}    color="overview">Día</TabButton>
-          </div>
+          <SelectorVista valor={vistaOverview} onCambio={setVistaOverview} opciones={OPCIONES_DIA_SEMANA} />
         )}
 
         {puedeEditar && (

@@ -2287,23 +2287,53 @@ function Pestanas({
     return !s.soloCoordinador || rol === 'coordinador';
   });
 
+  // UNA sola fila desplazable (revision visual, 2026-10-26): en el celular se partia en dos o
+  // tres lineas. La pestaña activa se trae a la vista y un degradado con flecha avisa que hay
+  // mas a la derecha (o a la izquierda).
+  const fila = useRef<HTMLDivElement>(null);
+  const [masDer, setMasDer] = useState(false);
+  const [masIzq, setMasIzq] = useState(false);
+  const medir = useCallback(() => {
+    const el = fila.current;
+    if (!el) return;
+    setMasIzq(el.scrollLeft > 4);
+    setMasDer(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+  useEffect(() => {
+    fila.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, [vista, medir]);
+
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {visibles.map(({ vista: v, nombre, descripcion }) => (
-        <Ayuda key={v} texto={descripcion}>
-          <button
-            onClick={() => onCambiar(v)}
-            className={[
-              'min-h-[44px] rounded-full border px-3 py-1 text-sm',
-              vista === v
-                ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
-                : 'border-line text-soft',
-            ].join(' ')}
-          >
-            {nombre}
-          </button>
-        </Ayuda>
-      ))}
+    <div className="relative">
+      <div ref={fila} onScroll={medir} className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]" aria-label="Secciones de asistencia">
+        {visibles.map(({ vista: v, nombre, descripcion }) => (
+          <div key={v} className="shrink-0">
+            <Ayuda texto={descripcion}>
+              <button
+                aria-current={vista === v ? 'page' : undefined}
+                onClick={() => onCambiar(v)}
+                className={[
+                  'min-h-[44px] whitespace-nowrap rounded-full border px-3 py-1 text-sm',
+                  vista === v
+                    ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
+                    : 'border-line text-soft',
+                ].join(' ')}
+              >
+                {nombre}
+              </button>
+            </Ayuda>
+          </div>
+        ))}
+      </div>
+      {masIzq && (
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center bg-gradient-to-r from-app to-transparent pb-1 pl-0.5 text-lg text-muted">‹</div>
+      )}
+      {masDer && (
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end bg-gradient-to-l from-app to-transparent pb-1 pr-0.5 text-lg text-muted">›</div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import SelectorVista, { useVistaRecordada } from './SelectorVista';
+import { OPCIONES_DIA_SEMANA } from './opcionesVista';
+
 import { AGENDA_ACTUAL } from '../data/agendaSemanal';
 import type { ActividadAgenda, DiaAgenda } from '../data/agendaSemanal';
 import { useAppStore } from '../data/store';
@@ -166,7 +169,7 @@ function ResumenPublicacion({ plan, creadas, liberadas, onCerrar }: {
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function AgendaSemanal() {
-  const [vista, setVista] = useState<'semana' | 'dia'>('semana');
+  const [vista, setVista] = useVistaRecordada<'semana' | 'dia'>('agenda-semanal', 'semana', ['semana', 'dia']);
   const [diaSel, setDiaSel] = useState<string>(() => hoyEnSemana() ?? AGENDA_ACTUAL.dias[0]?.dia ?? 'lunes');
   const { userId, rol } = useAppStore();
   const [publicando, setPublicando] = useState(false);
@@ -249,21 +252,7 @@ export default function AgendaSemanal() {
         />
       )}
 
-      {/* Toggle Semana/Día */}
-      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-elevated border border-line w-fit">
-        {(['semana', 'dia'] as const).map(v => (
-          <button
-            key={v}
-            onClick={() => setVista(v)}
-            className={cn(
-              'px-4 py-1.5 rounded-lg text-xs font-medium transition-all',
-              vista === v ? 'bg-hover border border-line-strong text-strong' : 'text-muted hover:text-soft'
-            )}
-          >
-            {v === 'semana' ? 'Semana' : 'Día'}
-          </button>
-        ))}
-      </div>
+      <SelectorVista valor={vista} onCambio={setVista} opciones={OPCIONES_DIA_SEMANA} />
 
       {vista === 'dia' && (
         <>

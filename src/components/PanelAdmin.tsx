@@ -69,12 +69,12 @@ export default function PanelAdmin() {
   return (
     <div className="space-y-4">
       {/* Pestañas */}
-      <div className="flex gap-1 overflow-x-auto pb-1">
+      <div className="flex flex-wrap gap-1">
         {pestañas.map(p => (
           <button
             key={p.id}
             onClick={() => setPestaña(p.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition ${
+            className={`flex items-center gap-1.5 px-4 min-h-[44px] rounded-lg text-sm font-medium transition ${
               pestaña === p.id
                 ? 'bg-accent text-strong'
                 : 'bg-elevated text-soft hover:text-strong hover:bg-gray-700'

@@ -9,6 +9,8 @@ import { horarioBase } from '../data/horarioBase';
 import { cn } from '@/lib/utils';
 import { useDevice } from '../hooks/useDevice';
 import { nombreSolicitante } from '../data/formatoReserva';
+import SelectorVista, { useVistaRecordada } from './SelectorVista';
+import { OPCIONES_DIA_SEMANA } from './opcionesVista';
 import PanelConfirmacion from './PanelConfirmacion';
 import PopupRectora from './PopupRectora';
 import ModalDesplazamientoRectora from './ModalDesplazamientoRectora';
@@ -348,6 +350,7 @@ function VistaDiaMovil({
 export default function DisponibilidadGrid() {
   const { userId, jornada, rol, reservas, setReservas } = useAppStore();
   const { isMobile } = useDevice();
+  const [verPor, setVerPor] = useVistaRecordada<'dia' | 'semana'>('reservas', isMobile ? 'dia' : 'semana', ['dia', 'semana']);
   const [semanaOffset, setSemanaOffset] = useState(0);
   const [diaMovil, setDiaMovil]         = useState(() => {
     const d = new Date().getDay(); // lunes=1 ... viernes=5; fin de semana -> lunes
@@ -487,6 +490,8 @@ export default function DisponibilidadGrid() {
         ))}
       </div>
 
+      <SelectorVista valor={verPor} onCambio={setVerPor} opciones={OPCIONES_DIA_SEMANA} />
+
       {cargando && (
         <div className="text-center py-4 text-muted text-sm">Cargando reservas...</div>
       )}
@@ -499,7 +504,7 @@ export default function DisponibilidadGrid() {
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.2 }}
         >
-          {isMobile ? (
+          {verPor === 'dia' ? (
             <VistaDiaMovil
               recursos={recursosActuales}
               fechas={fechas}

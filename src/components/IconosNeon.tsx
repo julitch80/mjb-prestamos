@@ -296,6 +296,16 @@ export const IconoSedeDatos = (p: Props) => (
   </Svg>
 );
 
+/** Planes en casa: una casa con un libro abierto dentro (guías para estudiar en casa). */
+export const IconoPlanCasa = (p: Props) => (
+  <Svg {...p}>
+    <path d="M3 11.5 12 4l9 7.5" />
+    <path d="M5 10v10h14V10" />
+    <path d="M12 13.2c-1.3-.9-2.9-1.2-4.5-1v5.6c1.6-.2 3.2.1 4.5 1 1.3-.9 2.9-1.2 4.5-1v-5.6c-1.6-.2-3.2.1-4.5 1Z" />
+    <path d="M12 13.2v5.6" />
+  </Svg>
+);
+
 /** Genérico, por si aparece una sección nueva sin icono propio. */
 export const IconoGenerico = (p: Props) => (
   <Svg {...p}>
@@ -361,6 +371,7 @@ export const NEON_NAV: Record<
   { Icono: (p: Props) => React.ReactElement; color: string }
 > = {
   disponibilidad: { Icono: IconoReservar,   color: NEON.cian }, // cian
+  plan_casa:      { Icono: IconoPlanCasa,   color: NEON.lima },
   historial:      { Icono: IconoHistorial,  color: NEON.violeta }, // violeta
   admin:          { Icono: IconoPanel,      color: NEON.naranja }, // naranja
   rectora:        { Icono: IconoRectoria,   color: NEON.dorado }, // dorado

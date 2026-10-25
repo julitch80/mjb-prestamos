@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import BadgeBeta from './BadgeBeta';
+import SelectorVista, { useVistaRecordada } from './SelectorVista';
+import { OPCIONES_DIA_SEMANA } from './opcionesVista';
+
 import { Check, Lock, Printer, QrCode as QrIcon, Tv } from 'lucide-react';
 import QRCode from 'qrcode';
 import { colorGrado, DIRECTORES_MANANA, DIRECTORES_TARDE, USUARIOS } from '../data/maestros';
@@ -134,7 +137,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
 }) {
   const hoy = hoyISO();
   const config = CONFIG_NIVEL[nivelDeGrupo(grupo)];
-  const [vista, setVista] = useState<'semana' | 'dia'>('dia');
+  const [vista, setVista] = useVistaRecordada<'semana' | 'dia'>('agenda-grupo', 'dia', ['semana', 'dia']);
 
   const activas = useMemo(
     // Los recordatorios no entran en la agenda de momentos: se muestran aparte.
@@ -282,15 +285,7 @@ export default function AgendaGrupo({ grupo, tareas, mostrarQR = true, anclasPor
           </h3>
           {director && <p className="text-[11px] text-muted">Director: {director.nombreCorto}</p>}
         </div>
-        <div className="flex gap-1">
-          {(['dia', 'semana'] as const).map(v => (
-            <button key={v} onClick={() => setVista(v)}
-              className={cn('px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-                vista === v ? 'bg-hover text-strong border-line-strong' : 'text-muted border-line hover:bg-elevated')}>
-              {v === 'dia' ? 'Día' : 'Semana'}
-            </button>
-          ))}
-        </div>
+        <SelectorVista valor={vista} onCambio={setVista} opciones={OPCIONES_DIA_SEMANA} />
       </div>
 
       {/* Imprimir semana (para quien no tiene teléfono) y proyectar (para el salón) */}
