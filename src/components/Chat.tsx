@@ -70,10 +70,10 @@ function SelectorLetra({ valor, onChange }: { valor: number; onChange: (px: numb
 // Fondo del área de mensajes: 5 opciones, cada una con variante clara y oscura.
 // Contrastes verificados con WCAG (burbuja/fondo con anillo >= 1,38; pastilla de fecha >= 5,1).
 const FONDOS = [
-  { id: 'verde', nombre: 'Verde suave', claro: '#dfe8d8', oscuro: '#0b141a' },
-  { id: 'arena', nombre: 'Arena', claro: '#e8dfcf', oscuro: '#17130d' },
-  { id: 'azul', nombre: 'Azul suave', claro: '#d6e2ee', oscuro: '#0b1220' },
-  { id: 'gris', nombre: 'Gris suave', claro: '#dcdfe3', oscuro: '#121417' },
+  { id: 'verde', nombre: 'Verde suave', claro: '#dfe8d8', oscuro: '#12302a' },
+  { id: 'arena', nombre: 'Arena', claro: '#e8dfcf', oscuro: '#2e2618' },
+  { id: 'azul', nombre: 'Azul suave', claro: '#d6e2ee', oscuro: '#13294a' },
+  { id: 'gris', nombre: 'Gris suave', claro: '#dcdfe3', oscuro: '#262a31' },
   { id: 'sin', nombre: 'Sin color', claro: '#f7f8fa', oscuro: '#0a0e1a' },
 ];
 import { leerImagenFondo, guardarImagenFondo, borrarImagenFondo, reducirImagen } from '../data/fondoChat';
