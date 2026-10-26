@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '../../data/store';
 import { auth } from '../../lib/firebase';
 import { leerEquipo } from '../../data/planCasa/persistencia';
+import { PestanasSubrayadas } from '../Navegacion';
 import PanelPlanCasa from './PanelPlanCasa';
 import PlanCasaDocente from './PlanCasaDocente';
 
@@ -29,17 +30,7 @@ export default function VistaPlanCasa() {
   if (!verPanel) return <PlanCasaDocente />;
   return (
     <div className="space-y-4">
-      <div className="inline-flex rounded-xl border border-line p-0.5 bg-elevated/40">
-        {([['panel', 'Planes'], ['guias', 'Mis guías']] as const).map(([v, t]) => (
-          <button
-            key={v}
-            onClick={() => setVista(v)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold min-h-[36px] transition-all ${vista === v ? 'bg-hover text-strong' : 'text-muted hover:text-strong'}`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+      <PestanasSubrayadas opciones={[{ id: 'panel', label: 'Planes' }, { id: 'guias', label: 'Mis guías' }]} activa={vista} onCambio={setVista} />
       {vista === 'panel' ? <PanelPlanCasa /> : <PlanCasaDocente />}
     </div>
   );

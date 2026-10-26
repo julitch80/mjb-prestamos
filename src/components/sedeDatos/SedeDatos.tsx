@@ -1,5 +1,6 @@
 // «Datos de la sede»: formulario guiado para el coordinador de una sede de primaria.
 // Autoguardado con debounce en Firestore (sedeDatos/{sedeId}); archivos y voz en Storage.
+import { PestanasSubrayadas } from '../Navegacion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../../data/store';
 import { calcularAvance, respuestaVacia } from '../../data/sedeDatos/avance';
@@ -231,20 +232,20 @@ export default function SedeDatos() {
         </p>
       </div>
 
-      {(sedes.length > 1 || esSuper) && (
+      {sedes.length > 1 && (
         <div className="flex flex-wrap gap-2">
           {sedes.map(s => <Chip key={s} activo={sede === s} onClick={() => setSede(s)}>{NOMBRE_SEDE[s]}</Chip>)}
-          {esSuper && (
-            <>
-              <span className="w-px bg-line mx-1" />
-              <Chip activo={modo === 'responder'} onClick={() => setModo('responder')}>Formulario</Chip>
-              <Chip activo={modo === 'respuestas'} onClick={() => setModo('respuestas')}>Ver respuestas</Chip>
-              {modo === 'responder'
-                ? <Chip activo={prueba} onClick={() => setPrueba(p => !p)}>{prueba ? 'Modo prueba: sí' : 'Modo prueba: no (REAL)'}</Chip>
-                : <Chip activo={verPrueba} onClick={() => setVerPrueba(v => !v)}>{verPrueba ? 'Viendo datos de prueba' : 'Ver los de prueba'}</Chip>}
-            </>
-          )}
         </div>
+      )}
+      {esSuper && (
+        <>
+          <PestanasSubrayadas opciones={[{ id: 'responder', label: 'Formulario' }, { id: 'respuestas', label: 'Ver respuestas' }]} activa={modo} onCambio={setModo} />
+          <div className="flex flex-wrap gap-2">
+            {modo === 'responder'
+              ? <Chip activo={prueba} onClick={() => setPrueba(p => !p)}>{prueba ? 'Modo prueba: sí' : 'Modo prueba: no (REAL)'}</Chip>
+              : <Chip activo={verPrueba} onClick={() => setVerPrueba(v => !v)}>{verPrueba ? 'Viendo datos de prueba' : 'Ver los de prueba'}</Chip>}
+          </div>
+        </>
       )}
       {sedes.length === 1 && <p className="text-xs font-semibold text-soft">{NOMBRE_SEDE[sede]}</p>}
 

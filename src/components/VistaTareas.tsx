@@ -1,3 +1,4 @@
+import { PestanasSubrayadas } from './Navegacion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BadgeBeta from './BadgeBeta';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1091,23 +1092,11 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
         </div>
 
         {/* Nueva tarea | Nuevo recordatorio */}
-        <div role="tablist" aria-label="Qué vas a publicar" className="inline-flex rounded-xl border border-line p-0.5 bg-elevated/40">
-          {([['tarea', 'Nueva tarea'], ['recordatorio', 'Nuevo recordatorio']] as const).map(([m, etiqueta]) => (
-            <button
-              key={m}
-              role="tab"
-              aria-selected={modo === m}
-              onClick={() => { setModo(m); setFechaEntrega(null); setEvalConfirmando(null); }}
-              className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px]',
-                modo === m ? 'bg-hover text-strong' : 'text-muted hover:text-strong'
-              )}
-            >
-              {etiqueta}
-              {m === 'recordatorio' && <BadgeBeta />}
-            </button>
-          ))}
-        </div>
+        <PestanasSubrayadas
+          opciones={[{ id: 'tarea', label: 'Nueva tarea' }, { id: 'recordatorio', label: 'Nuevo recordatorio (beta)' }]}
+          activa={modo}
+          onCambio={m => { setModo(m); setFechaEntrega(null); setEvalConfirmando(null); }}
+        />
 
         <div className="flex flex-wrap gap-3">
           <div>

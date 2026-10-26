@@ -6,6 +6,7 @@ import { jornadaDeGrado } from './domain/ids';
 import { combinarPlanillas, consolidarGrupo, convocatoriaDelGrado, fechaCorta, horaCorta, MINIMO_PARA_CITAR, puedeCitar } from './domain/alerta-academica';
 import { toDateKey } from './domain/ids';
 import { useVistaRecordada } from '../components/SelectorVista';
+import { PestanasSubrayadas } from '../components/Navegacion';
 import AnalisisAlerta from './AnalisisAlerta';
 import { IconoMarcaAlerta } from './IconoMarcaAlerta';
 import CitacionesAlerta from './CitacionesAlerta';
@@ -140,16 +141,20 @@ export default function ReporteAlerta({
         )}
       </div>
 
-      <FilaPestanas
-        pestanas={PESTANAS.filter((p) => esDirector || !p.soloDirector)}
-        activa={esDirector || !PESTANAS.find((p) => p.id === vista)?.soloDirector ? vista : 'cuadro'}
-        onCambiar={setVista}
-        pendiente={(id) => {
+      {/* NIVEL 3 (2026-10-27): partes de la pagina, con raya bajo la activa. La que aun no
+          aplica por la fecha va atenuada; adentro dice cuando se habilita. */}
+      <PestanasSubrayadas
+        opciones={PESTANAS.filter((p) => esDirector || !p.soloDirector).map((p) => {
           const hoy = toDateKey(new Date());
-          if (id === 'citaciones') return !puedeCitar(conv, hoy) || (!!conv.fechaEntrega && hoy >= conv.fechaEntrega);
-          if (id === 'dia' || id === 'seguimiento') return !puedeCitar(conv, hoy) || !conv.fechaEntrega || hoy < conv.fechaEntrega;
-          return false;
-        }}
+          const atenuada = p.id === 'citaciones'
+            ? !puedeCitar(conv, hoy) || (!!conv.fechaEntrega && hoy >= conv.fechaEntrega)
+            : p.id === 'dia' || p.id === 'seguimiento'
+              ? !puedeCitar(conv, hoy) || !conv.fechaEntrega || hoy < conv.fechaEntrega
+              : false;
+          return { id: p.id, label: p.nombre, atenuada };
+        })}
+        activa={esDirector || !PESTANAS.find((p) => p.id === vista)?.soloDirector ? vista : 'cuadro'}
+        onCambio={setVista}
       />
 
       {especial && (
@@ -294,43 +299,3 @@ export default function ReporteAlerta({
   );
 }
 
-/**
- * Pestañas del reporte en UNA fila desplazable de 44 px (como las del modulo). La que todavia
- * no aplica por la fecha se ve atenuada pero se puede abrir: adentro dice cuando se habilita.
- */
-function FilaPestanas({
-  pestanas,
-  activa,
-  onCambiar,
-  pendiente,
-}: {
-  pestanas: { id: Pestana; nombre: string }[];
-  activa: Pestana;
-  onCambiar: (p: Pestana) => void;
-  pendiente: (p: Pestana) => boolean;
-}) {
-  const fila = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    fila.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
-  }, [activa]);
-  return (
-    <div ref={fila} className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]" aria-label="Secciones del reporte">
-      {pestanas.map((p) => (
-        <button
-          key={p.id}
-          type="button"
-          aria-current={activa === p.id ? 'page' : undefined}
-          onClick={() => onCambiar(p.id)}
-          className={[
-            'min-h-[44px] shrink-0 whitespace-nowrap rounded-full border px-3 text-sm',
-            activa === p.id
-              ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
-              : pendiente(p.id) ? 'border-dashed border-line text-muted' : 'border-line text-soft',
-          ].join(' ')}
-        >
-          {p.nombre}
-        </button>
-      ))}
-    </div>
-  );
-}

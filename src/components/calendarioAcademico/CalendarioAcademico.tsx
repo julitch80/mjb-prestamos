@@ -124,13 +124,11 @@ export default function CalendarioAcademico() {
       <div className="flex items-center gap-3 flex-wrap">
         <SelectorVista valor={formaVer} onCambio={setFormaVer} opciones={OPCIONES_MES_LISTA} />
         {formaVer === 'lista' && (
-          <div className="flex gap-1.5">
-            {([['proximo', 'Próximo'], ['falta', 'Lo que falta']] as const).map(([id, label]) => (
-              <button key={id} onClick={() => setFiltroLista(id)} aria-pressed={filtroLista === id}
-                className={cn('min-h-[44px] text-xs font-medium px-3 py-2 rounded-full transition',
-                  filtroLista === id ? 'bg-accent text-strong' : 'bg-elevated text-soft hover:text-strong')}>{label}</button>
-            ))}
-          </div>
+          <select value={filtroLista} onChange={e => setFiltroLista(e.target.value as 'proximo' | 'falta')} aria-label="Filtrar la lista"
+            className="min-h-[44px] text-xs rounded-lg bg-card border border-line text-strong px-2">
+            <option value="proximo">Próximo</option>
+            <option value="falta">Lo que falta</option>
+          </select>
         )}
       </div>
 

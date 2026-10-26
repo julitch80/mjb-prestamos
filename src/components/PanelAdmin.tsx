@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PestanasSubrayadas } from './Navegacion';
 import { useAppStore } from '../data/store';
 import { getReservas, actualizarReserva } from '../data/api';
 import type { Reserva } from '../data/api';
@@ -66,27 +67,7 @@ export default function PanelAdmin() {
 
   return (
     <div className="space-y-4">
-      {/* Pestañas */}
-      <div className="flex flex-wrap gap-1">
-        {pestañas.map(p => (
-          <button
-            key={p.id}
-            onClick={() => setPestaña(p.id)}
-            className={`flex items-center gap-1.5 px-4 min-h-[44px] rounded-lg text-sm font-medium transition ${
-              pestaña === p.id
-                ? 'bg-accent text-strong'
-                : 'bg-elevated text-soft hover:text-strong hover:bg-gray-700'
-            }`}
-          >
-            {p.label}
-            {p.badge !== undefined && p.badge > 0 && (
-              <span className="bg-danger text-strong text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
-                {p.badge}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <PestanasSubrayadas opciones={pestañas} activa={pestaña} onCambio={setPestaña} />
 
       {/* Casos de riesgo y Horario viven UNA sola vez (menú → Gestión del Riesgo → Casos; menú → Horario). */}
       {casosVencidos > 0 && (

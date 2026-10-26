@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlechaNeon } from '../components/FlechaNeon';
+import { AlarmClock, CalendarDays, ClipboardList, Clock, DoorOpen, HeartHandshake, Shapes, TriangleAlert, UtensilsCrossed, type LucideIcon } from 'lucide-react';
+import { Migas, SelectorSeccion } from '../components/Navegacion';
 import Planilla, { CLASE_MARCA, SiglaMarca } from './Planilla';
 import EscanerQr from './EscanerQr';
 import VerificacionFoto from './VerificacionFoto';
@@ -1352,12 +1353,10 @@ export default function Asistencia() {
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setCruce(null)}
-              className="group inline-flex min-h-[44px] items-center gap-1 text-sm text-accent"
-            >
-              <FlechaNeon direccion="izquierda" tamano="sm" /> Mis grupos
-            </button>
+            {/* NIVEL 2 (2026-10-27): migas «Mis grupos › 11.2» y, debajo, UNA fila con las
+                paginas del grupo (nombres cortos que caben en el celular). */}
+            <Migas tramos={[{ label: 'Mis grupos', onClick: () => setCruce(null) }, { label: cruce?.grado ?? '' }]} />
+            <span className="grow" />
 
             {cruce && (esDirector || rol === 'coordinador' || rol === 'superusuario') && (
               <EscribirAlGrupo estudiantes={estudiantes} etiqueta={cruce.grado} />
@@ -1370,13 +1369,14 @@ export default function Asistencia() {
             {/* El director ve el cuaderno paralelo Y la carga de fotos, en los demas
                 grupos que dicta no se ofrece ninguna de las dos. El coordinador solo ve
                 Fotos: el cuaderno de direccion es autoridad exclusiva del director. */}
+          </div>
             {hayPestanasGrupo && (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex gap-1 overflow-x-auto pb-1 [scrollbar-width:thin]" aria-label="Páginas del grupo">
                 <Ayuda texto="Pasar lista de la asignatura: la asistencia de cada clase.">
                   <button
                     onClick={() => setVistaGrupo('asistencia')}
                     className={[
-                      'min-h-[44px] rounded-full border px-3 py-1 text-sm',
+                      'min-h-[44px] shrink-0 whitespace-nowrap rounded-full border px-2.5 text-[13px]',
                       vistaGrupo === 'asistencia'
                         ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                         : 'border-line text-soft',
@@ -1390,13 +1390,13 @@ export default function Asistencia() {
                     <button
                       onClick={() => setVistaGrupo('alerta')}
                       className={[
-                        'min-h-[44px] rounded-full border px-3 py-1 text-sm',
+                        'min-h-[44px] shrink-0 whitespace-nowrap rounded-full border px-2.5 text-[13px]',
                         vistaGrupo === 'alerta'
                           ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                           : 'border-line text-soft',
                       ].join(' ')}
                     >
-                      Alerta académica
+                      Alerta
                     </button>
                   </Ayuda>
                 )}
@@ -1405,13 +1405,13 @@ export default function Asistencia() {
                     <button
                       onClick={() => setVistaGrupo('reporte_alerta')}
                       className={[
-                        'min-h-[44px] rounded-full border px-3 py-1 text-sm',
+                        'min-h-[44px] shrink-0 whitespace-nowrap rounded-full border px-2.5 text-[13px]',
                         vistaGrupo === 'reporte_alerta'
                           ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                           : 'border-line text-soft',
                       ].join(' ')}
                     >
-                      Reporte de alerta
+                      Reporte
                     </button>
                   </Ayuda>
                 )}
@@ -1420,13 +1420,13 @@ export default function Asistencia() {
                     <button
                       onClick={() => setVistaGrupo('centros')}
                       className={[
-                        'min-h-[44px] rounded-full border px-3 py-1 text-sm',
+                        'min-h-[44px] shrink-0 whitespace-nowrap rounded-full border px-2.5 text-[13px]',
                         vistaGrupo === 'centros'
                           ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                           : 'border-line text-soft',
                       ].join(' ')}
                     >
-                      Resultado CI
+                      CI
                     </button>
                   </Ayuda>
                 )}
@@ -1435,13 +1435,13 @@ export default function Asistencia() {
                     <button
                       onClick={() => setVistaGrupo('direccion')}
                       className={[
-                        'min-h-[44px] rounded-full border px-3 py-1 text-sm',
+                        'min-h-[44px] shrink-0 whitespace-nowrap rounded-full border px-2.5 text-[13px]',
                         vistaGrupo === 'direccion'
                           ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                           : 'border-line text-soft',
                       ].join(' ')}
                     >
-                      Dirección de grupo
+                      Dirección
                     </button>
                   </Ayuda>
                 )}
@@ -1450,7 +1450,7 @@ export default function Asistencia() {
                   <button
                     onClick={() => setVistaGrupo('fotos')}
                     className={[
-                      'min-h-[44px] rounded-full border px-3 py-1 text-sm',
+                      'min-h-[44px] shrink-0 whitespace-nowrap rounded-full border px-2.5 text-[13px]',
                       vistaGrupo === 'fotos'
                         ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
                         : 'border-line text-soft',
@@ -1462,7 +1462,6 @@ export default function Asistencia() {
                 )}
               </div>
             )}
-          </div>
 
           {ALERTA_ACADEMICA_ACTIVA && cruce && dictaEsteCruce && vistaGrupo === 'alerta' ? (
             <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando la alerta…</p>}>
@@ -2204,6 +2203,8 @@ const SECCIONES: {
   vista: VistaAsistencia;
   nombre: string;
   descripcion: string;
+  /** Icono del selector de seccion (nivel 1 de navegacion, 2026-10-27). */
+  Icono: LucideIcon;
   soloCoordinador?: boolean;
   /** Coordinacion Y rectoria. Hoy solo permanencia; ver la nota de su bloque. */
   coordinacionYRectoria?: boolean;
@@ -2212,11 +2213,13 @@ const SECCIONES: {
   // la tercera hora, permanencia; luego lo que se usa por temporadas o por evento.
   {
     vista: 'planilla',
+    Icono: ClipboardList,
     nombre: 'Planillas',
     descripcion: 'Pase de lista de sus clases: escoja un grupo y marque la asistencia del día.',
   },
   {
     vista: 'llegadas',
+    Icono: Clock,
     nombre: 'Llegadas tarde',
     descripcion:
       'Registro en la puerta de quien entra tarde al colegio. No es el retraso a una clase, que lo pone cada docente.',
@@ -2224,6 +2227,7 @@ const SECCIONES: {
   },
   {
     vista: 'tercera_hora',
+    Icono: AlarmClock,
     nombre: 'Tercera hora',
     descripcion:
       'Primero, qué grupos ya llamaron lista a tercera hora y, de los que no, qué asignatura, docente y aula les tocaba. Después, quiénes no vinieron hoy al colegio y el contacto con sus familias.',
@@ -2231,6 +2235,7 @@ const SECCIONES: {
   },
   {
     vista: 'permanencia',
+    Icono: HeartHandshake,
     nombre: 'Permanencia',
     descripcion:
       'Los criterios con los que el sistema abre un caso de permanencia: cuántos días de inasistencia, y qué respuestas de la familia explican la falta o encienden una alerta. Lo administran coordinación y rectoría.',
@@ -2238,6 +2243,7 @@ const SECCIONES: {
   },
   {
     vista: 'evasiones',
+    Icono: DoorOpen,
     nombre: 'Evasiones',
     descripcion:
       'Estudiantes que un docente marcó como evasión: no estaban en su clase y tampoco figuran entre los ausentes del día. Aquí se descarta el que salió con permiso y se busca al que no.',
@@ -2245,6 +2251,7 @@ const SECCIONES: {
   },
   {
     vista: 'alerta',
+    Icono: TriangleAlert,
     nombre: 'Alerta académica',
     descripcion:
       'La alerta de la 7.ª semana de cada periodo: abrirla con su fecha límite, cerrarla, poner el día y la franja de entrega a las familias, y ver qué grupos ya entregaron y a cuántos hay que citar. Rectoría ve el panorama por jornada y por sede.',
@@ -2252,18 +2259,21 @@ const SECCIONES: {
   },
   {
     vista: 'eventos',
+    Icono: CalendarDays,
     nombre: 'Eventos',
     descripcion:
       'Aquí puede crear grupos personalizados de asistencia para una actividad particular: una feria, una salida, un centro de interés. Se arma con los estudiantes que quiera, se comparte con otros docentes y lleva su propia planilla.',
   },
   {
     vista: 'programas',
+    Icono: Shapes,
     nombre: 'Centros de interés',
     descripcion:
       'Los centros de interés del semestre. Cada profesor entra a la planilla del suyo; la coordinación del programa los ve todos, carga las listas desde Excel y resuelve los casos que no cruzaron.',
   },
   {
     vista: 'restaurante',
+    Icono: UtensilsCrossed,
     nombre: 'Restaurante',
     descripcion:
       'Vaso de leche y restaurante: registrar quién pasa por el servicio. No es asistencia y no restringe — se registra a cualquiera, esté o no en la lista oficial, para que no se pierda comida. La lista sirve solo para contrastar después.',
@@ -2287,54 +2297,17 @@ function Pestanas({
     return !s.soloCoordinador || rol === 'coordinador';
   });
 
-  // UNA sola fila desplazable (revision visual, 2026-10-26): en el celular se partia en dos o
-  // tres lineas. La pestaña activa se trae a la vista y un degradado con flecha avisa que hay
-  // mas a la derecha (o a la izquierda).
-  const fila = useRef<HTMLDivElement>(null);
-  const [masDer, setMasDer] = useState(false);
-  const [masIzq, setMasIzq] = useState(false);
-  const medir = useCallback(() => {
-    const el = fila.current;
-    if (!el) return;
-    setMasIzq(el.scrollLeft > 4);
-    setMasDer(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
-  }, []);
-  useEffect(() => {
-    fila.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
-    medir();
-    window.addEventListener('resize', medir);
-    return () => window.removeEventListener('resize', medir);
-  }, [vista, medir]);
-
+  // NIVEL 1 de navegacion (Julian, 2026-10-27): «Asistencia · Planillas ▾» abre la matriz de
+  // secciones. Antes era una fila de pastillas, y con las del grupo y las del reporte quedaban
+  // hasta tres filas apiladas. La regla: nunca dos filas de pastillas una sobre otra.
   return (
-    <div className="relative">
-      <div ref={fila} onScroll={medir} className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]" aria-label="Secciones de asistencia">
-        {visibles.map(({ vista: v, nombre, descripcion }) => (
-          <div key={v} className="shrink-0">
-            <Ayuda texto={descripcion}>
-              <button
-                aria-current={vista === v ? 'page' : undefined}
-                onClick={() => onCambiar(v)}
-                className={[
-                  'min-h-[44px] whitespace-nowrap rounded-full border px-3 py-1 text-sm',
-                  vista === v
-                    ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
-                    : 'border-line text-soft',
-                ].join(' ')}
-              >
-                {nombre}
-              </button>
-            </Ayuda>
-          </div>
-        ))}
-      </div>
-      {masIzq && (
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center bg-gradient-to-r from-app to-transparent pb-1 pl-0.5 text-lg text-muted">‹</div>
-      )}
-      {masDer && (
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end bg-gradient-to-l from-app to-transparent pb-1 pr-0.5 text-lg text-muted">›</div>
-      )}
-    </div>
+    <SelectorSeccion
+      modulo="Asistencia"
+      opciones={visibles.map((s) => ({ id: s.vista, label: s.nombre, Icono: s.Icono }))}
+      activa={vista}
+      onCambio={onCambiar}
+      Icono={visibles.find((s) => s.vista === vista)?.Icono}
+    />
   );
 }
 

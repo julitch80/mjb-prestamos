@@ -1,3 +1,4 @@
+import { Migas } from './Navegacion';
 import { useState, useEffect, useMemo, Fragment } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../data/store';
@@ -44,7 +45,6 @@ import { modificacionesProximas, jornadasReducidasProximas, formatearFechaLegibl
 import type { HorarioModificado, JornadaReducida } from '../data/horarioModificado';
 import { publicacionesPendientesDeRevisar } from '../data/publicacion';
 import type { PublicacionPendiente } from '../data/publicacion';
-import { FlechaNeon } from './FlechaNeon';
 import SelectorVista, { useVistaRecordada } from './SelectorVista';
 import { OPCIONES_DIA_SEMANA } from './opcionesVista';
 
@@ -1503,12 +1503,7 @@ function VistaHorarioContenido() {
             docenteSel ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setDocenteSel('')}
-                    className="group inline-flex items-center gap-1 text-sm text-soft hover:text-strong transition px-3 py-1.5 rounded-xl bg-elevated border border-line flex-shrink-0"
-                  >
-                    <FlechaNeon direccion="izquierda" tamano="sm" /> Todos los docentes
-                  </button>
+                  <Migas tramos={[{ label: 'Todos los docentes', onClick: () => setDocenteSel('') }, { label: 'Horario' }]} />
                   {(() => {
                     const d = USUARIOS.find(u => u.id === docenteSel);
                     return d ? (
@@ -1533,12 +1528,7 @@ function VistaHorarioContenido() {
             grupoSel ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setGrupoSel('')}
-                    className="group inline-flex items-center gap-1 text-sm text-soft hover:text-strong transition px-3 py-1.5 rounded-xl bg-elevated border border-line flex-shrink-0"
-                  >
-                    <FlechaNeon direccion="izquierda" tamano="sm" /> Todos los grupos
-                  </button>
+                  <Migas tramos={[{ label: 'Todos los grupos', onClick: () => setGrupoSel('') }, { label: 'Horario' }]} />
                   {(() => {
                     const directores = jornadaTab === 'manana' ? DIRECTORES_MANANA : DIRECTORES_TARDE;
                     const dirId = directores[grupoSel];

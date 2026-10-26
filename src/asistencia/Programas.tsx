@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { PestanasSubrayadas } from '../components/Navegacion';
 import { FlechaNeon } from '../components/FlechaNeon';
 import PlanillaCentro from './PlanillaCentro';
 import PendientesPrograma from './PendientesPrograma';
@@ -656,42 +657,23 @@ function DetallePrograma({
       {/* Solo la coordinacion ve estas tres. El lider entra, ve su centro y pasa lista:
           no tiene por que enterarse de que existe una bandeja ni un panel. */}
       {esCoordinador && (
-        <div className="flex flex-wrap gap-1.5">
-          {(
-            [
-              ['centros', 'Centros'],
-              ['pendientes', 'Por confirmar'],
-              ['panel', 'Cobertura y asistencia'],
-              ['cargar', 'Cargar lista de Excel'],
-            ] as const
-          ).map(([v, nombre]) => (
-            <button
-              key={v}
-              onClick={() => {
-                setSeccion(v);
-                // Entrar por la pastilla es entrar a la bandeja entera: el filtro por
-                // centro solo lo pone el aviso de cada centro.
-                if (v === 'pendientes') setGrupoPendientes(undefined);
-              }}
-              className={[
-                'min-h-[34px] rounded-full border px-3 py-1 text-sm',
-                seccion === v
-                  ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
-                  : 'border-line text-soft',
-              ].join(' ')}
-            >
-              {/* El total va en la pastilla: es el numero que dice si queda trabajo.
-                  "Sin centro" tambien, porque si no, un estudiante que ingresa a mitad de
-                  año puede pasar semanas sin asignar y nada lo señala: la lista existe,
-                  pero es pasiva y hay que acordarse de ir a mirarla. */}
-              {v === 'pendientes' && pendientes.length > 0
-                ? `${nombre} (${pendientes.length})`
-                : v === 'panel' && sinCentro > 0
-                  ? `${nombre} · ${sinCentro} sin centro`
-                  : nombre}
-            </button>
-          ))}
-        </div>
+        // Nivel 3 de navegacion (2026-10-27): partes de la pagina del programa, subrayadas.
+        // El numero que dice si queda trabajo va como insignia.
+        <PestanasSubrayadas
+          opciones={[
+            { id: 'centros' as const, label: 'Centros' },
+            { id: 'pendientes' as const, label: 'Por confirmar', badge: pendientes.length },
+            { id: 'panel' as const, label: sinCentro > 0 ? `Cobertura · ${sinCentro} sin centro` : 'Cobertura y asistencia' },
+            { id: 'cargar' as const, label: 'Cargar Excel' },
+          ]}
+          activa={seccion}
+          onCambio={(v) => {
+            setSeccion(v);
+            // Entrar por la pestaña es entrar a la bandeja entera: el filtro por centro
+            // solo lo pone el aviso de cada centro.
+            if (v === 'pendientes') setGrupoPendientes(undefined);
+          }}
+        />
       )}
 
       {esCoordinador && seccion === 'pendientes' && (

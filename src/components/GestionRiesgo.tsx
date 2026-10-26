@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Siren } from 'lucide-react';
+import { Siren, HeartPulse, FolderOpen, Phone, Users } from 'lucide-react';
+import { SelectorSeccion } from './Navegacion';
 import { useCasosVencidos } from '../hooks/useCasosVencidos';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -412,14 +413,6 @@ const ESTILO_NIVEL_FUENTE: Record<NivelFuente, { chip: string; label: string }> 
     label: 'Marco legal sin verificar',
   },
 };
-
-function BadgeBeta() {
-  return (
-    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-warning-soft border border-warning text-warning-soft-fg leading-none">
-      BETA
-    </span>
-  );
-}
 
 function ChipNivelFuente({ nivel }: { nivel: NivelFuente }) {
   const estilo = ESTILO_NIVEL_FUENTE[nivel];
@@ -1205,64 +1198,20 @@ export default function GestionRiesgo() {
         <p className="text-muted text-xs">{RESOLUCION_BRIGADAS.titulo}</p>
       </div>
 
-      {/* Pestañas */}
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-line pb-2">
-        <button
-          onClick={() => elegirPestana('protocolo')}
-          className={cn(
-            'px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium border transition-all flex items-center gap-1.5',
-            pestana === 'protocolo'
-              ? 'bg-accent-soft border-accent text-accent'
-              : 'border-danger text-danger hover:bg-elevated'
-          )}
-        >
-          🚑 Emergencia escolar <BadgeBeta />
-        </button>
-        <button
-          onClick={() => elegirPestana('casos')}
-          className={cn(
-            'px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium border transition-all',
-            pestana === 'casos'
-              ? 'bg-accent-soft border-accent text-accent'
-              : 'border-purple text-purple hover:bg-elevated'
-          )}
-        >
-          📁 Casos
-        </button>
-        <button
-          onClick={() => elegirPestana('emergencias')}
-          className={cn(
-            'px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium border transition-all',
-            pestana === 'emergencias'
-              ? 'bg-accent-soft border-accent text-accent'
-              : 'border-warning text-warning hover:bg-elevated'
-          )}
-        >
-          📞 Números de emergencia
-        </button>
-        <button
-          onClick={() => elegirPestana('simulacros')}
-          className={cn(
-            'px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium border transition-all',
-            pestana === 'simulacros'
-              ? 'bg-accent-soft border-accent text-accent'
-              : 'border-info text-info hover:bg-elevated'
-          )}
-        >
-          <Siren size={14} aria-hidden className="inline mr-1 -mt-0.5" /> Simulacros
-        </button>
-        <button
-          onClick={() => elegirPestana('brigadas')}
-          className={cn(
-            'px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium border transition-all',
-            pestana === 'brigadas'
-              ? 'bg-accent-soft border-accent text-accent'
-              : 'border-success text-success hover:bg-elevated'
-          )}
-        >
-          🧑‍🚒 Brigadas
-        </button>
-      </div>
+      {/* Secciones del módulo (nivel 1) */}
+      <SelectorSeccion<Pestana>
+        modulo="Gestión del Riesgo"
+        Icono={Siren}
+        activa={pestana}
+        onCambio={elegirPestana}
+        opciones={[
+          { id: 'protocolo', label: 'Emergencia escolar', Icono: HeartPulse },
+          { id: 'casos', label: 'Casos', Icono: FolderOpen, badge: casosVencidos },
+          { id: 'emergencias', label: 'Números', Icono: Phone },
+          { id: 'simulacros', label: 'Simulacros', Icono: Siren },
+          { id: 'brigadas', label: 'Brigadas', Icono: Users },
+        ]}
+      />
 
       {pestana === 'protocolo' && (
         <a

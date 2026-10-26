@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FlechaNeon } from '../components/FlechaNeon';
 import {
   abrirConvocatoriaAlerta,
@@ -44,6 +44,7 @@ import AlertaAcademica from './AlertaAcademica';
 import DigitacionPorCoordinacion, { nombreDelPuesto } from './DigitacionPorCoordinacion';
 import SeguimientoCoordinacion from './SeguimientoCoordinacion';
 import PanoramaAlerta from './PanoramaAlerta';
+import { PestanasSubrayadas } from '../components/Navegacion';
 import { fechaLarga } from './domain/imprimibles-alerta';
 import { PLAZO_EXCUSA_DIAS } from './domain/seguimiento-alerta';
 import type { AgendaCitaciones, BandaAgenda, ConvocatoriaAlerta, ExcepcionAgenda, Jornada, ModoAgenda, ParametrosAgenda, PlanillaAlerta, Sede, Student } from './domain/types';
@@ -301,29 +302,21 @@ export default function AlertaCoordinacion({
 
   const yaExiste = (convocatorias ?? []).some((c) => c.anio === hoy.getFullYear() && c.periodo === periodoNuevo);
   const editable = convocatoriaEditable(conv, toDateKey(hoy));
-  const selectorVista = (
-    <div className="inline-flex rounded-xl border border-line p-0.5" role="group" aria-label="Vista">
-      {[false, true].map((v) => (
-        <button
-          key={String(v)}
-          type="button"
-          aria-pressed={verPanorama === v}
-          onClick={() => setVerPanorama(v)}
-          className={`min-h-[40px] rounded-lg px-3 text-sm font-semibold ${verPanorama === v ? 'bg-accent text-accent-fg' : 'text-strong'}`}
-        >
-          {v ? 'Panorama' : 'Gestión'}
-        </button>
-      ))}
-    </div>
+  // Nivel 3 de navegacion (2026-10-27): partes de la pagina, subrayadas.
+  // El titulo «Alerta académica» ya lo dice el selector de seccion del modulo, arriba.
+  const selectorVista = (extra?: ReactNode) => (
+    <PestanasSubrayadas
+      opciones={[{ id: 'gestion' as const, label: 'Gestión' }, { id: 'panorama' as const, label: 'Panorama' }]}
+      activa={verPanorama ? 'panorama' : 'gestion'}
+      onCambio={(v) => setVerPanorama(v === 'panorama')}
+      extra={extra}
+    />
   );
 
   if (verPanorama) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="flex-1 text-lg font-semibold text-strong">Alerta académica</h2>
-          {selectorVista}
-        </div>
+        {selectorVista()}
         <PanoramaAlerta sede={sede} jornadaLimitada={jornadaLimitada ?? null} />
       </div>
     );
@@ -331,11 +324,8 @@ export default function AlertaCoordinacion({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex-1 text-lg font-semibold text-strong">Alerta académica</h2>
-        {selectorVista}
-        {!jornadaLimitada && (
-          <div className="flex gap-1.5">
+      {selectorVista(!jornadaLimitada && (
+          <div className="flex gap-1 pb-1">
             {(['manana', 'tarde'] as const).map((j) => (
               <button
                 key={j}
@@ -346,8 +336,7 @@ export default function AlertaCoordinacion({
               </button>
             ))}
           </div>
-        )}
-      </div>
+        ))}
 
       {/* Revision de UX (2026-10-25): lo que se consulta a diario va primero —el estado y el
           avance por grupo—; abrir, configurar e imprimir quedan plegados abajo. */}
