@@ -113,11 +113,17 @@ export default function MisNotificaciones() {
     }
   }
 
+  const [errorActivar, setErrorActivar] = useState<string | null>(null);
   async function alActivar() {
     setCargando(true);
+    setErrorActivar(null);
     try {
       const res = await activar();
       setPermiso(res);
+      if (res === 'granted') setTieneToken(true);
+    } catch (e) {
+      // Antes este error se perdía y la pantalla seguía diciendo «Activo».
+      setErrorActivar(e instanceof Error ? e.message : String(e));
     } finally {
       setCargando(false);
     }
@@ -128,6 +134,7 @@ export default function MisNotificaciones() {
     try {
       await desactivarEsteDispositivo();
       setPermiso('default');
+      setTieneToken(false);
     } finally {
       setCargando(false);
     }
@@ -145,7 +152,10 @@ export default function MisNotificaciones() {
   }
 
   const esIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const activo = permiso === 'granted';
+  // «Activo» exige permiso Y token guardado en el servidor: con permiso pero sin token
+  // (token rotado, o desactivado antes) el servidor responde «sin-dispositivos» y aquí
+  // decía «Activo» sin ofrecer cómo arreglarlo (Julián, 27-oct-2026).
+  const activo = permiso === 'granted' && tieneToken === true;
 
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-4">
@@ -169,7 +179,10 @@ export default function MisNotificaciones() {
               <div>
                 <p className="text-strong text-sm font-semibold">Este dispositivo</p>
                 <p className="text-muted text-xs mt-0.5">
-                  {activo ? 'Activo — recibe notificaciones' : permiso === 'denied' ? 'Bloqueado en el navegador' : 'No activo'}
+                  {activo ? 'Activo — recibe notificaciones'
+                    : permiso === 'denied' ? 'Bloqueado en el navegador'
+                    : permiso === 'granted' && tieneToken === false ? 'Permiso concedido, pero este celular no está registrado en el servidor'
+                    : 'No activo'}
                 </p>
               </div>
               {activo ? (
@@ -186,10 +199,11 @@ export default function MisNotificaciones() {
                   disabled={cargando || permiso === 'denied'}
                   className="px-3 py-2 rounded-lg bg-accent text-accent-fg text-sm font-semibold disabled:opacity-40 whitespace-nowrap"
                 >
-                  Activar
+                  {permiso === 'granted' ? 'Registrar este celular' : 'Activar'}
                 </button>
               )}
             </div>
+            {errorActivar && <p role="alert" className="text-danger text-xs">No se pudo registrar: {errorActivar}</p>}
             {permiso === 'denied' && (
               <p className="text-muted text-xs">
                 Bloqueaste el permiso antes. Actívalo desde los ajustes de notificaciones del navegador para este sitio.
