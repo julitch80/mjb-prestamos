@@ -697,14 +697,15 @@ export default function Chat() {
             {avisoImg && <div role="alert" className="px-4 py-1 text-xs text-strong bg-elevated border-b border-line">{avisoImg}</div>}
             <div
               className="flex-1 overflow-y-auto p-4"
+              data-fondo={usaImagen ? 'imagen' : fondoSel.id}
+              // Propiedades largas siempre definidas (nada de `background` abreviado ni variable
+              // CSS): mezclar la abreviada con las largas hacía que React no repintara el color.
               style={{
-                ['--chat-bg' as any]: fondoBase,
-                background: usaImagen ? undefined : 'var(--chat-bg)',
-                backgroundColor: usaImagen ? fondoBase : undefined,
-                backgroundImage: usaImagen ? `linear-gradient(${velo}, ${velo}), url(${imgUrl})` : undefined,
-                backgroundSize: usaImagen ? 'cover' : undefined,
-                backgroundPosition: usaImagen ? 'center' : undefined,
-                backgroundRepeat: usaImagen ? 'no-repeat' : undefined,
+                backgroundColor: fondoBase,
+                backgroundImage: usaImagen ? `linear-gradient(${velo}, ${velo}), url(${imgUrl})` : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
               }}
             >
               {agruparMensajes(
