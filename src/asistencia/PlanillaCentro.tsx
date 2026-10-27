@@ -650,6 +650,7 @@ export default function PlanillaCentro({
             programa={programa}
             grupo={grupo}
             miembros={miembros}
+            sesiones={sesiones}
             puedeRegistrar={puedeRegistrar}
             onAbrirFicha={onAbrirFicha}
           />

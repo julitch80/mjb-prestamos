@@ -16,6 +16,7 @@ import { nombreCompleto, nombresDePila } from './domain/nombres';
 import {
   avanceDelCentro,
   avisoDeCodigo,
+  faltasEnCentro,
   codigosDelNivel,
   MAX_CODIGOS,
   nivelDe,
@@ -32,9 +33,27 @@ import type {
   GrupoPrograma,
   NivelValoracion,
   Programa,
+  SesionPrograma,
   Student,
   ValoracionEstudiante,
 } from './domain/types';
+
+/**
+ * «3 faltas de 12 · 1 con excusa», debajo del nombre. Sin colores de alarma ni marca de
+ * «pasado del límite»: el número de fallas que lleva a plan de apoyo aún no lo definió la
+ * coordinación (cuestionario B1), y aquí solo se informa.
+ */
+function FaltasDe({ f, sesiones }: { f?: { sinExcusa: number; conExcusa: number }; sesiones: number }) {
+  if (sesiones === 0) return null;
+  const sin = f?.sinExcusa ?? 0;
+  const con = f?.conExcusa ?? 0;
+  return (
+    <span className={`block truncate ${sin > 0 ? 'font-semibold text-soft' : 'text-muted'}`}>
+      {sin === 0 ? 'Sin faltas' : `${sin} ${sin === 1 ? 'falta' : 'faltas'}`} de {sesiones}
+      {con > 0 && ` · ${con} con excusa`}
+    </span>
+  );
+}
 
 /** Clases por nivel. Tokens semanticos, nunca colores literales (contrato, seccion 5). */
 const CLASE_NIVEL: Record<NivelValoracion, string> = {
@@ -64,6 +83,7 @@ export default function ValoracionCentro({
   programa,
   grupo,
   miembros,
+  sesiones,
   puedeRegistrar,
   onAbrirFicha,
 }: {
@@ -71,6 +91,8 @@ export default function ValoracionCentro({
   grupo: GrupoPrograma;
   /** Los inscritos vivos, ya resueltos y en orden de lista por `PlanillaCentro`. */
   miembros: Student[];
+  /** Las sesiones registradas del centro, para las faltas de cada uno (cuestionario B6). */
+  sesiones: SesionPrograma[];
   /** Falso para quien solo consulta: ve la valoracion, no la escribe. */
   puedeRegistrar: boolean;
   onAbrirFicha: (studentId: string) => void;
@@ -121,6 +143,7 @@ export default function ValoracionCentro({
     () => avanceDelCentro(miembros.map((e) => e.studentId), valoraciones),
     [miembros, valoraciones],
   );
+  const faltas = useMemo(() => faltasEnCentro(sesiones), [sesiones]);
   const faltanNiveles = nivelesSinConfigurar(config);
   const permiso = puedeValorar(estado, Date.now());
   const puedeEscribir = puedeRegistrar && permiso.puede;
@@ -253,7 +276,7 @@ export default function ValoracionCentro({
             texto={
               n.seDigita
                 ? `En el Máster se digita ${n.nivel}.`
-                : 'Por ahora no se digita en el Máster y no lleva indicadores.'
+                : 'En el Máster se deja en blanco: allá el 1 significa «Bajo». Cuando cumpla el plan de apoyo, póngale 2 (Básico).'
             }
           >
             <span
@@ -281,6 +304,7 @@ export default function ValoracionCentro({
                   <span className="block truncate text-muted">
                     {nombresDePila(e.apellidos, e.nombres)} · {e.gradoActual}
                   </span>
+                  <FaltasDe f={faltas.get(e.studentId)} sesiones={sesiones.length} />
                 </span>
               </button>
 

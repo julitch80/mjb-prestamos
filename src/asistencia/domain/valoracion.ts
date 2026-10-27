@@ -40,7 +40,13 @@ export const NIVELES: {
 ];
 
 /**
- * Plan de apoyo (1) esta a medio definir A PROPOSITO.
+ * Plan de apoyo (1) — CONFIRMADO por Yuri y Janneth el 2026-10-26 (cuestionario, A2 y B3):
+ * en el Master el 1 EXISTE pero significa «Bajo», no plan de apoyo. Por eso al estudiante en
+ * plan de apoyo se le deja la casilla EN BLANCO —«el master no considera el 1 como plan de
+ * apoyo»— y, cuando cumple, queda en 2 (Básico) «porque lo hizo por fuera» (B4). Lo decide
+ * el lider del centro (B5). El 1 de aqui es una marca interna; jamas sale al Excel como 1.
+ *
+ * Lo que sigue es la historia de como se llego a esto.
  *
  * Julian, 2026-09-10: "por ahora no se digita, pero deja abierta la posibilidad con el
  * numero 1. Mas adelante determinamos con el equipo si lo mantenemos. Este no tiene codigos
@@ -61,18 +67,26 @@ export function esNivelValido(n: unknown): n is NivelValoracion {
   return n === 1 || n === 2 || n === 3 || n === 4;
 }
 
-/** Cuantos codigos caben. Son las columnas C1..C4 de la plantilla del Master. */
-export const MAX_CODIGOS = 4;
+/**
+ * Cuantos codigos caben: ENTRE 1 Y 3 (Yuri y Janneth, 2026-10-26, cuestionario A4).
+ *
+ * La plantilla del Master trae cuatro columnas (C1..C4), pero la institucion usa tres; la
+ * C4 queda vacia. Las reglas del servidor siguen aceptando cuatro —son el techo de la
+ * plantilla, no el acuerdo—, asi que este cambio no exige desplegar reglas.
+ */
+export const MAX_CODIGOS = 3;
 
 /**
- * Rango de los indicadores en el Master. Julian, 2026-09-11: "todavia no tengo certeza del
- * rango de numeros, pero funciona asi bajo esa logica".
+ * Rango de los indicadores en el Master: del 601 al 692 (Yuri y Janneth, 2026-10-26,
+ * cuestionario A5). Antes era una suposicion, 610-690.
  *
- * Por eso esto AVISA Y NO BLOQUEA. Un rango inventado que rechace un codigo legitimo deja
+ * Sigue AVISANDO Y NO BLOQUEANDO aunque ya este confirmado: los codigos vienen de una
+ * «bateria» que el Master trae cargada (A6), y si la bateria crece un codigo legitimo no
+ * puede dejar al lider sin valorar. Un rango inventado que rechace un codigo legitimo deja
  * al lider sin poder valorar y sin entender por que; un aviso le hace mirar dos veces y
  * seguir. Cuando el rango se confirme, se puede endurecer aqui y en un solo sitio.
  */
-export const RANGO_INDICADORES = { desde: 610, hasta: 690 };
+export const RANGO_INDICADORES = { desde: 601, hasta: 692 };
 
 /** Aviso —no error— si el codigo se sale de lo esperado. `null` si esta bien. */
 export function avisoDeCodigo(codigo: number): string | null {
@@ -94,7 +108,7 @@ export function avisoDeCodigo(codigo: number): string | null {
 export function validarCodigosDeNivel(codigos: CodigoIndicador[]): string | null {
   if (codigos.length === 0) return 'Cada nivel necesita al menos un indicador.';
   if (codigos.length > MAX_CODIGOS) {
-    return `Caben ${MAX_CODIGOS} indicadores como máximo: son las columnas C1 a C${MAX_CODIGOS} del Máster.`;
+    return `Caben ${MAX_CODIGOS} indicadores como máximo (columnas C1 a C${MAX_CODIGOS} del Máster).`;
   }
   if (codigos.some((c) => !c.texto.trim())) {
     return 'Cada indicador necesita su texto, no solo el número: es lo que el docente reconoce.';
@@ -164,6 +178,45 @@ export function nuevaValoracion(input: {
     codigos: codigos.map((c) => c.codigo),
     indicadores: codigos.map((c) => c.texto.trim()),
   };
+}
+
+// ---------------------------------------------------------------------------
+//  Faltas en el centro, al lado de cada estudiante
+// ---------------------------------------------------------------------------
+
+export interface FaltasEnCentro {
+  /** Sesiones registradas del centro: el denominador, jamas el calendario. */
+  sesiones: number;
+  /** Ausencias y evasiones sin excusa. */
+  sinExcusa: number;
+  /** Ausencias justificadas o autorizadas. */
+  conExcusa: number;
+}
+
+/**
+ * Cuantas veces falto cada estudiante al centro (Yuri y Janneth, 2026-10-26, cuestionario
+ * B6: «Sí, muy útil»). Es para que el lider no valore de memoria.
+ *
+ * Las justificadas van APARTE y no sumadas: la pregunta de si cuentan para el plan de apoyo
+ * (B7) quedo sin responder, y sumarlas seria decidirlo por ellas. Tampoco se marca a nadie
+ * como «pasado del limite»: escogieron la opcion sin marca automatica, y el numero de
+ * fallas que lleva a plan de apoyo (B1) aun no lo dieron.
+ */
+export function faltasEnCentro(
+  sesiones: { estudiantes: Record<string, { estado: string }> }[],
+): Map<string, FaltasEnCentro> {
+  const porId = new Map<string, FaltasEnCentro>();
+  for (const s of sesiones) {
+    for (const [id, marca] of Object.entries(s.estudiantes ?? {})) {
+      const f = porId.get(id) ?? { sesiones: 0, sinExcusa: 0, conExcusa: 0 };
+      if (marca.estado === 'ausencia' || marca.estado === 'evasion') f.sinExcusa++;
+      else if (marca.estado === 'ausencia_justificada' || marca.estado === 'ausencia_autorizada') f.conExcusa++;
+      porId.set(id, f);
+    }
+  }
+  const total = sesiones.length;
+  for (const f of porId.values()) f.sesiones = total;
+  return porId;
 }
 
 // ---------------------------------------------------------------------------

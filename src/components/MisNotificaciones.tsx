@@ -185,7 +185,10 @@ export default function MisNotificaciones() {
                     : 'No activo'}
                 </p>
               </div>
-              {activo ? (
+              {permiso === 'granted' && tieneToken === null ? (
+                // Mientras se consulta si el token está guardado: sin botón, para que no parpadee.
+                <span className="px-3 py-2 text-muted text-sm whitespace-nowrap">Comprobando…</span>
+              ) : activo ? (
                 <button
                   onClick={alDesactivar}
                   disabled={cargando}
