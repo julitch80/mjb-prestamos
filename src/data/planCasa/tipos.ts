@@ -183,6 +183,10 @@ export interface AsignaturaPlan {
   ebcDba?: string;
   /** Evidencia de aprendizaje que se espera en esta área. */
   evidenciaAprendizaje?: string;
+  /** Entregable que este docente pide en su asignatura (lo pone cada docente, no solo el líder). */
+  entregable?: string;
+  /** Fecha de entrega de ese entregable ('' = sin fecha). */
+  fechaEntrega?: FechaISO;
   actualizadoEn: number;
 }
 

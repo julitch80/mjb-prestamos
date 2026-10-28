@@ -104,17 +104,21 @@ function CriteriosAsignatura({ plan, a, nombre, gestor }: { plan: PlanConDocente
   const [aportes, setAportes] = useState(a.aportes ?? '');
   const [ebcDba, setEbcDba] = useState(a.ebcDba ?? '');
   const [evidencia, setEvidencia] = useState(a.evidenciaAprendizaje ?? '');
+  const [entregable, setEntregable] = useState(a.entregable ?? '');
+  const [fechaEntrega, setFechaEntrega] = useState(a.fechaEntrega ?? '');
   const [error, setError] = useState('');
   const [ok, setOk] = useState(false);
   const [sugiriendo, setSugiriendo] = useState(false);
   const [aviso, setAviso] = useState('');
   const sucio = criterios.trim() !== a.criteriosPromocion.trim() || aportes.trim() !== (a.aportes ?? '').trim()
-    || ebcDba.trim() !== (a.ebcDba ?? '').trim() || evidencia.trim() !== (a.evidenciaAprendizaje ?? '').trim();
+    || ebcDba.trim() !== (a.ebcDba ?? '').trim() || evidencia.trim() !== (a.evidenciaAprendizaje ?? '').trim()
+    || entregable.trim() !== (a.entregable ?? '').trim() || fechaEntrega !== (a.fechaEntrega ?? '');
 
   async function guardar() {
     setError(''); setOk(false);
     try { await guardarAsignatura(plan.id, a.asignaturaId, {
       criteriosPromocion: criterios.trim(), aportes: aportes.trim(), ebcDba: ebcDba.trim(), evidenciaAprendizaje: evidencia.trim(),
+      entregable: entregable.trim(), fechaEntrega,
     }); setOk(true); }
     catch (e) { setError((e as Error).message); }
   }
@@ -155,14 +159,21 @@ function CriteriosAsignatura({ plan, a, nombre, gestor }: { plan: PlanConDocente
         <button onClick={sugerir} disabled={sugiriendo} className={CLASE_BOTON_SEC}>{sugiriendo ? 'Pensando…' : '✨ Sugerir con IA'}</button>
         {aviso && !sugiriendo && <span className="text-xs text-soft">{aviso}</span>}
       </div>
+      <div><Etiqueta>Temáticas de mi asignatura que la guía debe cubrir</Etiqueta>
+        <textarea rows={2} value={aportes} onChange={e => setAportes(e.target.value)} className={CLASE_INPUT} /></div>
+      <div><Etiqueta>Competencia (EBC/DBA esencial para esta área)</Etiqueta>
+        <textarea rows={2} value={ebcDba} onChange={e => setEbcDba(e.target.value)} className={CLASE_INPUT} /></div>
       <div><Etiqueta>Criterios de promoción (qué debe demostrar para aprobar)</Etiqueta>
         <textarea rows={3} value={criterios} onChange={e => setCriterios(e.target.value)} className={CLASE_INPUT} /></div>
-      <div><Etiqueta>EBC/DBA priorizado (una competencia esencial para esta área)</Etiqueta>
-        <textarea rows={2} value={ebcDba} onChange={e => setEbcDba(e.target.value)} className={CLASE_INPUT} /></div>
       <div><Etiqueta>Evidencia de aprendizaje esperada en esta área</Etiqueta>
         <textarea rows={2} value={evidencia} onChange={e => setEvidencia(e.target.value)} className={CLASE_INPUT} /></div>
-      <div><Etiqueta>Aportes: temáticas que la guía debe cubrir (opcional)</Etiqueta>
-        <textarea rows={2} value={aportes} onChange={e => setAportes(e.target.value)} className={CLASE_INPUT} /></div>
+      <div className="rounded-xl border border-accent/40 p-3 space-y-2">
+        <div><Etiqueta>Entregable de mi asignatura (qué debe entregar el estudiante)</Etiqueta>
+          <input value={entregable} onChange={e => setEntregable(e.target.value)} placeholder="Ej.: mapa conceptual en foto, audio explicando…" className={CLASE_INPUT} /></div>
+        <div><Etiqueta>Fecha de entrega</Etiqueta>
+          <input type="date" value={fechaEntrega} min={plan.desde} max={plan.hasta} onChange={e => setFechaEntrega(e.target.value)} className={CLASE_INPUT} /></div>
+        <p className="text-[11px] text-muted">Al aprobar la guía, este entregable entra a la agenda del estudiante en esa fecha.</p>
+      </div>
       <div className="flex items-center gap-2">
         <button onClick={guardar} disabled={!sucio} className={CLASE_BOTON_SEC}>Guardar</button>
         {ok && !sucio && <span className="text-xs text-success">Guardado.</span>}
@@ -217,6 +228,24 @@ function VistosBuenos({ g, asigs }: { g: GuiaPlan; asigs: AsignaturaPlan[] }) {
 }
 
 // ── Guía donde soy responsable ────────────────────────────────────────────
+
+/** Agrega (o actualiza) un paso «Entregable de <asignatura>» por cada asignatura que tenga entregable. */
+function conEntregables(guia: Guia, asigs: AsignaturaPlan[], nombre: (id: string) => string, desde: string): Guia {
+  const pasos = [...guia.pasos];
+  for (const a of asigs) {
+    const id = `ent-${a.asignaturaId}`;
+    const i = pasos.findIndex(p => p.id === id);
+    if (!a.entregable?.trim()) { if (i >= 0) pasos.splice(i, 1); continue; }
+    const fecha = a.fechaEntrega || null;
+    const semana = fecha ? Math.max(1, Math.floor((new Date(`${fecha}T12:00:00`).getTime() - new Date(`${desde}T12:00:00`).getTime()) / (7 * 86400000)) + 1) : (pasos[pasos.length - 1]?.semana ?? 1);
+    const paso = {
+      id, titulo: `Entregable de ${nombre(a.asignaturaId)}`, instrucciones: a.entregable.trim(), momentos: 1,
+      evidencia: 'foto' as const, evidenciaDetalle: a.entregable.trim(), semana, fecha,
+    };
+    if (i >= 0) pasos[i] = { ...pasos[i], ...paso }; else pasos.push(paso);
+  }
+  return { ...guia, pasos };
+}
 
 function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
   gestor: boolean; plan: PlanConDocentes; g: GuiaPlan; todas: GuiaPlan[]; asigs: AsignaturaPlan[]; nombres: Nombres;
@@ -289,8 +318,9 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
       criteriosPromocion: pr.map(a => `${transversal ? nombre(a.asignaturaId) + ': ' : ''}${a.criteriosPromocion}${!transversal && a.ebcDba?.trim() ? ` | EBC/DBA priorizado: ${a.ebcDba.trim()}` : ''}${!transversal && a.evidenciaAprendizaje?.trim() ? ` | Evidencia de aprendizaje esperada: ${a.evidenciaAprendizaje.trim()}` : ''}`).join('\n'),
       pedido: limpio, ...(indicacion.trim() ? { indicacion: indicacion.trim() } : {}),
     });
-    setBorrador(guia); setIndicacion('');
-    await guardarGuia(plan.id, g.id, { pedido: limpio, propuesta: guia });
+    const conEnt = conEntregables(guia, pr, nombre, plan.desde);
+    setBorrador(conEnt); setIndicacion('');
+    await guardarGuia(plan.id, g.id, { pedido: limpio, propuesta: conEnt });
   }
 
   async function generar() {
@@ -397,8 +427,10 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
     setError(''); setAviso(''); setAprobando(true);
     try {
       const otras = todas.filter(x => x.id !== g.id && x.aprobada).map(x => ({ guiaId: x.id, pasos: x.aprobada!.pasos }));
-      const { pasos: rep, avisos } = repartirTodas(plan, [...otras, { guiaId: g.id, pasos: borrador.pasos }]);
-      const aprobada: Guia = { ...borrador, pasos: rep[g.id] ?? borrador.pasos };
+      // Los entregables que cada docente puso en su asignatura (pueden haber llegado después de generar).
+      const base = conEntregables(borrador, propias, nombre, plan.desde);
+      const { pasos: rep, avisos } = repartirTodas(plan, [...otras, { guiaId: g.id, pasos: base.pasos }]);
+      const aprobada: Guia = { ...base, pasos: rep[g.id] ?? base.pasos };
       await guardarGuia(plan.id, g.id, { aprobada, aprobadaEn: Date.now(), propuesta: aprobada });
       setBorrador(aprobada);
       let sinPermiso = 0;
@@ -583,8 +615,8 @@ function PlanDocente({ plan, gestor }: { plan: PlanConDocentes; gestor: boolean 
       {asigs && guias && mias.length === 0 && !error && <p className="text-sm text-soft">No tiene asignaturas en este plan.</p>}
       {responsable.map(g => <GuiaResponsable key={g.id} gestor={gestor} plan={plan} g={g} todas={guias ?? []} asigs={asigs ?? []} nombres={nombres} />)}
       {mias.length > 0 && (
-        <details className="rounded-2xl border border-line bg-card p-4">
-          <summary className="cursor-pointer text-sm font-medium text-strong">Ver y ajustar detalles (opcional): criterios y aportes de {mias.length === 1 ? 'mi asignatura' : 'mis asignaturas'}</summary>
+        <details open className="rounded-2xl border border-line bg-card p-4">
+          <summary className="cursor-pointer text-sm font-medium text-strong">{mias.length === 1 ? 'Mi asignatura' : 'Mis asignaturas'}: temáticas, competencia, entregable y fecha de entrega</summary>
           <div className="space-y-3 mt-3">
             {mias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
           </div>
