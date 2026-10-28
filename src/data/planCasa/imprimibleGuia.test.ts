@@ -22,7 +22,7 @@ const nombres = { cn: { asignatura: 'Ciencias', docente: 'A' } };
 describe('construirHtmlCuadernillo', () => {
   const html = construirHtmlCuadernillo({ ...plan, topeDiario: 3, ritmo: 'dia_por_medio' }, [g('a', guia)], nombres);
   it('portada, cómo usar, semanas, subpasos, entregas y sustentación', () => {
-    for (const t of ['Cuadernillo de trabajo en casa', 'Ana', '8º1', '26/10/2026', 'Cómo usar este cuadernillo', 'máximo <b>3 momentos', 'Semana 1', 'Semana 2',
+    for (const t of ['Plan Académico Especial', 'Cuadernillo de trabajo', 'Ana', '8º1', '26/10/2026', 'Cómo usar este cuadernillo', 'máximo <b>3 momentos', 'Semana 1', 'Semana 2',
       '<li>Lee el texto</li>', 'Entrega de la semana:', 'Entregas y sustentación', '20/11/2026', '¿Por qué llueve?', 'class="lineas"']) expect(html).toContain(t);
   });
   it('solo primer nombre, escapa HTML, sin QR ni enlaces', () => {

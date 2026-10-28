@@ -602,10 +602,10 @@ export default function PlanCasaDocente() {
 
   return (
     <div className="space-y-5 max-w-2xl mx-auto">
-      <h2 className="text-lg font-semibold text-strong">Planes en casa</h2>
+      <h2 className="text-lg font-semibold text-strong">Plan Académico Especial</h2>
       {error && <CajaError>{error}</CajaError>}
       {!planes && <Cargando texto="Cargando planes…" />}
-      {planes && planes.length === 0 && !error && <p className="text-sm text-soft">No tiene estudiantes con plan en casa.</p>}
+      {planes && planes.length === 0 && !error && <p className="text-sm text-soft">No tiene estudiantes con Plan Académico Especial.</p>}
       {planes?.filter(p => p.estado === 'activo').map(p => <PlanDocente key={p.id} plan={p} gestor={gestor} />)}
     </div>
   );

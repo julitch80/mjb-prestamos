@@ -99,6 +99,7 @@ function Contenido({ plan, hoy, dia, setDia }: { plan: PlanPublico; hoy: FechaIS
       <header className="flex items-center gap-3">
         <img src={`${import.meta.env.BASE_URL}mjb_escudo.png`} alt="Escudo MJB" className="w-10 h-10 object-contain" />
         <div className="flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Plan Académico Especial</p>
           <h1 className="text-xl font-bold text-strong leading-tight">Hola, {plan.primerNombre}</h1>
           <p className="text-sm text-muted">Grupo {plan.grupo} · {fechaLinda(plan.desde)} al {fechaLinda(plan.hasta)}</p>
         </div>

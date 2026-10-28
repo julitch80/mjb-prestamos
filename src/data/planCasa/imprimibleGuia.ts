@@ -132,7 +132,7 @@ export function construirHtmlCuadernillo(plan: PlanParaGuia, guias: GuiaPlan[], 
   const primer = esc(plan.nombres.trim().split(/\s+/)[0] || '');
   const tope = plan.topeDiario ?? 4;
   const ritmo = plan.ritmo === 'dia_por_medio' ? 'un día sí y un día no' : 'todos los días hábiles';
-  const portada = `<section class="portada"><h1>Cuadernillo de trabajo en casa</h1>
+  const portada = `<section class="portada"><h1>Plan Académico Especial</h1><p class="sub">Cuadernillo de trabajo</p>
     <p><b>${primer}</b></p><p>Grupo ${esc(plan.grupo)}</p>
     <p>Del ${esc(fecha(plan.desde))} al ${esc(fecha(plan.hasta))}</p>
     <p class="etq">I.E. Manuel J. Betancur</p></section>`;
@@ -140,7 +140,7 @@ export function construirHtmlCuadernillo(plan: PlanParaGuia, guias: GuiaPlan[], 
     <p>Cada <b>momento</b> es un tiempo de trabajo de 25 minutos. Trabaja máximo <b>${esc(tope)} momentos al día</b>, ${esc(ritmo)}.</p>
     <p>Hay una sección por asignatura. Sigue los pasos en orden, un paso a la vez, y escribe tus respuestas en los espacios con renglones; si necesitas más espacio usa tu cuaderno.</p>
     <p>Cada semana hay una entrega. Las entregas se hacen <b>en papel</b>: en físico al docente, o por medio de tu acudiente en coordinación con el docente. Al final del cuadernillo está la lista de entregas y las preguntas de la sustentación, que es presencial u oral.</p></section>`;
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Cuadernillo impreso - Plan en casa</title><style>${CSS}</style></head><body>${portada}${uso}${items.map(({ g, guia }) => seccionGuia(g, guia, nombres)).join('')}${seccionEntregas(items, nombres)}</body></html>`;
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Cuadernillo - Plan Académico Especial</title><style>${CSS}</style></head><body>${portada}${uso}${items.map(({ g, guia }) => seccionGuia(g, guia, nombres)).join('')}${seccionEntregas(items, nombres)}</body></html>`;
 }
 
 /** Misma mecánica de impresión que el formato UAI (ventana nueva; marco oculto si la bloquean). */

@@ -525,7 +525,7 @@ export default function PanelPlanCasa() {
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
       <div className="flex items-center gap-2">
-        <h2 className="text-lg font-semibold text-strong flex-1">Planes en casa</h2>
+        <h2 className="text-lg font-semibold text-strong flex-1">Plan Académico Especial</h2>
         {!creando && <button onClick={() => { setCreando(true); setAviso(''); }} className={CLASE_BOTON}><Plus size={16} />Nuevo plan</button>}
       </div>
       {aviso && <p className="rounded-xl bg-success-soft text-success-soft-fg text-sm p-3">{aviso}</p>}

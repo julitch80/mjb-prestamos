@@ -75,7 +75,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'chat',           label: 'Chat',            descripcion: 'Mensajería interna',                roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',          roles: ['superusuario'] },
   { id: 'sugerencias',    label: 'Sugerencias',     descripcion: 'Lo que reportan los docentes',      roles: ['superusuario'] },
-  { id: 'plan_casa',      label: 'Planes en casa',  descripcion: 'Guías con ajustes razonables',      roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'plan_casa',      label: 'Plan Académico Especial', descripcion: 'Guías con ajustes razonables',      roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'sede_datos',     label: 'Datos de la sede', descripcion: 'Confirme los datos de su sede',     roles: ['coordinador', 'superusuario'] },
   { id: 'notificaciones', label: 'Mis notificaciones', descripcion: 'Qué te avisa al celular',        roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
 ];

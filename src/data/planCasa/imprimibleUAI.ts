@@ -70,7 +70,7 @@ function seccionGuia(
 
   return `<section class="guia">
   <h1>Propuesta curricular integrada por áreas</h1>
-  <p class="sub">Plan de trabajo en casa · ${esc(plan.nombres.trim().split(/\s+/)[0] || '')} · Grupo ${esc(plan.grupo)} · del ${esc(fecha(plan.desde))} al ${esc(fecha(plan.hasta))}</p>
+  <p class="sub">Plan Académico Especial · ${esc(plan.nombres.trim().split(/\s+/)[0] || '')} · Grupo ${esc(plan.grupo)} · del ${esc(fecha(plan.desde))} al ${esc(fecha(plan.hasta))}</p>
 
   <h2>Paso 1. Pregunta orientadora / problema del contexto</h2>
   <div class="pregunta">${esPregunta ? esc(g.eje) : '<span style="color:#777">(por definir)</span>'}</div>
@@ -111,7 +111,7 @@ export function construirHtmlUAI(
     return guia ? [seccionGuia(plan, g, guia, asigs, nombres)] : [];
   });
   if (!secciones.length) return '';
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Formato UAI - Plan en casa</title><style>${CSS}</style></head><body>${secciones.join('')}</body></html>`;
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Formato UAI - Plan Académico Especial</title><style>${CSS}</style></head><body>${secciones.join('')}</body></html>`;
 }
 
 /** Abre el documento en una ventana nueva y lanza la impresión; si el navegador bloquea la ventana, imprime en un marco oculto. */
