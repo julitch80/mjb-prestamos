@@ -6,7 +6,8 @@
 // TRAMPA DEL 403: invoker 'public' en las callables; la autenticación real se comprueba dentro.
 
 import { initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { FieldPath, getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
@@ -15,7 +16,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import { ASIGNATURAS } from '../../src/data/asignacionAcademica';
 import { USUARIOS } from '../../src/data/maestros';
 import type { GuiaPlan, EntradaGuiaIA, PlanCasa, SalidaGuiaIA } from '../../src/data/planCasa/tipos';
-import { COL_PLANES, COL_PUBLICO, SUB_GUIAS } from '../../src/data/planCasa/tipos';
+import { COL_PLANES, COL_PUBLICO, SUB_ENTREGAS, SUB_GUIAS } from '../../src/data/planCasa/tipos';
+import type {
+  EntradaSubirEntrega, EntradaVerEntrega, EntregaPlan, PlanPublico, SalidaSubirEntrega, SalidaVerEntrega, TipoEntrega,
+} from '../../src/data/planCasa/tipos';
+import {
+  bytesDeBase64, cupoDiario, finAnioLectivo, inicioDiaColombia, nombreSeguro, seguimientoTrasEntrega, validarArchivo, validarEnlace,
+} from '../../src/data/planCasa/entregas';
 import { ESQUEMA_GUIA, MODELO, SISTEMA, construirPrompt, sanearGuia } from './guia';
 import { construirPublico } from './publico';
 import { SISTEMA_CAMPOS, construirPromptCampos, esquemaCampos, sanearCampos, type EntradaCampos } from './campos';
@@ -212,3 +219,109 @@ export const planCasaPublicar = onCall(opciones, async (request) => {
   logger.info('planCasaPublicar', { planId, pasos: publico.pasos.length, sustentaciones: publico.sustentaciones.length });
   return { ok: true, pasos: publico.pasos.length };
 });
+
+// ------------------------------------------------------- planCasaSubirEntrega
+// PÚBLICA (sin login): el token del QR es el secreto. El archivo viaja en base64 dentro de la
+// callable (10 MB → ~13,4 MB; el límite de petición de Functions v2 es 32 MB), así que no hacen
+// falta URL firmadas de subida, CORS del bucket ni permisos IAM de firma.
+
+const RE_ID = /^[A-Za-z0-9_-]{1,100}$/;
+
+export const planCasaSubirEntrega = onCall(
+  { ...opciones, timeoutSeconds: 120, memory: '512MiB' },
+  async (request): Promise<SalidaSubirEntrega> => {
+    const e = (request.data ?? {}) as EntradaSubirEntrega;
+    if (typeof e.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(e.token)) throw new HttpsError('invalid-argument', 'Enlace inválido.');
+    if (typeof e.guiaId !== 'string' || !RE_ID.test(e.guiaId) || typeof e.pasoId !== 'string' || !RE_ID.test(e.pasoId)) {
+      throw new HttpsError('invalid-argument', 'Paso inválido.');
+    }
+    const planes = await db.collection(COL_PLANES).where('tokenPublico', '==', e.token).limit(1).get();
+    if (planes.empty) return { ok: false, error: 'Este enlace ya no es válido. Pide uno nuevo en el colegio.' };
+    const planRef = planes.docs[0].ref;
+    if (planes.docs[0].get('estado') === 'cerrado') return { ok: false, error: 'Este plan ya está cerrado: no recibe entregas.' };
+
+    const guiaRef = planRef.collection(SUB_GUIAS).doc(e.guiaId);
+    const guiaSnap = await guiaRef.get();
+    const guia = guiaSnap.data() as GuiaPlan | undefined;
+    if (!guia?.aprobada?.pasos?.some(p => p.id === e.pasoId)) return { ok: false, error: 'Ese paso ya no está en tu plan. Recarga la página.' };
+
+    // Archivo o enlace.
+    let tipo: TipoEntrega; let contentType: string; let nombre: string; let buffer: Buffer | null = null; let url: string | undefined;
+    if (typeof e.enlace === 'string' && e.enlace.trim()) {
+      const v = validarEnlace(e.enlace);
+      if (!v.ok) return { ok: false, error: v.error };
+      tipo = 'enlace'; contentType = 'text/uri-list'; nombre = 'Enlace'; url = v.url;
+    } else {
+      if (typeof e.datosBase64 !== 'string' || !e.datosBase64) return { ok: false, error: 'No llegó ningún archivo.' };
+      nombre = nombreSeguro(String(e.nombreArchivo ?? 'archivo'));
+      const v = validarArchivo(nombre, String(e.contentType ?? ''), bytesDeBase64(e.datosBase64));
+      if (!v.ok) return { ok: false, error: v.error };
+      tipo = v.tipo; contentType = v.contentType;
+      buffer = Buffer.from(e.datosBase64, 'base64');
+    }
+
+    const ahora = Date.now();
+    const hoy = await planRef.collection(SUB_ENTREGAS).where('creadoEn', '>=', inicioDiaColombia(ahora)).count().get();
+    const cupo = cupoDiario(hoy.data().count);
+    if (!cupo.ok) return { ok: false, error: cupo.error };
+
+    const entregaRef = planRef.collection(SUB_ENTREGAS).doc();
+    const ruta = buffer ? `${COL_PLANES}/${planRef.id}/entregas/${e.guiaId}/${e.pasoId}/${ahora}-${nombre}` : '';
+    if (buffer) {
+      await getStorage().bucket().file(ruta).save(buffer, {
+        resumable: false, contentType, metadata: { cacheControl: 'private, max-age=0', metadata: { entregaId: entregaRef.id } },
+      });
+    }
+    const registro: Omit<EntregaPlan, 'id'> = {
+      guiaId: e.guiaId, pasoId: e.pasoId, tipo, ruta, ...(url ? { url } : {}), nombre, contentType,
+      tamano: buffer?.length ?? 0, creadoEn: ahora, borrarDespuesDe: finAnioLectivo(ahora),
+    };
+    const pubRef = db.doc(`${COL_PUBLICO}/${e.token}`);
+    await db.runTransaction(async tx => {
+      const [g, pub] = await Promise.all([tx.get(guiaRef), tx.get(pubRef)]);
+      const previo = (g.get('seguimiento') as GuiaPlan['seguimiento'] | undefined)?.[e.pasoId];
+      tx.set(entregaRef, registro);
+      tx.update(guiaRef, new FieldPath('seguimiento', e.pasoId), seguimientoTrasEntrega(previo, ahora));
+      if (pub.exists) {
+        const pasos = ((pub.get('pasos') as PlanPublico['pasos'] | undefined) ?? [])
+          .map(p => (p.guiaId === e.guiaId && p.id === e.pasoId ? { ...p, entregadoEn: ahora } : p));
+        tx.update(pubRef, { pasos });
+      }
+    });
+    logger.info('planCasaSubirEntrega', { planId: planRef.id, guiaId: e.guiaId, pasoId: e.pasoId, tipo, bytes: registro.tamano });
+    return { ok: true, entregadoEn: ahora };
+  },
+);
+
+// --------------------------------------------------------- planCasaVerEntrega
+// Con login. Devuelve el archivo en base64 (el navegador arma una URL blob: local y temporal):
+// nunca hay una URL permanente ni firmada que se pueda reenviar.
+
+export const planCasaVerEntrega = onCall(
+  { ...opciones, timeoutSeconds: 60, memory: '512MiB' },
+  async (request): Promise<SalidaVerEntrega> => {
+    const quien = await llamante(request);
+    const e = (request.data ?? {}) as EntradaVerEntrega;
+    if (typeof e.planId !== 'string' || !RE_ID.test(e.planId) || typeof e.entregaId !== 'string' || !RE_ID.test(e.entregaId)) {
+      throw new HttpsError('invalid-argument', 'Datos inválidos.');
+    }
+    const snap = await db.doc(`${COL_PLANES}/${e.planId}/${SUB_ENTREGAS}/${e.entregaId}`).get();
+    if (!snap.exists) throw new HttpsError('not-found', 'La entrega no existe.');
+    const ent = snap.data() as EntregaPlan;
+    const guia = (await db.doc(`${COL_PLANES}/${e.planId}/${SUB_GUIAS}/${ent.guiaId}`).get()).data() as GuiaPlan | undefined;
+    const docenteGuia = (guia?.docentesCorreos ?? []).some(c => String(c).toLowerCase() === quien.correo)
+      || String(guia?.responsableCorreo ?? '').toLowerCase() === quien.correo;
+    if (!ROLES_ADMIN.includes(quien.role) && !docenteGuia && !(await esEquipo(quien.correo))) {
+      throw new HttpsError('permission-denied', 'No puedes abrir esta entrega.');
+    }
+    if (ent.tipo === 'enlace') return { ok: true, url: ent.url, nombre: ent.nombre };
+    try {
+      const [buf] = await getStorage().bucket().file(ent.ruta).download();
+      logger.info('planCasaVerEntrega', { planId: e.planId, entregaId: e.entregaId, por: quien.correo });
+      return { ok: true, contentType: ent.contentType, nombre: ent.nombre, datosBase64: buf.toString('base64') };
+    } catch (err) {
+      logger.error('planCasaVerEntrega: fallo', { mensaje: err instanceof Error ? err.message : String(err) });
+      return { ok: false, error: 'No se encontró el archivo (puede haberse borrado al cierre del año).' };
+    }
+  },
+);

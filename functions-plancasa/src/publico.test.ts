@@ -33,5 +33,12 @@ describe('construirPublico', () => {
     const s = JSON.stringify(pub);
     for (const t of ['Pérez', 'Gómez', 'secreto', 'tok', 'studentId']) expect(s).not.toContain(t);
   });
+  it('lleva guiaId y entregadoEn del seguimiento (entregas)', () => {
+    const conEntrega = guias.map(g => g.id === 'fisica' ? { ...g, seguimiento: { p1: { estado: 'entregado' as const, entregadoEn: 7 } } } : g);
+    const p2 = construirPublico(plan, conEntrega, id => id, c => c, 1);
+    expect(p2.pasos[0]).toMatchObject({ guiaId: 'fisica', entregadoEn: 7 });
+    expect(p2.pasos[1].guiaId).toBe('t1');
+    expect('entregadoEn' in p2.pasos[1]).toBe(false);
+  });
   it('primerNombre tolera vacío', () => expect(primerNombre('')).toBe(''));
 });

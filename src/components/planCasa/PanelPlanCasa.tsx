@@ -16,6 +16,7 @@ import {
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
 import { conSinTecnologia } from '../../data/planCasa/logica';
+import { EntregasGuiaResumen } from './EntregasPaso';
 import {
   BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
   resumenGuia, TEXTO_SUSTENTACION,
@@ -472,6 +473,7 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
                     {r.guia && <span className="text-[11px] text-soft">{r.avance}% ({r.pasosTotal} pasos) · Sustentación: {TEXTO_SUSTENTACION[r.sustentacion]}</span>}
                   </div>
                   {r.guia && <div className="h-1.5 rounded-full bg-elevated mt-1.5 overflow-hidden"><div className="h-full bg-success" style={{ width: `${r.avance}%` }} /></div>}
+                  {r.guia && <EntregasGuiaResumen planId={plan.id} g={g} />}
                 </li>
               );
             })}

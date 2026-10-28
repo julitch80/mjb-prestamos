@@ -335,6 +335,15 @@ service firebase.storage {
       allow update, delete: if !esSuplantacion() && (false);
     }
 
+    // ---------- Entregas del Plan Academico Especial (planCasa) ----------
+    // planesCasa/{planId}/entregas/{guiaId}/{pasoId}/{archivo}. Las sube y las lee SOLO
+    // el servidor (callables planCasaSubirEntrega / planCasaVerEntrega, Admin SDK, que no
+    // pasa por estas reglas). Son trabajos de menores: nada de lectura ni URL por cliente.
+    // Explicito aunque el catch-all ya lo niega, para que nadie lo "abra" por descuido.
+    match /planesCasa/{allPaths=**} {
+      allow read, write: if false;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

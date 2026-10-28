@@ -166,6 +166,8 @@ export interface SeguimientoPaso {
   estado: EstadoPaso;
   observacion?: string;
   actualizadoEn?: number;
+  /** (Entregas, 28-oct-2026) ms de la entrega más reciente desde la agenda pública. Lo escribe solo el servidor. */
+  entregadoEn?: number;
 }
 
 /** planesCasa/{planId}/asignaturas/{asignaturaId} — lo de cada asignatura que no es la guía. */
@@ -219,7 +221,8 @@ export interface PlanPublico {
   hasta: FechaISO;
   /** Pasos aprobados de todas las asignaturas, ya con fecha. */
   /** `asignatura` es el nombre de la asignatura o, en guías transversales, el eje y las asignaturas que integra. */
-  pasos: Array<PasoGuia & { asignatura: string; docente: string }>;
+  /** (Entregas, 28-oct-2026) `guiaId` y `entregadoEn` son opcionales: copias publicadas antes no los traen y la agenda oculta el botón «Entregar». */
+  pasos: Array<PasoGuia & { asignatura: string; docente: string; guiaId?: string; entregadoEn?: number }>;
   sustentaciones: Array<Sustentacion & { asignatura: string; docente: string }>;
   actualizadoEn: number;
 }
@@ -250,3 +253,47 @@ export interface SalidaGuiaIA {
   guia?: Guia;
   error?: string;
 }
+
+// ── Entregas desde la agenda pública (28-oct-2026, docs/plan-casa/ENTREGAS-PRD.md) ──
+// Tipos NUEVOS; no cambian ningún campo anterior.
+
+/** planesCasa/{planId}/entregas/{entregaId} — lo escribe SOLO el servidor. */
+export const SUB_ENTREGAS = 'entregas';
+
+export type TipoEntrega = 'foto' | 'audio' | 'pdf' | 'enlace';
+
+export interface EntregaPlan {
+  id: string;
+  guiaId: string;
+  pasoId: string;
+  tipo: TipoEntrega;
+  /** Ruta en Storage (vacía si es un enlace). */
+  ruta: string;
+  /** Solo en tipo 'enlace'. */
+  url?: string;
+  nombre: string;
+  contentType: string;
+  /** Bytes del archivo (0 si es un enlace). */
+  tamano: number;
+  creadoEn: number;
+  /** Fecha prevista de borrado (fin del año lectivo), ms. */
+  borrarDespuesDe: number;
+}
+
+/** Entrada de la callable pública `planCasaSubirEntrega` (sin login: el token es el secreto). */
+export interface EntradaSubirEntrega {
+  token: string;
+  guiaId: string;
+  pasoId: string;
+  nombreArchivo?: string;
+  contentType?: string;
+  /** Contenido en base64 (sin el prefijo data:). Ausente si es un enlace. */
+  datosBase64?: string;
+  /** Enlace (videos en Drive/YouTube). */
+  enlace?: string;
+}
+export interface SalidaSubirEntrega { ok: boolean; entregadoEn?: number; error?: string }
+
+/** Callable `planCasaVerEntrega` (con login y rol): devuelve el archivo en base64, nunca una URL permanente. */
+export interface EntradaVerEntrega { planId: string; entregaId: string }
+export interface SalidaVerEntrega { ok: boolean; contentType?: string; nombre?: string; datosBase64?: string; url?: string; error?: string }

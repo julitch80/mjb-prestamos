@@ -18,6 +18,7 @@ import {
 import { USUARIOS } from '../../data/maestros';
 import { asignaturasConNombre, gradoDeGrupo } from './nombres';
 import EditorGuia from './EditorGuia';
+import { ListaEntregas, useEntregas } from './EntregasPaso';
 import {
   BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, Etiqueta, fechaCorta, Marca,
   repartirTodas, resumenGuia, SugerirPreguntas,
@@ -35,6 +36,7 @@ function Seguimiento({ plan, g }: { plan: PlanConDocentes; g: GuiaPlan }) {
   const [error, setError] = useState('');
   const [borrador, setBorrador] = useState<Record<string, string>>({});
   const guia = g.aprobada!;
+  const { entregas, error: errorEntregas } = useEntregas(plan.id, g.id);
 
   async function guardar(cambios: Partial<GuiaPlan>) {
     setError('');
@@ -50,6 +52,7 @@ function Seguimiento({ plan, g }: { plan: PlanConDocentes; g: GuiaPlan }) {
     <div className="space-y-3">
       <h4 className="text-sm font-semibold text-strong">Seguimiento</h4>
       {error && <CajaError>{error}</CajaError>}
+      {errorEntregas && <CajaError>Entregas: {errorEntregas}</CajaError>}
       {guia.pasos.map((p, i) => {
         const seg = g.seguimiento?.[p.id];
         const obs = borrador[p.id] ?? seg?.observacion ?? '';
@@ -67,6 +70,7 @@ function Seguimiento({ plan, g }: { plan: PlanConDocentes; g: GuiaPlan }) {
             <input value={obs} onChange={e => setBorrador(b => ({ ...b, [p.id]: e.target.value }))}
               onBlur={() => { if (p.id in borrador && borrador[p.id] !== (seg?.observacion ?? '')) cambiarPaso(p.id, { observacion: borrador[p.id] }); }}
               placeholder="Observación corta" className={CLASE_INPUT} />
+            <ListaEntregas planId={plan.id} entregas={entregas.filter(e => e.pasoId === p.id)} />
           </div>
         );
       })}

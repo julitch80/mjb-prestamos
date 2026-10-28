@@ -26,7 +26,11 @@ export function construirPublico(
     if (!g.aprobada) continue;
     const asignatura = etiquetaGuia(g, nombreAsignatura);
     const docente = nombreDocentePorCorreo(String(g.responsableCorreo ?? '').toLowerCase());
-    for (const p of g.aprobada.pasos ?? []) pasos.push({ ...p, asignatura, docente });
+    for (const p of g.aprobada.pasos ?? []) {
+      // guiaId y entregadoEn: para el botón «Entregar» y el «✓ Entregado» de la agenda.
+      const entregadoEn = g.seguimiento?.[p.id]?.entregadoEn;
+      pasos.push({ ...p, asignatura, docente, guiaId: g.id, ...(typeof entregadoEn === 'number' ? { entregadoEn } : {}) });
+    }
     if (g.aprobada.sustentacion) sustentaciones.push({ ...g.aprobada.sustentacion, asignatura, docente });
   }
   return {

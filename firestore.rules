@@ -30,6 +30,8 @@
 //
 // Comprobacion despues de cada sincronizacion: el numero de `allow` de escritura debe
 // coincidir con el de `esSuplantacion()`. Hoy son 88 escrituras y 38 lecturas libres.
+// (28-oct-2026: +1 escritura (negada) por planesCasa/{id}/entregas. OJO: el grep de arriba ya daba
+// 146 escrituras / 142 esSuplantacion() ANTES de este cambio: la cifra de 88 esta desactualizada.)
 // (23-sep-2026: +2 por notifDispositivos/notifPreferencias, Etapa 1 de notificaciones push.)
 // (1-oct-2026: +3 escrituras / +1 lectura por sedeDatos, formulario «Datos de la sede».)
 // (26-sep-2026: +6 escrituras / +4 lecturas por sstAccidentes+eventos+sstConfig, Etapa 1 de accidente laboral.)
@@ -641,6 +643,14 @@ service cloud.firestore {
               && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['vistosBuenos'])
                   || request.resource.data.vistosBuenos.diff(resource.data.vistosBuenos).affectedKeys().hasOnly([callerEmail()]))));
         allow delete: if !esSuplantacion() && (pcGestiona());
+      }
+      // Entregas desde la agenda publica (docs/plan-casa/ENTREGAS-PRD.md). Solo METADATOS
+      // (nombre, fecha, tipo, ruta); el archivo se abre por la callable planCasaVerEntrega,
+      // que exige ser docente de ESA guia, equipo o directivo. Las escribe SOLO el servidor.
+      match /entregas/{entregaId} {
+        allow read: if pcLeeAmplio()
+          || pcDocenteDe(get(/databases/$(database)/documents/planesCasa/$(planId)).data);
+        allow write: if !esSuplantacion() && (false);
       }
     }
     match /planesCasaPublico/{token} {

@@ -171,3 +171,26 @@ describe('planesCasaPublico', () => {
     await assertFails(deleteDoc(doc(ctx(SUPER), 'planesCasaPublico', 'tok123')));
   });
 });
+
+describe('planesCasa/{id}/entregas (solo servidor escribe)', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(doc(c.firestore(), 'planesCasa', 'p1', 'entregas', 'e1'), { guiaId: 'g1', pasoId: 'p1', creadoEn: 1 });
+    });
+  });
+  it('leen equipo, coordinacion, rectora, superusuario y docentes del plan; no un ajeno ni anonimo', async () => {
+    for (const u of [EQUIPO, COORD, RECTORA, SUPER, DOC1, DOC2]) {
+      await assertSucceeds(getDoc(doc(ctx(u), 'planesCasa', 'p1', 'entregas', 'e1')));
+    }
+    await assertSucceeds(getDocs(collection(ctx(DOC1), 'planesCasa', 'p1', 'entregas')));
+    await assertFails(getDoc(doc(ctx(OTRO), 'planesCasa', 'p1', 'entregas', 'e1')));
+    await assertFails(getDoc(doc(anon(), 'planesCasa', 'p1', 'entregas', 'e1')));
+  });
+  it('nadie escribe desde el cliente, ni el superusuario', async () => {
+    for (const u of [SUPER, COORD, EQUIPO, DOC1]) {
+      await assertFails(setDoc(doc(ctx(u), 'planesCasa', 'p1', 'entregas', 'e2'), { guiaId: 'g1' }));
+      await assertFails(deleteDoc(doc(ctx(u), 'planesCasa', 'p1', 'entregas', 'e1')));
+    }
+    await assertFails(setDoc(doc(anon(), 'planesCasa', 'p1', 'entregas', 'e3'), { guiaId: 'g1' }));
+  });
+});

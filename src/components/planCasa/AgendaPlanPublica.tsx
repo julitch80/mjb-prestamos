@@ -1,9 +1,11 @@
 // Página pública del plan de trabajo en casa (QR, sin login). Lee UN documento:
 // planesCasaPublico/{token}. Solo primer nombre; nunca apellidos.
 import { subpasos } from '../../data/planCasa/subpasos';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
-import { ExternalLink, Clock, PackageCheck } from 'lucide-react';
+import { ExternalLink, Clock, PackageCheck, Upload, Link2, CheckCircle2, Camera } from 'lucide-react';
+import { ACCEPT_ENTREGA, formatoTamano, validarArchivo, validarEnlace } from '../../data/planCasa/entregas';
+import { prepararArchivo, subirEntrega } from '../../data/planCasa/entregasCliente';
 import { db } from '../../lib/firebase';
 import { COL_PUBLICO, MODALIDADES_SUSTENTACION, type FechaISO, type PlanPublico } from '../../data/planCasa/tipos';
 
@@ -70,10 +72,10 @@ export default function AgendaPlanPublica({ token, datos }: { token: string; dat
       </div>,
     );
   }
-  return marco(<Contenido plan={plan} hoy={hoy} dia={dia} setDia={setDia} />);
+  return marco(<Contenido plan={plan} token={datos ? '' : token} hoy={hoy} dia={dia} setDia={setDia} />);
 }
 
-function Contenido({ plan, hoy, dia, setDia }: { plan: PlanPublico; hoy: FechaISO; dia: FechaISO; setDia: (f: FechaISO) => void }) {
+function Contenido({ plan, token, hoy, dia, setDia }: { plan: PlanPublico; token: string; hoy: FechaISO; dia: FechaISO; setDia: (f: FechaISO) => void }) {
   const delDia = useMemo(() => plan.pasos.filter(p => p.fecha === dia), [plan, dia]);
   const total = delDia.reduce((s, p) => s + p.momentos, 0);
   const esHoy = dia === hoy;
@@ -129,7 +131,7 @@ function Contenido({ plan, hoy, dia, setDia }: { plan: PlanPublico; hoy: FechaIS
           <p className="rounded-2xl border border-line bg-card p-4 text-base text-soft">
             {esHoy ? 'Hoy no tienes pasos. ¡Buen descanso!' : 'Este día no tiene pasos.'}
           </p>
-        ) : delDia.map(p => <TarjetaPaso key={`${p.asignatura}-${p.id}`} p={p} />)}
+        ) : delDia.map(p => <TarjetaPaso key={`${p.asignatura}-${p.id}`} p={p} token={token} />)}
       </section>
 
       <section className="space-y-2">
@@ -186,7 +188,7 @@ function Contenido({ plan, hoy, dia, setDia }: { plan: PlanPublico; hoy: FechaIS
   );
 }
 
-function TarjetaPaso({ p }: { p: Paso }) {
+function TarjetaPaso({ p, token }: { p: Paso; token: string }) {
   return (
     <article className="rounded-2xl border border-line bg-card p-4 space-y-2">
       <div className="flex items-start justify-between gap-2">
@@ -218,6 +220,130 @@ function TarjetaPaso({ p }: { p: Paso }) {
           ))}
         </div>
       )}
+      {token && p.guiaId && <Entregar p={p} token={token} />}
     </article>
   );
 }
+
+const fechaHora = (ms: number) => {
+  const d = new Date(ms);
+  return `${DIAS_LARGO[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}, ${d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })}`;
+};
+
+type FaseEntrega = 'quieto' | 'elegido' | 'enviando' | 'ok';
+
+/** Botón «Entregar»: foto (cámara), audio o PDF; o un enlace para los videos. */
+function Entregar({ p, token }: { p: Paso; token: string }) {
+  const [entregadoEn, setEntregadoEn] = useState<number | undefined>(p.entregadoEn);
+  const [fase, setFase] = useState<FaseEntrega>('quieto');
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [vista, setVista] = useState('');
+  const [modoEnlace, setModoEnlace] = useState(false);
+  const [enlace, setEnlace] = useState('');
+  const [error, setError] = useState('');
+  const input = useRef<HTMLInputElement>(null);
+  const camara = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setEntregadoEn(p.entregadoEn); }, [p.entregadoEn]);
+  useEffect(() => () => { if (vista) URL.revokeObjectURL(vista); }, [vista]);
+
+  function reiniciar() {
+    setArchivo(null); setVista(''); setError(''); setEnlace(''); setModoEnlace(false); setFase('quieto');
+    if (input.current) input.current.value = '';
+    if (camara.current) camara.current.value = '';
+  }
+  function elegir(f: File | undefined) {
+    setError('');
+    if (!f) return;
+    // Las fotos se reducen antes de enviar: aquí solo se aplica el tope a audios y PDF.
+    const v = validarArchivo(f.name, f.type, f.type.startsWith('image/') ? Math.min(f.size, 1) : f.size);
+    if (!v.ok) { setError(v.error); return; }
+    setArchivo(f);
+    setVista(f.type.startsWith('image/') || f.type.startsWith('audio/') ? URL.createObjectURL(f) : '');
+    setFase('elegido');
+  }
+  async function enviar() {
+    setError('');
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) { setError('Sin conexión a internet. Conéctate y vuelve a intentarlo.'); return; }
+    let contenido: Parameters<typeof subirEntrega>[1];
+    if (modoEnlace) {
+      const v = validarEnlace(enlace);
+      if (!v.ok) { setError(v.error); return; }
+      contenido = { enlace: v.url };
+    } else {
+      if (!archivo) return;
+      setFase('enviando');
+      const prep = await prepararArchivo(archivo);
+      const v = validarArchivo(prep.nombre, prep.contentType, prep.blob.size);
+      if (!v.ok) { setError(v.error); setFase('elegido'); return; }
+      contenido = prep;
+    }
+    setFase('enviando');
+    const r = await subirEntrega({ token, guiaId: p.guiaId!, pasoId: p.id }, contenido);
+    if (!r.ok) { setError(r.error ?? 'No se pudo enviar.'); setFase(modoEnlace ? 'quieto' : 'elegido'); return; }
+    setEntregadoEn(r.entregadoEn);
+    setArchivo(null); setVista(''); setEnlace(''); setModoEnlace(false); setFase('ok');
+    if (input.current) input.current.value = '';
+  }
+
+  const boton = 'inline-flex items-center justify-center gap-1.5 min-h-[44px] px-4 rounded-xl text-base font-semibold';
+  return (
+    <div className="pt-2 space-y-2 border-t border-line">
+      {entregadoEn && (
+        <p className="flex items-center gap-1.5 text-base font-semibold text-green-600 dark:text-green-400">
+          <CheckCircle2 size={18} /> Entregado el {fechaHora(entregadoEn)}
+        </p>
+      )}
+      <input ref={input} type="file" accept={ACCEPT_ENTREGA} className="hidden"
+        onChange={e => elegir(e.target.files?.[0])} aria-label="Elegir archivo para entregar" />
+      {/* `capture` abre la cámara directamente; el otro input deja elegir audio o PDF. */}
+      <input ref={camara} type="file" accept="image/*" capture="environment" className="hidden"
+        onChange={e => elegir(e.target.files?.[0])} aria-label="Tomar foto para entregar" />
+      {fase !== 'elegido' && fase !== 'enviando' && !modoEnlace && (
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => input.current?.click()} className={`${boton} bg-accent text-accent-fg`}>
+            <Upload size={18} /> {entregadoEn ? 'Enviar otra versión' : 'Entregar'}
+          </button>
+          <button onClick={() => camara.current?.click()} className={`${boton} border border-accent/50 text-accent`}>
+            <Camera size={18} /> Tomar foto
+          </button>
+          <button onClick={() => { setModoEnlace(true); setError(''); }} className={`${boton} border border-line text-soft`}>
+            <Link2 size={18} /> Pegar enlace (video)
+          </button>
+        </div>
+      )}
+      {modoEnlace && fase !== 'enviando' && (
+        <div className="space-y-2">
+          <input value={enlace} onChange={e => setEnlace(e.target.value)} inputMode="url" placeholder="https://drive.google.com/… o https://youtu.be/…"
+            className="w-full min-h-[44px] rounded-xl border border-line bg-card px-3 text-base text-strong" />
+          <div className="flex gap-2">
+            <button onClick={enviar} className={`${boton} bg-accent text-accent-fg`}>Enviar enlace</button>
+            <button onClick={reiniciar} className={`${boton} border border-line text-soft`}>Cancelar</button>
+          </div>
+        </div>
+      )}
+      {archivo && (fase === 'elegido' || fase === 'enviando') && (
+        <div className="space-y-2 rounded-xl bg-elevated/60 p-3">
+          {vista && archivo.type.startsWith('image/') && <img src={vista} alt="Vista previa" className="max-h-56 rounded-lg mx-auto" />}
+          {vista && archivo.type.startsWith('audio/') && <audio src={vista} controls className="w-full" />}
+          <p className="text-sm text-soft break-all">{archivo.name} · {formatoTamano(archivo.size)}</p>
+          {fase === 'elegido' && (
+            <div className="flex gap-2">
+              <button onClick={enviar} className={`${boton} bg-accent text-accent-fg`}>Enviar</button>
+              <button onClick={reiniciar} className={`${boton} border border-line text-soft`}>Cancelar</button>
+            </div>
+          )}
+        </div>
+      )}
+      {fase === 'enviando' && (
+        <div role="status" className="space-y-1">
+          <p className="text-base text-soft">Enviando… no cierres esta página.</p>
+          <div className="h-2 rounded-full bg-elevated overflow-hidden"><div className="h-full w-1/3 bg-accent animate-pulse" /></div>
+        </div>
+      )}
+      {fase === 'ok' && <p role="status" className="text-base text-strong">¡Listo! Tu docente ya puede verlo.</p>}
+      {error && <p role="alert" className="text-base text-red-600 dark:text-red-400">{error}</p>}
+    </div>
+  );
+}
+

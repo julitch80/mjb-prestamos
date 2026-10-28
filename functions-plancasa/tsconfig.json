@@ -12,6 +12,6 @@
     "esModuleInterop": true
   },
   "compileOnSave": true,
-  "include": ["src/**/*.ts", "../src/data/planCasa/tipos.ts", "../src/data/maestros.ts", "../src/data/asignacionAcademica.ts"],
+  "include": ["src/**/*.ts", "../src/data/planCasa/tipos.ts", "../src/data/planCasa/entregas.ts", "../src/data/maestros.ts", "../src/data/asignacionAcademica.ts"],
   "exclude": ["src/**/*.test.ts"]
 }
