@@ -217,6 +217,24 @@ function nombreDocente(correo: string, asigs: AsignaturaPlan[]): string {
   return USUARIOS.find(u => u.id === id)?.nombreCorto ?? USUARIOS.find(u => u.correo && u.correo.toLowerCase() === c)?.nombreCorto ?? c.split('@')[0];
 }
 
+/** Para el líder: qué docentes ya guardaron criterios (lo que la IA necesita) y su entregable con fecha. */
+function CriteriosListos({ propias, nombre }: { propias: AsignaturaPlan[]; nombre: (id: string) => string }) {
+  if (!propias.length) return null;
+  const listos = propias.filter(a => a.criteriosPromocion.trim()).length;
+  return (
+    <div className="rounded-xl border border-line p-3 space-y-2">
+      <p className="text-xs text-soft"><b className="text-strong">Criterios de los docentes:</b> {listos} de {propias.length} listos{listos < propias.length ? ' · conviene esperarlos antes de generar la guía' : ''}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {propias.map(a => <Marca key={a.asignaturaId} ok={!!a.criteriosPromocion.trim()} etiqueta={`${nombre(a.asignaturaId)} (${nombreDocente(a.docenteCorreo, propias)})`} />)}
+      </div>
+      <p className="text-xs text-soft"><b className="text-strong">Entregables con fecha:</b></p>
+      <div className="flex flex-wrap gap-1.5">
+        {propias.map(a => <Marca key={a.asignaturaId} ok={!!(a.entregable?.trim() && a.fechaEntrega)} etiqueta={nombre(a.asignaturaId) + (a.fechaEntrega ? ` · ${fechaCorta(a.fechaEntrega)}` : '')} />)}
+      </div>
+    </div>
+  );
+}
+
 function VistosBuenos({ g, asigs }: { g: GuiaPlan; asigs: AsignaturaPlan[] }) {
   if (g.docentesCorreos.length <= 1) return null;
   return (
@@ -472,6 +490,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
           <SugerirPreguntas asignaturas={g.asignaturaIds.map(nombre)} grado={gradoDeGrupo(plan.grupo)} ajustes={plan.ajustes} onUsar={setEje} />
         </div>
       )}
+      <CriteriosListos propias={propias} nombre={nombre} />
       <VistosBuenos g={g} asigs={asigs} />
 
       {(!r.guia || editando) && (
