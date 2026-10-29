@@ -18,6 +18,8 @@ import {
 import { asignaturasConNombre } from './nombres';
 import { conSinTecnologia, fechaCierre } from '../../data/planCasa/logica';
 import { EntregasGuiaResumen } from './EntregasPaso';
+import { PestanasSubrayadas } from '../Navegacion';
+import { construirAvanceDocentes, type DatosPlanAvance } from '../../data/planCasa/avanceDocentes';
 import {
   BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
   fechaLarga, resumenGuia, TEXTO_SUSTENTACION,
@@ -571,6 +573,79 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
   );
 }
 
+// ── Avance por docente ────────────────────────────────────────────────────
+
+/** Escucha asignaturas y guías de un plan y las reporta al padre (no pinta nada). */
+function OyentePlan({ planId, onDatos }: { planId: string; onDatos: (id: string, a?: AsignaturaPlan[], g?: GuiaPlan[]) => void }) {
+  useEffect(() => escucharAsignaturas(planId, a => onDatos(planId, a, undefined)), [planId, onDatos]);
+  useEffect(() => escucharGuias(planId, g => onDatos(planId, undefined, g)), [planId, onDatos]);
+  return null;
+}
+
+const ETIQUETA_GUIA = { aprobada: 'Guía aprobada', propuesta: 'Guía en propuesta', sin_generar: 'Guía sin generar' } as const;
+
+function AvanceDocentes({ planes }: { planes: PlanConDocentes[] }) {
+  const activos = useMemo(() => planes.filter(p => p.estado === 'activo'), [planes]);
+  const [datos, setDatos] = useState<Record<string, { a?: AsignaturaPlan[]; g?: GuiaPlan[] }>>({});
+  const [abiertos, setAbiertos] = useState<Record<string, boolean>>({});
+  const recibir = useMemo(() => (id: string, a?: AsignaturaPlan[], g?: GuiaPlan[]) =>
+    setDatos(prev => ({ ...prev, [id]: { a: a ?? prev[id]?.a, g: g ?? prev[id]?.g } })), []);
+
+  const cargando = activos.some(p => !datos[p.id]?.a || !datos[p.id]?.g);
+  const docentes = useMemo(() => {
+    const lista: DatosPlanAvance[] = activos.map(p => ({
+      plan: p, asigs: datos[p.id]?.a ?? [], guias: datos[p.id]?.g ?? [], nombres: asignaturasConNombre(p.grupo),
+    }));
+    return construirAvanceDocentes(lista);
+  }, [activos, datos]);
+
+  return (
+    <div className="space-y-3">
+      {activos.map(p => <OyentePlan key={p.id} planId={p.id} onDatos={recibir} />)}
+      {cargando && activos.length > 0 && <Cargando texto="Cargando avance…" />}
+      {activos.length === 0 && <p className="text-sm text-soft">No hay planes activos.</p>}
+      {docentes.map(d => {
+        const pendientes = d.total - d.listas;
+        const abierto = abiertos[d.docenteId] ?? pendientes > 0;
+        return (
+          <div key={d.docenteId} className="rounded-2xl border border-line bg-surface">
+            <button type="button" onClick={() => setAbiertos(a => ({ ...a, [d.docenteId]: !abierto }))}
+              className="w-full flex items-center gap-2 p-3 text-left min-h-[44px]" aria-expanded={abierto}>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-strong truncate">{d.docente}</p>
+                <p className="text-xs text-soft">{d.listas} de {d.total} tareas listas · {d.planes.length} {d.planes.length === 1 ? 'plan' : 'planes'}</p>
+              </div>
+              <Marca ok={pendientes === 0} etiqueta={pendientes === 0 ? 'Al día' : `${pendientes} pendientes`} />
+              <ChevronDown size={16} className={cn('text-soft transition', abierto && 'rotate-180')} />
+            </button>
+            {abierto && (
+              <div className="border-t border-line p-3 space-y-3">
+                {d.planes.map(pl => (
+                  <div key={pl.planId} className="space-y-2">
+                    <p className="text-sm font-medium text-strong">{pl.nombre} · {pl.grupo}</p>
+                    {pl.filas.map(f => (
+                      <div key={f.asignaturaId} className="rounded-xl bg-elevated p-2.5 space-y-1.5">
+                        <p className="text-xs font-medium text-strong">{f.asignatura}{f.esLider ? ' · líder de la guía' : ''}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Marca ok={f.criteriosListos} etiqueta={f.criteriosPorIA ? 'Criterios: por IA, sin revisar' : f.criteriosListos ? 'Criterios listos' : 'Criterios pendientes'} />
+                          <Marca ok={f.entregableListo} etiqueta={f.entregableListo ? `Entregable · ${fechaCorta(f.fechaEntrega)}` : 'Entregable sin fecha'} />
+                          <Marca ok={f.estadoGuia === 'aprobada'} etiqueta={ETIQUETA_GUIA[f.estadoGuia]} />
+                          {f.estadoGuia !== 'sin_generar' && <Marca ok={f.vistoBueno} etiqueta={f.vistoBueno ? 'Visto bueno dado' : 'Falta visto bueno'} />}
+                          {f.esLider && <Marca ok={f.ejeListo} etiqueta={f.ejeListo ? 'Pregunta orientadora lista' : 'Falta pregunta orientadora'} />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────
 
 export default function PanelPlanCasa() {
@@ -578,6 +653,7 @@ export default function PanelPlanCasa() {
   const [error, setError] = useState('');
   const [creando, setCreando] = useState(false);
   const [aviso, setAviso] = useState('');
+  const [vista, setVista] = useState<'planes' | 'avance'>('planes');
 
   useEffect(() => escucharPlanes(true, setPlanes, e => { setError(e.message || 'No se pudieron leer los planes.'); setPlanes([]); }), []);
 
@@ -587,12 +663,14 @@ export default function PanelPlanCasa() {
         <h2 className="text-lg font-semibold text-strong flex-1">Plan Académico Especial</h2>
         {!creando && <button onClick={() => { setCreando(true); setAviso(''); }} className={CLASE_BOTON}><Plus size={16} />Nuevo plan</button>}
       </div>
+      <PestanasSubrayadas opciones={[{ id: 'planes', label: 'Planes' }, { id: 'avance', label: 'Avance docentes' }]} activa={vista} onCambio={setVista} />
       {aviso && <p className="rounded-xl bg-success-soft text-success-soft-fg text-sm p-3">{aviso}</p>}
       {creando && <NuevoPlan onCerrar={() => setCreando(false)} onCreado={m => { setCreando(false); setAviso(m); }} />}
       {error && <CajaError>{error}</CajaError>}
       {!planes && <Cargando texto="Cargando planes…" />}
-      {planes && planes.length === 0 && !error && <p className="text-sm text-soft">Aún no hay planes. Cree el primero con «Nuevo plan».</p>}
-      {planes?.map(p => <TarjetaPlan key={p.id} plan={p} />)}
+      {vista === 'planes' && planes && planes.length === 0 && !error && <p className="text-sm text-soft">Aún no hay planes. Cree el primero con «Nuevo plan».</p>}
+      {vista === 'planes' && planes?.map(p => <TarjetaPlan key={p.id} plan={p} />)}
+      {vista === 'avance' && planes && <AvanceDocentes planes={planes} />}
     </div>
   );
 }
