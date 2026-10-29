@@ -187,6 +187,8 @@ export interface AsignaturaPlan {
   entregable?: string;
   /** Fecha de entrega de ese entregable ('' = sin fecha). */
   fechaEntrega?: FechaISO;
+  /** Los campos los llenó la IA («Generar todo») y el docente aún no los ha guardado él mismo. */
+  porIA?: boolean;
   actualizadoEn: number;
 }
 

@@ -99,7 +99,7 @@ function NotaGestor() {
   return <p className="text-[11px] text-muted">Editando como superusuario/equipo</p>;
 }
 
-function CriteriosAsignatura({ plan, a, nombre, gestor }: { plan: PlanConDocentes; a: AsignaturaPlan; nombre: string; gestor: boolean }) {
+function CriteriosAsignatura({ plan, a, nombre, gestor, eje }: { plan: PlanConDocentes; a: AsignaturaPlan; nombre: string; gestor: boolean; eje?: string }) {
   const [criterios, setCriterios] = useState(a.criteriosPromocion);
   const [aportes, setAportes] = useState(a.aportes ?? '');
   const [ebcDba, setEbcDba] = useState(a.ebcDba ?? '');
@@ -110,6 +110,8 @@ function CriteriosAsignatura({ plan, a, nombre, gestor }: { plan: PlanConDocente
   const [ok, setOk] = useState(false);
   const [sugiriendo, setSugiriendo] = useState(false);
   const [aviso, setAviso] = useState('');
+  const [opcionesEnt, setOpcionesEnt] = useState<string[]>([]);
+  const [pensandoEnt, setPensandoEnt] = useState(false);
   const sucio = criterios.trim() !== a.criteriosPromocion.trim() || aportes.trim() !== (a.aportes ?? '').trim()
     || ebcDba.trim() !== (a.ebcDba ?? '').trim() || evidencia.trim() !== (a.evidenciaAprendizaje ?? '').trim()
     || entregable.trim() !== (a.entregable ?? '').trim() || fechaEntrega !== (a.fechaEntrega ?? '');
@@ -118,7 +120,7 @@ function CriteriosAsignatura({ plan, a, nombre, gestor }: { plan: PlanConDocente
     setError(''); setOk(false);
     try { await guardarAsignatura(plan.id, a.asignaturaId, {
       criteriosPromocion: criterios.trim(), aportes: aportes.trim(), ebcDba: ebcDba.trim(), evidenciaAprendizaje: evidencia.trim(),
-      entregable: entregable.trim(), fechaEntrega,
+      entregable: entregable.trim(), fechaEntrega, porIA: false,
     }); setOk(true); }
     catch (e) { setError((e as Error).message); }
   }
@@ -129,7 +131,7 @@ function CriteriosAsignatura({ plan, a, nombre, gestor }: { plan: PlanConDocente
     try {
       const existentes = Object.fromEntries(Object.entries({ criteriosPromocion: criterios, ebcDba, evidenciaAprendizaje: evidencia, aportes })
         .filter(([, v]) => v.trim()));
-      const c = await sugerirCampos({ modo: 'asignatura', asignaturas: [nombre], grado: gradoDeGrupo(plan.grupo), ajustes: plan.ajustes, existentes, ...(plan.sinTecnologia ? { sinTecnologia: true } : {}) });
+      const c = await sugerirCampos({ modo: 'asignatura', asignaturas: [nombre], grado: gradoDeGrupo(plan.grupo), ajustes: plan.ajustes, existentes, ...(eje?.trim() ? { preguntaOrientadora: eje.trim() } : {}), ...(plan.sinTecnologia ? { sinTecnologia: true } : {}) });
       if (!criterios.trim() && c.criteriosPromocion) setCriterios(c.criteriosPromocion);
       if (!ebcDba.trim() && c.ebcDba) setEbcDba(c.ebcDba);
       if (!evidencia.trim() && c.evidenciaAprendizaje) setEvidencia(c.evidenciaAprendizaje);
@@ -139,9 +141,24 @@ function CriteriosAsignatura({ plan, a, nombre, gestor }: { plan: PlanConDocente
     finally { setSugiriendo(false); }
   }
 
+  /** Tres entregables posibles, ligados a la pregunta orientadora; el docente elige uno o escribe el suyo. */
+  async function sugerirEntregable() {
+    setError(''); setPensandoEnt(true);
+    try {
+      const existentes = Object.fromEntries(Object.entries({ aportes, ebcDba, criteriosPromocion: criterios, evidenciaAprendizaje: evidencia }).filter(([, v]) => v.trim()));
+      const c = await sugerirCampos({ modo: 'entregable', asignaturas: [nombre], grado: gradoDeGrupo(plan.grupo), ajustes: plan.ajustes, existentes,
+        ...(eje?.trim() ? { preguntaOrientadora: eje.trim() } : {}), ...(plan.sinTecnologia ? { sinTecnologia: true } : {}) });
+      setOpcionesEnt([c.opcion1, c.opcion2, c.opcion3].filter((x): x is string => !!x?.trim()));
+    } catch (e) { setError((e as Error).message); }
+    finally { setPensandoEnt(false); }
+  }
+
   return (
     <div className="rounded-2xl border border-line bg-card p-4 space-y-3">
-      <h3 className="text-sm font-semibold text-strong">{nombre}</h3>
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold text-strong">{nombre}</h3>
+        {a.porIA && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-warning-soft text-warning-soft-fg">✨ Escrito por la IA · revíselo y toque Guardar</span>}
+      </div>
       {gestor && <NotaGestor />}
       {plan.contextoDocentes?.trim() && (
         <div className="rounded-xl bg-elevated text-xs p-3">
@@ -170,6 +187,19 @@ function CriteriosAsignatura({ plan, a, nombre, gestor }: { plan: PlanConDocente
       <div className="rounded-xl border border-accent/40 p-3 space-y-2">
         <div><Etiqueta>Entregable de mi asignatura (qué debe entregar el estudiante)</Etiqueta>
           <input value={entregable} onChange={e => setEntregable(e.target.value)} placeholder="Ej.: mapa conceptual en foto, audio explicando…" className={CLASE_INPUT} /></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={sugerirEntregable} disabled={pensandoEnt} className={CLASE_BOTON_SEC}>{pensandoEnt ? 'Pensando…' : '✨ Proponer entregables con IA'}</button>
+          {!eje?.trim() && <span className="text-[11px] text-muted">Aún no hay pregunta orientadora: la propuesta será general.</span>}
+        </div>
+        {opcionesEnt.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[11px] text-muted">Toque una para usarla (luego puede editarla):</p>
+            {opcionesEnt.map((o, i) => (
+              <button key={i} type="button" onClick={() => { setEntregable(o); setOpcionesEnt([]); }}
+                className="w-full text-left text-sm rounded-xl border border-line bg-elevated hover:border-accent p-2.5 text-strong">{o}</button>
+            ))}
+          </div>
+        )}
         <div><Etiqueta>Fecha de entrega</Etiqueta>
           <input type="date" value={fechaEntrega} min={plan.desde} max={plan.hasta} onChange={e => setFechaEntrega(e.target.value)} className={CLASE_INPUT} /></div>
         <p className="text-[11px] text-muted">Al aprobar la guía, este entregable entra a la agenda del estudiante en esa fecha.</p>
@@ -220,12 +250,12 @@ function nombreDocente(correo: string, asigs: AsignaturaPlan[]): string {
 /** Para el líder: qué docentes ya guardaron criterios (lo que la IA necesita) y su entregable con fecha. */
 function CriteriosListos({ propias, nombre }: { propias: AsignaturaPlan[]; nombre: (id: string) => string }) {
   if (!propias.length) return null;
-  const listos = propias.filter(a => a.criteriosPromocion.trim()).length;
+  const listos = propias.filter(a => a.criteriosPromocion.trim() && !a.porIA).length;
   return (
     <div className="rounded-xl border border-line p-3 space-y-2">
       <p className="text-xs text-soft"><b className="text-strong">Criterios de los docentes:</b> {listos} de {propias.length} listos{listos < propias.length ? ' · conviene esperarlos antes de generar la guía' : ''}</p>
       <div className="flex flex-wrap gap-1.5">
-        {propias.map(a => <Marca key={a.asignaturaId} ok={!!a.criteriosPromocion.trim()} etiqueta={`${nombre(a.asignaturaId)} (${nombreDocente(a.docenteCorreo, propias)})`} />)}
+        {propias.map(a => <Marca key={a.asignaturaId} ok={!!a.criteriosPromocion.trim() && !a.porIA} etiqueta={`${nombre(a.asignaturaId)} (${nombreDocente(a.docenteCorreo, propias)})${a.porIA ? ' · por IA, sin revisar' : ''}`} />)}
       </div>
       <p className="text-xs text-soft"><b className="text-strong">Entregables con fecha:</b></p>
       <div className="flex flex-wrap gap-1.5">
@@ -279,6 +309,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
   const [sugiriendo, setSugiriendo] = useState(false);
   const [avisoSug, setAvisoSug] = useState('');
   const [generandoTodo, setGenerandoTodo] = useState(false);
+  const [confirmarIA, setConfirmarIA] = useState(false);
   const [progreso, setProgreso] = useState<Progreso[]>([]);
   const refPropuesta = useRef<HTMLDivElement>(null);
   const [eje, setEje] = useState(g.eje);
@@ -383,7 +414,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
           actuales.set(a.asignaturaId, nuevo);
           try {
             await guardarAsignatura(plan.id, a.asignaturaId, {
-              criteriosPromocion: nuevo.criteriosPromocion, ebcDba: nuevo.ebcDba, evidenciaAprendizaje: nuevo.evidenciaAprendizaje, aportes: nuevo.aportes,
+              criteriosPromocion: nuevo.criteriosPromocion, ebcDba: nuevo.ebcDba, evidenciaAprendizaje: nuevo.evidenciaAprendizaje, aportes: nuevo.aportes, porIA: true,
             });
           } catch { /* sin permiso para guardar: se usa igual en esta generación */ }
           marcar(i, 'ok', `${n} lista`);
@@ -507,7 +538,16 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
               <ul className="list-disc pl-4 space-y-0.5">{plan.ajustes.map(x => <li key={x}>{x}</li>)}</ul>
             </div>
           )}
-          <button onClick={generarTodo} disabled={generandoTodo || generando || (transversal && !g.eje.trim())}
+          {confirmarIA && (
+            <div className="rounded-xl border border-warning bg-warning-soft text-warning-soft-fg p-3 space-y-2 text-sm">
+              <p>Faltan los criterios de: <b>{faltanCriterios.map(a => nombre(a.asignaturaId)).join(', ')}</b>. Si sigue, la IA los inventará y la guía no tendrá lo que pide cada docente.</p>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setConfirmarIA(false)} className={CLASE_BOTON}>Esperar a los docentes</button>
+                <button onClick={() => { setConfirmarIA(false); generarTodo(); }} className={CLASE_BOTON_SEC}>Seguir, que la IA los complete</button>
+              </div>
+            </div>
+          )}
+          <button onClick={() => (faltanCriterios.length ? setConfirmarIA(true) : generarTodo())} disabled={generandoTodo || generando || (transversal && !g.eje.trim())}
             className={cn(CLASE_BOTON, 'w-full justify-center py-3 text-base')}>
             <Sparkles size={18} />{generandoTodo ? 'Trabajando…' : borrador ? '✨ Generar todo de nuevo con IA' : '✨ Generar todo con IA'}
           </button>
@@ -620,6 +660,9 @@ function PlanDocente({ plan, gestor }: { plan: PlanConDocentes; gestor: boolean 
   const yo = correoActual();
   const mias = (asigs ?? []).filter(a => gestor || a.docenteCorreo.toLowerCase() === yo);
   const responsable = (guias ?? []).filter(g => gestor || g.responsableCorreo.toLowerCase() === yo);
+  const propiasMias = mias.filter(a => a.docenteCorreo.toLowerCase() === yo);
+  const otrasMias = mias.filter(a => a.docenteCorreo.toLowerCase() !== yo);
+  const ejeDe = (id: string) => (guias ?? []).find(g => g.asignaturaIds.includes(id))?.eje;
   const participo = gestor ? [] : (guias ?? []).filter(g => g.responsableCorreo.toLowerCase() !== yo && g.docentesCorreos.map(c => c.toLowerCase()).includes(yo));
 
   return (
@@ -632,15 +675,23 @@ function PlanDocente({ plan, gestor }: { plan: PlanConDocentes; gestor: boolean 
       {error && <CajaError>{error}</CajaError>}
       {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
       {asigs && guias && mias.length === 0 && !error && <p className="text-sm text-soft">No tiene asignaturas en este plan.</p>}
-      {responsable.map(g => <GuiaResponsable key={g.id} gestor={gestor} plan={plan} g={g} todas={guias ?? []} asigs={asigs ?? []} nombres={nombres} />)}
-      {mias.length > 0 && (
+      {propiasMias.length > 0 && (
         <details open className="rounded-2xl border border-line bg-card p-4">
-          <summary className="cursor-pointer text-sm font-medium text-strong">{mias.length === 1 ? 'Mi asignatura' : 'Mis asignaturas'}: temáticas, competencia, entregable y fecha de entrega</summary>
+          <summary className="cursor-pointer text-sm font-medium text-strong">Paso 1 · {propiasMias.length === 1 ? 'Mi asignatura' : 'Mis asignaturas'}: temáticas, competencia, criterios, entregable y fecha de entrega</summary>
           <div className="space-y-3 mt-3">
-            {mias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
+            {propiasMias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} eje={ejeDe(a.asignaturaId)} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
           </div>
         </details>
       )}
+      {otrasMias.length > 0 && (
+        <details className="rounded-2xl border border-line bg-card p-4">
+          <summary className="cursor-pointer text-sm font-medium text-strong">Asignaturas de los otros docentes ({otrasMias.length})</summary>
+          <div className="space-y-3 mt-3">
+            {otrasMias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} eje={ejeDe(a.asignaturaId)} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
+          </div>
+        </details>
+      )}
+      {responsable.map(g => <GuiaResponsable key={g.id} gestor={gestor} plan={plan} g={g} todas={guias ?? []} asigs={asigs ?? []} nombres={nombres} />)}
       {participo.map(g => <GuiaParticipante key={g.id} plan={plan} g={g} asigs={asigs ?? []} nombres={nombres} />)}
     </section>
   );

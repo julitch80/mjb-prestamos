@@ -274,7 +274,7 @@ export async function sugerirPreguntas(entrada: { tematica: string; asignaturas:
 }
 
 export interface EntradaSugerirCampos {
-  modo: 'asignatura' | 'pedido'; preguntaOrientadora?: string; asignaturas: string[]; grado: string;
+  modo: 'asignatura' | 'pedido' | 'entregable'; preguntaOrientadora?: string; asignaturas: string[]; grado: string;
   ajustes?: string[]; existentes?: Record<string, string>; sinTecnologia?: boolean;
 }
 

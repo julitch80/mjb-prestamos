@@ -1,6 +1,6 @@
 // Lógica pura de «Sugerir con IA» para los formularios del docente: esquemas, prompt y saneamiento.
 
-export type ModoCampos = 'asignatura' | 'pedido';
+export type ModoCampos = 'asignatura' | 'pedido' | 'entregable';
 export interface EntradaCampos {
   modo: ModoCampos; preguntaOrientadora?: string; asignaturas: string[]; grado: string;
   ajustes?: string[]; existentes?: Record<string, string>; sinTecnologia?: boolean;
@@ -8,6 +8,7 @@ export interface EntradaCampos {
 
 export const CLAVES_ASIGNATURA = ['criteriosPromocion', 'ebcDba', 'evidenciaAprendizaje', 'aportes'] as const;
 export const CLAVES_PEDIDO = ['tematicas', 'competencias', 'textoReferencia'] as const;
+export const CLAVES_ENTREGABLE = ['opcion1', 'opcion2', 'opcion3'] as const;
 
 export const SISTEMA_CAMPOS = `Eres un asesor curricular colombiano que ayuda a docentes a diligenciar un plan de trabajo en casa para un estudiante con ajustes razonables.
 Reglas:
@@ -27,10 +28,13 @@ const DESCRIPCION: Record<string, string> = {
   tematicas: 'temáticas a trabajar en la guía',
   competencias: 'competencias o habilidades a desarrollar',
   textoReferencia: 'texto, lectura o recurso de referencia sugerido (sin inventar enlaces; describe el tipo de lectura)',
+  opcion1: 'un entregable concreto de la asignatura, conectado con la pregunta orientadora (una o dos líneas: qué produce y en qué formato)',
+  opcion2: 'otro entregable distinto, igualmente conectado con la pregunta orientadora (una o dos líneas)',
+  opcion3: 'un tercer entregable distinto, el más sencillo de los tres (una o dos líneas)',
 };
 
 export function clavesDe(modo: ModoCampos): readonly string[] {
-  return modo === 'pedido' ? CLAVES_PEDIDO : CLAVES_ASIGNATURA;
+  return modo === 'pedido' ? CLAVES_PEDIDO : modo === 'entregable' ? CLAVES_ENTREGABLE : CLAVES_ASIGNATURA;
 }
 
 export function esquemaCampos(modo: ModoCampos) {
@@ -48,7 +52,7 @@ function limpio(v: unknown, max: number): string {
 }
 
 export function construirPromptCampos(e: EntradaCampos): string {
-  const modo: ModoCampos = e.modo === 'pedido' ? 'pedido' : 'asignatura';
+  const modo: ModoCampos = e.modo === 'pedido' || e.modo === 'entregable' ? e.modo : 'asignatura';
   const asigs = (Array.isArray(e.asignaturas) ? e.asignaturas : []).map(a => limpio(a, 100)).filter(Boolean).slice(0, 12);
   const ajustes = (Array.isArray(e.ajustes) ? e.ajustes : []).map(a => limpio(a, 300)).filter(Boolean).slice(0, 20);
   const ex = e.existentes && typeof e.existentes === 'object' ? e.existentes : {};
@@ -56,7 +60,7 @@ export function construirPromptCampos(e: EntradaCampos): string {
   const existentes = Object.entries(ex).map(([k, v]) => [limpio(k, 60), limpio(v, 600)] as const).filter(([k, v]) => k && v).slice(0, 12);
   return [
     `Grado: ${limpio(e.grado, 20)}`,
-    modo === 'asignatura'
+    modo !== 'pedido'
       ? `Asignatura: ${asigs[0] ?? ''}`
       : `Asignaturas que integra la guía: ${asigs.join(', ')}`,
     `Pregunta orientadora: ${limpio(e.preguntaOrientadora, 400) || '(no hay)'}`,

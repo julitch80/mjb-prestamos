@@ -149,7 +149,7 @@ export const planCasaSugerirCampos = onCall(
       throw new HttpsError('permission-denied', 'Tu usuario no puede pedir sugerencias.');
     }
     const e = (request.data ?? {}) as EntradaCampos;
-    if (e.modo !== 'asignatura' && e.modo !== 'pedido') throw new HttpsError('invalid-argument', 'Modo inválido.');
+    if (e.modo !== 'asignatura' && e.modo !== 'pedido' && e.modo !== 'entregable') throw new HttpsError('invalid-argument', 'Modo inválido.');
     if (!Array.isArray(e.asignaturas) || !e.asignaturas.some(a => typeof a === 'string' && a.trim())) {
       throw new HttpsError('invalid-argument', 'Falta la asignatura.');
     }
