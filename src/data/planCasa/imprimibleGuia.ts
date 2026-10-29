@@ -55,6 +55,8 @@ img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .lineas { border: 1.5px solid #111; border-radius: 4px; margin: 6px 0 4px;
   background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(0.95cm - 1px), #888 calc(0.95cm - 1px), #888 0.95cm); }
 .etq { font-size: 12px; color: #444; }
+.chequeo { list-style: none; padding: 0; margin: 4px 0 0; }
+.chequeo li { margin-bottom: 3px; }
 .entrega { border: 2px solid #111; border-radius: 6px; padding: 8px 12px; margin-top: 10px; background: #f3f3f3; page-break-inside: avoid; }
 .sust { page-break-before: always; }
 .preg { margin-bottom: 10px; page-break-inside: avoid; }
@@ -90,6 +92,10 @@ const tituloGuia = (g: GuiaPlan, nombres: Nombres) => {
   return { areas, texto: hayPregunta ? `${g.eje} (${areas.join(' · ')})` : areas.join(' · ') };
 };
 
+/** (Guías integradas) «Tu entrega incluye: ☐ parte (Asignatura)». */
+const listaComponentes = (e: PasoGuia | undefined, nombres: Nombres) => (e?.componentes?.length
+  ? `<p><b>Tu entrega incluye:</b></p><ul class="chequeo">${e.componentes.map(c => `<li>☐ ${esc(c.parte)} (${esc(nombres[c.asignaturaId]?.asignatura ?? c.asignatura ?? c.asignaturaId)})</li>`).join('')}</ul>` : '');
+
 function seccionGuia(g: GuiaPlan, guia: Guia, nombres: Nombres): string {
   const t = tituloGuia(g, nombres);
   const semanas = [...new Set(guia.pasos.map(p => p.semana))].sort((a, b) => a - b);
@@ -101,6 +107,7 @@ function seccionGuia(g: GuiaPlan, guia: Guia, nombres: Nombres): string {
       ${pasos.map(textoPaso).join('')}
       ${entrega ? `<div class="entrega">
         <p><b>Entrega de la semana:</b> ${esc(entrega.evidenciaDetalle || entrega.titulo)}</p>
+        ${listaComponentes(entrega, nombres)}
         <p><b>Cómo entregarla:</b> en papel (hoja o cuaderno). ${esc(entrega.canalEntrega || CANAL_DEFECTO)}.</p>
       </div>` : ''}
     </div>`;
@@ -122,7 +129,7 @@ function seccionEntregas(items: Aprobada[], nombres: Nombres): string {
     return semanas.map(n => {
       const pasos = guia.pasos.filter(p => p.semana === n);
       const e = pasos.find(p => p.esEntregaParcial) ?? pasos[pasos.length - 1];
-      return `<tr><td>${esc(t)}</td><td>Semana ${esc(n)}</td><td>${esc(fecha(e.fecha)) || '________'}</td><td>${esc(e.evidenciaDetalle || e.titulo)}</td><td>En papel; ${esc(e.canalEntrega || CANAL_DEFECTO)}</td></tr>`;
+      return `<tr><td>${esc(t)}</td><td>Semana ${esc(n)}</td><td>${esc(fecha(e.fecha)) || '________'}</td><td>${esc(e.evidenciaDetalle || e.titulo)}${e.componentes?.length ? `<br>${e.componentes.map(c => `☐ ${esc(c.parte)} (${esc(nombres[c.asignaturaId]?.asignatura ?? c.asignatura ?? c.asignaturaId)})`).join('<br>')}` : ''}</td><td>En papel; ${esc(e.canalEntrega || CANAL_DEFECTO)}</td></tr>`;
     });
   }).join('');
   const sust = items.map(({ g, guia }) => {

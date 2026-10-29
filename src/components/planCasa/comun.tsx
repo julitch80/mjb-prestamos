@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { AlertTriangle, FileDown, Printer, Loader2, Sparkles } from 'lucide-react';
 import { addDias } from '../../data/tareas/calendario';
 import { cn } from '@/lib/utils';
-import type { AsignaturaPlan, GuiaPlan, FechaISO, PasoGuia, PlanCasa, RitmoPlan } from '../../data/planCasa/tipos';
+import type { AsignaturaPlan, ComponenteEntrega, GuiaPlan, FechaISO, PasoGuia, PlanCasa, RitmoPlan } from '../../data/planCasa/tipos';
 import { sugerirPreguntas, type PreguntaSugerida } from '../../data/planCasa/persistencia';
 import { diasEntre, estadoEdicion, repartirPasos, type EstadoEdicion } from '../../data/planCasa/logica';
 import { abrirImprimibleGuia, construirHtmlCuadernillo } from '../../data/planCasa/imprimibleGuia';
@@ -18,6 +18,19 @@ export const CLASE_BOTON_SEC =
 
 export function Etiqueta({ children }: { children: ReactNode }) {
   return <label className="block text-xs font-medium text-soft mb-1">{children}</label>;
+}
+
+/** (Guías integradas) «Esta entrega la revisan: Matemáticas (parte) · Ética (parte)». */
+export function ComponentesEntrega({ componentes, nombre }: { componentes?: ComponenteEntrega[]; nombre: (id: string) => string }) {
+  if (!componentes?.length) return null;
+  return (
+    <p className="text-xs text-soft">
+      <b className="text-strong">Esta entrega la revisan:</b>{' '}
+      {componentes.map((c, i) => (
+        <span key={c.asignaturaId}>{i > 0 ? ' · ' : ''}{nombre(c.asignaturaId)} <span className="text-muted">({c.parte})</span></span>
+      ))}
+    </p>
+  );
 }
 
 export function CajaError({ children }: { children: ReactNode }) {

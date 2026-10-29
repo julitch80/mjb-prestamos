@@ -7,21 +7,22 @@ import { Check, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../data/store';
 import type {
-  AsignaturaPlan, EstadoPaso, EstadoSustentacion, Guia, GuiaPlan, PedidoGuia, SolicitudAutorizacion,
+  AsignaturaPlan, ComponenteEntrega, EstadoPaso, EstadoSustentacion, Guia, GuiaPlan, PasoGuia, PedidoGuia, RevisionAsignatura, SolicitudAutorizacion,
 } from '../../data/planCasa/tipos';
 import { MODALIDADES_SUSTENTACION, MOTIVOS_SOLICITUD } from '../../data/planCasa/tipos';
 import { asignaturasCambiadas, fechaCierre, protegerPasosPasados, semanasDelPeriodo } from '../../data/planCasa/logica';
 import { addDias } from '../../data/tareas/calendario';
+import { capacidadPorSemana, esGuiaIntegrable, estadoTrasRevision, faltanPorRevisar, revisionCompleta } from '../../data/planCasa/integrada';
 import {
   correoActual, darVistoBueno, leerEquipo, escucharAsignaturas, escucharGuias, escucharPlanes, guardarAsignatura,
-  escucharSolicitudes, guardarGuia, pedirAutorizacion, pedirGuiaIA, publicarPlan, sugerirCampos, type PlanConDocentes,
+  escucharSolicitudes, guardarGuia, guardarRevisionParte, integrarGuiaIA, pedirAutorizacion, pedirGuiaIA, publicarPlan, sugerirCampos, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { USUARIOS } from '../../data/maestros';
 import { asignaturasConNombre, gradoDeGrupo } from './nombres';
 import EditorGuia from './EditorGuia';
 import { ListaEntregas, useEntregas } from './EntregasPaso';
 import {
-  BarraEstadoGuia, BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, edicionDe, Etiqueta, fechaCorta, fechaLarga, hoyLocal, Marca,
+  BarraEstadoGuia, BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, ComponentesEntrega, edicionDe, Etiqueta, fechaCorta, fechaLarga, hoyLocal, Marca,
   repartirTodas, resumenGuia, SugerirPreguntas,
 } from './comun';
 
@@ -33,7 +34,69 @@ interface Progreso { texto: string; estado: EstadoProg }
 
 // ── Seguimiento (de una guía) ─────────────────────────────────────────────
 
-function Seguimiento({ plan, g }: { plan: PlanConDocentes; g: GuiaPlan }) {
+/**
+ * (Guías integradas) Por cada asignatura de la entrega: qué le corresponde a su docente y el botón
+ * «Revisé mi parte» con su propio comentario. El paso queda «revisado» cuando todas revisaron.
+ * Muestra quién falta. Cada docente solo marca la suya (el equipo y coordinación pueden marcar cualquiera).
+ */
+function RevisionPartes({ plan, g, p, asigs, nombre, gestor, soloMias = false }: {
+  plan: PlanConDocentes; g: GuiaPlan; p: PasoGuia; asigs: AsignaturaPlan[]; nombre: (id: string) => string; gestor: boolean; soloMias?: boolean;
+}) {
+  const yo = correoActual();
+  const [borrador, setBorrador] = useState<Record<string, string>>({});
+  const [error, setError] = useState('');
+  const [guardando, setGuardando] = useState('');
+  const seg = g.seguimiento?.[p.id];
+  const comps = p.componentes ?? [];
+  if (!comps.length) return null;
+  const esMia = (id: string) => asigs.find(a => a.asignaturaId === id)?.docenteCorreo.toLowerCase() === yo;
+  const faltan = faltanPorRevisar(p, seg);
+  const visibles = soloMias ? comps.filter(c => esMia(c.asignaturaId)) : comps;
+
+  async function marcar(c: ComponenteEntrega, revisado: boolean) {
+    setError(''); setGuardando(c.asignaturaId);
+    try {
+      const comentario = (borrador[c.asignaturaId] ?? seg?.porAsignatura?.[c.asignaturaId]?.comentario ?? '').trim();
+      const nueva: RevisionAsignatura = { revisado, ...(comentario ? { comentario } : {}), por: yo };
+      const completo = revisionCompleta(p, { estado: seg?.estado ?? 'pendiente', porAsignatura: { ...(seg?.porAsignatura ?? {}), [c.asignaturaId]: nueva } });
+      await guardarRevisionParte(plan.id, g.id, p.id, c.asignaturaId, nueva, estadoTrasRevision(seg, completo));
+      // «Revisó» y el comentario de cada asignatura llegan a la agenda del estudiante.
+      publicarPlan(plan.id).catch(() => { /* se verá al próximo publicar */ });
+    } catch (e) { setError((e as Error).message || 'No se pudo guardar.'); }
+    finally { setGuardando(''); }
+  }
+
+  return (
+    <div className="rounded-lg border border-line p-2 space-y-2">
+      <p className="text-xs text-soft">
+        <b className="text-strong">Revisión por asignatura:</b>{' '}
+        {faltan.length === 0 ? '✓ todas revisaron' : `falta${faltan.length > 1 ? 'n' : ''}: ${faltan.map(c => nombre(c.asignaturaId)).join(', ')}`}
+      </p>
+      {visibles.map(c => {
+        const r = seg?.porAsignatura?.[c.asignaturaId];
+        const mia = esMia(c.asignaturaId) || gestor;
+        const txt = borrador[c.asignaturaId] ?? r?.comentario ?? '';
+        return (
+          <div key={c.asignaturaId} className="text-xs space-y-1 border-t border-line pt-2 first:border-t-0 first:pt-0">
+            <p className="text-strong"><b>{nombre(c.asignaturaId)}</b> {r?.revisado ? <span className="text-success">✓ revisó</span> : <span className="text-muted">· pendiente</span>}</p>
+            {mia ? (
+              <>
+                <p className="text-soft">A usted le corresponde: <b className="text-strong">{c.parte}</b>. Revise: {c.queRevisar}</p>
+                <input value={txt} onChange={e => setBorrador(b => ({ ...b, [c.asignaturaId]: e.target.value }))}
+                  placeholder="Comentario para el estudiante sobre su parte (opcional)" className={CLASE_INPUT} />
+                <button onClick={() => marcar(c, !r?.revisado)} disabled={guardando === c.asignaturaId}
+                  className={r?.revisado ? CLASE_BOTON_SEC : CLASE_BOTON}><Check size={15} />{r?.revisado ? 'Quitar mi revisión' : 'Revisé mi parte'}</button>
+              </>
+            ) : r?.comentario ? <p className="text-soft">«{r.comentario}»</p> : null}
+          </div>
+        );
+      })}
+      {error && <CajaError>{error}</CajaError>}
+    </div>
+  );
+}
+
+function Seguimiento({ plan, g, asigs, nombre, gestor }: { plan: PlanConDocentes; g: GuiaPlan; asigs: AsignaturaPlan[]; nombre: (id: string) => string; gestor: boolean }) {
   const [error, setError] = useState('');
   const [borrador, setBorrador] = useState<Record<string, string>>({});
   const guia = g.aprobada!;
@@ -75,6 +138,8 @@ function Seguimiento({ plan, g }: { plan: PlanConDocentes; g: GuiaPlan }) {
             <input value={obs} onChange={e => setBorrador(b => ({ ...b, [p.id]: e.target.value }))}
               onBlur={() => { if (p.id in borrador && borrador[p.id] !== (seg?.observacion ?? '')) cambiarPaso(p.id, { observacion: borrador[p.id] }); }}
               placeholder="Comentario para el estudiante (lo ve en su agenda al marcar Revisado)" className={CLASE_INPUT} />
+            <ComponentesEntrega componentes={p.componentes} nombre={nombre} />
+            <RevisionPartes plan={plan} g={g} p={p} asigs={asigs} nombre={nombre} gestor={gestor} />
             <ListaEntregas planId={plan.id} entregas={entregas.filter(e => e.pasoId === p.id)} />
           </div>
         );
@@ -271,7 +336,7 @@ function CriteriosAsignatura({ plan, a, nombre, gestor, eje, guia }: { plan: Pla
 
 // ── Vista de solo lectura de una guía ─────────────────────────────────────
 
-function GuiaLectura({ guia }: { guia: Guia }) {
+function GuiaLectura({ guia, nombre = id => id }: { guia: Guia; nombre?: (id: string) => string }) {
   const semanas = [...new Set(guia.pasos.map(p => p.semana || 1))].sort((a, b) => a - b);
   const modalidad = MODALIDADES_SUSTENTACION.find(m => m.id === guia.sustentacion.modalidad)?.texto ?? guia.sustentacion.modalidad;
   return (
@@ -291,6 +356,7 @@ function GuiaLectura({ guia }: { guia: Guia }) {
                 {p.lectura && <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded-full bg-elevated text-soft">📖 Lectura</span>}
                 {p.esEntregaParcial && <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded-full bg-warning-soft text-warning-soft-fg">Entrega parcial</span>}
                 <span className="text-xs text-muted font-normal"> · {p.momentos} mom. · {p.canalEntrega || p.evidencia}{p.fecha ? ` · ${fechaCorta(p.fecha)}` : ''}</span>
+                {p.componentes?.length ? <div className="mt-1 font-normal"><ComponentesEntrega componentes={p.componentes} nombre={nombre} /></div> : null}
                 {p.lectura && <details className="mt-1 font-normal"><summary className="cursor-pointer text-xs text-accent">Ver lectura</summary><p className="whitespace-pre-wrap text-xs text-soft mt-1">{p.lectura}</p></details>}</li>))}</ul>
           </div>))}</div>
       <p><span className="font-medium text-strong">Sustentación:</span> {modalidad}{guia.sustentacion.fecha ? `, ${fechaCorta(guia.sustentacion.fecha)}` : ''}{guia.sustentacion.hora ? ` ${guia.sustentacion.hora}` : ''}</p>
@@ -337,6 +403,8 @@ function VistosBuenos({ g, asigs }: { g: GuiaPlan; asigs: AsignaturaPlan[] }) {
 
 /** Agrega (o actualiza) un paso «Entregable de <asignatura>» por cada asignatura que tenga entregable. */
 function conEntregables(guia: Guia, asigs: AsignaturaPlan[], nombre: (id: string) => string, desde: string): Guia {
+  // Guía integrada: los entregables de los docentes ya están fundidos en la entrega semanal; no se añaden pasos sueltos.
+  if (guia.integrada) return guia;
   const pasos = [...guia.pasos];
   for (const a of asigs) {
     const id = `ent-${a.asignaturaId}`;
@@ -369,6 +437,8 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
   const [generandoTodo, setGenerandoTodo] = useState(false);
   const [confirmarIA, setConfirmarIA] = useState(false);
   const [progreso, setProgreso] = useState<Progreso[]>([]);
+  const [integrando, setIntegrando] = useState(false);
+  const [avisosIntegrar, setAvisosIntegrar] = useState<string[]>([]);
   const refPropuesta = useRef<HTMLDivElement>(null);
   const [eje, setEje] = useState(g.eje);
   const [guardandoEje, setGuardandoEje] = useState(false);
@@ -378,6 +448,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
   const cerrada = !edicion.abierta;
   const despuesDelCierre = hoyLocal() > fechaCierre(plan);
   const transversal = g.asignaturaIds.length > 1 || plan.modalidad === 'transversal';
+  const integrable = esGuiaIntegrable(plan, g);
   const nombre = (id: string) => nombres[id]?.asignatura ?? id;
 
   useEffect(() => { if (!borrador && g.propuesta) setBorrador(g.propuesta); }, [g.propuesta, borrador]);
@@ -531,6 +602,30 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
     await generar();
   }
 
+  /** Paso final del líder: funde los entregables de los docentes en UNA entrega por semana (la IA escribe, el líder revisa). */
+  async function integrar() {
+    const base = borrador ?? g.propuesta ?? g.aprobada;
+    if (!base) return setError('Primero genere la guía.');
+    setError(''); setAviso(''); setAvisosIntegrar([]); setIntegrando(true);
+    try {
+      const r = await integrarGuiaIA({
+        guia: base, eje: g.eje, grado: gradoDeGrupo(plan.grupo), desde: plan.desde, hasta: plan.hasta,
+        ajustes: plan.ajustes, topeDiario: plan.topeDiario, ritmo: plan.ritmo ?? 'diario', ...(plan.sinTecnologia ? { sinTecnologia: true } : {}),
+        asignaturas: propias.map(a => ({
+          asignaturaId: a.asignaturaId, nombre: nombre(a.asignaturaId), criterios: a.criteriosPromocion,
+          ...(a.aportes?.trim() ? { tematicas: a.aportes.trim() } : {}), ...(a.ebcDba?.trim() ? { competencia: a.ebcDba.trim() } : {}),
+          ...(a.evidenciaAprendizaje?.trim() ? { evidencia: a.evidenciaAprendizaje.trim() } : {}),
+          ...(a.entregable?.trim() ? { entregable: a.entregable.trim() } : {}), ...(a.fechaEntrega ? { fechaEntrega: a.fechaEntrega } : {}),
+        })),
+      });
+      setBorrador(r.guia); setEditando(true); setAvisosIntegrar(r.avisos);
+      await guardarGuia(plan.id, g.id, { propuesta: r.guia, propuestaEn: Date.now() });
+      setAviso('Guía integrada. Revise las entregas de cada semana y luego use «Aprobar y publicar».');
+      setTimeout(() => refPropuesta.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+    } catch (e) { setError((e as Error).message); }
+    finally { setIntegrando(false); }
+  }
+
   async function guardarEje() {
     setError(''); setGuardandoEje(true);
     try { await guardarGuia(plan.id, g.id, { eje: eje.trim() }); setAviso('Pregunta orientadora guardada.'); }
@@ -558,7 +653,8 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
       const ahora = Date.now();
       await guardarGuia(plan.id, g.id, {
         aprobada, aprobadaEn: ahora, propuesta: aprobada, propuestaEn: ahora,
-        ...(cambio && Object.keys(g.vistosBuenos ?? {}).length ? { vistosBuenos: {} } : {}),
+        // Una guía integrada conserva los vistos buenos: solo reorganiza lo que los docentes ya dieron.
+        ...(cambio && !aprobada.integrada && Object.keys(g.vistosBuenos ?? {}).length ? { vistosBuenos: {} } : {}),
       });
       setBorrador(aprobada);
       let sinPermiso = 0;
@@ -675,10 +771,28 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
         </div>
       )}
 
+      {!cerrada && integrable && (borrador || g.aprobada || g.propuesta) && !generando && !generandoTodo && (
+        <div className="rounded-xl border border-line p-3 space-y-2">
+          <p className="text-sm font-semibold text-strong">Paso final · Integrar la guía {(borrador?.integrada || g.aprobada?.integrada) && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-success-soft text-success-soft-fg">✓ Integrada</span>}</p>
+          <p className="text-xs text-soft">Junta los entregables de los docentes en una sola entrega por semana, respeta el tiempo diario de la UAI y no les pide nada a los docentes. Lo que ellos escribieron queda intacto; usted revisa el resultado y lo aprueba.</p>
+          <p className="text-[11px] text-muted">Capacidad por semana: {capacidadPorSemana(plan.desde, plan.hasta, plan.topeDiario, plan.ritmo ?? 'diario').join(' · ')} momentos.{g.aprobada && !g.aprobada.integrada ? ' La guía ya está aprobada: el resultado queda como propuesta hasta que la apruebe.' : ''}{g.aprobada?.integrada ? ' Si la integra de nuevo, los pasos se renumeran y el seguimiento de los pasos actuales no se traslada.' : ''}</p>
+          <button onClick={integrar} disabled={integrando || aprobando || faltanCriterios.length === propias.length} className={CLASE_BOTON}>
+            <span aria-hidden>🔗</span>{integrando ? 'Integrando…' : (borrador?.integrada || g.aprobada?.integrada) ? 'Integrar de nuevo' : 'Integrar la guía'}
+          </button>
+          {integrando && <Cargando texto="La IA está integrando la guía (puede tardar hasta un minuto)…" />}
+        </div>
+      )}
+      {avisosIntegrar.length > 0 && (
+        <div className="rounded-xl bg-warning-soft text-warning-soft-fg p-3 text-sm space-y-1">
+          <p className="font-medium">Revise antes de aprobar:</p>
+          <ul className="list-disc pl-4">{avisosIntegrar.map((a, i) => <li key={i}>{a}</li>)}</ul>
+        </div>
+      )}
+
       {!cerrada && borrador && (!r.guia || editando) && !generando && !generandoTodo && (
         <div ref={refPropuesta} className="space-y-3 border-t border-line pt-4">
           <h4 className="text-sm font-semibold text-strong">Propuesta (edítela a su gusto)</h4>
-          <EditorGuia guia={borrador} onChange={setBorrador} />
+          <EditorGuia guia={borrador} onChange={setBorrador} nombre={nombre} />
           <div className="flex flex-wrap gap-2">
             <button onClick={aprobar} disabled={aprobando} className={CLASE_BOTON}><Check size={15} />{aprobando ? 'Aprobando…' : 'Aprobar y publicar'}</button>
             <BotonFormatoUAI plan={plan} guias={[{ ...g, propuesta: borrador }]} asigs={asigs} nombres={nombres} />
@@ -688,16 +802,16 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
       )}
 
       {cerrada && !r.guia && g.propuesta && (
-        <div className="border-t border-line pt-4 space-y-2"><p className="text-xs text-soft">Propuesta sin aprobar.</p><GuiaLectura guia={g.propuesta} /></div>
+        <div className="border-t border-line pt-4 space-y-2"><p className="text-xs text-soft">Propuesta sin aprobar.</p><GuiaLectura guia={g.propuesta} nombre={nombre} /></div>
       )}
       {r.guia && (!editando || cerrada) && (
         <div className="space-y-4 border-t border-line pt-4">
-          <GuiaLectura guia={g.aprobada!} />
+          <GuiaLectura guia={g.aprobada!} nombre={nombre} />
           <div className="flex flex-wrap gap-2">
             {!cerrada && <button onClick={() => { setBorrador(g.aprobada!); setEditando(true); }} className={CLASE_BOTON_SEC}>Reabrir para corregir</button>}
             <BotonFormatoUAI plan={plan} guias={[g]} asigs={asigs} nombres={nombres} />
           </div>
-          <Seguimiento plan={plan} g={g} />
+          <Seguimiento plan={plan} g={g} asigs={asigs} nombre={nombre} gestor={gestor} />
         </div>
       )}
 
@@ -715,6 +829,7 @@ function GuiaParticipante({ plan, g, asigs, nombres, gestor }: { plan: PlanConDo
   const [error, setError] = useState('');
   const dado = !!g.vistosBuenos?.[yo];
   const guia = g.aprobada ?? g.propuesta;
+  const nombre = (id: string) => nombres[id]?.asignatura ?? id;
 
   async function alternar() {
     setError('');
@@ -733,7 +848,13 @@ function GuiaParticipante({ plan, g, asigs, nombres, gestor }: { plan: PlanConDo
       {guia ? (
         <>
           {!g.aprobada && <p className="text-xs text-soft">Propuesta aún sin aprobar.</p>}
-          <GuiaLectura guia={guia} />
+          <GuiaLectura guia={guia} nombre={nombre} />
+          {g.aprobada?.integrada && g.aprobada.pasos.filter(p => p.componentes?.some(c => asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo.toLowerCase() === yo)).map(p => (
+            <div key={p.id} className="rounded-xl border border-line p-3 space-y-2">
+              <p className="text-sm text-strong">{p.titulo} <span className="text-xs text-muted">· {fechaCorta(p.fecha)}</span></p>
+              <RevisionPartes plan={plan} g={g} p={p} asigs={asigs} nombre={nombre} gestor={false} soloMias />
+            </div>
+          ))}
           <div className="flex flex-wrap gap-2">
             <button onClick={alternar} className={dado ? CLASE_BOTON_SEC : CLASE_BOTON}><Check size={15} />{dado ? 'Quitar mi visto bueno' : 'Dar mi visto bueno'}</button>
             <BotonFormatoUAI plan={plan} guias={[g]} asigs={asigs} nombres={nombres} />

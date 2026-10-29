@@ -216,6 +216,23 @@ function TarjetaPaso({ p, token }: { p: Paso; token: string }) {
         <b>Qué entregas:</b> {p.evidenciaDetalle}
         {p.canalEntrega && <span className="block"><b>Cómo lo entregas:</b> {p.canalEntrega}</span>}
       </p>
+      {p.componentes && p.componentes.length > 0 && (
+        <div className="rounded-xl border border-line px-3 py-2 space-y-1.5">
+          <p className="text-base font-semibold text-strong">Tu entrega incluye:</p>
+          <ul className="space-y-1.5 text-base text-soft">
+            {p.componentes.map(c => (
+              <li key={c.asignaturaId}>
+                <span aria-hidden>{c.revisado ? '☑' : '☐'}</span> {c.parte} <span className="text-muted">({c.asignatura ?? 'Asignatura'})</span>
+                {c.revisado && (
+                  <span className="block ml-6 text-sm text-green-700 dark:text-green-400 font-semibold">
+                    ✓ {c.asignatura ?? 'Asignatura'} revisó{c.comentario ? <span className="font-normal text-soft whitespace-pre-wrap"> · «{c.comentario}»</span> : null}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {p.enlaces && p.enlaces.length > 0 && (
         <div className="flex flex-wrap gap-2 pt-1">
           {p.enlaces.map((e, i) => (

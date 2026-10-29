@@ -11,7 +11,7 @@ import { getAsignatura } from '../asignacionAcademica';
 import {
   COL_PLANES, DOC_EQUIPO, DOC_MOTIVO, SUB_ASIGNATURAS, SUB_GUIAS, SUB_RESERVADO, SUB_SOLICITUDES, type SolicitudAutorizacion,
   type AsignaturaPlan, type GuiaPlan, type ModalidadGuias, type EntradaGuiaIA, type Guia, type MotivoReservado, type PlanCasa,
-  type RitmoPlan, type SalidaGuiaIA,
+  type RitmoPlan, type SalidaGuiaIA, type EntradaIntegrarGuia, type SalidaIntegrarGuia, type RevisionAsignatura, type EstadoPaso,
 } from './tipos';
 import { docentesDelGrupo, nuevoToken } from './logica';
 
@@ -260,6 +260,32 @@ export async function pedirGuiaIA(entrada: EntradaGuiaIA): Promise<Guia> {
     if (!r.data.ok || !r.data.guia) throw new Error(r.data.error ?? 'La IA no devolvió una guía.');
     return r.data.guia;
   } catch (e) { throw traducirError(e); }
+}
+
+/** «Integrar la guía»: una entrega integrada por semana. Mismo tiempo máximo que pedirGuiaIA. */
+export async function integrarGuiaIA(entrada: EntradaIntegrarGuia): Promise<{ guia: Guia; avisos: string[] }> {
+  if (!functions) throw new Error('Firebase no está configurado.');
+  try {
+    const r = await httpsCallable<EntradaIntegrarGuia, SalidaIntegrarGuia>(functions, 'planCasaIntegrarGuia', { timeout: 310_000 })(entrada);
+    if (!r.data.ok || !r.data.guia) throw new Error(r.data.error ?? 'La IA no está disponible en este momento (sin saldo o saturada). Intente más tarde.');
+    return { guia: r.data.guia, avisos: r.data.avisos ?? [] };
+  } catch (e) { throw traducirError(e); }
+}
+
+/**
+ * «Revisé mi parte»: el docente de una asignatura marca su revisión de una entrega integrada.
+ * Escribe SOLO seguimiento.{paso}.porAsignatura.{asignatura} (y el estado del paso), con FieldPath.
+ */
+export async function guardarRevisionParte(
+  planId: string, guiaId: string, pasoId: string, asignaturaId: string,
+  revision: RevisionAsignatura, estado: EstadoPaso,
+) {
+  const ahora = Date.now();
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId, SUB_GUIAS, guiaId),
+    new FieldPath('seguimiento', pasoId, 'porAsignatura', asignaturaId), { ...revision, en: ahora },
+    new FieldPath('seguimiento', pasoId, 'estado'), estado,
+    new FieldPath('seguimiento', pasoId, 'actualizadoEn'), ahora,
+    new FieldPath('actualizadoEn'), ahora);
 }
 
 export interface PreguntaSugerida { pregunta: string; porQue: string; aportes: { asignatura: string; aporte: string }[]; producto: string }

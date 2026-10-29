@@ -161,6 +161,13 @@ export function sanearGuia(bruto: unknown, topeDiario: number, semanas = 0, sinT
     const instrucciones = sinTecnologia ? limpio(limpio(r.instrucciones, MAX.largo).replace(RE_URL, ''), MAX.largo) : limpio(r.instrucciones, MAX.largo);
     const lectura = typeof r.lectura === 'string' ? r.lectura.replace(RE_URL, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, MAX.lectura).trim() : '';
     if (!titulo || !instrucciones) continue;
+    // Guías integradas: la IA devuelve las partes por asignatura de la entrega (se validan después con las asignaturas reales).
+    const componentes = (Array.isArray(r.componentes) ? r.componentes : []).slice(0, 8).flatMap(c => {
+      if (!c || typeof c !== 'object') return [];
+      const x = c as Record<string, unknown>;
+      const asignaturaId = limpio(x.asignaturaId, 100);
+      return asignaturaId ? [{ asignaturaId, parte: limpio(String(x.parte ?? '').replace(RE_URL, ''), MAX.corto + 200), queRevisar: limpio(String(x.queRevisar ?? '').replace(RE_URL, ''), MAX.corto + 200) }] : [];
+    });
     const m = Math.round(Number(r.momentos));
     const sm = Math.round(Number(r.semana));
     let evidencia = EVIDENCIAS.includes(r.evidencia as EvidenciaTipo) ? (r.evidencia as EvidenciaTipo) : 'texto';
@@ -178,6 +185,7 @@ export function sanearGuia(bruto: unknown, topeDiario: number, semanas = 0, sinT
       ...(limpio(r.ajusteAplicado, MAX.medio) ? { ajusteAplicado: limpio(r.ajusteAplicado, MAX.medio) } : {}),
       fecha: null,
       ...(sinTecnologia ? { enlaces: [] } : {}),
+      ...(componentes.length ? { componentes } : {}),
     });
   }
   // Orden por semana (estable) y ids; el último paso de cada semana es la entrega parcial.

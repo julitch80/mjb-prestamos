@@ -99,6 +99,20 @@ export interface MotivoReservado {
 
 export type EvidenciaTipo = 'foto' | 'texto' | 'audio' | 'video' | 'documento';
 
+/**
+ * (Guías integradas) Parte de UNA asignatura dentro de la entrega integrada de la semana.
+ * `parte` es lo que el estudiante incluye para esa asignatura; `queRevisar` lo que su docente revisa.
+ * `asignatura`, `revisado` y `comentario` solo los pone la copia pública.
+ */
+export interface ComponenteEntrega {
+  asignaturaId: string;
+  parte: string;
+  queRevisar: string;
+  asignatura?: string;
+  revisado?: boolean;
+  comentario?: string;
+}
+
 export interface PasoGuia {
   /** Estable dentro de la guía ('p1', 'p2'…). */
   id: string;
@@ -123,6 +137,8 @@ export interface PasoGuia {
   /** La propone el reparto automático; el docente puede cambiarla. */
   fecha: FechaISO | null;
   enlaces?: { url: string; nombre?: string }[];
+  /** Solo en la entrega parcial de una guía integrada: qué aporta y qué revisa cada asignatura. */
+  componentes?: ComponenteEntrega[];
 }
 
 export type ModalidadSustentacion = 'presencial' | 'virtual' | 'video' | 'audio' | 'entrevista' | 'guia_corta' | 'esquema';
@@ -155,6 +171,8 @@ export interface Guia {
   sustentacion: Sustentacion;
   /** Nota corta para el docente sobre cómo se aplicaron los ajustes. */
   notaAjustes?: string;
+  /** El líder ejecutó «Integrar la guía»: una entrega por semana que fusiona los entregables de los docentes. */
+  integrada?: boolean;
 }
 
 /** Lo que el docente escribe para pedir la guía. */
@@ -173,6 +191,16 @@ export interface SeguimientoPaso {
   actualizadoEn?: number;
   /** (Entregas, 28-oct-2026) ms de la entrega más reciente desde la agenda pública. Lo escribe solo el servidor. */
   entregadoEn?: number;
+  /** (Guías integradas) Revisión de cada asignatura sobre su parte de la entrega. */
+  porAsignatura?: Record<string, RevisionAsignatura>;
+}
+
+/** Revisión de «mi parte» que hace el docente de una asignatura en una entrega integrada. */
+export interface RevisionAsignatura {
+  revisado: boolean;
+  comentario?: string;
+  por?: string;
+  en?: number;
 }
 
 /** planesCasa/{planId}/asignaturas/{asignaturaId} — lo de cada asignatura que no es la guía. */
@@ -263,6 +291,32 @@ export interface EntradaGuiaIA {
   /** Indicación para pedir otra versión ('más corta', 'más práctica'…). */
   indicacion?: string;
 }
+/** Entrada y salida de la función llamable `planCasaIntegrarGuia` (nunca lleva nombre, motivo ni salud del estudiante). */
+export interface EntradaIntegrarGuia {
+  /** Contenido actual de la guía (propuesta o aprobada). */
+  guia: Guia;
+  /** Pregunta orientadora. */
+  eje: string;
+  asignaturas: {
+    asignaturaId: string; nombre: string; tematicas?: string; competencia?: string; criterios: string;
+    evidencia?: string; entregable?: string; fechaEntrega?: FechaISO;
+  }[];
+  grado: string;
+  desde: FechaISO;
+  hasta: FechaISO;
+  ajustes: string[];
+  topeDiario: number;
+  ritmo: RitmoPlan;
+  sinTecnologia?: boolean;
+}
+export interface SalidaIntegrarGuia {
+  ok: boolean;
+  guia?: Guia;
+  /** Observaciones para el líder (capacidad excedida, materias sin parte, etc.). */
+  avisos?: string[];
+  error?: string;
+}
+
 export interface SalidaGuiaIA {
   ok: boolean;
   guia?: Guia;

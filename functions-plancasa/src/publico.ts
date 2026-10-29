@@ -32,7 +32,14 @@ export function construirPublico(
       const entregadoEn = seg?.entregadoEn;
       // Revisado y comentario del docente: el estudiante los ve en su agenda.
       const comentario = seg?.estado === 'revisado' && typeof seg.observacion === 'string' ? seg.observacion.trim().slice(0, 500) : '';
-      pasos.push({ ...p, asignatura, docente, guiaId: g.id, ...(typeof entregadoEn === 'number' ? { entregadoEn } : {}),
+      // Guías integradas: cada parte lleva el nombre de la asignatura y si su docente ya revisó (con su comentario).
+      const componentes = p.componentes?.length ? p.componentes.map(c => {
+        const r = seg?.porAsignatura?.[c.asignaturaId];
+        const com = r?.revisado && typeof r.comentario === 'string' ? r.comentario.trim().slice(0, 500) : '';
+        return { asignaturaId: c.asignaturaId, parte: c.parte, queRevisar: c.queRevisar, asignatura: nombreAsignatura(c.asignaturaId),
+          ...(r?.revisado ? { revisado: true } : {}), ...(com ? { comentario: com } : {}) };
+      }) : undefined;
+      pasos.push({ ...p, ...(componentes ? { componentes } : {}), asignatura, docente, guiaId: g.id, ...(typeof entregadoEn === 'number' ? { entregadoEn } : {}),
         ...(seg?.estado === 'revisado' ? { revisado: true } : {}), ...(comentario ? { comentario } : {}) });
     }
     if (g.aprobada.sustentacion) sustentaciones.push({ ...g.aprobada.sustentacion, asignatura, docente });

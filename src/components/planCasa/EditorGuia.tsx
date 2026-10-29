@@ -5,13 +5,13 @@ import { Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { EvidenciaTipo, Guia, ModalidadSustentacion, PasoGuia } from '../../data/planCasa/tipos';
 import { MODALIDADES_SUSTENTACION } from '../../data/planCasa/tipos';
-import { CLASE_BOTON_SEC, CLASE_INPUT, Etiqueta } from './comun';
+import { CLASE_BOTON_SEC, CLASE_INPUT, ComponentesEntrega, Etiqueta } from './comun';
 
 const EVIDENCIAS: EvidenciaTipo[] = ['foto', 'texto', 'audio', 'video', 'documento'];
 
 // ── Editor de la guía (propuesta o aprobada) ──────────────────────────────
 
-export default function EditorGuia({ guia, onChange }: { guia: Guia; onChange: (g: Guia) => void }) {
+export default function EditorGuia({ guia, onChange, nombre = id => id }: { guia: Guia; onChange: (g: Guia) => void; nombre?: (id: string) => string }) {
   const setPaso = (i: number, c: Partial<PasoGuia>) =>
     onChange({ ...guia, pasos: guia.pasos.map((p, j) => (j === i ? { ...p, ...c } : p)) });
   const setLista = (campo: 'criteriosEvaluacion', i: number, v: string) =>
@@ -82,6 +82,7 @@ export default function EditorGuia({ guia, onChange }: { guia: Guia; onChange: (
                   <input type="checkbox" checked={!!p.esEntregaParcial} onChange={e => setPaso(i, { esEntregaParcial: e.target.checked })} />
                   <span className={cn(p.esEntregaParcial && 'font-semibold text-strong')}>Entrega parcial de la semana {sem}</span>
                 </label>
+                <ComponentesEntrega componentes={p.componentes} nombre={nombre} />
                 <textarea rows={3} value={p.instrucciones} onChange={e => setPaso(i, { instrucciones: e.target.value })} placeholder="Qué hacer" className={CLASE_INPUT} />
                 <div><Etiqueta>Lectura para el estudiante (opcional)</Etiqueta>
                   <textarea rows={6} value={p.lectura ?? ''} onChange={e => setPaso(i, { lectura: e.target.value })} placeholder="Texto que el estudiante lee para hacer este paso" className={CLASE_INPUT} /></div>

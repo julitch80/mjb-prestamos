@@ -17,7 +17,7 @@ import * as logger from 'firebase-functions/logger';
 import Anthropic from '@anthropic-ai/sdk';
 import { ASIGNATURAS } from '../../src/data/asignacionAcademica';
 import { USUARIOS } from '../../src/data/maestros';
-import type { GuiaPlan, EntradaGuiaIA, PlanCasa, SalidaGuiaIA } from '../../src/data/planCasa/tipos';
+import type { GuiaPlan, EntradaGuiaIA, EntradaIntegrarGuia, PlanCasa, SalidaGuiaIA, SalidaIntegrarGuia } from '../../src/data/planCasa/tipos';
 import { COL_PLANES, COL_PUBLICO, SUB_ENTREGAS, SUB_GUIAS } from '../../src/data/planCasa/tipos';
 import type {
   EntradaSubirEntrega, EntradaVerEntrega, EntregaPlan, PlanPublico, SalidaSubirEntrega, SalidaVerEntrega, TipoEntrega,
@@ -27,6 +27,7 @@ import {
 } from '../../src/data/planCasa/entregas';
 import { ESQUEMA_GUIA, MODELO, SISTEMA, construirPrompt, sanearGuia } from './guia';
 import { cambioAfectaPublico, construirPublico } from './publico';
+import { SISTEMA_INTEGRAR, construirPromptIntegrar, esquemaIntegrar, sanearIntegrada } from './integrar';
 import { LOTE_LIMPIEZA, seleccionarVencidas } from './limpieza';
 import { SISTEMA_CAMPOS, construirPromptCampos, esquemaCampos, sanearCampos, type EntradaCampos } from './campos';
 import { ESQUEMA_PREGUNTAS, SISTEMA_PREGUNTAS, construirPromptPreguntas, sanearPreguntas, type EntradaPreguntas, type PreguntaSugerida } from './preguntas';
@@ -98,6 +99,52 @@ export const planCasaGuia = onCall(
       if (err instanceof Anthropic.RateLimitError) return { ok: false, error: 'La IA está saturada. Inténtalo en un minuto.' };
       if (err instanceof Anthropic.AuthenticationError) return { ok: false, error: 'La clave de la IA no es válida. Avisa al administrador.' };
       return { ok: false, error: 'No se pudo generar la guía. Inténtalo de nuevo.' };
+    }
+  },
+);
+
+// ------------------------------------------------------- planCasaIntegrarGuia
+// Último paso del líder en las guías integradas: junta los entregables de los docentes en UNA
+// entrega por semana. Mismo acceso, región, secretos, tiempo y modelo que planCasaGuia.
+
+const MENSAJE_IA_NO_DISPONIBLE = 'La IA no está disponible en este momento (sin saldo o saturada). Intente más tarde.';
+
+export const planCasaIntegrarGuia = onCall(
+  { ...opciones, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 300, memory: '512MiB' },
+  async (request): Promise<SalidaIntegrarGuia> => {
+    const quien = await llamante(request);
+    if (!ROLES_GUIA.includes(quien.role) && !(await esEquipo(quien.correo))) {
+      throw new HttpsError('permission-denied', 'Tu usuario no puede integrar guías.');
+    }
+    const e = (request.data ?? {}) as EntradaIntegrarGuia;
+    if (!e.guia || !Array.isArray(e.guia.pasos) || !e.guia.pasos.length) throw new HttpsError('invalid-argument', 'No hay una guía para integrar.');
+    if (!Array.isArray(e.asignaturas) || e.asignaturas.length < 1) throw new HttpsError('invalid-argument', 'Faltan las asignaturas.');
+    if (typeof e.desde !== 'string' || typeof e.hasta !== 'string' || e.hasta < e.desde) throw new HttpsError('invalid-argument', 'Periodo inválido.');
+    try {
+      const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+      const ids = e.asignaturas.map(a => String(a.asignaturaId));
+      const resp = await client.messages.create({
+        model: MODELO,
+        max_tokens: 20000,
+        system: SISTEMA_INTEGRAR,
+        output_config: { effort: 'medium', format: { type: 'json_schema', schema: esquemaIntegrar(ids) } },
+        messages: [{ role: 'user', content: construirPromptIntegrar(e) }],
+      });
+      logger.info('planCasaIntegrarGuia: uso de tokens', { entrada: resp.usage.input_tokens, salida: resp.usage.output_tokens, stop: resp.stop_reason });
+      if (resp.stop_reason === 'refusal') return { ok: false, error: 'La IA no pudo integrar esta guía. Inténtelo de nuevo más tarde.' };
+      if (resp.stop_reason === 'max_tokens') return { ok: false, error: 'La guía integrada quedó incompleta. Inténtelo de nuevo.' };
+      const texto = resp.content.map(b => (b.type === 'text' ? b.text : '')).join('');
+      let bruto: unknown;
+      try { bruto = JSON.parse(texto); } catch { return { ok: false, error: 'La respuesta de la IA no tuvo el formato esperado. Inténtelo de nuevo.' }; }
+      const r = sanearIntegrada(bruto, e);
+      if (!r) return { ok: false, error: 'La IA devolvió una guía incompleta. Inténtelo de nuevo.' };
+      return { ok: true, guia: r.guia, avisos: r.avisos };
+    } catch (err) {
+      logger.error('planCasaIntegrarGuia: fallo', { mensaje: err instanceof Error ? err.message : String(err) });
+      if (err instanceof Anthropic.AuthenticationError) return { ok: false, error: 'La clave de la IA no es válida. Avise al administrador.' };
+      // Saturación, saldo agotado (400 «credit balance») o caída del servicio: mensaje amable.
+      if (err instanceof Anthropic.APIError) return { ok: false, error: MENSAJE_IA_NO_DISPONIBLE };
+      return { ok: false, error: 'No se pudo integrar la guía. Inténtelo de nuevo.' };
     }
   },
 );

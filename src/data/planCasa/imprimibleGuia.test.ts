@@ -40,4 +40,10 @@ describe('construirHtmlCuadernillo', () => {
     expect(h.match(/<section class="entregas">/g)?.length).toBe(1);
     expect(h.match(/<!doctype/g)?.length).toBe(1);
   });
+  it('entrega integrada: lista de verificación «Tu entrega incluye» por asignatura', () => {
+    const gi: Guia = { ...guia, integrada: true, pasos: guia.pasos.map(p => (p.id === 'p2' ? { ...p, componentes: [
+      { asignaturaId: 'cn', parte: 'El taller resuelto', queRevisar: 'Procedimiento' }, { asignaturaId: 'eti', parte: 'La reflexión', queRevisar: 'Coherencia' }] } : p)) };
+    const h = construirHtmlCuadernillo(plan, [g('a', gi)], { ...nombres, eti: { asignatura: 'Ética', docente: 'B' } });
+    for (const t of ['Tu entrega incluye:', '☐ El taller resuelto (Ciencias)', '☐ La reflexión (Ética)']) expect(h).toContain(t);
+  });
 });
