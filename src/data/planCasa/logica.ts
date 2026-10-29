@@ -2,7 +2,7 @@
 import { ASIGNACION_2026 } from '../asignacionAcademica';
 import { esDiaLectivo } from '../calendarioAcademico/logica';
 import { SEMILLA_2026 } from '../calendarioAcademico/semilla2026';
-import { addDias, parseFecha } from '../tareas/calendario';
+import { addDias, esDiaHabil, parseFecha } from '../tareas/calendario';
 import type {
   AsignaturaPlan, FechaISO, GuiaPlan, PasoGuia, PlanCasa, PlanPublico, RitmoPlan, Sustentacion,
 } from './tipos';
@@ -247,4 +247,72 @@ export function nuevoToken(): string {
 export function conSinTecnologia(ajustes: string[], valor: boolean): { sinTecnologia: boolean; ajustes: string[] } {
   const sin = ajustes.filter(a => a !== AJUSTE_SIN_TECNOLOGIA);
   return { sinTecnologia: valor, ajustes: valor ? [AJUSTE_SIN_TECNOLOGIA, ...sin] : sin };
+}
+
+// ── Corrección hasta la fecha de cierre ──────────────────────────────────
+
+/**
+ * Último día (inclusive) para corregir las guías: `plan.cierreEdicion` si coordinación la fijó;
+ * si no, el último día hábil (lunes a viernes, sin festivo colombiano) ANTES de `plan.desde`.
+ */
+export function fechaCierre(plan: Pick<PlanCasa, 'desde' | 'cierreEdicion'>): FechaISO {
+  if (plan.cierreEdicion) return plan.cierreEdicion;
+  let f = addDias(plan.desde, -1);
+  for (let i = 0; i < 20 && !esDiaHabil(f); i++) f = addDias(f, -1);
+  return f;
+}
+
+export interface EstadoEdicion {
+  abierta: boolean;
+  motivo: 'antes_cierre' | 'autorizada' | 'cerrada';
+  /** Último día editable (cierre o fin de la autorización). En 'cerrada' es el último que estuvo abierto. */
+  hasta: FechaISO;
+}
+
+/** ¿Se puede corregir la guía hoy? `hoy` en 'YYYY-MM-DD'. El último día cuenta completo. */
+export function estadoEdicion(
+  plan: Pick<PlanCasa, 'desde' | 'cierreEdicion'>, guia: Pick<GuiaPlan, 'autorizacion'> | undefined, hoy: FechaISO,
+): EstadoEdicion {
+  const cierre = fechaCierre(plan);
+  if (hoy <= cierre) return { abierta: true, motivo: 'antes_cierre', hasta: cierre };
+  const aut = guia?.autorizacion;
+  if (aut?.hasta && hoy <= aut.hasta) return { abierta: true, motivo: 'autorizada', hasta: aut.hasta };
+  return { abierta: false, motivo: 'cerrada', hasta: aut?.hasta && aut.hasta > cierre ? aut.hasta : cierre };
+}
+
+/** Días completos entre dos fechas ISO (b - a). */
+export function diasEntre(a: FechaISO, b: FechaISO): number {
+  return Math.round((parseFecha(b).getTime() - parseFecha(a).getTime()) / 86400000);
+}
+
+/** Ids de asignaturas cuyos datos cambiaron DESPUÉS de que el líder guardó la propuesta. */
+export function asignaturasCambiadas(
+  guia: Pick<GuiaPlan, 'propuestaEn' | 'propuesta' | 'asignaturaIds'> & { aprobadaEn?: number; actualizadoEn?: number }, asigs: Pick<AsignaturaPlan, 'asignaturaId' | 'actualizadoEn'>[],
+): string[] {
+  // Guías generadas antes del 28-oct no traen propuestaEn: se usa la última escritura conocida.
+  const t = guia.propuestaEn ?? guia.aprobadaEn ?? guia.actualizadoEn;
+  if (!guia.propuesta || !t) return [];
+  return guia.asignaturaIds.filter(id => (asigs.find(a => a.asignaturaId === id)?.actualizadoEn ?? 0) > t);
+}
+
+/**
+ * Tras el cierre, los pasos con fecha anterior a `manana` ya ocurrieron: se conservan tal como
+ * estaban en la versión aprobada previa. Devuelve los pasos resultantes y cuántos se restauraron.
+ */
+export function protegerPasosPasados(nuevos: PasoGuia[], previos: PasoGuia[] | undefined, manana: FechaISO): { pasos: PasoGuia[]; restaurados: number } {
+  const pasados = (previos ?? []).filter(p => p.fecha && p.fecha < manana);
+  if (!pasados.length) return { pasos: nuevos, restaurados: 0 };
+  const porId = new Map(pasados.map(p => [p.id, p]));
+  let restaurados = 0;
+  const vistos = new Set<string>();
+  const pasos = nuevos.map(p => {
+    const q = porId.get(p.id);
+    if (!q) return p;
+    vistos.add(p.id);
+    if (JSON.stringify(q) !== JSON.stringify(p)) restaurados++;
+    return q;
+  });
+  const faltan = pasados.filter(p => !vistos.has(p.id));
+  restaurados += faltan.length;
+  return { pasos: [...faltan, ...pasos], restaurados };
 }

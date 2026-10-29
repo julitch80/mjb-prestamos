@@ -7,20 +7,21 @@ import { Check, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../data/store';
 import type {
-  AsignaturaPlan, EstadoPaso, EstadoSustentacion, Guia, GuiaPlan, PedidoGuia,
+  AsignaturaPlan, EstadoPaso, EstadoSustentacion, Guia, GuiaPlan, PedidoGuia, SolicitudAutorizacion,
 } from '../../data/planCasa/tipos';
-import { MODALIDADES_SUSTENTACION } from '../../data/planCasa/tipos';
-import { semanasDelPeriodo } from '../../data/planCasa/logica';
+import { MODALIDADES_SUSTENTACION, MOTIVOS_SOLICITUD } from '../../data/planCasa/tipos';
+import { asignaturasCambiadas, fechaCierre, protegerPasosPasados, semanasDelPeriodo } from '../../data/planCasa/logica';
+import { addDias } from '../../data/tareas/calendario';
 import {
   correoActual, darVistoBueno, leerEquipo, escucharAsignaturas, escucharGuias, escucharPlanes, guardarAsignatura,
-  guardarGuia, pedirGuiaIA, publicarPlan, sugerirCampos, type PlanConDocentes,
+  escucharSolicitudes, guardarGuia, pedirAutorizacion, pedirGuiaIA, publicarPlan, sugerirCampos, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { USUARIOS } from '../../data/maestros';
 import { asignaturasConNombre, gradoDeGrupo } from './nombres';
 import EditorGuia from './EditorGuia';
 import { ListaEntregas, useEntregas } from './EntregasPaso';
 import {
-  BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, Etiqueta, fechaCorta, Marca,
+  BarraEstadoGuia, BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, edicionDe, Etiqueta, fechaCorta, fechaLarga, hoyLocal, Marca,
   repartirTodas, resumenGuia, SugerirPreguntas,
 } from './comun';
 
@@ -93,13 +94,62 @@ function Seguimiento({ plan, g }: { plan: PlanConDocentes; g: GuiaPlan }) {
   );
 }
 
+// ── Guía cerrada: pedir autorización ──────────────────────────────────────
+
+/** Aviso de cierre + formulario en línea para pedir a coordinación que reabra la guía. */
+function PedirAutorizacion({ plan, g }: { plan: PlanConDocentes; g: GuiaPlan }) {
+  const [abierto, setAbierto] = useState(false);
+  const [motivo, setMotivo] = useState<string>(MOTIVOS_SOLICITUD[0]);
+  const [detalle, setDetalle] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState('');
+  const [solicitudes, setSolicitudes] = useState<SolicitudAutorizacion[]>([]);
+  const yo = correoActual();
+  useEffect(() => escucharSolicitudes(plan.id, setSolicitudes), [plan.id]);
+  const ultima = solicitudes.filter(s => s.guiaId === g.id && s.correo === yo)[0];
+
+  async function enviar() {
+    setError(''); setEnviando(true);
+    try { await pedirAutorizacion(plan.id, { guiaId: g.id, motivo, detalle }); setAbierto(false); setDetalle(''); }
+    catch (e) { setError((e as Error).message || 'No se pudo enviar la solicitud.'); }
+    finally { setEnviando(false); }
+  }
+
+  return (
+    <div className="rounded-xl bg-warning-soft text-warning-soft-fg p-3 space-y-2 text-sm">
+      <p>🔒 Cerrada desde el {fechaLarga(addDias(fechaCierre(plan), 1))}. Para cambiarla, pida autorización a coordinación.</p>
+      {ultima?.estado === 'pendiente' && <p className="text-xs">Su solicitud está pendiente de respuesta.</p>}
+      {ultima?.estado === 'negada' && <p className="text-xs">Su última solicitud no fue autorizada.</p>}
+      {!abierto && ultima?.estado !== 'pendiente' && (
+        <button onClick={() => setAbierto(true)} className={CLASE_BOTON_SEC}>Pedir autorización</button>
+      )}
+      {abierto && (
+        <div className="space-y-2">
+          <div><Etiqueta>Motivo</Etiqueta>
+            <select value={motivo} onChange={e => setMotivo(e.target.value)} className={CLASE_INPUT}>
+              {MOTIVOS_SOLICITUD.map(m => <option key={m} value={m}>{m}</option>)}
+            </select></div>
+          <div><Etiqueta>Qué necesita cambiar (corto)</Etiqueta>
+            <input value={detalle} maxLength={300} onChange={e => setDetalle(e.target.value)} className={CLASE_INPUT} /></div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={enviar} disabled={enviando || (motivo === 'Otro' && !detalle.trim())} className={CLASE_BOTON}>{enviando ? 'Enviando…' : 'Enviar solicitud'}</button>
+            <button onClick={() => setAbierto(false)} className={CLASE_BOTON_SEC}>Cancelar</button>
+          </div>
+        </div>
+      )}
+      {error && <CajaError>{error}</CajaError>}
+    </div>
+  );
+}
+
 // ── Criterios y aportes de una asignatura mía ─────────────────────────────
 
 function NotaGestor() {
   return <p className="text-[11px] text-muted">Editando como superusuario/equipo</p>;
 }
 
-function CriteriosAsignatura({ plan, a, nombre, gestor, eje }: { plan: PlanConDocentes; a: AsignaturaPlan; nombre: string; gestor: boolean; eje?: string }) {
+function CriteriosAsignatura({ plan, a, nombre, gestor, eje, guia }: { plan: PlanConDocentes; a: AsignaturaPlan; nombre: string; gestor: boolean; eje?: string; guia?: GuiaPlan }) {
+  const bloqueada = !edicionDe(plan, guia, gestor).abierta;
   const [criterios, setCriterios] = useState(a.criteriosPromocion);
   const [aportes, setAportes] = useState(a.aportes ?? '');
   const [ebcDba, setEbcDba] = useState(a.ebcDba ?? '');
@@ -160,6 +210,7 @@ function CriteriosAsignatura({ plan, a, nombre, gestor, eje }: { plan: PlanConDo
         {a.porIA && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-warning-soft text-warning-soft-fg">✨ Escrito por la IA · revíselo y toque Guardar</span>}
       </div>
       {gestor && <NotaGestor />}
+      {bloqueada && <p className="rounded-xl bg-warning-soft text-warning-soft-fg text-xs p-3">🔒 Cerrada desde el {fechaLarga(addDias(fechaCierre(plan), 1))}: ya no se pueden cambiar los criterios. Para cambiarlos, pida autorización en la guía (más abajo).</p>}
       {plan.contextoDocentes?.trim() && (
         <div className="rounded-xl bg-elevated text-xs p-3">
           <p className="font-medium text-strong mb-1">Contexto del estudiante</p>
@@ -173,7 +224,7 @@ function CriteriosAsignatura({ plan, a, nombre, gestor, eje }: { plan: PlanConDo
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <button onClick={sugerir} disabled={sugiriendo} className={CLASE_BOTON_SEC}>{sugiriendo ? 'Pensando…' : '✨ Sugerir con IA'}</button>
+        <button onClick={sugerir} disabled={sugiriendo || bloqueada} className={CLASE_BOTON_SEC}>{sugiriendo ? 'Pensando…' : '✨ Sugerir con IA'}</button>
         {aviso && !sugiriendo && <span className="text-xs text-soft">{aviso}</span>}
       </div>
       <div><Etiqueta>Temáticas de mi asignatura que la guía debe cubrir</Etiqueta>
@@ -188,7 +239,7 @@ function CriteriosAsignatura({ plan, a, nombre, gestor, eje }: { plan: PlanConDo
         <div><Etiqueta>Entregable de mi asignatura (qué debe entregar el estudiante)</Etiqueta>
           <input value={entregable} onChange={e => setEntregable(e.target.value)} placeholder="Ej.: mapa conceptual en foto, audio explicando…" className={CLASE_INPUT} /></div>
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={sugerirEntregable} disabled={pensandoEnt} className={CLASE_BOTON_SEC}>{pensandoEnt ? 'Pensando…' : '✨ Proponer entregables con IA'}</button>
+          <button onClick={sugerirEntregable} disabled={pensandoEnt || bloqueada} className={CLASE_BOTON_SEC}>{pensandoEnt ? 'Pensando…' : '✨ Proponer entregables con IA'}</button>
           {!eje?.trim() && <span className="text-[11px] text-muted">Aún no hay pregunta orientadora: la propuesta será general.</span>}
         </div>
         {opcionesEnt.length > 0 && (
@@ -205,8 +256,9 @@ function CriteriosAsignatura({ plan, a, nombre, gestor, eje }: { plan: PlanConDo
         <p className="text-[11px] text-muted">Al aprobar la guía, este entregable entra a la agenda del estudiante en esa fecha.</p>
       </div>
       <div className="flex items-center gap-2">
-        <button onClick={guardar} disabled={!sucio} className={CLASE_BOTON_SEC}>Guardar</button>
+        <button onClick={guardar} disabled={!sucio || bloqueada} className={CLASE_BOTON_SEC}>Guardar</button>
         {ok && !sucio && <span className="text-xs text-success">Guardado.</span>}
+        {ok && !sucio && guia?.propuesta && <span className="text-xs text-soft">La guía ya se generó; el líder verá su cambio.</span>}
       </div>
       {error && <CajaError>{error}</CajaError>}
     </div>
@@ -316,6 +368,9 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
   const [guardandoEje, setGuardandoEje] = useState(false);
   useEffect(() => { setEje(g.eje); }, [g.eje]);
   const r = resumenGuia(g);
+  const edicion = edicionDe(plan, g, gestor);
+  const cerrada = !edicion.abierta;
+  const despuesDelCierre = hoyLocal() > fechaCierre(plan);
   const transversal = g.asignaturaIds.length > 1 || plan.modalidad === 'transversal';
   const nombre = (id: string) => nombres[id]?.asignatura ?? id;
 
@@ -323,6 +378,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
 
   const propias = g.asignaturaIds.map(id => asigs.find(a => a.asignaturaId === id)).filter((a): a is AsignaturaPlan => !!a);
   const faltanCriterios = propias.filter(a => !a.criteriosPromocion.trim());
+  const cambiadas = cerrada ? [] : asignaturasCambiadas(g, asigs);
 
   /** Rellena SOLO los campos vacíos del pedido. */
   async function sugerirPedido() {
@@ -369,7 +425,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
     });
     const conEnt = conEntregables(guia, pr, nombre, plan.desde);
     setBorrador(conEnt); setIndicacion('');
-    await guardarGuia(plan.id, g.id, { pedido: limpio, propuesta: conEnt });
+    await guardarGuia(plan.id, g.id, { pedido: limpio, propuesta: conEnt, propuestaEn: Date.now() });
   }
 
   async function generar() {
@@ -463,6 +519,12 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
     } finally { setGenerandoTodo(false); }
   }
 
+  /** Vuelve a generar la guía con los criterios actuales de los docentes. */
+  async function actualizarConCambios() {
+    setEditando(true);
+    await generar();
+  }
+
   async function guardarEje() {
     setError(''); setGuardandoEje(true);
     try { await guardarGuia(plan.id, g.id, { eje: eje.trim() }); setAviso('Pregunta orientadora guardada.'); }
@@ -479,8 +541,19 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
       // Los entregables que cada docente puso en su asignatura (pueden haber llegado después de generar).
       const base = conEntregables(borrador, propias, nombre, plan.desde);
       const { pasos: rep, avisos } = repartirTodas(plan, [...otras, { guiaId: g.id, pasos: base.pasos }]);
-      const aprobada: Guia = { ...base, pasos: rep[g.id] ?? base.pasos };
-      await guardarGuia(plan.id, g.id, { aprobada, aprobadaEn: Date.now(), propuesta: aprobada });
+      let aprobada: Guia = { ...base, pasos: rep[g.id] ?? base.pasos };
+      // Pasada la fecha de cierre, lo que ya ocurrió (fecha anterior a mañana) no se toca.
+      let protegidos = 0;
+      if (despuesDelCierre) {
+        const pr = protegerPasosPasados(aprobada.pasos, g.aprobada?.pasos, addDias(hoyLocal(), 1));
+        aprobada = { ...aprobada, pasos: pr.pasos }; protegidos = pr.restaurados;
+      }
+      const cambio = !g.aprobada || JSON.stringify(g.aprobada) !== JSON.stringify(aprobada);
+      const ahora = Date.now();
+      await guardarGuia(plan.id, g.id, {
+        aprobada, aprobadaEn: ahora, propuesta: aprobada, propuestaEn: ahora,
+        ...(cambio && Object.keys(g.vistosBuenos ?? {}).length ? { vistosBuenos: {} } : {}),
+      });
       setBorrador(aprobada);
       let sinPermiso = 0;
       for (const x of todas) {
@@ -493,6 +566,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
       try { await publicarPlan(plan.id); msg += ' Ya está en la agenda del estudiante.'; }
       catch (e) { msg += ` No se pudo publicar la agenda: ${(e as Error).message}`; }
       if (avisos.length) msg += ` ${avisos.join(' ')}`;
+      if (protegidos) msg += ` Se conservaron sin cambios ${protegidos} paso(s) cuya fecha ya pasó.`;
       if (sinPermiso) msg += ` (${sinPermiso} guía(s) de otros docentes no se reprogramaron.)`;
       setAviso(msg); setEditando(false);
     } catch (e) { setError((e as Error).message); }
@@ -508,8 +582,19 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
         </div>
         {r.guia && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-success-soft text-success-soft-fg flex-shrink-0">✓ Aprobada</span>}
       </div>
+      <BarraEstadoGuia g={g} edicion={edicion} />
       {gestor && <NotaGestor />}
-      {transversal && (
+      {cerrada && <PedirAutorizacion plan={plan} g={g} />}
+      {cambiadas.length > 0 && (
+        <div className="rounded-xl bg-warning-soft text-warning-soft-fg p-3 space-y-2 text-sm">
+          <p>⚠ {cambiadas.map(nombre).join(', ')} cambió sus criterios después de generar la guía.</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={actualizarConCambios} disabled={generando || generandoTodo} className={CLASE_BOTON}>{generando ? 'Actualizando…' : 'Actualizar con los cambios'}</button>
+            <button onClick={() => { setBorrador(g.propuesta ?? g.aprobada ?? null); setEditando(true); }} className={CLASE_BOTON_SEC}>Lo ajusto yo</button>
+          </div>
+        </div>
+      )}
+      {transversal && !cerrada && (
         <div className="rounded-xl border border-line p-3 space-y-2">
           <Etiqueta>Pregunta orientadora</Etiqueta>
           <div className="flex gap-2">
@@ -524,7 +609,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
       <CriteriosListos propias={propias} nombre={nombre} />
       <VistosBuenos g={g} asigs={asigs} />
 
-      {(!r.guia || editando) && (
+      {!cerrada && (!r.guia || editando) && (
         <div className="space-y-3">
           {plan.contextoDocentes?.trim() && (
             <div className="rounded-xl bg-elevated text-xs p-3">
@@ -584,7 +669,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
         </div>
       )}
 
-      {borrador && (!r.guia || editando) && !generando && !generandoTodo && (
+      {!cerrada && borrador && (!r.guia || editando) && !generando && !generandoTodo && (
         <div ref={refPropuesta} className="space-y-3 border-t border-line pt-4">
           <h4 className="text-sm font-semibold text-strong">Propuesta (edítela a su gusto)</h4>
           <EditorGuia guia={borrador} onChange={setBorrador} />
@@ -596,11 +681,14 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
         </div>
       )}
 
-      {r.guia && !editando && (
+      {cerrada && !r.guia && g.propuesta && (
+        <div className="border-t border-line pt-4 space-y-2"><p className="text-xs text-soft">Propuesta sin aprobar.</p><GuiaLectura guia={g.propuesta} /></div>
+      )}
+      {r.guia && (!editando || cerrada) && (
         <div className="space-y-4 border-t border-line pt-4">
           <GuiaLectura guia={g.aprobada!} />
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => { setBorrador(g.aprobada!); setEditando(true); }} className={CLASE_BOTON_SEC}>Editar o pedir otra versión</button>
+            {!cerrada && <button onClick={() => { setBorrador(g.aprobada!); setEditando(true); }} className={CLASE_BOTON_SEC}>Reabrir para corregir</button>}
             <BotonFormatoUAI plan={plan} guias={[g]} asigs={asigs} nombres={nombres} />
           </div>
           <Seguimiento plan={plan} g={g} />
@@ -615,8 +703,9 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
 
 // ── Guía donde participo ──────────────────────────────────────────────────
 
-function GuiaParticipante({ plan, g, asigs, nombres }: { plan: PlanConDocentes; g: GuiaPlan; asigs: AsignaturaPlan[]; nombres: Nombres }) {
+function GuiaParticipante({ plan, g, asigs, nombres, gestor }: { plan: PlanConDocentes; g: GuiaPlan; asigs: AsignaturaPlan[]; nombres: Nombres; gestor: boolean }) {
   const yo = correoActual();
+  const edicion = edicionDe(plan, g, gestor);
   const [error, setError] = useState('');
   const dado = !!g.vistosBuenos?.[yo];
   const guia = g.aprobada ?? g.propuesta;
@@ -632,6 +721,8 @@ function GuiaParticipante({ plan, g, asigs, nombres }: { plan: PlanConDocentes; 
         <h3 className="text-sm font-semibold text-strong min-w-0 flex-1">Guía de {nombreDocente(g.responsableCorreo, asigs)}: {g.eje || 'Pendiente: la define el responsable'}</h3>
         {g.aprobada && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-success-soft text-success-soft-fg flex-shrink-0">✓ Aprobada</span>}
       </div>
+      <BarraEstadoGuia g={g} edicion={edicion} />
+      {!edicion.abierta && <PedirAutorizacion plan={plan} g={g} />}
       <VistosBuenos g={g} asigs={asigs} />
       {guia ? (
         <>
@@ -662,7 +753,8 @@ function PlanDocente({ plan, gestor }: { plan: PlanConDocentes; gestor: boolean 
   const responsable = (guias ?? []).filter(g => gestor || g.responsableCorreo.toLowerCase() === yo);
   const propiasMias = mias.filter(a => a.docenteCorreo.toLowerCase() === yo);
   const otrasMias = mias.filter(a => a.docenteCorreo.toLowerCase() !== yo);
-  const ejeDe = (id: string) => (guias ?? []).find(g => g.asignaturaIds.includes(id))?.eje;
+  const guiaDe = (id: string) => (guias ?? []).find(g => g.asignaturaIds.includes(id));
+  const ejeDe = (id: string) => guiaDe(id)?.eje;
   const participo = gestor ? [] : (guias ?? []).filter(g => g.responsableCorreo.toLowerCase() !== yo && g.docentesCorreos.map(c => c.toLowerCase()).includes(yo));
 
   return (
@@ -679,7 +771,7 @@ function PlanDocente({ plan, gestor }: { plan: PlanConDocentes; gestor: boolean 
         <details open className="rounded-2xl border border-line bg-card p-4">
           <summary className="cursor-pointer text-sm font-medium text-strong">Paso 1 · {propiasMias.length === 1 ? 'Mi asignatura' : 'Mis asignaturas'}: temáticas, competencia, criterios, entregable y fecha de entrega</summary>
           <div className="space-y-3 mt-3">
-            {propiasMias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} eje={ejeDe(a.asignaturaId)} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
+            {propiasMias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} eje={ejeDe(a.asignaturaId)} guia={guiaDe(a.asignaturaId)} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
           </div>
         </details>
       )}
@@ -687,12 +779,12 @@ function PlanDocente({ plan, gestor }: { plan: PlanConDocentes; gestor: boolean 
         <details className="rounded-2xl border border-line bg-card p-4">
           <summary className="cursor-pointer text-sm font-medium text-strong">Asignaturas de los otros docentes ({otrasMias.length})</summary>
           <div className="space-y-3 mt-3">
-            {otrasMias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} eje={ejeDe(a.asignaturaId)} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
+            {otrasMias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} eje={ejeDe(a.asignaturaId)} guia={guiaDe(a.asignaturaId)} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
           </div>
         </details>
       )}
       {responsable.map(g => <GuiaResponsable key={g.id} gestor={gestor} plan={plan} g={g} todas={guias ?? []} asigs={asigs ?? []} nombres={nombres} />)}
-      {participo.map(g => <GuiaParticipante key={g.id} plan={plan} g={g} asigs={asigs ?? []} nombres={nombres} />)}
+      {participo.map(g => <GuiaParticipante key={g.id} gestor={gestor} plan={plan} g={g} asigs={asigs ?? []} nombres={nombres} />)}
     </section>
   );
 }

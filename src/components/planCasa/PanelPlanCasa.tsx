@@ -8,18 +8,19 @@ import { buscarEstudiantes } from '../../asistencia/datos';
 import type { Student } from '../../asistencia/domain/types';
 import { ASIGNACION_2026 } from '../../data/asignacionAcademica';
 import {
-  AJUSTES_FRECUENTES, AJUSTE_SIN_TECNOLOGIA, TOPE_DIARIO_DEFECTO, type AsignaturaPlan, type GuiaPlan, type ModalidadGuias, type PlanCasa, type RitmoPlan,
+  AJUSTES_FRECUENTES, AJUSTE_SIN_TECNOLOGIA, TOPE_DIARIO_DEFECTO, type AsignaturaPlan, type GuiaPlan, type ModalidadGuias, type PlanCasa, type RitmoPlan, type SolicitudAutorizacion,
 } from '../../data/planCasa/tipos';
 import {
   asignaturasDelGrupo, cambiarEstadoPlan, crearPlan, escucharAsignaturas, escucharGuias, escucharPlanes, type GuiaTransversalDef,
+  autorizarSolicitud, cambiarFechaSustentacion, escucharSolicitudes, guardarCierreEdicion, negarSolicitud,
   guardarContexto, guardarSinTecnologia, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
-import { conSinTecnologia } from '../../data/planCasa/logica';
+import { conSinTecnologia, fechaCierre } from '../../data/planCasa/logica';
 import { EntregasGuiaResumen } from './EntregasPaso';
 import {
   BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
-  resumenGuia, TEXTO_SUSTENTACION,
+  fechaLarga, resumenGuia, TEXTO_SUSTENTACION,
 } from './comun';
 
 const SEDE = 'central';
@@ -393,6 +394,33 @@ function BloqueQR({ plan }: { plan: PlanCasa }) {
 
 // ── Tarjeta de un plan ────────────────────────────────────────────────────
 
+/** Solicitudes pendientes de autorización para corregir guías cerradas. */
+function SolicitudesPendientes({ plan, solicitudes, nombreGuia, onError }: {
+  plan: PlanCasa; solicitudes: SolicitudAutorizacion[]; nombreGuia: (id: string) => string; onError: (m: string) => void;
+}) {
+  const [hasta, setHasta] = useState<Record<string, string>>({});
+  const pendientes = solicitudes.filter(s => s.estado === 'pendiente');
+  if (!pendientes.length) return null;
+  return (
+    <div className="rounded-xl border border-warning bg-warning-soft text-warning-soft-fg p-3 space-y-2">
+      <p className="text-sm font-medium">Solicitudes para corregir guías cerradas ({pendientes.length})</p>
+      {pendientes.map(s => (
+        <div key={s.id} className="rounded-lg bg-card text-strong p-2.5 space-y-2 text-sm">
+          <p><b>{nombreGuia(s.guiaId)}</b> · {s.correo}</p>
+          <p className="text-xs text-soft">{s.motivo}{s.detalle ? ': ' + s.detalle : ''}</p>
+          <div className="flex flex-wrap items-end gap-2">
+            <div><Etiqueta>Autorizar hasta</Etiqueta>
+              <input type="date" value={hasta[s.id] ?? ''} min={hoyISO()} onChange={e => setHasta(h => ({ ...h, [s.id]: e.target.value }))} className={CLASE_INPUT} /></div>
+            <button disabled={!hasta[s.id]} className={CLASE_BOTON}
+              onClick={() => autorizarSolicitud(plan.id, s, hasta[s.id]).catch(e => onError(e.message))}>Autorizar hasta esa fecha</button>
+            <button className={CLASE_BOTON_SEC} onClick={() => negarSolicitud(plan.id, s).catch(e => onError(e.message))}>No autorizar</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
   const [asigs, setAsigs] = useState<AsignaturaPlan[] | null>(null);
   const [guias, setGuias] = useState<GuiaPlan[] | null>(null);
@@ -402,7 +430,12 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
   const [ctx, setCtx] = useState(plan.contextoDocentes ?? '');
   const [ctxMsg, setCtxMsg] = useState('');
   const [error, setError] = useState('');
+  const [solicitudes, setSolicitudes] = useState<SolicitudAutorizacion[]>([]);
+  const [fechaSust, setFechaSust] = useState<Record<string, string>>({});
+  const [cierre, setCierre] = useState(plan.cierreEdicion ?? '');
+  const [cierreMsg, setCierreMsg] = useState('');
 
+  useEffect(() => escucharSolicitudes(plan.id, setSolicitudes), [plan.id]);
   useEffect(() => escucharAsignaturas(plan.id, setAsigs, e => setError(e.message)), [plan.id]);
   useEffect(() => escucharGuias(plan.id, setGuias, e => setError(e.message)), [plan.id]);
 
@@ -436,6 +469,9 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
           Faltan criterios en {faltanCriterios} de {filas.length} asignaturas y aprobar {faltanGuias} de {guias.length} guías.
         </p>
       )}
+
+      <SolicitudesPendientes plan={plan} solicitudes={solicitudes} onError={setError}
+        nombreGuia={id => { const g = guias?.find(x => x.id === id); return g ? (g.eje || g.asignaturaIds.map(nombreAsig).join(' · ')) : id; }} />
 
       {verQR && (plan.sinTecnologia
         ? <p className="rounded-xl bg-elevated text-sm text-soft p-3">Plan sin tecnología: se entrega la guía impresa.</p>
@@ -474,6 +510,17 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
                   </div>
                   {r.guia && <div className="h-1.5 rounded-full bg-elevated mt-1.5 overflow-hidden"><div className="h-full bg-success" style={{ width: `${r.avance}%` }} /></div>}
                   {r.guia && <EntregasGuiaResumen planId={plan.id} g={g} />}
+                  {g.autorizacion && <p className="text-[11px] text-soft mt-1">Autorizada para corregir hasta el {fechaLarga(g.autorizacion.hasta)} ({g.autorizacion.por}).</p>}
+                  {g.aprobada && (
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                      <label className="text-[11px] text-soft">Sustentación:</label>
+                      <input type="date" aria-label="Fecha de sustentación" value={fechaSust[g.id] ?? g.aprobada.sustentacion.fecha ?? ''} onChange={e => setFechaSust(f => ({ ...f, [g.id]: e.target.value }))}
+                        className="px-2 py-1 rounded-lg bg-elevated border border-line text-xs text-strong" />
+                      <button disabled={fechaSust[g.id] === undefined || fechaSust[g.id] === (g.aprobada.sustentacion.fecha ?? '')}
+                        onClick={() => cambiarFechaSustentacion(plan.id, g, fechaSust[g.id]).then(() => setFechaSust(f => { const n = { ...f }; delete n[g.id]; return n; })).catch(e => setError(e.message))}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-elevated text-soft hover:text-strong disabled:opacity-40">Guardar y publicar</button>
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -505,6 +552,16 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
               <span className="block text-[11px] text-muted">El estudiante no tiene acceso a celular, computador ni internet: la guía se entrega impresa y las entregas y la sustentación son en papel, presenciales u orales.</span></span>
           </label>
           <p className="text-soft"><span className="font-medium text-strong">Ajustes:</span> {plan.ajustes.length ? plan.ajustes.join(' · ') : 'ninguno'}</p>
+          <div>
+            <Etiqueta>Fecha de cierre para corregir las guías (último día editable)</Etiqueta>
+            <div className="flex flex-wrap items-center gap-2">
+              <input type="date" value={cierre} onChange={e => { setCierre(e.target.value); setCierreMsg(''); }} className={cn(CLASE_INPUT, 'max-w-[11rem]')} />
+              <button className={CLASE_BOTON_SEC} disabled={cierre === (plan.cierreEdicion ?? '')}
+                onClick={() => guardarCierreEdicion(plan.id, cierre).then(() => setCierreMsg('Guardado.')).catch(e => setError(e.message))}>Guardar cierre</button>
+              {cierreMsg && <span className="text-xs text-soft">{cierreMsg}</span>}
+            </div>
+            <p className="text-[11px] text-muted">Vigente: {fechaLarga(fechaCierre(plan))}{plan.cierreEdicion ? '' : ' (automática: último día hábil antes del inicio). Déjela vacía para volver a la automática.'}</p>
+          </div>
           <p className="text-soft"><span className="font-medium text-strong">Tope diario:</span> {plan.topeDiario} momentos · ritmo {plan.ritmo === 'dia_por_medio' ? 'día por medio' : 'diario'}</p>
           <button onClick={() => cambiarEstadoPlan(plan.id, plan.estado === 'activo' ? 'cerrado' : 'activo').catch(e => setError(e.message))}
             className={CLASE_BOTON_SEC}>{plan.estado === 'activo' ? 'Cerrar plan' : 'Reabrir plan'}</button>

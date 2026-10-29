@@ -11,6 +11,7 @@ export const SUB_RESERVADO = 'reservado';          // planesCasa/{planId}/reserv
 export const DOC_MOTIVO = 'motivo';
 export const SUB_ASIGNATURAS = 'asignaturas';      // planesCasa/{planId}/asignaturas/{asignaturaId}
 export const SUB_GUIAS = 'guias';                  // planesCasa/{planId}/guias/{guiaId}
+export const SUB_SOLICITUDES = 'solicitudes';      // planesCasa/{planId}/solicitudes/{id}
 export const COL_PUBLICO = 'planesCasaPublico';    // planesCasaPublico/{token}
 export const DOC_EQUIPO = 'planCasaConfig/equipo'; // { correos: string[] } — UAI y orientador
 
@@ -81,6 +82,8 @@ export interface PlanCasa {
   /** Correos de los docentes del grupo (para las reglas de lectura). */
   docentesCorreos: string[];
   estado: EstadoPlan;
+  /** Último día (inclusive) para corregir las guías. Si falta, es el último día hábil antes de `desde`. */
+  cierreEdicion?: FechaISO;
   /** Token largo e imposible de adivinar de la página pública (QR). */
   tokenPublico: string;
   creadoPor: string;   // correo
@@ -213,6 +216,10 @@ export interface GuiaPlan {
   /** La guía aprobada: es la que ve el estudiante. La aprueba el responsable. */
   aprobada?: Guia;
   aprobadaEn?: number;
+  /** ms en que el líder guardó la última propuesta (generada o reaprobada). */
+  propuestaEn?: number;
+  /** Coordinación autorizó corregir después del cierre. Solo la escribe un gestor. */
+  autorizacion?: { hasta: FechaISO; por: string; motivo: string; en: number };
   seguimiento: Record<string, SeguimientoPaso>; // por id de paso
   sustentacionEstado: EstadoSustentacion;
   sustentacionObservacion?: string;
@@ -303,3 +310,21 @@ export interface SalidaSubirEntrega { ok: boolean; entregadoEn?: number; error?:
 /** Callable `planCasaVerEntrega` (con login y rol): devuelve el archivo en base64, nunca una URL permanente. */
 export interface EntradaVerEntrega { planId: string; entregaId: string }
 export interface SalidaVerEntrega { ok: boolean; contentType?: string; nombre?: string; datosBase64?: string; url?: string; error?: string }
+
+// ── Corrección hasta la fecha de cierre ──
+
+export const MOTIVOS_SOLICITUD = ['Cambio institucional de fechas', 'Error en criterios o entregables', 'Otro'] as const;
+
+/** planesCasa/{planId}/solicitudes/{id} — petición de autorización para corregir una guía cerrada. */
+export interface SolicitudAutorizacion {
+  id: string;
+  guiaId: string;
+  correo: string;
+  motivo: string;
+  detalle: string;
+  creadaEn: number;
+  estado: 'pendiente' | 'autorizada' | 'negada';
+  respondidaPor?: string;
+  respondidaEn?: number;
+  hasta?: FechaISO;
+}

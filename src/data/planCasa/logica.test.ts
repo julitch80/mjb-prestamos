@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   agendaDelDia, aPublico, docentesDelGrupo, esDiaDePlan, guiasIniciales, nuevoToken, progresoAsignatura, progresoGuia,
-  proximasEntregas, repartirPasos, resumenTablero, semanasDelPeriodo, conSinTecnologia,
+  proximasEntregas, repartirPasos, fechaCierre, estadoEdicion, asignaturasCambiadas, protegerPasosPasados, resumenTablero, semanasDelPeriodo, conSinTecnologia,
 } from './logica';
 import { addDias } from '../tareas/calendario';
 import type { AsignaturaPlan, Guia, GuiaPlan, PasoGuia, PlanCasa } from './tipos';
@@ -166,5 +166,41 @@ describe('conSinTecnologia', () => {
     expect(a.sinTecnologia).toBe(true);
     expect(conSinTecnologia(a.ajustes, true).ajustes).toEqual(a.ajustes);
     expect(conSinTecnologia(a.ajustes, false)).toEqual({ sinTecnologia: false, ajustes: ['x'] });
+  });
+});
+
+describe('cierre de edición', () => {
+  it('por defecto es el último día hábil antes de desde (salta fin de semana y festivos)', () => {
+    expect(fechaCierre({ desde: '2026-11-04' })).toBe('2026-11-03');
+    expect(fechaCierre({ desde: '2026-11-03' })).toBe('2026-10-30'); // 11-02 festivo, 10-31/11-01 fin de semana
+    expect(fechaCierre({ desde: '2026-11-17' })).toBe('2026-11-13'); // 11-16 festivo
+    expect(fechaCierre({ desde: '2026-12-09' })).toBe('2026-12-07'); // 12-08 festivo
+    expect(fechaCierre({ desde: '2026-12-26' })).toBe('2026-12-24'); // 12-25 festivo
+  });
+  it('respeta cierreEdicion explícito', () => {
+    expect(fechaCierre({ desde: '2026-11-04', cierreEdicion: '2026-11-10' })).toBe('2026-11-10');
+  });
+  const p = { desde: '2026-11-04' };
+  it('abierta hasta el final del día de cierre', () => {
+    expect(estadoEdicion(p, undefined, '2026-11-03')).toEqual({ abierta: true, motivo: 'antes_cierre', hasta: '2026-11-03' });
+    expect(estadoEdicion(p, undefined, '2026-11-04')).toEqual({ abierta: false, motivo: 'cerrada', hasta: '2026-11-03' });
+  });
+  it('la autorización reabre hasta su fecha', () => {
+    const g = { autorizacion: { hasta: '2026-11-06', por: 'x', motivo: 'm', en: 1 } };
+    expect(estadoEdicion(p, g, '2026-11-06')).toEqual({ abierta: true, motivo: 'autorizada', hasta: '2026-11-06' });
+    expect(estadoEdicion(p, g, '2026-11-07').abierta).toBe(false);
+  });
+  it('detecta asignaturas cambiadas después de la propuesta', () => {
+    const g = { propuesta: guia([]), propuestaEn: 100, asignaturaIds: ['fis', 'mat'] };
+    expect(asignaturasCambiadas(g, [{ asignaturaId: 'fis', actualizadoEn: 200 }, { asignaturaId: 'mat', actualizadoEn: 50 }])).toEqual(['fis']);
+    expect(asignaturasCambiadas({ ...g, propuestaEn: undefined }, [{ asignaturaId: 'fis', actualizadoEn: 200 }])).toEqual([]);
+  });
+  it('protege los pasos con fecha pasada', () => {
+    const prev = [paso('a', 1, '2026-11-02'), paso('b', 1, '2026-11-10')];
+    const nuevos = [{ ...paso('a', 1, '2026-11-12'), titulo: 'otro' }, paso('b', 1, '2026-11-11')];
+    const r = protegerPasosPasados(nuevos, prev, '2026-11-05');
+    expect(r.restaurados).toBe(1);
+    expect(r.pasos.find(x => x.id === 'a')!.fecha).toBe('2026-11-02');
+    expect(r.pasos.find(x => x.id === 'b')!.fecha).toBe('2026-11-11');
   });
 });

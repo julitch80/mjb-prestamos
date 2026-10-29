@@ -1,7 +1,7 @@
 // Plan en casa — lectura/escritura en Firestore y llamadas a las funciones del servidor.
 // Contrato en ./tipos.ts. Los componentes no tocan Firestore directo: pasan por aquí.
 import {
-  addDoc, collection, FieldPath, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where,
+  addDoc, collection, deleteField, FieldPath, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -9,7 +9,7 @@ import { auth, db, functions } from '../../lib/firebase';
 import { USUARIOS } from '../maestros';
 import { getAsignatura } from '../asignacionAcademica';
 import {
-  COL_PLANES, DOC_EQUIPO, DOC_MOTIVO, SUB_ASIGNATURAS, SUB_GUIAS, SUB_RESERVADO,
+  COL_PLANES, DOC_EQUIPO, DOC_MOTIVO, SUB_ASIGNATURAS, SUB_GUIAS, SUB_RESERVADO, SUB_SOLICITUDES, type SolicitudAutorizacion,
   type AsignaturaPlan, type GuiaPlan, type ModalidadGuias, type EntradaGuiaIA, type Guia, type MotivoReservado, type PlanCasa,
   type RitmoPlan, type SalidaGuiaIA,
 } from './tipos';
@@ -291,4 +291,53 @@ export async function publicarPlan(planId: string): Promise<void> {
   if (!functions) throw new Error('Firebase no está configurado.');
   try { await httpsCallable<{ planId: string }, unknown>(functions, 'planCasaPublicar')({ planId }); }
   catch (e) { throw traducirError(e); }
+}
+
+// ── Corrección hasta la fecha de cierre ───────────────────────────────────
+
+/** Gestor: fija (o quita, con '') la fecha de cierre del plan. */
+export async function guardarCierreEdicion(planId: string, fecha: string) {
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId), { cierreEdicion: fecha || deleteField(), actualizadoEn: Date.now() });
+}
+
+export async function pedirAutorizacion(planId: string, d: { guiaId: string; motivo: string; detalle: string }) {
+  await addDoc(collection(baseDatos(), COL_PLANES, planId, SUB_SOLICITUDES), {
+    guiaId: d.guiaId, correo: correoActual(), motivo: d.motivo, detalle: d.detalle.trim(), creadaEn: Date.now(), estado: 'pendiente',
+  });
+}
+
+export function escucharSolicitudes(
+  planId: string, cb: (s: SolicitudAutorizacion[]) => void, onError: (e: Error) => void = () => {},
+): Unsubscribe {
+  if (!db) return () => {};
+  return onSnapshot(collection(db, COL_PLANES, planId, SUB_SOLICITUDES), snap => {
+    cb(snap.docs.map(d => ({ ...(d.data() as SolicitudAutorizacion), id: d.id })).sort((a, b) => b.creadaEn - a.creadaEn));
+  }, onError);
+}
+
+/** Gestor: autoriza corregir la guía hasta `hasta` y marca la solicitud. */
+export async function autorizarSolicitud(planId: string, s: SolicitudAutorizacion, hasta: string) {
+  const ahora = Date.now();
+  const por = correoActual();
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId, SUB_GUIAS, s.guiaId), {
+    autorizacion: { hasta, por, motivo: s.motivo + (s.detalle ? `: ${s.detalle}` : ''), en: ahora }, actualizadoEn: ahora,
+  });
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId, SUB_SOLICITUDES, s.id), {
+    estado: 'autorizada', respondidaPor: por, respondidaEn: ahora, hasta,
+  });
+}
+
+export async function negarSolicitud(planId: string, s: SolicitudAutorizacion) {
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId, SUB_SOLICITUDES, s.id), {
+    estado: 'negada', respondidaPor: correoActual(), respondidaEn: Date.now(),
+  });
+}
+
+/** Gestor: cambia la fecha de sustentación de la guía aprobada aunque esté cerrada, y republica la agenda. */
+export async function cambiarFechaSustentacion(planId: string, g: GuiaPlan, fecha: string) {
+  if (!g.aprobada) throw new Error('La guía aún no está aprobada.');
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId, SUB_GUIAS, g.id), {
+    aprobada: limpiar({ ...g.aprobada, sustentacion: { ...g.aprobada.sustentacion, fecha: fecha || null } }), actualizadoEn: Date.now(),
+  });
+  await publicarPlan(planId);
 }

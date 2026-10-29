@@ -637,12 +637,24 @@ service cloud.firestore {
               && pcDocenteDe(get(/databases/$(database)/documents/planesCasa/$(planId)).data)));
         allow update: if !esSuplantacion() && (pcGestiona()
           || (isActiveUser() && resource.data.responsableCorreo.lower() == callerEmail()
-              && request.resource.data.diff(resource.data).unchangedKeys().hasAll(['asignaturaIds', 'responsableCorreo', 'docentesCorreos']))
+              && request.resource.data.diff(resource.data).unchangedKeys().hasAll(['asignaturaIds', 'responsableCorreo', 'docentesCorreos'])
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['autorizacion']))
           || (isActiveUser() && callerEmail() in resource.data.docentesCorreos
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vistosBuenos', 'seguimiento', 'actualizadoEn'])
               && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['vistosBuenos'])
                   || request.resource.data.vistosBuenos.diff(resource.data.vistosBuenos).affectedKeys().hasOnly([callerEmail()]))));
         allow delete: if !esSuplantacion() && (pcGestiona());
+      }
+      // Solicitudes de autorizacion para corregir una guia despues de la fecha de cierre.
+      // El docente del plan crea la suya (estado pendiente); solo coordinacion/equipo responde.
+      match /solicitudes/{id} {
+        allow read: if pcLeeAmplio()
+          || pcDocenteDe(get(/databases/$(database)/documents/planesCasa/$(planId)).data);
+        allow create: if !esSuplantacion() && (pcGestiona()
+          || (isActiveUser() && request.resource.data.correo.lower() == callerEmail()
+              && request.resource.data.estado == 'pendiente'
+              && pcDocenteDe(get(/databases/$(database)/documents/planesCasa/$(planId)).data)));
+        allow update, delete: if !esSuplantacion() && (pcGestiona());
       }
       // Entregas desde la agenda publica (docs/plan-casa/ENTREGAS-PRD.md). Solo METADATOS
       // (nombre, fecha, tipo, ruta); el archivo se abre por la callable planCasaVerEntrega,

@@ -1,10 +1,11 @@
 // Piezas compartidas del módulo «Plan en casa».
 import { useState, type ReactNode } from 'react';
 import { AlertTriangle, FileDown, Printer, Loader2, Sparkles } from 'lucide-react';
+import { addDias } from '../../data/tareas/calendario';
 import { cn } from '@/lib/utils';
-import type { AsignaturaPlan, GuiaPlan, FechaISO, PasoGuia, RitmoPlan } from '../../data/planCasa/tipos';
+import type { AsignaturaPlan, GuiaPlan, FechaISO, PasoGuia, PlanCasa, RitmoPlan } from '../../data/planCasa/tipos';
 import { sugerirPreguntas, type PreguntaSugerida } from '../../data/planCasa/persistencia';
-import { repartirPasos } from '../../data/planCasa/logica';
+import { diasEntre, estadoEdicion, repartirPasos, type EstadoEdicion } from '../../data/planCasa/logica';
 import { abrirImprimibleGuia, construirHtmlCuadernillo } from '../../data/planCasa/imprimibleGuia';
 import { abrirImprimibleUAI, construirHtmlUAI, type PlanParaUAI } from '../../data/planCasa/imprimibleUAI';
 
@@ -128,7 +129,7 @@ export function repartirTodas(
   return { pasos: Object.fromEntries(r.asignaturas.map(g => [g.guiaId, g.pasos])), avisos: r.avisos };
 }
 
-function hoyLocal(): FechaISO {
+export function hoyLocal(): FechaISO {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -181,3 +182,48 @@ export function SugerirPreguntas({ asignaturas, grado, ajustes, onUsar }: {
   );
 }
 
+
+// ── Barra de estado y fecha de cierre ─────────────────────────────────────
+
+const DIAS_LARGO = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MESES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+/** «martes 3 de noviembre». */
+export function fechaLarga(iso: FechaISO): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${DIAS_LARGO[new Date(y, m - 1, d).getDay()]} ${d} de ${MESES_LARGO[m - 1]}`;
+}
+
+/** Estado de edición de una guía hoy. Los gestores nunca quedan bloqueados. */
+export function edicionDe(plan: Pick<PlanCasa, 'desde' | 'cierreEdicion'>, g: Pick<GuiaPlan, 'autorizacion'> | undefined, gestor: boolean): EstadoEdicion {
+  const e = estadoEdicion(plan, g, hoyLocal());
+  return gestor && !e.abierta ? { ...e, abierta: true } : e;
+}
+
+const ETAPAS = ['Borrador', 'Generada', 'Aprobada', 'Cerrada'] as const;
+
+/** Etapas Borrador → Generada → Aprobada → Cerrada y el texto de la fecha de cierre. */
+export function BarraEstadoGuia({ g, edicion }: { g: GuiaPlan; edicion: EstadoEdicion }) {
+  const cerrada = edicion.motivo === 'cerrada';
+  const actual = cerrada ? 3 : g.aprobada ? 2 : g.propuesta ? 1 : 0;
+  const faltan = diasEntre(hoyLocal(), edicion.hasta);
+  return (
+    <div className="space-y-1">
+      <ol className="flex flex-wrap items-center gap-1 text-[11px]" aria-label="Etapa de la guía">
+        {ETAPAS.map((e, i) => (
+          <li key={e} aria-current={i === actual ? 'step' : undefined}
+            className={cn('px-2.5 py-0.5 rounded-full font-medium',
+              i === actual ? 'bg-accent text-strong' : i < actual ? 'bg-success-soft text-success-soft-fg' : 'bg-elevated text-muted')}>
+            {e}
+          </li>
+        ))}
+      </ol>
+      <p className={cn('text-xs', cerrada ? 'text-warning' : 'text-soft')}>
+        {cerrada
+          ? `🔒 Cerrada desde el ${fechaLarga(addDias(edicion.hasta, 1))}.`
+          : edicion.motivo === 'autorizada'
+            ? `Abierta por autorización de coordinación hasta el ${fechaLarga(edicion.hasta)}.`
+            : `Se puede corregir hasta el ${fechaLarga(edicion.hasta)} (${faltan === 0 ? 'último día' : faltan === 1 ? 'falta 1 día' : `faltan ${faltan} días`}).`}
+      </p>
+    </div>
+  );
+}
