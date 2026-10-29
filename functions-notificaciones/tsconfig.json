@@ -12,5 +12,5 @@
     "esModuleInterop": true
   },
   "compileOnSave": true,
-  "include": ["src/**/*.ts", "../src/data/notificacionesPushLogica.ts", "../src/data/horarioModificado.ts"]
+  "include": ["src/**/*.ts", "../src/data/notificacionesPushLogica.ts", "../src/data/horarioModificado.ts", "../src/data/planCasa/avisoEntrega.ts"]
 }

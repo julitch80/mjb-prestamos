@@ -25,6 +25,7 @@ import { parseHorarioModificadoDeNotificacion } from '../../src/data/horarioModi
 import {
   debeAlertarInvestigacion, destinatariosAccidente, horaLimiteFurat,
 } from '../../src/data/sst/accidenteLaboral';
+import { cuerpoAvisoEntrega, destinatariosAvisoEntrega, TITULO_AVISO_ENTREGA } from '../../src/data/planCasa/avisoEntrega';
 import { agruparPendientes, enviarAhora, enviarAUsuarios, enviarPrueba, type EnviarOpciones } from './enviar';
 
 // Techo de copias simultáneas (mismo patrón que `calendario`, 23-sep-2026).
@@ -89,6 +90,45 @@ export const alNuevoMensajeChat = onDocumentCreated(
       cuerpo,
       url: `${BASE_URL}?ir=chat&canal=${encodeURIComponent(channelId)}`,
       tag: `mjb-chat-${channelId}`,
+    });
+  });
+
+// ── Plan Académico Especial: entrega nueva del estudiante → push a los docentes
+// de la guía y a su responsable. Solo primer nombre y grupo (sin apellidos,
+// motivo ni salud). Silencio nocturno: lo resuelve enviarAUsuarios (cola
+// pushPendientes + entregarPendientes), igual que el chat.
+export const alNuevaEntregaPlanCasa = onDocumentCreated(
+  { document: 'planesCasa/{planId}/entregas/{entregaId}', region: REGION },
+  async (event) => {
+    const e = event.data?.data();
+    if (!e) return;
+    const { planId } = event.params;
+
+    const [planSnap, guiaSnap] = await Promise.all([
+      db.doc(`planesCasa/${planId}`).get(),
+      db.doc(`planesCasa/${planId}/guias/${String(e.guiaId ?? '')}`).get(),
+    ]);
+    const plan = planSnap.data();
+    const guia = guiaSnap.data();
+    if (!plan || !guia) return;
+
+    const pasos: Array<{ id?: string; titulo?: string }> = Array.isArray(guia.aprobada?.pasos) ? guia.aprobada.pasos : [];
+    const tituloPaso = pasos.find(p => p.id === e.pasoId)?.titulo;
+
+    const datos = {
+      nombres: plan.nombres, grupo: plan.grupo, tituloPaso,
+      docentesCorreos: Array.isArray(guia.docentesCorreos) ? guia.docentesCorreos : [],
+      responsableCorreo: guia.responsableCorreo,
+    };
+    const destinatarios = destinatariosAvisoEntrega(datos);
+    if (destinatarios.length === 0) return;
+
+    await enviarAUsuarios(db, destinatarios, {
+      tipo: 'plan_casa_entrega',
+      titulo: TITULO_AVISO_ENTREGA,
+      cuerpo: cuerpoAvisoEntrega(datos),
+      url: `${BASE_URL}?ir=plan_casa`,
+      tag: `mjb-plancasa-${planId}`,
     });
   });
 
