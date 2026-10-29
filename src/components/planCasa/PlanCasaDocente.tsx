@@ -2,7 +2,7 @@
 // Cada docente: criterios de promoción y aportes de SUS asignaturas; si es responsable de una
 // guía, la pide con IA, la edita, la aprueba y le hace seguimiento; si solo participa, da su
 // visto bueno.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../data/store';
@@ -10,8 +10,9 @@ import type {
   AsignaturaPlan, ComponenteEntrega, EstadoPaso, EstadoSustentacion, Guia, GuiaPlan, PasoGuia, PedidoGuia, RevisionAsignatura, SolicitudAutorizacion,
 } from '../../data/planCasa/tipos';
 import { MODALIDADES_SUSTENTACION, MOTIVOS_SOLICITUD } from '../../data/planCasa/tipos';
-import { asignaturasCambiadas, fechaCierre, protegerPasosPasados, semanasDelPeriodo } from '../../data/planCasa/logica';
+import { asignaturasCambiadas, diasEntre, estadoEdicion, fechaCierre, protegerPasosPasados, semanasDelPeriodo } from '../../data/planCasa/logica';
 import { addDias } from '../../data/tareas/calendario';
+import { construirChequeo, entregasPorRevisar, indiceColor, resumenChequeo } from '../../data/planCasa/checklist';
 import { capacidadPorSemana, esGuiaIntegrable, estadoTrasRevision, faltanPorRevisar, revisionCompleta } from '../../data/planCasa/integrada';
 import {
   correoActual, darVistoBueno, leerEquipo, escucharAsignaturas, escucharGuias, escucharPlanes, guardarAsignatura,
@@ -866,14 +867,36 @@ function GuiaParticipante({ plan, g, asigs, nombres, gestor }: { plan: PlanConDo
   );
 }
 
+// ── Navegación entre estudiantes (solo presentación) ──────────────────────
+
+/** Tintes suaves por estudiante: con baja opacidad funcionan igual en tema claro y oscuro. */
+const TINTES = [
+  { fondo: 'bg-sky-500/10', borde: 'border-sky-500/40', barra: 'bg-sky-500' },
+  { fondo: 'bg-emerald-500/10', borde: 'border-emerald-500/40', barra: 'bg-emerald-500' },
+  { fondo: 'bg-amber-500/10', borde: 'border-amber-500/40', barra: 'bg-amber-500' },
+  { fondo: 'bg-rose-500/10', borde: 'border-rose-500/40', barra: 'bg-rose-500' },
+  { fondo: 'bg-violet-500/10', borde: 'border-violet-500/40', barra: 'bg-violet-500' },
+  { fondo: 'bg-teal-500/10', borde: 'border-teal-500/40', barra: 'bg-teal-500' },
+];
+const tinteDe = (planId: string) => TINTES[indiceColor(planId, TINTES.length)];
+
+const leerLS = (k: string): string | null => { try { return localStorage.getItem(k); } catch { return null; } };
+const guardarLS = (k: string, v: string | null) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* sin almacenamiento */ } };
+
+interface DatosPlan { asigs: AsignaturaPlan[] | null; guias: GuiaPlan[] | null; error: string }
+const SIN_DATOS: DatosPlan = { asigs: null, guias: null, error: '' };
+
+/** Escucha las asignaturas y guías de un plan y las entrega al padre (no pinta nada). */
+function EscuchaPlan({ planId, onDatos }: { planId: string; onDatos: (id: string, d: Partial<DatosPlan>) => void }) {
+  useEffect(() => escucharAsignaturas(planId, a => onDatos(planId, { asigs: a }), e => onDatos(planId, { asigs: [], error: e.message })), [planId, onDatos]);
+  useEffect(() => escucharGuias(planId, g => onDatos(planId, { guias: g }), e => onDatos(planId, { guias: [], error: e.message })), [planId, onDatos]);
+  return null;
+}
+
 // ── Un plan ───────────────────────────────────────────────────────────────
 
-function PlanDocente({ plan, gestor }: { plan: PlanConDocentes; gestor: boolean }) {
-  const [asigs, setAsigs] = useState<AsignaturaPlan[] | null>(null);
-  const [guias, setGuias] = useState<GuiaPlan[] | null>(null);
-  const [error, setError] = useState('');
-  useEffect(() => escucharAsignaturas(plan.id, setAsigs, e => { setError(e.message); setAsigs([]); }), [plan.id]);
-  useEffect(() => escucharGuias(plan.id, setGuias, e => { setError(e.message); setGuias([]); }), [plan.id]);
+function PlanDocente({ plan, gestor, datos, foco }: { plan: PlanConDocentes; gestor: boolean; datos: DatosPlan; foco?: { seccion: string; n: number } }) {
+  const { asigs, guias, error } = datos;
   const nombres = useMemo(() => asignaturasConNombre(plan.grupo), [plan.grupo]);
   const yo = correoActual();
   const mias = (asigs ?? []).filter(a => gestor || a.docenteCorreo.toLowerCase() === yo);
@@ -883,19 +906,72 @@ function PlanDocente({ plan, gestor }: { plan: PlanConDocentes; gestor: boolean 
   const guiaDe = (id: string) => (guias ?? []).find(g => g.asignaturaIds.includes(id));
   const ejeDe = (id: string) => guiaDe(id)?.eje;
   const participo = gestor ? [] : (guias ?? []).filter(g => g.responsableCorreo.toLowerCase() !== yo && g.docentesCorreos.map(c => c.toLowerCase()).includes(yo));
+  const tinte = tinteDe(plan.id);
+  const idSec = (s: string) => `pae-${plan.id}-${s}`;
+
+  const items = useMemo(() => asigs && guias
+    ? construirChequeo({ plan, asigs, guias, correo: yo, gestor, nombre: id => nombres[id]?.asignatura ?? id, hoy: hoyLocal() })
+    : [], [plan, asigs, guias, yo, gestor, nombres]);
+  const resumen = resumenChequeo(items);
+
+  // Secciones plegadas por defecto, salvo la del «Siguiente paso» (se fija una sola vez al cargar).
+  const [inicial, setInicial] = useState<string | null | undefined>(undefined);
+  useEffect(() => { if (inicial === undefined && asigs && guias) setInicial(resumen.siguiente?.seccion ?? null); }, [inicial, asigs, guias, resumen.siguiente]);
+  const [abiertas, setAbiertas] = useState<Record<string, boolean>>({});
+  const abierta = (s: string) => abiertas[s] ?? (inicial === s);
+  const marcar = (s: string, v: boolean) => setAbiertas(a => (a[s] === v ? a : { ...a, [s]: v }));
+
+  /** Abre la sección y se desplaza hasta ella. */
+  function irA(seccion: string) {
+    setAbiertas(a => ({ ...a, [seccion]: true }));
+    window.setTimeout(() => document.getElementById(idSec(seccion))?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  }
+  useEffect(() => { if (foco && asigs && guias) irA(foco.seccion); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [foco?.n, !!(asigs && guias)]);
+
+  const edicion = estadoEdicion(plan, undefined, hoyLocal());
+  const faltan = diasEntre(hoyLocal(), edicion.hasta);
 
   return (
-    <section className="space-y-3">
-      <div>
+    <section className={cn('space-y-3 rounded-2xl border p-3', tinte.fondo, tinte.borde)}>
+      {/* Cabecera pegada: nombre y grupo siempre a la vista al recorrer las secciones. */}
+      <div className={cn('sticky z-30 -mx-3 -mt-3 px-3 py-2 rounded-t-2xl border-b backdrop-blur-xl bg-card/90', tinte.borde)}
+        style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
         <h3 className="text-base font-semibold text-strong">{plan.nombres.split(' ')[0]} {plan.apellidos.split(' ')[0]} · {plan.grupo}</h3>
         <p className="text-xs text-soft">Del {fechaCorta(plan.desde)} al {fechaCorta(plan.hasta)} · máximo {plan.topeDiario} momentos por día{plan.ritmo === 'dia_por_medio' ? ' (día por medio)' : ''} · guías {plan.modalidad === 'transversal' ? 'transversales' : 'por asignatura'}</p>
+        <p className={cn('text-xs', edicion.abierta ? 'text-soft' : 'text-warning')}>
+          {edicion.abierta
+            ? `Edición abierta hasta ${fechaLarga(edicion.hasta)} · ${faltan === 0 ? 'último día' : faltan === 1 ? 'falta 1 día' : `faltan ${faltan} días`}`
+            : `🔒 Edición cerrada desde ${fechaLarga(addDias(edicion.hasta, 1))}`}
+        </p>
       </div>
+
+      {items.length > 0 && (
+        <div className="rounded-2xl border border-line bg-card p-3 space-y-2">
+          <p className="text-xs text-soft"><b className="text-strong">Mi lista de chequeo</b> · {resumen.hechas} de {resumen.total}</p>
+          {resumen.siguiente ? (
+            <button type="button" onClick={() => irA(resumen.siguiente!.seccion)}
+              className="w-full text-left text-sm rounded-xl bg-accent-soft text-accent-soft-fg px-3 py-2 font-medium">
+              Siguiente paso: {resumen.siguiente.texto}
+            </button>
+          ) : <p className="text-sm text-success">✓ Todo al día</p>}
+          <ul className="flex flex-wrap gap-1.5">
+            {items.map(i => (
+              <li key={i.id}>
+                <button type="button" onClick={() => irA(i.seccion)}
+                  className={cn('text-xs px-2.5 py-1 rounded-full transition', i.hecho ? 'bg-success-soft text-success-soft-fg' : 'bg-elevated text-soft hover:text-strong')}>
+                  {i.hecho ? '✓' : '○'} {i.texto}
+                </button>
+              </li>))}
+          </ul>
+        </div>
+      )}
+
       {guias && <BotonCuadernillo plan={plan} guias={guias} nombres={nombres} />}
       {error && <CajaError>{error}</CajaError>}
       {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
       {asigs && guias && mias.length === 0 && !error && <p className="text-sm text-soft">No tiene asignaturas en este plan.</p>}
       {propiasMias.length > 0 && (
-        <details open className="rounded-2xl border border-line bg-card p-4">
+        <details id={idSec('mis')} open={abierta('mis')} onToggle={e => marcar('mis', e.currentTarget.open)} className="scroll-mt-40 rounded-2xl border border-line bg-card p-4">
           <summary className="cursor-pointer text-sm font-medium text-strong">Paso 1 · {propiasMias.length === 1 ? 'Mi asignatura' : 'Mis asignaturas'}: temáticas, competencia, criterios, entregable y fecha de entrega</summary>
           <div className="space-y-3 mt-3">
             {propiasMias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} eje={ejeDe(a.asignaturaId)} guia={guiaDe(a.asignaturaId)} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
@@ -903,18 +979,28 @@ function PlanDocente({ plan, gestor }: { plan: PlanConDocentes; gestor: boolean 
         </details>
       )}
       {otrasMias.length > 0 && (
-        <details className="rounded-2xl border border-line bg-card p-4">
+        <details id={idSec('otras')} open={abierta('otras')} onToggle={e => marcar('otras', e.currentTarget.open)} className="scroll-mt-40 rounded-2xl border border-line bg-card p-4">
           <summary className="cursor-pointer text-sm font-medium text-strong">Asignaturas de los otros docentes ({otrasMias.length})</summary>
           <div className="space-y-3 mt-3">
             {otrasMias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} eje={ejeDe(a.asignaturaId)} guia={guiaDe(a.asignaturaId)} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
           </div>
         </details>
       )}
-      {responsable.map(g => <GuiaResponsable key={g.id} gestor={gestor} plan={plan} g={g} todas={guias ?? []} asigs={asigs ?? []} nombres={nombres} />)}
-      {participo.map(g => <GuiaParticipante key={g.id} gestor={gestor} plan={plan} g={g} asigs={asigs ?? []} nombres={nombres} />)}
+      {responsable.map(g => (
+        <details key={g.id} id={idSec(`g-${g.id}`)} open={abierta(`g-${g.id}`)} onToggle={e => marcar(`g-${g.id}`, e.currentTarget.open)} className="scroll-mt-40">
+          <summary className="cursor-pointer text-sm font-medium text-strong px-1 py-1">Guía: {g.eje || 'pendiente'} · responsable</summary>
+          <div className="mt-2"><GuiaResponsable gestor={gestor} plan={plan} g={g} todas={guias ?? []} asigs={asigs ?? []} nombres={nombres} /></div>
+        </details>))}
+      {participo.map(g => (
+        <details key={g.id} id={idSec(`g-${g.id}`)} open={abierta(`g-${g.id}`)} onToggle={e => marcar(`g-${g.id}`, e.currentTarget.open)} className="scroll-mt-40">
+          <summary className="cursor-pointer text-sm font-medium text-strong px-1 py-1">Guía de {nombreDocente(g.responsableCorreo, asigs ?? [])} · doy visto bueno</summary>
+          <div className="mt-2"><GuiaParticipante gestor={gestor} plan={plan} g={g} asigs={asigs ?? []} nombres={nombres} /></div>
+        </details>))}
     </section>
   );
 }
+
+const CLAVE_NOTA = 'pae-docente-nota-estudiante-v1';
 
 export default function PlanCasaDocente() {
   const [planes, setPlanes] = useState<PlanConDocentes[] | null>(null);
@@ -925,13 +1011,101 @@ export default function PlanCasaDocente() {
   const gestor = rol === 'superusuario' || rol === 'coordinador' || enEquipo === true;
   useEffect(() => enEquipo === null ? undefined : escucharPlanes(gestor, setPlanes, e => { setError(e.message || 'No se pudieron leer los planes.'); setPlanes([]); }), [gestor, enEquipo]);
 
+  const claveSel = `pae-docente-sel:${correoActual()}`;
+  const [datos, setDatos] = useState<Record<string, DatosPlan>>({});
+  const onDatos = useCallback((id: string, d: Partial<DatosPlan>) => setDatos(m => ({ ...m, [id]: { ...(m[id] ?? SIN_DATOS), ...d } })), []);
+  const [sel, setSel] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
+  const [nota, setNota] = useState(() => leerLS(CLAVE_NOTA) !== '1');
+  const [foco, setFoco] = useState<{ seccion: string; n: number } | undefined>(undefined);
+  const yaInicial = useRef(false);
+
+  const visibles = useMemo(() => (planes ?? []).filter(p => p.estado === 'activo'), [planes]);
+
+  // Selección inicial: un solo plan se abre directo; si no, el último que se usó.
+  useEffect(() => {
+    if (!planes || yaInicial.current) return;
+    yaInicial.current = true;
+    if (visibles.length === 1) setSel(visibles[0].id);
+    else { const g = leerLS(claveSel); if (g && visibles.some(p => p.id === g)) setSel(g); }
+  }, [planes, visibles, claveSel]);
+
+  function escoger(id: string) { setSel(id); guardarLS(claveSel, id); }
+
+  // Avance de cada estudiante con la misma lista de chequeo que ve el docente al abrirlo.
+  const avances = useMemo(() => {
+    const yo = correoActual();
+    const r: Record<string, { hechas: number; total: number; pendientes: number; porRevisar: { guiaId: string; pasoId: string; titulo: string }[] } | undefined> = {};
+    for (const p of visibles) {
+      const d = datos[p.id];
+      if (!d?.asigs || !d.guias) continue;
+      const nombres = asignaturasConNombre(p.grupo);
+      const dc = { plan: p, asigs: d.asigs, guias: d.guias, correo: yo, gestor, nombre: (id: string) => nombres[id]?.asignatura ?? id, hoy: hoyLocal() };
+      r[p.id] = { ...resumenChequeo(construirChequeo(dc)), porRevisar: entregasPorRevisar(dc) };
+    }
+    return r;
+  }, [visibles, datos, gestor]);
+
+  const ordenados = useMemo(() => [...visibles].sort((a, b) =>
+    (avances[b.id]?.pendientes ?? 0) - (avances[a.id]?.pendientes ?? 0) || a.nombres.localeCompare(b.nombres, 'es')), [visibles, avances]);
+  const q = busca.trim().toLowerCase();
+  const filtrados = q ? ordenados.filter(p => `${p.nombres} ${p.apellidos} ${p.grupo}`.toLowerCase().includes(q)) : ordenados;
+  const actual = visibles.find(p => p.id === sel);
+  const porRevisar = ordenados.flatMap(p => (avances[p.id]?.porRevisar ?? []).map(e => ({ plan: p, ...e })));
+
   return (
     <div className="space-y-5 max-w-2xl mx-auto">
       <h2 className="text-lg font-semibold text-strong">Plan Académico Especial</h2>
       {error && <CajaError>{error}</CajaError>}
       {!planes && <Cargando texto="Cargando planes…" />}
       {planes && planes.length === 0 && !error && <p className="text-sm text-soft">No tiene estudiantes con Plan Académico Especial.</p>}
-      {planes?.filter(p => p.estado === 'activo').map(p => <PlanDocente key={p.id} plan={p} gestor={gestor} />)}
+      {visibles.map(p => <EscuchaPlan key={p.id} planId={p.id} onDatos={onDatos} />)}
+
+      {visibles.length > 1 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-soft">Mis estudiantes</p>
+          {nota && (
+            <div className="flex items-start gap-2 rounded-xl bg-accent-soft text-accent-soft-fg px-3 py-2 text-xs">
+              <span className="flex-1"><b>Nuevo:</b> escoja el estudiante aquí arriba.</span>
+              <button type="button" aria-label="Cerrar aviso" onClick={() => { setNota(false); guardarLS(CLAVE_NOTA, '1'); }} className="font-bold px-1">×</button>
+            </div>
+          )}
+          {visibles.length > 6 && (
+            <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nombre o grupo" className={CLASE_INPUT} />
+          )}
+          <div className="flex flex-wrap gap-2">
+            {filtrados.map(p => {
+              const t = tinteDe(p.id); const av = avances[p.id]; const on = p.id === sel;
+              const pct = av && av.total ? Math.round((av.hechas / av.total) * 100) : 0;
+              return (
+                <button key={p.id} type="button" onClick={() => escoger(p.id)} aria-pressed={on}
+                  className={cn('w-[calc(50%-0.25rem)] sm:w-[calc(33.333%-0.34rem)] text-left rounded-xl border px-3 py-2 transition', t.fondo, t.borde, on && 'ring-2 ring-accent')}>
+                  <span className="block text-sm font-semibold text-strong truncate">{p.nombres.split(' ')[0]}</span>
+                  <span className="block text-[11px] text-soft">{p.grupo}</span>
+                  <span className="block text-[11px] text-soft mt-1">{av ? `${av.hechas} de ${av.total}` : '…'}</span>
+                  <span className="block h-1 rounded-full bg-elevated mt-1 overflow-hidden"><span className={cn('block h-full', t.barra)} style={{ width: `${pct}%` }} /></span>
+                </button>);
+            })}
+            {filtrados.length === 0 && <p className="text-xs text-soft">Nadie coincide con la búsqueda.</p>}
+          </div>
+        </div>
+      )}
+
+      {porRevisar.length > 0 && (
+        <div className="rounded-2xl border border-line bg-card p-3 space-y-1.5">
+          <p className="text-xs font-medium text-soft">Por revisar ({porRevisar.length})</p>
+          {porRevisar.map(e => (
+            <button key={`${e.plan.id}-${e.guiaId}-${e.pasoId}`} type="button"
+              onClick={() => { escoger(e.plan.id); setFoco(f => ({ seccion: `g-${e.guiaId}`, n: (f?.n ?? 0) + 1 })); }}
+              className="block w-full text-left text-sm text-strong rounded-lg px-2 py-1 hover:bg-elevated">
+              {e.plan.nombres.split(' ')[0]} · {e.plan.grupo} — <span className="text-soft">{e.titulo}</span>
+            </button>))}
+        </div>
+      )}
+
+      {actual
+        ? <PlanDocente key={actual.id} plan={actual} gestor={gestor} datos={datos[actual.id] ?? SIN_DATOS} foco={foco} />
+        : visibles.length > 1 && <p className="text-sm text-soft">Escoja un estudiante para ver su plan.</p>}
     </div>
   );
 }
