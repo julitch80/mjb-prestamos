@@ -14,18 +14,31 @@ const fecha = (f: FechaISO | null | undefined) => {
   return `${d}/${m}/${y}`;
 };
 
+// Escudo con URL absoluta: el cuadernillo se abre en una ventana nueva sin la base de la app.
+const BASE_URL = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+const ESCUDO = () => (typeof location !== 'undefined' ? location.origin : '') + `${BASE_URL}mjb_escudo.png`;
+
+/** Franja institucional: escudo + nombre del colegio (va en la portada y al abrir cada guía). */
+const membrete = () => `<div class="membrete"><img src="${ESCUDO()}" alt=""><div><b>Institución Educativa Manuel J. Betancur</b><br><span>San Antonio de Prado · Medellín · Plan Académico Especial</span></div></div>`;
+
 const CSS = `
 @page { size: letter portrait; margin: 1.6cm; }
 * { box-sizing: border-box; }
 body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 15px; line-height: 1.5; margin: 0; }
 h1 { font-size: 24px; margin: 0 0 4px; }
-h2 { font-size: 20px; margin: 0 0 8px; border-bottom: 2px solid #111; padding-bottom: 3px; }
+h2 { font-size: 20px; margin: 0 0 8px; color: #1e3a5f; border-bottom: 2px solid #c9a227; padding-bottom: 3px; }
 h3 { font-size: 17px; margin: 16px 0 4px; }
 p { margin: 4px 0; }
-.enc { border: 2px solid #111; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; }
+.enc { border: 2px solid #1e3a5f; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; }
 .producto { border: 1.5px dashed #111; border-radius: 6px; padding: 8px 12px; margin: 8px 0 12px; }
 .guia { page-break-before: always; }
-.portada { text-align: center; padding-top: 5cm; }
+.portada { text-align: center; padding-top: 2.5cm; }
+.portada .escudo { width: 5cm; height: auto; margin-bottom: 0.8cm; }
+.portada h1 { color: #1e3a5f; }
+.membrete { display: flex; align-items: center; gap: 10px; border-bottom: 3px solid #1e3a5f; padding-bottom: 6px; margin-bottom: 10px; font-size: 13px; }
+.membrete img { width: 1.4cm; height: auto; }
+.membrete span { color: #444; font-size: 11px; }
+img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .portada h1 { font-size: 34px; }
 .portada p { font-size: 20px; }
 .entregas, .uso { page-break-before: always; }
@@ -93,7 +106,7 @@ function seccionGuia(g: GuiaPlan, guia: Guia, nombres: Nombres): string {
     </div>`;
   };
   return `<section class="guia">
-  <div class="enc"><h1>${esc(t.texto)}</h1></div>
+  ${membrete()}<div class="enc"><h1>${esc(t.texto)}</h1></div>
   <h3>Lo que vas a construir</h3>
   <div class="producto">${esc(guia.productoFinal)}</div>
   ${semanas.map(bloqueSemana).join('')}
@@ -134,10 +147,10 @@ export function construirHtmlCuadernillo(plan: PlanParaGuia, guias: GuiaPlan[], 
   const primer = esc(plan.nombres.trim().split(/\s+/)[0] || '');
   const tope = plan.topeDiario ?? 4;
   const ritmo = plan.ritmo === 'dia_por_medio' ? 'un día sí y un día no' : 'todos los días hábiles';
-  const portada = `<section class="portada"><h1>Plan Académico Especial</h1><p class="sub">Cuadernillo de trabajo</p>
+  const portada = `<section class="portada"><img class="escudo" src="${ESCUDO()}" alt="Escudo MJB"><h1>Plan Académico Especial</h1><p class="sub">Cuadernillo de trabajo</p>
     <p><b>${primer}</b></p><p>Grupo ${esc(plan.grupo)}</p>
     <p>Del ${esc(fecha(plan.desde))} al ${esc(fecha(plan.hasta))}</p>
-    <p class="etq">I.E. Manuel J. Betancur</p></section>`;
+    <p class="etq">Institución Educativa Manuel J. Betancur · San Antonio de Prado</p></section>`;
   const uso = `<section class="uso"><h2>Cómo usar este cuadernillo</h2>
     <p>Cada <b>momento</b> es un tiempo de trabajo de 25 minutos. Trabaja máximo <b>${esc(tope)} momentos al día</b>, ${esc(ritmo)}.</p>
     <p>Hay una sección por asignatura. Sigue los pasos en orden, un paso a la vez, y escribe tus respuestas en los espacios con renglones; si necesitas más espacio usa tu cuaderno.</p>
