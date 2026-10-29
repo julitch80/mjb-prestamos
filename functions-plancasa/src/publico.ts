@@ -47,3 +47,14 @@ export function construirPublico(
     actualizadoEn: ahora,
   };
 }
+
+/** Campos de la guía que alimentan la copia pública. */
+function proyeccionPublica(g: GuiaPlan | undefined): string {
+  if (!g) return '';
+  return JSON.stringify([g.aprobada ?? null, g.seguimiento ?? null, g.asignaturaIds ?? null, g.eje ?? null, g.responsableCorreo ?? null]);
+}
+
+/** ¿El cambio en la guía altera la copia pública? (vistos buenos, pedido, propuesta… no). */
+export function cambioAfectaPublico(antes: GuiaPlan | undefined, despues: GuiaPlan | undefined): boolean {
+  return proyeccionPublica(antes) !== proyeccionPublica(despues);
+}

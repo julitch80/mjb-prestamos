@@ -10,6 +10,8 @@ import { FieldPath, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import * as logger from 'firebase-functions/logger';
 import Anthropic from '@anthropic-ai/sdk';
@@ -24,7 +26,8 @@ import {
   bytesDeBase64, cupoDiario, finAnioLectivo, inicioDiaColombia, nombreSeguro, seguimientoTrasEntrega, validarArchivo, validarEnlace,
 } from '../../src/data/planCasa/entregas';
 import { ESQUEMA_GUIA, MODELO, SISTEMA, construirPrompt, sanearGuia } from './guia';
-import { construirPublico } from './publico';
+import { cambioAfectaPublico, construirPublico } from './publico';
+import { LOTE_LIMPIEZA, seleccionarVencidas } from './limpieza';
 import { SISTEMA_CAMPOS, construirPromptCampos, esquemaCampos, sanearCampos, type EntradaCampos } from './campos';
 import { ESQUEMA_PREGUNTAS, SISTEMA_PREGUNTAS, construirPromptPreguntas, sanearPreguntas, type EntradaPreguntas, type PreguntaSugerida } from './preguntas';
 
@@ -197,6 +200,25 @@ async function mapaDocentes(correos: string[]): Promise<Map<string, string>> {
   return m;
 }
 
+/** Reconstruye y escribe la copia pública. Sin auth: la llaman la callable (ya autorizada) y el trigger. */
+async function republicar(planId: string, plan?: PlanCasa, guias?: GuiaPlan[]): Promise<{ pasos: number } | null> {
+  if (!plan) {
+    const planSnap = await db.doc(`${COL_PLANES}/${planId}`).get();
+    if (!planSnap.exists) return null;
+    plan = { ...(planSnap.data() as PlanCasa), id: planId };
+  }
+  if (typeof plan.tokenPublico !== 'string' || plan.tokenPublico.length < 20) return null;
+  if (!guias) {
+    const guiasSnap = await db.collection(`${COL_PLANES}/${planId}/${SUB_GUIAS}`).get();
+    guias = guiasSnap.docs.map(d => ({ ...(d.data() as GuiaPlan), id: d.id }));
+  }
+  const nombres = await mapaDocentes(guias.filter(g => g.aprobada).map(g => g.responsableCorreo));
+  const publico = construirPublico(plan, guias, nombreAsignatura, c => nombres.get(c) ?? c.split('@')[0], Date.now());
+  await db.doc(`${COL_PUBLICO}/${plan.tokenPublico}`).set(publico);
+  logger.info('republicar', { planId, pasos: publico.pasos.length, sustentaciones: publico.sustentaciones.length });
+  return { pasos: publico.pasos.length };
+}
+
 export const planCasaPublicar = onCall(opciones, async (request) => {
   const quien = await llamante(request);
   const planId = (request.data as { planId?: unknown } | undefined)?.planId;
@@ -213,12 +235,49 @@ export const planCasaPublicar = onCall(opciones, async (request) => {
   if (!permitido) throw new HttpsError('permission-denied', 'No puedes publicar este plan.');
   if (typeof plan.tokenPublico !== 'string' || plan.tokenPublico.length < 20) throw new HttpsError('failed-precondition', 'El plan no tiene token público válido.');
 
-  const nombres = await mapaDocentes(guias.filter(g => g.aprobada).map(g => g.responsableCorreo));
-  const publico = construirPublico(plan, guias, nombreAsignatura, c => nombres.get(c) ?? c.split('@')[0], Date.now());
-  await db.doc(`${COL_PUBLICO}/${plan.tokenPublico}`).set(publico);
-  logger.info('planCasaPublicar', { planId, pasos: publico.pasos.length, sustentaciones: publico.sustentaciones.length });
-  return { ok: true, pasos: publico.pasos.length };
+  const r = await republicar(planId, plan, guias);
+  return { ok: true, pasos: r?.pasos ?? 0 };
 });
+
+// Republicación automática: un cambio relevante en una guía actualiza la copia pública.
+// Solo escribe planesCasaPublico (no planesCasa), así que no hay bucle.
+export const planCasaRepublicarAlCambiarGuia = onDocumentWritten(
+  { document: `${COL_PLANES}/{planId}/${SUB_GUIAS}/{guiaId}`, region: 'us-central1' },
+  async (event) => {
+    const antes = event.data?.before.exists ? (event.data.before.data() as GuiaPlan) : undefined;
+    const despues = event.data?.after.exists ? (event.data.after.data() as GuiaPlan) : undefined;
+    if (!cambioAfectaPublico(antes, despues)) return;
+    const planId = event.params.planId;
+    const planSnap = await db.doc(`${COL_PLANES}/${planId}`).get();
+    if (!planSnap.exists || planSnap.get('estado') === 'cerrado') return;
+    await republicar(planId);
+  },
+);
+
+// Fin del año lectivo: borra archivo y registro de las entregas con `borrarDespuesDe` vencido.
+export const planCasaLimpiarEntregas = onSchedule(
+  { schedule: '0 3 * * *', timeZone: 'America/Bogota', region: 'us-central1' },
+  async () => {
+    const ahora = Date.now();
+    const snap = await db.collectionGroup(SUB_ENTREGAS).where('borrarDespuesDe', '<', ahora).limit(LOTE_LIMPIEZA).get();
+    const vencidas = seleccionarVencidas(snap.docs.map(d => ({ ref: d.ref, ...(d.data() as EntregaPlan) })), ahora, LOTE_LIMPIEZA);
+    let archivos = 0; let registros = 0; let fallos = 0;
+    for (const v of vencidas) {
+      try {
+        if (v.ruta) {
+          await getStorage().bucket().file(v.ruta).delete({ ignoreNotFound: true });
+          archivos++;
+        }
+        await v.ref.delete();
+        registros++;
+      } catch (err) {
+        fallos++;
+        logger.error('planCasaLimpiarEntregas: fallo', { ruta: v.ruta, mensaje: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    logger.info('planCasaLimpiarEntregas', { candidatas: snap.size, archivos, registros, fallos });
+  },
+);
 
 // ------------------------------------------------------- planCasaSubirEntrega
 // PÚBLICA (sin login): el token del QR es el secreto. El archivo viaja en base64 dentro de la

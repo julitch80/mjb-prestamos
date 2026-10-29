@@ -75,8 +75,13 @@ Lógica pura compartida (cliente y servidor): `src/data/planCasa/entregas.ts`, c
 
 ## Pendiente documentado
 
-- **Borrado al fin del año lectivo**: tarea programada (o regla de ciclo de vida del bucket por
-  prefijo `planesCasa/` con fecha fija) que borre archivos y registros con `borrarDespuesDe` vencido.
-- Las copias públicas anteriores necesitan **«Publicar» otra vez** para traer `guiaId` (sin eso no hay botón).
+- **Borrado al fin del año lectivo**: HECHO en código (`planCasaLimpiarEntregas`, diario 03:00 Bogotá,
+  lotes de 200, borra archivo de Storage y registro con `borrarDespuesDe` vencido; selección en
+  `limpieza.ts`). Falta desplegar; requiere índice de grupo de colección `entregas` por `borrarDespuesDe`
+  (Firestore lo pide en el log la primera vez).
+- Republicación automática: `planCasaRepublicarAlCambiarGuia` (trigger sobre `guias/{guiaId}`) refresca la
+  copia pública al cambiar `aprobada`/`seguimiento`/etc.; las copias antiguas se actualizan al primer cambio
+  de su guía (o con «Publicar»).
+- Aviso al docente cuando el estudiante entrega: NO implementado (no hay cola de push inmediata reutilizable).
 - La lectura de metadatos (`entregas`) es por plan, no por guía: un docente del plan ve el nombre y la fecha de entregas de otra guía, pero **no puede abrir el archivo** (eso sí se verifica por guía).
 - `planCasaVerEntrega` reutiliza `llamante()`: niega durante una suplantación y a usuarios en solo lectura.

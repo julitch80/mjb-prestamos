@@ -42,3 +42,13 @@ describe('construirPublico', () => {
   });
   it('primerNombre tolera vacío', () => expect(primerNombre('')).toBe(''));
 });
+
+import { cambioAfectaPublico } from './publico';
+describe('cambioAfectaPublico', () => {
+  const base = { eje: 'x', asignaturaIds: ['a'], responsableCorreo: 'a@b.c', aprobada: { pasos: [] }, seguimiento: {} } as never;
+  it('ignora campos irrelevantes y detecta los relevantes', () => {
+    expect(cambioAfectaPublico(base, { ...(base as object), vistosBuenos: { x: 1 }, pedido: 'p' } as never)).toBe(false);
+    expect(cambioAfectaPublico(base, { ...(base as object), seguimiento: { p1: { estado: 'revisado' } } } as never)).toBe(true);
+    expect(cambioAfectaPublico(undefined, base)).toBe(true);
+  });
+});
