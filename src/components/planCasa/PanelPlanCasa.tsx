@@ -12,7 +12,7 @@ import {
 } from '../../data/planCasa/tipos';
 import {
   asignaturasDelGrupo, cambiarEstadoPlan, crearPlan, escucharAsignaturas, escucharGuias, escucharPlanes, type GuiaTransversalDef,
-  autorizarSolicitud, cambiarFechaSustentacion, escucharSolicitudes, guardarCierreEdicion, negarSolicitud,
+  autorizarSolicitud, eliminarPlan, cambiarFechaSustentacion, escucharSolicitudes, guardarCierreEdicion, negarSolicitud,
   guardarContexto, guardarSinTecnologia, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
@@ -439,6 +439,11 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
   const [fechaSust, setFechaSust] = useState<Record<string, string>>({});
   const [cierre, setCierre] = useState(plan.cierreEdicion ?? '');
   const [cierreMsg, setCierreMsg] = useState('');
+  const esSuper = useAppStore(s => s.rol) === 'superusuario';
+  const [confElim, setConfElim] = useState(false);
+  const [tecleado, setTecleado] = useState('');
+  const [eliminando, setEliminando] = useState(false);
+  const primerNombre = (plan.nombres ?? '').trim().split(/\s+/)[0] ?? '';
 
   useEffect(() => escucharSolicitudes(plan.id, setSolicitudes), [plan.id]);
   useEffect(() => escucharAsignaturas(plan.id, setAsigs, e => setError(e.message)), [plan.id]);
@@ -570,6 +575,22 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
           <p className="text-soft"><span className="font-medium text-strong">Tope diario:</span> {plan.topeDiario} momentos · ritmo {plan.ritmo === 'dia_por_medio' ? 'día por medio' : 'diario'}</p>
           <button onClick={() => cambiarEstadoPlan(plan.id, plan.estado === 'activo' ? 'cerrado' : 'activo').catch(e => setError(e.message))}
             className={CLASE_BOTON_SEC}>{plan.estado === 'activo' ? 'Cerrar plan' : 'Reabrir plan'}</button>
+          {esSuper && plan.estado === 'cerrado' && (!confElim ? (
+            <button onClick={() => { setConfElim(true); setTecleado(''); }}
+              className="ml-2 rounded-lg border border-danger px-3 py-1.5 text-sm font-medium text-danger">Eliminar plan definitivamente</button>
+          ) : (
+            <div role="alert" className="mt-2 rounded-lg border border-danger p-3 space-y-2">
+              <p className="text-sm text-danger">Esto borra el plan, sus guías, asignaturas, entregas y la agenda del estudiante. No se puede deshacer.</p>
+              <label className="block text-xs text-soft">Escriba el primer nombre del estudiante para confirmar
+                <input value={tecleado} onChange={e => setTecleado(e.target.value)} className={CLASE_INPUT} autoComplete="off" /></label>
+              <div className="flex gap-2">
+                <button disabled={eliminando || !primerNombre || tecleado.trim().toLowerCase() !== primerNombre.toLowerCase()}
+                  onClick={() => { setEliminando(true); eliminarPlan(plan.id).catch(e => { setError(e.message); setEliminando(false); }); }}
+                  className="rounded-lg bg-danger px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40">{eliminando ? 'Eliminando…' : 'Eliminar'}</button>
+                <button disabled={eliminando} onClick={() => setConfElim(false)} className={CLASE_BOTON_SEC}>Cancelar</button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

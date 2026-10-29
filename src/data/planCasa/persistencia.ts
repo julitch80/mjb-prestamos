@@ -319,6 +319,13 @@ export async function publicarPlan(planId: string): Promise<void> {
   catch (e) { throw traducirError(e); }
 }
 
+/** Solo superusuario: borra el plan cerrado y todo lo suyo (guías, entregas, copia pública, archivos). */
+export async function eliminarPlan(planId: string): Promise<void> {
+  if (!functions) throw new Error('Firebase no está configurado.');
+  try { await httpsCallable<{ planId: string }, unknown>(functions, 'planCasaEliminarPlan', { timeout: 120_000 })({ planId }); }
+  catch (e) { throw traducirError(e); }
+}
+
 // ── Corrección hasta la fecha de cierre ───────────────────────────────────
 
 /** Gestor: fija (o quita, con '') la fecha de cierre del plan. */

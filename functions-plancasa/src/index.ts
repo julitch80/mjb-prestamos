@@ -431,3 +431,24 @@ export const planCasaVerEntrega = onCall(
     }
   },
 );
+
+// ------------------------------------------------------- planCasaEliminarPlan
+// SOLO superusuario (rol en users/{correo}.role). Borra el plan cerrado sin dejar rastro:
+// documento + subcolecciones, copia pública y archivos de Storage.
+
+export const planCasaEliminarPlan = onCall(opciones, async (request) => {
+  const quien = await llamante(request);
+  if (quien.role !== 'superusuario') throw new HttpsError('permission-denied', 'Solo el superusuario puede eliminar planes.');
+  const planId = (request.data as { planId?: unknown } | undefined)?.planId;
+  if (typeof planId !== 'string' || !RE_ID.test(planId)) throw new HttpsError('invalid-argument', 'planId inválido.');
+  const ref = db.doc(`${COL_PLANES}/${planId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'El plan no existe.');
+  if (snap.get('estado') !== 'cerrado') throw new HttpsError('failed-precondition', 'Primero cierre el plan.');
+  const token = snap.get('tokenPublico');
+  await getStorage().bucket().deleteFiles({ prefix: `${COL_PLANES}/${planId}/`, force: true });
+  if (typeof token === 'string' && token) await db.doc(`${COL_PUBLICO}/${token}`).delete();
+  await db.recursiveDelete(ref);
+  logger.info('planCasaEliminarPlan', { planId, por: quien.correo });
+  return { ok: true };
+});
