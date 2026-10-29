@@ -83,6 +83,8 @@ export default function EditorGuia({ guia, onChange }: { guia: Guia; onChange: (
                   <span className={cn(p.esEntregaParcial && 'font-semibold text-strong')}>Entrega parcial de la semana {sem}</span>
                 </label>
                 <textarea rows={3} value={p.instrucciones} onChange={e => setPaso(i, { instrucciones: e.target.value })} placeholder="Qué hacer" className={CLASE_INPUT} />
+                <div><Etiqueta>Lectura para el estudiante (opcional)</Etiqueta>
+                  <textarea rows={6} value={p.lectura ?? ''} onChange={e => setPaso(i, { lectura: e.target.value })} placeholder="Texto que el estudiante lee para hacer este paso" className={CLASE_INPUT} /></div>
                 <div className="grid grid-cols-3 gap-2">
                   <div><Etiqueta>Semana</Etiqueta>
                     <input type="number" min={1} max={12} value={p.semana || 1}

@@ -206,6 +206,12 @@ function TarjetaPaso({ p, token }: { p: Paso; token: string }) {
       <ol className="list-decimal pl-5 space-y-1.5 text-base text-soft leading-relaxed">
         {subpasos(p.instrucciones).map((s, i) => <li key={i}>{s}</li>)}
       </ol>
+      {p.lectura && (
+        <details open className="rounded-xl border border-line bg-elevated/60 px-3 py-2">
+          <summary className="cursor-pointer text-base font-semibold text-accent py-1">📖 Lectura de este paso</summary>
+          <div className="whitespace-pre-wrap text-[17px] leading-relaxed text-strong pt-2 pb-1">{p.lectura}</div>
+        </details>
+      )}
       <p className="text-base text-strong rounded-xl bg-elevated/60 px-3 py-2">
         <b>Qué entregas:</b> {p.evidenciaDetalle}
         {p.canalEntrega && <span className="block"><b>Cómo lo entregas:</b> {p.canalEntrega}</span>}

@@ -4,7 +4,7 @@ import type { EntradaGuiaIA, EvidenciaTipo, Guia, ModalidadSustentacion, PasoGui
 export const MODELO = 'claude-sonnet-5-5';
 export const EVIDENCIAS: EvidenciaTipo[] = ['foto', 'texto', 'audio', 'video', 'documento'];
 export const MODALIDADES: ModalidadSustentacion[] = ['presencial', 'virtual', 'video', 'audio', 'entrevista', 'guia_corta', 'esquema'];
-const MAX = { corto: 300, medio: 1200, largo: 3000, referencia: 12000 };
+const MAX = { corto: 300, medio: 1200, largo: 3000, lectura: 4000, referencia: 12000 };
 
 export const SISTEMA = `Eres un experto en educación secundaria colombiana (grados 6 a 11) y en ajustes razonables para estudiantes que trabajan desde casa, con el espíritu del Decreto 1421 de 2017 y el Diseño Universal para el Aprendizaje (DUA).
 Tu tarea: proponer a un docente una guía de trabajo en casa, clara, breve y realizable por un estudiante que estudia solo, sin acompañamiento permanente.
@@ -23,6 +23,10 @@ Reglas:
 - evidenciasAprendizaje: una evidencia de aprendizaje por área (asignatura), articulada con su EBC/DBA priorizado y con el producto integrado.
 - sustentacionModalidad: elige UNA de estas opciones la que mejor se ajuste a los ajustes recibidos y al estudiante: presencial, virtual, video, audio, entrevista (entrevista personalizada), guia_corta (guía corta escrita) o esquema (esquema o mapa de ideas). Prefiere video, audio, entrevista o esquema si los ajustes piden alternativas al escrito extenso.
 - Si hay un texto de referencia, úsalo como base del contenido; no inventes citas ni enlaces.
+- LECTURAS. Si un paso pide leer, consultar, analizar o basarse en un documento, norma, entidad o texto, escribe en «lectura» el texto completo que el estudiante necesita (250 a 600 palabras), redactado por ti, adaptado al grado y a los ajustes, con lenguaje claro y subtítulos cortos si ayudan. Las instrucciones del paso deben remitir a «la lectura de este paso».
+- Puedes mencionar entidades reales (por ejemplo el DAGRD de Medellín o el MEN) solo como contexto; la información que el estudiante usa debe estar escrita en la lectura. No inventes cifras, artículos de ley ni citas textuales; usa conocimiento general verificable.
+- NUNCA pidas buscar en internet, ver un video, descargar o consultar un documento externo que no esté dentro de la guía. Si el docente dio un texto de referencia, la lectura se basa en él.
+- Los pasos que no requieren lectura dejan «lectura» vacía («»).
 - No supongas ni menciones diagnósticos, condiciones de salud ni nombres de personas; habla solo de lo pedagógico.
 - Si se te pide una guía transversal, diseña UNA sola guía integrada alrededor del eje que cubra los criterios de todas las asignaturas listadas, con MENOS pasos y menos momentos en total que si se hicieran guías separadas (el propósito es reducir la carga académica). Cada paso empieza su título indicando a qué asignaturas sirve, con el formato «[Ciencias · Lengua] Título», y los criterios de evaluación deben cubrir cada asignatura (nómbrala al inicio de cada criterio).
 - En notaAjustes explica al docente, en dos o tres frases, cómo aplicaste los ajustes.`;
@@ -56,7 +60,7 @@ export const ESQUEMA_GUIA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['titulo', 'instrucciones', 'momentos', 'evidencia', 'evidenciaDetalle', 'semana', 'esEntregaParcial', 'canalEntrega', 'ajusteAplicado'],
+        required: ['titulo', 'instrucciones', 'momentos', 'evidencia', 'evidenciaDetalle', 'semana', 'esEntregaParcial', 'canalEntrega', 'ajusteAplicado', 'lectura'],
         properties: {
           semana: { type: 'integer' },
           esEntregaParcial: { type: 'boolean' },
@@ -64,6 +68,7 @@ export const ESQUEMA_GUIA = {
           ajusteAplicado: { type: 'string' },
           titulo: { type: 'string' },
           instrucciones: { type: 'string' },
+          lectura: { type: 'string' },
           momentos: { type: 'integer' },
           evidencia: { type: 'string', enum: EVIDENCIAS },
           evidenciaDetalle: { type: 'string' },
@@ -154,6 +159,7 @@ export function sanearGuia(bruto: unknown, topeDiario: number, semanas = 0, sinT
     const r = p as Record<string, unknown>;
     const titulo = limpio(r.titulo, MAX.corto);
     const instrucciones = sinTecnologia ? limpio(limpio(r.instrucciones, MAX.largo).replace(RE_URL, ''), MAX.largo) : limpio(r.instrucciones, MAX.largo);
+    const lectura = typeof r.lectura === 'string' ? r.lectura.replace(RE_URL, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, MAX.lectura).trim() : '';
     if (!titulo || !instrucciones) continue;
     const m = Math.round(Number(r.momentos));
     const sm = Math.round(Number(r.semana));
@@ -163,6 +169,7 @@ export function sanearGuia(bruto: unknown, topeDiario: number, semanas = 0, sinT
       id: `p${pasos.length + 1}`,
       titulo,
       instrucciones,
+      ...(lectura ? { lectura } : {}),
       momentos: Math.max(1, Math.min(maxMomentos, Number.isFinite(m) ? m : 1)),
       evidencia,
       evidenciaDetalle: limpio(r.evidenciaDetalle, MAX.medio),

@@ -105,6 +105,8 @@ export interface PasoGuia {
   titulo: string;
   /** Qué hacer, en instrucciones cortas y ajustadas. */
   instrucciones: string;
+  /** Texto que el estudiante lee para hacer el paso, escrito por la IA o el docente. */
+  lectura?: string;
   /** Duración en momentos de 25 min (1–4). */
   momentos: number;
   evidencia: EvidenciaTipo;

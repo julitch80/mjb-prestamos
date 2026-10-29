@@ -38,6 +38,7 @@ p { margin: 4px 0; }
 .paso ol { margin: 4px 0 6px 22px; padding: 0; }
 .paso li { margin-bottom: 4px; }
 .contenido { white-space: pre-line; }
+.lectura { border-left: 3px solid #999; padding-left: 8px; }
 .lineas { border: 1.5px solid #111; border-radius: 4px; margin: 6px 0 4px;
   background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(0.95cm - 1px), #888 calc(0.95cm - 1px), #888 0.95cm); }
 .etq { font-size: 12px; color: #444; }
@@ -61,6 +62,7 @@ function textoPaso(p: PasoGuia): string {
     : `<p class="contenido">${esc(subs[0] ?? p.instrucciones)}</p>`;
   return `<div class="paso">
     <h3>${esc(p.titulo)}</h3>
+    ${p.lectura ? `<p class="etq">Lectura de este paso:</p><p class="contenido lectura">${esc(p.lectura)}</p>` : ''}
     ${cuerpo}
     <p class="etq">Escribe tu respuesta aquí (usa tu cuaderno si necesitas más espacio):</p>
     ${lineasCaja(p.momentos)}

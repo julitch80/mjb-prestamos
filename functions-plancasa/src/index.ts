@@ -60,7 +60,7 @@ async function esEquipo(correo: string): Promise<boolean> {
 // ---------------------------------------------------------------- planCasaGuia
 
 export const planCasaGuia = onCall(
-  { ...opciones, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 180, memory: '512MiB' },
+  { ...opciones, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 300, memory: '512MiB' },
   async (request): Promise<SalidaGuiaIA> => {
     const quien = await llamante(request);
     if (!ROLES_GUIA.includes(quien.role) && !(await esEquipo(quien.correo))) {
@@ -74,7 +74,7 @@ export const planCasaGuia = onCall(
       const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
       const resp = await client.messages.create({
         model: MODELO,
-        max_tokens: 8000,
+        max_tokens: 20000,
         system: SISTEMA,
         output_config: { effort: 'medium', format: { type: 'json_schema', schema: ESQUEMA_GUIA as unknown as Record<string, unknown> } },
         messages: [{ role: 'user', content: construirPrompt(e) }],

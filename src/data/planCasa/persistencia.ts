@@ -256,7 +256,7 @@ function traducirError(e: unknown): Error {
 export async function pedirGuiaIA(entrada: EntradaGuiaIA): Promise<Guia> {
   if (!functions) throw new Error('Firebase no está configurado.');
   try {
-    const r = await httpsCallable<EntradaGuiaIA, SalidaGuiaIA>(functions, 'planCasaGuia', { timeout: 120_000 })(entrada);
+    const r = await httpsCallable<EntradaGuiaIA, SalidaGuiaIA>(functions, 'planCasaGuia', { timeout: 310_000 })(entrada);
     if (!r.data.ok || !r.data.guia) throw new Error(r.data.error ?? 'La IA no devolvió una guía.');
     return r.data.guia;
   } catch (e) { throw traducirError(e); }

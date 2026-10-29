@@ -284,8 +284,10 @@ function GuiaLectura({ guia }: { guia: Guia }) {
             <p className="text-xs font-semibold text-strong">Semana {sem}</p>
             <ul className="list-disc pl-4 space-y-1">{guia.pasos.filter(p => (p.semana || 1) === sem).map(p => (
               <li key={p.id} className={p.esEntregaParcial ? 'font-medium text-strong' : undefined}>{p.titulo}
+                {p.lectura && <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded-full bg-elevated text-soft">📖 Lectura</span>}
                 {p.esEntregaParcial && <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded-full bg-warning-soft text-warning-soft-fg">Entrega parcial</span>}
-                <span className="text-xs text-muted font-normal"> · {p.momentos} mom. · {p.canalEntrega || p.evidencia}{p.fecha ? ` · ${fechaCorta(p.fecha)}` : ''}</span></li>))}</ul>
+                <span className="text-xs text-muted font-normal"> · {p.momentos} mom. · {p.canalEntrega || p.evidencia}{p.fecha ? ` · ${fechaCorta(p.fecha)}` : ''}</span>
+                {p.lectura && <details className="mt-1 font-normal"><summary className="cursor-pointer text-xs text-accent">Ver lectura</summary><p className="whitespace-pre-wrap text-xs text-soft mt-1">{p.lectura}</p></details>}</li>))}</ul>
           </div>))}</div>
       <p><span className="font-medium text-strong">Sustentación:</span> {modalidad}{guia.sustentacion.fecha ? `, ${fechaCorta(guia.sustentacion.fecha)}` : ''}{guia.sustentacion.hora ? ` ${guia.sustentacion.hora}` : ''}</p>
     </div>

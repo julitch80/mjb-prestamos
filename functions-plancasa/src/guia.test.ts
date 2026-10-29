@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { construirPrompt, sanearGuia } from './guia';
+import { ESQUEMA_GUIA, SISTEMA, construirPrompt, sanearGuia } from './guia';
 
 const entrada = {
   asignatura: 'Física', grado: '10°', desde: '2026-10-26', hasta: '2026-11-20',
@@ -125,5 +125,29 @@ describe('sin tecnología', () => {
     const g = sanearGuia(bruto, 3, 2)!;
     expect(g.pasos.map(p => p.evidencia)).toEqual(['video', 'audio', 'foto']);
     expect(g.sustentacion.modalidad).toBe('video');
+  });
+});
+
+describe('lectura del paso', () => {
+  const base = { productoFinal: 'P', criteriosEvaluacion: ['c'], preguntasSustentacion: ['q'] };
+  const paso = (extra: Record<string, unknown>) => ({ titulo: 'T', instrucciones: 'Lee y responde', momentos: 1, evidencia: 'texto', evidenciaDetalle: '', semana: 1, ...extra });
+  it('el esquema exige lectura en cada paso', () => {
+    const it = (ESQUEMA_GUIA.properties.pasos.items as any);
+    expect(it.properties.lectura).toEqual({ type: 'string' });
+    expect(it.required).toContain('lectura');
+  });
+  it('el prompt prohíbe materiales externos y pide lectura propia', () => {
+    expect(SISTEMA).toContain('LECTURAS');
+    expect(SISTEMA).toContain('NUNCA pidas buscar en internet');
+  });
+  it('conserva párrafos y recorta a 4000; vacía no se guarda', () => {
+    const g = sanearGuia({ ...base, pasos: [paso({ lectura: 'Uno\n\nDos ' + 'x'.repeat(5000) }), paso({ lectura: '' })] }, 4, 1)!;
+    expect(g.pasos[0].lectura).toContain('Uno\n\nDos');
+    expect(g.pasos[0].lectura!.length).toBeLessThanOrEqual(4000);
+    expect(g.pasos[1].lectura).toBeUndefined();
+  });
+  it('quita URLs de la lectura', () => {
+    const g = sanearGuia({ ...base, pasos: [paso({ lectura: 'Texto https://x.co/a fin www.y.com ok' })] }, 4, 1)!;
+    expect(g.pasos[0].lectura).not.toMatch(/https?:|www\./);
   });
 });
