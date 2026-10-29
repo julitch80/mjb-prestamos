@@ -20,6 +20,8 @@ import { conSinTecnologia, fechaCierre } from '../../data/planCasa/logica';
 import { EntregasGuiaResumen } from './EntregasPaso';
 import { PestanasSubrayadas } from '../Navegacion';
 import { construirAvanceDocentes, type DatosPlanAvance } from '../../data/planCasa/avanceDocentes';
+import { construirInformeHTML, construirResumenTexto } from '../../data/planCasa/informeAvance';
+import { abrirImprimibleUAI } from '../../data/planCasa/imprimibleUAI';
 import {
   BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
   fechaLarga, resumenGuia, TEXTO_SUSTENTACION,
@@ -599,8 +601,27 @@ function AvanceDocentes({ planes }: { planes: PlanConDocentes[] }) {
     return construirAvanceDocentes(lista);
   }, [activos, datos]);
 
+  const [copiado, setCopiado] = useState('');
+  const copiarResumen = async () => {
+    const texto = construirResumenTexto(docentes);
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado('Resumen copiado.');
+    } catch {
+      window.prompt('Copie el resumen (Ctrl+C):', texto);
+      setCopiado('');
+    }
+  };
+
   return (
     <div className="space-y-3">
+      {activos.length > 0 && !cargando && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => abrirImprimibleUAI(construirInformeHTML(docentes))} className={CLASE_BOTON}>📄 Informe ejecutivo</button>
+          <button type="button" onClick={copiarResumen} className={CLASE_BOTON}>Copiar resumen</button>
+          {copiado && <span className="text-xs text-soft">{copiado}</span>}
+        </div>
+      )}
       {activos.map(p => <OyentePlan key={p.id} planId={p.id} onDatos={recibir} />)}
       {cargando && activos.length > 0 && <Cargando texto="Cargando avance…" />}
       {activos.length === 0 && <p className="text-sm text-soft">No hay planes activos.</p>}
