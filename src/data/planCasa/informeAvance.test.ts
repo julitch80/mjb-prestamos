@@ -51,11 +51,11 @@ describe('informe de avance', () => {
     expect(caro.entregas).toEqual({ x: 0, y: 1 });
     expect(caro.guias).toEqual({ x: 0, y: 1 }); // visto bueno
     expect(caro.pregunta).toEqual({ x: 0, y: 1 }); // pregunta orientadora (líder)
-    expect(ana.pregunta).toEqual({ x: 0, y: 0 }); // no lidera
     const ana = f[2];
+    expect(ana.pregunta).toEqual({ x: 0, y: 0 }); // no lidera
     expect(ana.guias).toEqual({ x: 0, y: 0 }); // sin guía: no hay nada que medir
     expect(construirInformeHTML(datos())).toContain('<td class="n">—</td>');
-    expect(construirResumenTexto(datos(), new Date(), 'manana')).toContain('Caro: criterios 0/1 · entregas 0/1 · guías 0/2 · 0 %');
+    expect(construirResumenTexto(datos(), new Date(), 'manana')).toContain('Caro: criterios 0/1 · entregas 0/1 · guías 0/1 · pregunta 0/1 · 0 %');
   });
   it('filtra por jornada y recalcula totales', () => {
     expect(jornadaDePlan('6º1')).toBe('tarde');
