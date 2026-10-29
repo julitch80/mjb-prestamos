@@ -300,6 +300,12 @@ function Entregar({ p, token }: { p: Paso; token: string }) {
           <CheckCircle2 size={18} /> Entregado el {fechaHora(entregadoEn)}
         </p>
       )}
+      {p.revisado && (
+        <div className="rounded-xl bg-success-soft text-success-soft-fg p-3 text-base">
+          <p className="font-semibold">✓ Tu docente ya lo revisó</p>
+          {p.comentario && <p className="mt-1 whitespace-pre-wrap">«{p.comentario}»</p>}
+        </div>
+      )}
       <input ref={input} type="file" accept={ACCEPT_ENTREGA} className="hidden"
         onChange={e => elegir(e.target.files?.[0])} aria-label="Elegir archivo para entregar" />
       {/* `capture` abre la cámara directamente; el otro input deja elegir audio o PDF. */}

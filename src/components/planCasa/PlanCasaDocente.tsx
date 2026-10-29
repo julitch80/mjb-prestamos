@@ -41,7 +41,11 @@ function Seguimiento({ plan, g }: { plan: PlanConDocentes; g: GuiaPlan }) {
 
   async function guardar(cambios: Partial<GuiaPlan>) {
     setError('');
-    try { await guardarGuia(plan.id, g.id, cambios); }
+    try {
+      await guardarGuia(plan.id, g.id, cambios);
+      // «Revisado» y el comentario llegan a la agenda del estudiante.
+      if (cambios.seguimiento) publicarPlan(plan.id).catch(() => { /* se verá al próximo publicar */ });
+    }
     catch (e) { setError((e as Error).message || 'No se pudo guardar.'); }
   }
   async function cambiarPaso(id: string, c: Partial<GuiaPlan['seguimiento'][string]>) {
@@ -70,7 +74,7 @@ function Seguimiento({ plan, g }: { plan: PlanConDocentes; g: GuiaPlan }) {
             </div>
             <input value={obs} onChange={e => setBorrador(b => ({ ...b, [p.id]: e.target.value }))}
               onBlur={() => { if (p.id in borrador && borrador[p.id] !== (seg?.observacion ?? '')) cambiarPaso(p.id, { observacion: borrador[p.id] }); }}
-              placeholder="Observación corta" className={CLASE_INPUT} />
+              placeholder="Comentario para el estudiante (lo ve en su agenda al marcar Revisado)" className={CLASE_INPUT} />
             <ListaEntregas planId={plan.id} entregas={entregas.filter(e => e.pasoId === p.id)} />
           </div>
         );

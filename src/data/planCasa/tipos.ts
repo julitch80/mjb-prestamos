@@ -237,7 +237,7 @@ export interface PlanPublico {
   /** Pasos aprobados de todas las asignaturas, ya con fecha. */
   /** `asignatura` es el nombre de la asignatura o, en guías transversales, el eje y las asignaturas que integra. */
   /** (Entregas, 28-oct-2026) `guiaId` y `entregadoEn` son opcionales: copias publicadas antes no los traen y la agenda oculta el botón «Entregar». */
-  pasos: Array<PasoGuia & { asignatura: string; docente: string; guiaId?: string; entregadoEn?: number }>;
+  pasos: Array<PasoGuia & { asignatura: string; docente: string; guiaId?: string; entregadoEn?: number; revisado?: boolean; comentario?: string }>;
   sustentaciones: Array<Sustentacion & { asignatura: string; docente: string }>;
   actualizadoEn: number;
 }

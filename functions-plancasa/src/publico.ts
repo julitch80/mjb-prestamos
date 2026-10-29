@@ -28,8 +28,12 @@ export function construirPublico(
     const docente = nombreDocentePorCorreo(String(g.responsableCorreo ?? '').toLowerCase());
     for (const p of g.aprobada.pasos ?? []) {
       // guiaId y entregadoEn: para el botón «Entregar» y el «✓ Entregado» de la agenda.
-      const entregadoEn = g.seguimiento?.[p.id]?.entregadoEn;
-      pasos.push({ ...p, asignatura, docente, guiaId: g.id, ...(typeof entregadoEn === 'number' ? { entregadoEn } : {}) });
+      const seg = g.seguimiento?.[p.id];
+      const entregadoEn = seg?.entregadoEn;
+      // Revisado y comentario del docente: el estudiante los ve en su agenda.
+      const comentario = seg?.estado === 'revisado' && typeof seg.observacion === 'string' ? seg.observacion.trim().slice(0, 500) : '';
+      pasos.push({ ...p, asignatura, docente, guiaId: g.id, ...(typeof entregadoEn === 'number' ? { entregadoEn } : {}),
+        ...(seg?.estado === 'revisado' ? { revisado: true } : {}), ...(comentario ? { comentario } : {}) });
     }
     if (g.aprobada.sustentacion) sustentaciones.push({ ...g.aprobada.sustentacion, asignatura, docente });
   }
