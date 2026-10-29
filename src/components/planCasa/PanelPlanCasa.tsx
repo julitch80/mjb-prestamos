@@ -19,8 +19,9 @@ import { asignaturasConNombre } from './nombres';
 import { conSinTecnologia, fechaCierre } from '../../data/planCasa/logica';
 import { EntregasGuiaResumen } from './EntregasPaso';
 import { PestanasSubrayadas } from '../Navegacion';
-import { construirAvanceDocentes, type DatosPlanAvance } from '../../data/planCasa/avanceDocentes';
-import { construirInformeHTML, construirResumenTexto } from '../../data/planCasa/informeAvance';
+import { construirAvanceDocentes, filtrarPorJornada, type DatosPlanAvance, type FiltroJornada } from '../../data/planCasa/avanceDocentes';
+import { claseBarra, construirInformeHTML, construirResumenTexto, filasInforme, fraccionTexto, resumenAvance, ETIQUETA_JORNADA, type Fraccion } from '../../data/planCasa/informeAvance';
+import { useAppStore } from '../../data/store';
 import { abrirImprimibleUAI } from '../../data/planCasa/imprimibleUAI';
 import {
   BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
@@ -584,12 +585,36 @@ function OyentePlan({ planId, onDatos }: { planId: string; onDatos: (id: string,
   return null;
 }
 
-const ETIQUETA_GUIA = { aprobada: 'Guía aprobada', propuesta: 'Guía en propuesta', sin_generar: 'Guía sin generar' } as const;
+const COLOR_BARRA = { ok: 'bg-success', par: 'bg-warning', no: 'bg-danger' } as const;
+
+/** Fracción con barrita: verde si completa, ámbar si parcial, roja si 0; «—» si no hay nada que medir. */
+function Mini({ titulo, f }: { titulo: string; f: Fraccion }) {
+  const c = f.y === 0 ? null : COLOR_BARRA[claseBarra(f)];
+  return (
+    <div className="min-w-[64px] flex-1">
+      <p className="text-[11px] text-soft">{titulo}</p>
+      <p className="text-xs font-medium text-strong">{f.y === 0 ? '—' : fraccionTexto(f)}</p>
+      <div className="h-1.5 rounded-full bg-elevated overflow-hidden">
+        {c && <div className={cn('h-full', c)} style={{ width: `${(f.x / f.y) * 100}%` }} />}
+      </div>
+    </div>
+  );
+}
+
+const FILTROS: { id: FiltroJornada; label: string }[] = [
+  { id: 'todas', label: 'Todas' }, { id: 'manana', label: 'Mañana' }, { id: 'tarde', label: 'Tarde' },
+];
 
 function AvanceDocentes({ planes }: { planes: PlanConDocentes[] }) {
+  const rol = useAppStore(s => s.rol);
+  const jornadaUsuario = useAppStore(s => s.jornada);
+  // Un coordinador ve solo su jornada; rectora, superusuario y equipo ven todo y pueden filtrar.
+  const fija: FiltroJornada | null = rol === 'coordinador' && (jornadaUsuario === 'manana' || jornadaUsuario === 'tarde') ? jornadaUsuario : null;
+  const [elegida, setElegida] = useState<FiltroJornada>('todas');
+  const jornada: FiltroJornada = fija ?? elegida;
+
   const activos = useMemo(() => planes.filter(p => p.estado === 'activo'), [planes]);
   const [datos, setDatos] = useState<Record<string, { a?: AsignaturaPlan[]; g?: GuiaPlan[] }>>({});
-  const [abiertos, setAbiertos] = useState<Record<string, boolean>>({});
   const recibir = useMemo(() => (id: string, a?: AsignaturaPlan[], g?: GuiaPlan[]) =>
     setDatos(prev => ({ ...prev, [id]: { a: a ?? prev[id]?.a, g: g ?? prev[id]?.g } })), []);
 
@@ -598,12 +623,14 @@ function AvanceDocentes({ planes }: { planes: PlanConDocentes[] }) {
     const lista: DatosPlanAvance[] = activos.map(p => ({
       plan: p, asigs: datos[p.id]?.a ?? [], guias: datos[p.id]?.g ?? [], nombres: asignaturasConNombre(p.grupo),
     }));
-    return construirAvanceDocentes(lista);
-  }, [activos, datos]);
+    return filtrarPorJornada(construirAvanceDocentes(lista), jornada);
+  }, [activos, datos, jornada]);
+  const filas = useMemo(() => filasInforme(docentes), [docentes]);
+  const r = useMemo(() => resumenAvance(docentes), [docentes]);
 
   const [copiado, setCopiado] = useState('');
   const copiarResumen = async () => {
-    const texto = construirResumenTexto(docentes);
+    const texto = construirResumenTexto(docentes, new Date(), jornada);
     try {
       await navigator.clipboard.writeText(texto);
       setCopiado('Resumen copiado.');
@@ -615,9 +642,14 @@ function AvanceDocentes({ planes }: { planes: PlanConDocentes[] }) {
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {fija
+          ? <span className="text-xs text-soft">{ETIQUETA_JORNADA[fija]}</span>
+          : <PestanasSubrayadas opciones={FILTROS} activa={elegida} onCambio={setElegida} />}
+      </div>
       {activos.length > 0 && !cargando && (
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => abrirImprimibleUAI(construirInformeHTML(docentes))} className={CLASE_BOTON}>📄 Informe ejecutivo</button>
+          <button type="button" onClick={() => abrirImprimibleUAI(construirInformeHTML(docentes, new Date(), jornada))} className={CLASE_BOTON}>📄 Informe ejecutivo</button>
           <button type="button" onClick={copiarResumen} className={CLASE_BOTON}>Copiar resumen</button>
           {copiado && <span className="text-xs text-soft">{copiado}</span>}
         </div>
@@ -625,44 +657,37 @@ function AvanceDocentes({ planes }: { planes: PlanConDocentes[] }) {
       {activos.map(p => <OyentePlan key={p.id} planId={p.id} onDatos={recibir} />)}
       {cargando && activos.length > 0 && <Cargando texto="Cargando avance…" />}
       {activos.length === 0 && <p className="text-sm text-soft">No hay planes activos.</p>}
-      {docentes.map(d => {
-        const pendientes = d.total - d.listas;
-        const abierto = abiertos[d.docenteId] ?? pendientes > 0;
-        return (
-          <div key={d.docenteId} className="rounded-2xl border border-line bg-surface">
-            <button type="button" onClick={() => setAbiertos(a => ({ ...a, [d.docenteId]: !abierto }))}
-              className="w-full flex items-center gap-2 p-3 text-left min-h-[44px]" aria-expanded={abierto}>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-strong truncate">{d.docente}</p>
-                <p className="text-xs text-soft">{d.listas} de {d.total} tareas listas · {d.planes.length} {d.planes.length === 1 ? 'plan' : 'planes'}</p>
-              </div>
-              <Marca ok={pendientes === 0} etiqueta={pendientes === 0 ? 'Al día' : `${pendientes} pendientes`} />
-              <ChevronDown size={16} className={cn('text-soft transition', abierto && 'rotate-180')} />
-            </button>
-            {abierto && (
-              <div className="border-t border-line p-3 space-y-3">
-                {d.planes.map(pl => (
-                  <div key={pl.planId} className="space-y-2">
-                    <p className="text-sm font-medium text-strong">{pl.nombre} · {pl.grupo}</p>
-                    {pl.filas.map(f => (
-                      <div key={f.asignaturaId} className="rounded-xl bg-elevated p-2.5 space-y-1.5">
-                        <p className="text-xs font-medium text-strong">{f.asignatura}{f.esLider ? ' · líder de la guía' : ''}</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          <Marca ok={f.criteriosListos} etiqueta={f.criteriosPorIA ? 'Criterios: por IA, sin revisar' : f.criteriosListos ? 'Criterios listos' : 'Criterios pendientes'} />
-                          <Marca ok={f.entregableListo} etiqueta={f.entregableListo ? `Entregable · ${fechaCorta(f.fechaEntrega)}` : 'Entregable sin fecha'} />
-                          <Marca ok={f.estadoGuia === 'aprobada'} etiqueta={ETIQUETA_GUIA[f.estadoGuia]} />
-                          {f.estadoGuia !== 'sin_generar' && <Marca ok={f.vistoBueno} etiqueta={f.vistoBueno ? 'Visto bueno dado' : 'Falta visto bueno'} />}
-                          {f.esLider && <Marca ok={f.ejeListo} etiqueta={f.ejeListo ? 'Pregunta orientadora lista' : 'Falta pregunta orientadora'} />}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
+      {!cargando && activos.length > 0 && filas.length === 0 && <p className="text-sm text-soft">No hay docentes con planes activos en esta jornada.</p>}
+      {!cargando && filas.length > 0 && (
+        <>
+          <div className="grid grid-cols-4 gap-2">
+            <div className="rounded-xl border border-line bg-surface p-2"><Mini titulo="Criterios" f={r.criterios} /></div>
+            <div className="rounded-xl border border-line bg-surface p-2"><Mini titulo="Entregas" f={r.entregas} /></div>
+            <div className="rounded-xl border border-line bg-surface p-2"><Mini titulo="Guías" f={r.guias} /></div>
+            <div className="rounded-xl border border-line bg-surface p-2"><Mini titulo="General" f={{ x: r.listas, y: r.total }} /></div>
           </div>
-        );
-      })}
+          <p className="text-xs text-soft">{r.alDia} docentes al día de {r.docentes} · {r.porcentaje} % de avance general</p>
+        </>
+      )}
+      {!cargando && filas.map(f => (
+        <details key={f.docente} className="rounded-2xl border border-line bg-surface">
+          <summary className="p-3 cursor-pointer min-h-[44px] list-none">
+            <p className="font-medium text-strong truncate mb-1.5">{f.docente} <span className="text-xs font-normal text-soft">· {f.porcentaje} %</span></p>
+            <div className="flex gap-2">
+              <Mini titulo="Criterios" f={f.criterios} />
+              <Mini titulo="Entregas" f={f.entregas} />
+              <Mini titulo="Guías" f={f.guias} />
+              <Mini titulo="General" f={{ x: f.listas, y: f.total }} />
+            </div>
+          </summary>
+          <div className="border-t border-line p-3 text-sm">
+            <p className="text-xs text-soft mb-1">{f.planes} · «Guías» incluye la pregunta orientadora de quien lidera.</p>
+            {f.faltas.length === 0
+              ? <p className="text-soft">Al día.</p>
+              : <ul className="list-disc pl-5 space-y-0.5">{f.faltas.map((x, i) => <li key={i}>{x}</li>)}</ul>}
+          </div>
+        </details>
+      ))}
     </div>
   );
 }

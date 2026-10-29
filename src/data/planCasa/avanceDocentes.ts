@@ -93,3 +93,27 @@ export function construirAvanceDocentes(planes: DatosPlanAvance[]): DocenteAvanc
   return [...mapa.values()].sort((a, b) =>
     (b.total - b.listas) - (a.total - a.listas) || a.docente.localeCompare(b.docente, 'es'));
 }
+
+export type Jornada = 'manana' | 'tarde';
+export type FiltroJornada = Jornada | 'todas';
+
+/** Jornada de un plan según su grupo: «º» (6º1…) es tarde; «9.1», «10.2»… es mañana. */
+export function jornadaDePlan(grupo: string): Jornada {
+  return grupo.includes('º') ? 'tarde' : 'manana';
+}
+
+/**
+ * Deja solo los planes de la jornada y recalcula los totales de cada docente
+ * (un docente mixto conserva solo lo de esa jornada). Quien queda sin planes sale.
+ */
+export function filtrarPorJornada(docentes: DocenteAvance[], jornada: FiltroJornada): DocenteAvance[] {
+  if (jornada === 'todas') return docentes;
+  return docentes
+    .map(d => {
+      const planes = d.planes.filter(p => jornadaDePlan(p.grupo) === jornada);
+      const filas = planes.flatMap(p => p.filas);
+      return { ...d, planes, listas: filas.reduce((s, f) => s + f.listas, 0), total: filas.reduce((s, f) => s + f.total, 0) };
+    })
+    .filter(d => d.planes.length > 0)
+    .sort((a, b) => (b.total - b.listas) - (a.total - a.listas) || a.docente.localeCompare(b.docente, 'es'));
+}
