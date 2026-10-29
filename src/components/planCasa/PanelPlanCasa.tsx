@@ -466,13 +466,63 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-strong truncate">{plan.apellidos} {plan.nombres}</p>
-          <p className="text-xs text-soft">{plan.grupo} · {fechaCorta(plan.desde)} a {fechaCorta(plan.hasta)}{plan.estado === 'cerrado' && ' · cerrado'}</p>
+          <p className="text-xs text-soft">{plan.grupo} · {fechaCorta(plan.desde)} a {fechaCorta(plan.hasta)}{plan.estado === 'cerrado' && ' · cerrado'}{plan.creadoEn ? ` · creado el ${new Date(plan.creadoEn).toLocaleDateString('es-CO')}` : ''}</p>
         </div>
         <button onClick={() => setVerQR(v => !v)} aria-label="QR de la agenda" aria-pressed={verQR}
           className="p-2 rounded-lg text-soft hover:text-strong hover:bg-elevated"><QrCode size={18} /></button>
         <button onClick={verMotivo} aria-label="Detalle" aria-expanded={abierto}
           className="p-2 rounded-lg text-soft hover:text-strong hover:bg-elevated"><ChevronDown size={18} className={cn('transition', abierto && 'rotate-180')} /></button>
       </div>
+      {abierto && (
+        <div className="rounded-xl bg-elevated p-3 space-y-2 text-sm">
+          <p className="text-soft"><span className="font-medium text-strong">Motivo (reservado):</span> {motivo ?? 'Cargando…'}</p>
+          <div>
+            <p className="font-medium text-strong">Contexto para los docentes</p>
+            <textarea value={ctx} onChange={e => { setCtx(e.target.value); setCtxMsg(''); }} rows={3} className={CLASE_INPUT} />
+            <div className="flex items-center gap-2 mt-1">
+              <button onClick={() => guardarContexto(plan.id, ctx).then(() => setCtxMsg('Guardado.')).catch(e => setError(e.message))}
+                className={CLASE_BOTON_SEC}>Guardar contexto</button>
+              {ctxMsg && <span className="text-xs text-soft">{ctxMsg}</span>}
+            </div>
+          </div>
+          <label className="flex items-start gap-2 text-strong cursor-pointer">
+            <input type="checkbox" checked={!!plan.sinTecnologia} className="mt-1"
+              onChange={e => { const r = conSinTecnologia(plan.ajustes, e.target.checked); guardarSinTecnologia(plan.id, r.sinTecnologia, r.ajustes).catch(er => setError(er.message)); }} />
+            <span>Sin uso de tecnología (guía impresa)
+              <span className="block text-[11px] text-muted">El estudiante no tiene acceso a celular, computador ni internet: la guía se entrega impresa y las entregas y la sustentación son en papel, presenciales u orales.</span></span>
+          </label>
+          <p className="text-soft"><span className="font-medium text-strong">Ajustes:</span> {plan.ajustes.length ? plan.ajustes.join(' · ') : 'ninguno'}</p>
+          <div>
+            <Etiqueta>Fecha de cierre para corregir las guías (último día editable)</Etiqueta>
+            <div className="flex flex-wrap items-center gap-2">
+              <input type="date" value={cierre} onChange={e => { setCierre(e.target.value); setCierreMsg(''); }} className={cn(CLASE_INPUT, 'max-w-[11rem]')} />
+              <button className={CLASE_BOTON_SEC} disabled={cierre === (plan.cierreEdicion ?? '')}
+                onClick={() => guardarCierreEdicion(plan.id, cierre).then(() => setCierreMsg('Guardado.')).catch(e => setError(e.message))}>Guardar cierre</button>
+              {cierreMsg && <span className="text-xs text-soft">{cierreMsg}</span>}
+            </div>
+            <p className="text-[11px] text-muted">Vigente: {fechaLarga(fechaCierre(plan))}{plan.cierreEdicion ? '' : ' (automática: último día hábil antes del inicio). Déjela vacía para volver a la automática.'}</p>
+          </div>
+          <p className="text-soft"><span className="font-medium text-strong">Tope diario:</span> {plan.topeDiario} momentos · ritmo {plan.ritmo === 'dia_por_medio' ? 'día por medio' : 'diario'}</p>
+          <button onClick={() => cambiarEstadoPlan(plan.id, plan.estado === 'activo' ? 'cerrado' : 'activo').catch(e => setError(e.message))}
+            className={CLASE_BOTON_SEC}>{plan.estado === 'activo' ? 'Cerrar plan' : 'Reabrir plan'}</button>
+          {esSuper && plan.estado === 'cerrado' && (!confElim ? (
+            <button onClick={() => { setConfElim(true); setTecleado(''); }}
+              className="ml-2 rounded-lg border border-danger px-3 py-1.5 text-sm font-medium text-danger">Eliminar plan definitivamente</button>
+          ) : (
+            <div role="alert" className="mt-2 rounded-lg border border-danger p-3 space-y-2">
+              <p className="text-sm text-danger">Esto borra el plan, sus guías, asignaturas, entregas y la agenda del estudiante. No se puede deshacer.</p>
+              <label className="block text-xs text-soft">Escriba el primer nombre del estudiante para confirmar
+                <input value={tecleado} onChange={e => setTecleado(e.target.value)} className={CLASE_INPUT} autoComplete="off" /></label>
+              <div className="flex gap-2">
+                <button disabled={eliminando || !primerNombre || tecleado.trim().toLowerCase() !== primerNombre.toLowerCase()}
+                  onClick={() => { setEliminando(true); eliminarPlan(plan.id).catch(e => { setError(e.message); setEliminando(false); }); }}
+                  className="rounded-lg bg-danger px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40">{eliminando ? 'Eliminando…' : 'Eliminar'}</button>
+                <button disabled={eliminando} onClick={() => setConfElim(false)} className={CLASE_BOTON_SEC}>Cancelar</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {asigs && guias && (faltanCriterios > 0 || faltanGuias > 0) && (
         <p className="text-xs text-soft">
@@ -489,6 +539,7 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
       {error && <CajaError>{error}</CajaError>}
       {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
 
+      {abierto && (<>
       {filas.length > 0 && (
         <div>
           <p className="text-xs font-medium text-soft mb-1">Asignaturas</p>
@@ -542,57 +593,7 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
         <BotonFormatoUAI plan={plan} guias={guias} asigs={asigs} nombres={nombres} />
       )}
       {guias && <BotonCuadernillo plan={plan} guias={guias} nombres={nombres} />}
-
-      {abierto && (
-        <div className="rounded-xl bg-elevated p-3 space-y-2 text-sm">
-          <p className="text-soft"><span className="font-medium text-strong">Motivo (reservado):</span> {motivo ?? 'Cargando…'}</p>
-          <div>
-            <p className="font-medium text-strong">Contexto para los docentes</p>
-            <textarea value={ctx} onChange={e => { setCtx(e.target.value); setCtxMsg(''); }} rows={3} className={CLASE_INPUT} />
-            <div className="flex items-center gap-2 mt-1">
-              <button onClick={() => guardarContexto(plan.id, ctx).then(() => setCtxMsg('Guardado.')).catch(e => setError(e.message))}
-                className={CLASE_BOTON_SEC}>Guardar contexto</button>
-              {ctxMsg && <span className="text-xs text-soft">{ctxMsg}</span>}
-            </div>
-          </div>
-          <label className="flex items-start gap-2 text-strong cursor-pointer">
-            <input type="checkbox" checked={!!plan.sinTecnologia} className="mt-1"
-              onChange={e => { const r = conSinTecnologia(plan.ajustes, e.target.checked); guardarSinTecnologia(plan.id, r.sinTecnologia, r.ajustes).catch(er => setError(er.message)); }} />
-            <span>Sin uso de tecnología (guía impresa)
-              <span className="block text-[11px] text-muted">El estudiante no tiene acceso a celular, computador ni internet: la guía se entrega impresa y las entregas y la sustentación son en papel, presenciales u orales.</span></span>
-          </label>
-          <p className="text-soft"><span className="font-medium text-strong">Ajustes:</span> {plan.ajustes.length ? plan.ajustes.join(' · ') : 'ninguno'}</p>
-          <div>
-            <Etiqueta>Fecha de cierre para corregir las guías (último día editable)</Etiqueta>
-            <div className="flex flex-wrap items-center gap-2">
-              <input type="date" value={cierre} onChange={e => { setCierre(e.target.value); setCierreMsg(''); }} className={cn(CLASE_INPUT, 'max-w-[11rem]')} />
-              <button className={CLASE_BOTON_SEC} disabled={cierre === (plan.cierreEdicion ?? '')}
-                onClick={() => guardarCierreEdicion(plan.id, cierre).then(() => setCierreMsg('Guardado.')).catch(e => setError(e.message))}>Guardar cierre</button>
-              {cierreMsg && <span className="text-xs text-soft">{cierreMsg}</span>}
-            </div>
-            <p className="text-[11px] text-muted">Vigente: {fechaLarga(fechaCierre(plan))}{plan.cierreEdicion ? '' : ' (automática: último día hábil antes del inicio). Déjela vacía para volver a la automática.'}</p>
-          </div>
-          <p className="text-soft"><span className="font-medium text-strong">Tope diario:</span> {plan.topeDiario} momentos · ritmo {plan.ritmo === 'dia_por_medio' ? 'día por medio' : 'diario'}</p>
-          <button onClick={() => cambiarEstadoPlan(plan.id, plan.estado === 'activo' ? 'cerrado' : 'activo').catch(e => setError(e.message))}
-            className={CLASE_BOTON_SEC}>{plan.estado === 'activo' ? 'Cerrar plan' : 'Reabrir plan'}</button>
-          {esSuper && plan.estado === 'cerrado' && (!confElim ? (
-            <button onClick={() => { setConfElim(true); setTecleado(''); }}
-              className="ml-2 rounded-lg border border-danger px-3 py-1.5 text-sm font-medium text-danger">Eliminar plan definitivamente</button>
-          ) : (
-            <div role="alert" className="mt-2 rounded-lg border border-danger p-3 space-y-2">
-              <p className="text-sm text-danger">Esto borra el plan, sus guías, asignaturas, entregas y la agenda del estudiante. No se puede deshacer.</p>
-              <label className="block text-xs text-soft">Escriba el primer nombre del estudiante para confirmar
-                <input value={tecleado} onChange={e => setTecleado(e.target.value)} className={CLASE_INPUT} autoComplete="off" /></label>
-              <div className="flex gap-2">
-                <button disabled={eliminando || !primerNombre || tecleado.trim().toLowerCase() !== primerNombre.toLowerCase()}
-                  onClick={() => { setEliminando(true); eliminarPlan(plan.id).catch(e => { setError(e.message); setEliminando(false); }); }}
-                  className="rounded-lg bg-danger px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40">{eliminando ? 'Eliminando…' : 'Eliminar'}</button>
-                <button disabled={eliminando} onClick={() => setConfElim(false)} className={CLASE_BOTON_SEC}>Cancelar</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      </>)}
     </div>
   );
 }
