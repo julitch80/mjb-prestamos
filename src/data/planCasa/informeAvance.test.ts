@@ -49,7 +49,9 @@ describe('informe de avance', () => {
     const caro = f[0];
     expect(caro.criterios).toEqual({ x: 0, y: 1 });
     expect(caro.entregas).toEqual({ x: 0, y: 1 });
-    expect(caro.guias).toEqual({ x: 0, y: 2 }); // visto bueno + pregunta orientadora (líder)
+    expect(caro.guias).toEqual({ x: 0, y: 1 }); // visto bueno
+    expect(caro.pregunta).toEqual({ x: 0, y: 1 }); // pregunta orientadora (líder)
+    expect(ana.pregunta).toEqual({ x: 0, y: 0 }); // no lidera
     const ana = f[2];
     expect(ana.guias).toEqual({ x: 0, y: 0 }); // sin guía: no hay nada que medir
     expect(construirInformeHTML(datos())).toContain('<td class="n">—</td>');

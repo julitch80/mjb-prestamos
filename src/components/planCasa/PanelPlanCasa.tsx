@@ -660,10 +660,11 @@ function AvanceDocentes({ planes }: { planes: PlanConDocentes[] }) {
       {!cargando && activos.length > 0 && filas.length === 0 && <p className="text-sm text-soft">No hay docentes con planes activos en esta jornada.</p>}
       {!cargando && filas.length > 0 && (
         <>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
             <div className="rounded-xl border border-line bg-surface p-2"><Mini titulo="Criterios" f={r.criterios} /></div>
             <div className="rounded-xl border border-line bg-surface p-2"><Mini titulo="Entregas" f={r.entregas} /></div>
             <div className="rounded-xl border border-line bg-surface p-2"><Mini titulo="Guías" f={r.guias} /></div>
+            <div className="rounded-xl border border-line bg-surface p-2"><Mini titulo="Preguntas líderes" f={r.pregunta} /></div>
             <div className="rounded-xl border border-line bg-surface p-2"><Mini titulo="General" f={{ x: r.listas, y: r.total }} /></div>
           </div>
           <p className="text-xs text-soft">{r.alDia} docentes al día de {r.docentes} · {r.porcentaje} % de avance general</p>
@@ -677,11 +678,12 @@ function AvanceDocentes({ planes }: { planes: PlanConDocentes[] }) {
               <Mini titulo="Criterios" f={f.criterios} />
               <Mini titulo="Entregas" f={f.entregas} />
               <Mini titulo="Guías" f={f.guias} />
+              {f.pregunta.y > 0 && <Mini titulo="Líder: pregunta" f={f.pregunta} />}
               <Mini titulo="General" f={{ x: f.listas, y: f.total }} />
             </div>
           </summary>
           <div className="border-t border-line p-3 text-sm">
-            <p className="text-xs text-soft mb-1">{f.planes} · «Guías» incluye la pregunta orientadora de quien lidera.</p>
+            <p className="text-xs text-soft mb-1">{f.planes} · «Líder: pregunta» aparece solo si lidera una guía.</p>
             {f.faltas.length === 0
               ? <p className="text-soft">Al día.</p>
               : <ul className="list-disc pl-5 space-y-0.5">{f.faltas.map((x, i) => <li key={i}>{x}</li>)}</ul>}

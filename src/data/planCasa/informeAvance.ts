@@ -17,8 +17,10 @@ export interface ResumenAvance {
   porcentaje: number;
   criterios: Fraccion;
   entregas: Fraccion;
-  /** Visto bueno / aprobación de guías, más la pregunta orientadora de quien lidera. */
+  /** Visto bueno / aprobación de guías. */
   guias: Fraccion;
+  /** Pregunta orientadora de los líderes de guía. */
+  pregunta: Fraccion;
 }
 
 export interface FilaInforme {
@@ -30,6 +32,7 @@ export interface FilaInforme {
   criterios: Fraccion;
   entregas: Fraccion;
   guias: Fraccion;
+  pregunta: Fraccion;
   faltas: string[];
 }
 
@@ -49,27 +52,27 @@ const suma = (a: Fraccion, b: Fraccion): Fraccion => ({ x: a.x + b.x, y: a.y + b
 const CERO: Fraccion = { x: 0, y: 0 };
 export const fraccionTexto = (f: Fraccion) => `${f.x}/${f.y}`;
 
-/** Fracciones de una fila: la guía cuenta visto bueno (si ya hay guía) y pregunta orientadora (si lidera). */
-export function fraccionesFila(f: FilaAsignaturaAvance): { criterios: Fraccion; entregas: Fraccion; guias: Fraccion } {
+type Fracciones = { criterios: Fraccion; entregas: Fraccion; guias: Fraccion; pregunta: Fraccion };
+
+/** Fracciones de una fila: la guía cuenta visto bueno (si ya hay guía); la pregunta, solo si lidera. */
+export function fraccionesFila(f: FilaAsignaturaAvance): Fracciones {
   const hayGuia = f.estadoGuia !== 'sin_generar';
   return {
     criterios: { x: f.criteriosListos ? 1 : 0, y: 1 },
     entregas: { x: f.entregableListo ? 1 : 0, y: 1 },
-    guias: {
-      x: (hayGuia && f.vistoBueno ? 1 : 0) + (f.esLider && f.ejeListo ? 1 : 0),
-      y: (hayGuia ? 1 : 0) + (f.esLider ? 1 : 0),
-    },
+    guias: { x: hayGuia && f.vistoBueno ? 1 : 0, y: hayGuia ? 1 : 0 },
+    pregunta: { x: f.esLider && f.ejeListo ? 1 : 0, y: f.esLider ? 1 : 0 },
   };
 }
 
 /** Fracciones acumuladas de un docente. */
-export function fraccionesDocente(d: DocenteAvance): { criterios: Fraccion; entregas: Fraccion; guias: Fraccion } {
-  let criterios = CERO, entregas = CERO, guias = CERO;
+export function fraccionesDocente(d: DocenteAvance): Fracciones {
+  let criterios = CERO, entregas = CERO, guias = CERO, pregunta = CERO;
   for (const f of d.planes.flatMap(p => p.filas)) {
     const r = fraccionesFila(f);
-    criterios = suma(criterios, r.criterios); entregas = suma(entregas, r.entregas); guias = suma(guias, r.guias);
+    criterios = suma(criterios, r.criterios); entregas = suma(entregas, r.entregas); guias = suma(guias, r.guias); pregunta = suma(pregunta, r.pregunta);
   }
-  return { criterios, entregas, guias };
+  return { criterios, entregas, guias, pregunta };
 }
 
 /** Frases cortas de lo que le falta a una fila (asignatura de un plan). */
@@ -110,6 +113,7 @@ export function resumenAvance(docentes: DocenteAvance[]): ResumenAvance {
     criterios: fr.reduce((s, f) => suma(s, f.criterios), CERO),
     entregas: fr.reduce((s, f) => suma(s, f.entregas), CERO),
     guias: fr.reduce((s, f) => suma(s, f.guias), CERO),
+    pregunta: fr.reduce((s, f) => suma(s, f.pregunta), CERO),
   };
 }
 
@@ -176,16 +180,16 @@ ${membrete()}
 <h1>Informe ejecutivo · Avance docente del Plan Académico Especial</h1>
 <p class="sub">${ETIQUETA_JORNADA[jornada]} · Generado el ${fechaDMA(fecha)} · ${r.planesActivos} ${r.planesActivos === 1 ? 'plan activo' : 'planes activos'}</p>
 <div class="cifras">
-${cifra(fraccionTexto(r.criterios), 'Criterios')}${cifra(fraccionTexto(r.entregas), 'Entregas')}${cifra(fraccionTexto(r.guias), 'Guías')}${cifra(`${r.porcentaje} %`, 'Avance general')}
+${cifra(fraccionTexto(r.criterios), 'Criterios')}${cifra(fraccionTexto(r.entregas), 'Entregas')}${cifra(fraccionTexto(r.guias), 'Guías')}${cifra(fraccionTexto(r.pregunta), 'Preguntas de líderes')}${cifra(`${r.porcentaje} %`, 'Avance general')}
 </div>
 <p><b>${r.alDia} docentes al día de ${r.docentes}.</b></p>
 <h2>Avance por docente</h2>
 ${filas.length === 0 ? '<p>No hay docentes con planes activos en esta jornada.</p>' : `<table>
-<tr><th>Docente</th><th>Criterios de evaluación</th><th>Entregas: fecha y tipo</th><th>Guías: visto bueno / aprobación</th><th>Avance general</th></tr>
-${filas.map(f => `<tr><td>${esc(f.docente)}</td>${celda(f.criterios)}${celda(f.entregas)}${celda(f.guias)}${celdaGeneral(f.porcentaje, f.total > 0)}</tr>`).join('\n')}
+<tr><th>Docente</th><th>Criterios de evaluación</th><th>Entregas: fecha y tipo</th><th>Guías: visto bueno / aprobación</th><th>Líder: pregunta orientadora</th><th>Avance general</th></tr>
+${filas.map(f => `<tr><td>${esc(f.docente)}</td>${celda(f.criterios)}${celda(f.entregas)}${celda(f.guias)}${celda(f.pregunta)}${celdaGeneral(f.porcentaje, f.total > 0)}</tr>`).join('\n')}
 </table>`}
 ${conDetalle.length ? `<h2>Detalle de pendientes</h2>
-<p class="nota">En «Guías» se cuenta también la pregunta orientadora de quien lidera la guía.</p>
+<p class="nota">«Líder: pregunta orientadora» solo aplica a quien lidera una guía; en los demás aparece «—».</p>
 ${conDetalle.map(f => `<details><summary>Ver detalle de ${esc(f.docente)}</summary><ul>${f.faltas.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>`).join('\n')}` : ''}
 <p class="pie">Informe interno de seguimiento. Incluye únicamente nombre de pila y grupo de los estudiantes.</p>
 </body></html>`;
@@ -197,8 +201,8 @@ export function construirResumenTexto(docentes: DocenteAvance[], fecha: Date = n
   const filas = filasInforme(docentes);
   return [
     `*Avance docente · Plan Académico Especial* (${fechaDMA(fecha)})`,
-    `${ETIQUETA_JORNADA[jornada]} · ${r.alDia} docentes al día de ${r.docentes} · criterios ${fraccionTexto(r.criterios)} · entregas ${fraccionTexto(r.entregas)} · guías ${fraccionTexto(r.guias)} · ${r.porcentaje} %`,
+    `${ETIQUETA_JORNADA[jornada]} · ${r.alDia} docentes al día de ${r.docentes} · criterios ${fraccionTexto(r.criterios)} · entregas ${fraccionTexto(r.entregas)} · guías ${fraccionTexto(r.guias)} · preguntas de líderes ${fraccionTexto(r.pregunta)} · ${r.porcentaje} %`,
     '',
-    ...filas.map(f => `${f.docente}: criterios ${fraccionTexto(f.criterios)} · entregas ${fraccionTexto(f.entregas)} · guías ${fraccionTexto(f.guias)} · ${f.porcentaje} %`),
+    ...filas.map(f => `${f.docente}: criterios ${fraccionTexto(f.criterios)} · entregas ${fraccionTexto(f.entregas)} · guías ${fraccionTexto(f.guias)}${f.pregunta.y ? ` · pregunta ${fraccionTexto(f.pregunta)}` : ''} · ${f.porcentaje} %`),
   ].join('\n');
 }
