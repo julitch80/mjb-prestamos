@@ -156,10 +156,12 @@ export function SugerirPreguntas({ asignaturas, grado, ajustes, onUsar }: {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [lista, setLista] = useState<PreguntaSugerida[]>([]);
+  const [confirmar, setConfirmar] = useState(false);
 
   async function pedir() {
     if (!asignaturas.length) return setError('No hay asignaturas en la guía.');
-    setError(''); setCargando(true);
+    if (cargando) return;
+    setConfirmar(false); setError(''); setCargando(true);
     try { setLista(await sugerirPreguntas({ tematica: tematica.trim(), asignaturas, grado, ajustes })); }
     catch (e) { setError((e as Error).message || 'No se pudieron generar las sugerencias.'); }
     finally { setCargando(false); }
@@ -169,10 +171,19 @@ export function SugerirPreguntas({ asignaturas, grado, ajustes, onUsar }: {
     <div className="space-y-2">
       <div className="flex gap-2">
         <input value={tematica} onChange={e => setTematica(e.target.value)} placeholder="Temática (opcional): ej. el agua en mi barrio" className={CLASE_INPUT} />
-        <button onClick={pedir} disabled={cargando} className={cn(CLASE_BOTON_SEC, 'flex-shrink-0')}>
+        <button onClick={() => (lista.length ? setConfirmar(true) : pedir())} disabled={cargando} className={cn(CLASE_BOTON_SEC, 'flex-shrink-0')}>
           <Sparkles size={14} />{cargando ? 'Pensando…' : lista.length ? 'Otras preguntas' : 'Sugerir preguntas'}
         </button>
       </div>
+      {confirmar && (
+        <div className="rounded-xl bg-warning-soft text-warning-soft-fg p-3 text-sm space-y-2">
+          <p>Ya hay una versión. Puede editarla directamente; generar otra cuesta una nueva consulta a la IA. ¿Generar de todos modos?</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={pedir} className={CLASE_BOTON_SEC}>Generar otra</button>
+            <button onClick={() => setConfirmar(false)} className={CLASE_BOTON_SEC}>Mejor la edito</button>
+          </div>
+        </div>
+      )}
       {error && <p className="text-xs text-danger">{error}</p>}
       {lista.length > 0 && (
         <ul className="space-y-2">

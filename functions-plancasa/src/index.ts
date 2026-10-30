@@ -32,6 +32,25 @@ import { LOTE_LIMPIEZA, seleccionarVencidas } from './limpieza';
 import { SISTEMA_CAMPOS, construirPromptCampos, esquemaCampos, sanearCampos, type EntradaCampos } from './campos';
 import { ESQUEMA_PREGUNTAS, SISTEMA_PREGUNTAS, construirPromptPreguntas, sanearPreguntas, type EntradaPreguntas, type PreguntaSugerida } from './preguntas';
 
+/** Texto de sistema como bloque con caché de prompt (solo se activa sobre el mínimo cacheable del modelo). */
+function sistemaCacheable(texto: string): Anthropic.TextBlockParam[] {
+  return [{ type: 'text', text: texto, cache_control: { type: 'ephemeral' } }];
+}
+
+/** Una línea estructurada por consulta a la IA para medir costo. Nunca incluye datos del estudiante. */
+function registrarUso(funcion: string, resp: Anthropic.Message, extra: Record<string, unknown> = {}): void {
+  logger.info('uso_ia', {
+    funcion,
+    input: resp.usage.input_tokens,
+    output: resp.usage.output_tokens,
+    cacheLectura: resp.usage.cache_read_input_tokens ?? 0,
+    cacheEscritura: resp.usage.cache_creation_input_tokens ?? 0,
+    stop: resp.stop_reason,
+    ...extra,
+  });
+}
+
+
 setGlobalOptions({ maxInstances: 10, region: 'us-central1' });
 
 initializeApp();
@@ -79,13 +98,11 @@ export const planCasaGuia = onCall(
       const resp = await client.messages.create({
         model: MODELO,
         max_tokens: 20000,
-        system: SISTEMA,
+        system: sistemaCacheable(SISTEMA),
         output_config: { effort: 'medium', format: { type: 'json_schema', schema: ESQUEMA_GUIA as unknown as Record<string, unknown> } },
         messages: [{ role: 'user', content: construirPrompt(e) }],
       });
-      logger.info('planCasaGuia: uso de tokens', {
-        asignatura: e.asignatura, entrada: resp.usage.input_tokens, salida: resp.usage.output_tokens, stop: resp.stop_reason,
-      });
+      registrarUso('planCasaGuia', resp, { asignatura: e.asignatura });
       if (resp.stop_reason === 'refusal') return { ok: false, error: 'La IA no pudo generar esta guía. Reformula las temáticas e inténtalo de nuevo.' };
       if (resp.stop_reason === 'max_tokens') return { ok: false, error: 'La guía quedó incompleta. Pide una versión más corta.' };
       const texto = resp.content.map(b => (b.type === 'text' ? b.text : '')).join('');
@@ -126,11 +143,11 @@ export const planCasaIntegrarGuia = onCall(
       const resp = await client.messages.create({
         model: MODELO,
         max_tokens: 20000,
-        system: SISTEMA_INTEGRAR,
+        system: sistemaCacheable(SISTEMA_INTEGRAR),
         output_config: { effort: 'medium', format: { type: 'json_schema', schema: esquemaIntegrar(ids) } },
         messages: [{ role: 'user', content: construirPromptIntegrar(e) }],
       });
-      logger.info('planCasaIntegrarGuia: uso de tokens', { entrada: resp.usage.input_tokens, salida: resp.usage.output_tokens, stop: resp.stop_reason });
+      registrarUso('planCasaIntegrarGuia', resp);
       if (resp.stop_reason === 'refusal') return { ok: false, error: 'La IA no pudo integrar esta guía. Inténtelo de nuevo más tarde.' };
       if (resp.stop_reason === 'max_tokens') return { ok: false, error: 'La guía integrada quedó incompleta. Inténtelo de nuevo.' };
       const texto = resp.content.map(b => (b.type === 'text' ? b.text : '')).join('');
@@ -167,11 +184,11 @@ export const planCasaPreguntas = onCall(
       const resp = await client.messages.create({
         model: MODELO,
         max_tokens: 4000,
-        system: SISTEMA_PREGUNTAS,
+        system: sistemaCacheable(SISTEMA_PREGUNTAS),
         output_config: { effort: 'low', format: { type: 'json_schema', schema: ESQUEMA_PREGUNTAS as unknown as Record<string, unknown> } },
         messages: [{ role: 'user', content: construirPromptPreguntas(e) }],
       });
-      logger.info('planCasaPreguntas: uso de tokens', { entrada: resp.usage.input_tokens, salida: resp.usage.output_tokens, stop: resp.stop_reason });
+      registrarUso('planCasaPreguntas', resp);
       if (resp.stop_reason === 'refusal') return { ok: false, error: 'La IA no pudo generar sugerencias. Cambia la temática e inténtalo de nuevo.' };
       if (resp.stop_reason === 'max_tokens') return { ok: false, error: 'La respuesta quedó incompleta. Inténtalo de nuevo.' };
       const texto = resp.content.map(b => (b.type === 'text' ? b.text : '')).join('');
@@ -208,11 +225,11 @@ export const planCasaSugerirCampos = onCall(
       const resp = await client.messages.create({
         model: MODELO,
         max_tokens: 2000,
-        system: SISTEMA_CAMPOS,
+        system: sistemaCacheable(SISTEMA_CAMPOS),
         output_config: { effort: 'low', format: { type: 'json_schema', schema: esquemaCampos(e.modo) as unknown as Record<string, unknown> } },
         messages: [{ role: 'user', content: construirPromptCampos(e) }],
       });
-      logger.info('planCasaSugerirCampos: uso de tokens', { modo: e.modo, entrada: resp.usage.input_tokens, salida: resp.usage.output_tokens, stop: resp.stop_reason });
+      registrarUso('planCasaSugerirCampos', resp, { modo: e.modo });
       if (resp.stop_reason === 'refusal') return { ok: false, error: 'La IA no pudo generar la sugerencia. Inténtalo de nuevo.' };
       if (resp.stop_reason === 'max_tokens') return { ok: false, error: 'La respuesta quedó incompleta. Inténtalo de nuevo.' };
       const texto = resp.content.map(b => (b.type === 'text' ? b.text : '')).join('');

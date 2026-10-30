@@ -422,6 +422,19 @@ function conEntregables(guia: Guia, asigs: AsignaturaPlan[], nombre: (id: string
   return { ...guia, pasos };
 }
 
+/** Aviso en la página (no window.confirm) antes de pedir otra versión a la IA cuando ya existe una. */
+function AvisoOtraVersion({ onGenerar, onCancelar }: { onGenerar: () => void; onCancelar: () => void }) {
+  return (
+    <div className="rounded-xl bg-warning-soft text-warning-soft-fg p-3 text-sm space-y-2">
+      <p>Ya hay una versión. Puede editarla directamente; generar otra cuesta una nueva consulta a la IA. ¿Generar de todos modos?</p>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={onGenerar} className={CLASE_BOTON_SEC}>Generar otra</button>
+        <button onClick={onCancelar} className={CLASE_BOTON}>Mejor la edito</button>
+      </div>
+    </div>
+  );
+}
+
 function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
   gestor: boolean; plan: PlanConDocentes; g: GuiaPlan; todas: GuiaPlan[]; asigs: AsignaturaPlan[]; nombres: Nombres;
 }) {
@@ -437,6 +450,8 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
   const [avisoSug, setAvisoSug] = useState('');
   const [generandoTodo, setGenerandoTodo] = useState(false);
   const [confirmarIA, setConfirmarIA] = useState(false);
+  /** Pide confirmar antes de gastar otra consulta a la IA cuando ya hay una versión. */
+  const [otraVersion, setOtraVersion] = useState<'guia' | 'todo' | 'integrar' | null>(null);
   const [progreso, setProgreso] = useState<Progreso[]>([]);
   const [integrando, setIntegrando] = useState(false);
   const [avisosIntegrar, setAvisosIntegrar] = useState<string[]>([]);
@@ -735,10 +750,13 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
               </div>
             </div>
           )}
-          <button onClick={() => (faltanCriterios.length ? setConfirmarIA(true) : generarTodo())} disabled={generandoTodo || generando || (transversal && !g.eje.trim())}
+          <button onClick={() => (borrador ? setOtraVersion('todo') : faltanCriterios.length ? setConfirmarIA(true) : generarTodo())} disabled={generandoTodo || generando || (transversal && !g.eje.trim())}
             className={cn(CLASE_BOTON, 'w-full justify-center py-3 text-base')}>
             <Sparkles size={18} />{generandoTodo ? 'Trabajando…' : borrador ? '✨ Generar todo de nuevo con IA' : '✨ Generar todo con IA'}
           </button>
+          {otraVersion === 'todo' && (
+            <AvisoOtraVersion onGenerar={() => { setOtraVersion(null); if (faltanCriterios.length) setConfirmarIA(true); else generarTodo(); }} onCancelar={() => setOtraVersion(null)} />
+          )}
           {transversal && !g.eje.trim() && <p className="text-xs text-warning">Primero escoja la pregunta orientadora (y guárdela).</p>}
           <p className="text-[11px] text-muted">Completa lo que esté vacío (nunca pisa lo que usted escribió) y prepara la guía para que la revise.</p>
           {progreso.length > 0 && (
@@ -764,7 +782,8 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
                 <textarea rows={2} value={pedido.textoReferencia ?? ''} onChange={e => setPedido({ ...pedido, textoReferencia: e.target.value })} className={CLASE_INPUT} /></div>
               {borrador && <input value={indicacion} onChange={e => setIndicacion(e.target.value)} placeholder="Indicación para otra versión: «más corta», «más práctica»…" className={CLASE_INPUT} />}
               {faltanCriterios.length > 0 && <p className="text-[11px] text-muted">Aún faltan criterios de promoción en: {faltanCriterios.map(a => nombre(a.asignaturaId)).join(', ')}. «Generar todo con IA» los completa.</p>}
-              <button onClick={generar} disabled={generando || generandoTodo} className={CLASE_BOTON_SEC}><Sparkles size={15} />{borrador ? 'Otra versión' : 'Generar guía con IA'}</button>
+              <button onClick={() => (borrador ? setOtraVersion('guia') : generar())} disabled={generando || generandoTodo} className={CLASE_BOTON_SEC}><Sparkles size={15} />{borrador ? 'Otra versión' : 'Generar guía con IA'}</button>
+              {otraVersion === 'guia' && <AvisoOtraVersion onGenerar={() => { setOtraVersion(null); generar(); }} onCancelar={() => setOtraVersion(null)} />}
             </div>
           </details>
           {(generando || generandoTodo) && <Cargando texto="La IA está trabajando (puede tardar hasta un minuto)…" />}
@@ -777,9 +796,10 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
           <p className="text-sm font-semibold text-strong">Paso final · Integrar la guía {(borrador?.integrada || g.aprobada?.integrada) && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-success-soft text-success-soft-fg">✓ Integrada</span>}</p>
           <p className="text-xs text-soft">Junta los entregables de los docentes en una sola entrega por semana, respeta el tiempo diario de la UAI y no les pide nada a los docentes. Lo que ellos escribieron queda intacto; usted revisa el resultado y lo aprueba.</p>
           <p className="text-[11px] text-muted">Capacidad por semana: {capacidadPorSemana(plan.desde, plan.hasta, plan.topeDiario, plan.ritmo ?? 'diario').join(' · ')} momentos.{g.aprobada && !g.aprobada.integrada ? ' La guía ya está aprobada: el resultado queda como propuesta hasta que la apruebe.' : ''}{g.aprobada?.integrada ? ' Si la integra de nuevo, los pasos se renumeran y el seguimiento de los pasos actuales no se traslada.' : ''}</p>
-          <button onClick={integrar} disabled={integrando || aprobando || faltanCriterios.length === propias.length} className={CLASE_BOTON}>
+          <button onClick={() => ((borrador?.integrada || g.aprobada?.integrada) ? setOtraVersion('integrar') : integrar())} disabled={integrando || aprobando || faltanCriterios.length === propias.length} className={CLASE_BOTON}>
             <span aria-hidden>🔗</span>{integrando ? 'Integrando…' : (borrador?.integrada || g.aprobada?.integrada) ? 'Integrar de nuevo' : 'Integrar la guía'}
           </button>
+          {otraVersion === 'integrar' && <AvisoOtraVersion onGenerar={() => { setOtraVersion(null); integrar(); }} onCancelar={() => setOtraVersion(null)} />}
           {integrando && <Cargando texto="La IA está integrando la guía (puede tardar hasta un minuto)…" />}
         </div>
       )}
