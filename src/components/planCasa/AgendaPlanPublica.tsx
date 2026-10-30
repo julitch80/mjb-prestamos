@@ -1,6 +1,8 @@
 // Página pública del plan de trabajo en casa (QR, sin login). Lee UN documento:
 // planesCasaPublico/{token}. Solo primer nombre; nunca apellidos.
 import { subpasos } from '../../data/planCasa/subpasos';
+import { aFecha, aISO, agruparPorDia, diasEntre, semanaDe, sumarDias } from '../../data/planCasa/calendarioAgenda';
+import { SelectorVista, VistaMes, VistaSemana, colorAsignatura, type Vista } from './VistasCalendario';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { ExternalLink, Clock, PackageCheck, Upload, Link2, CheckCircle2, Camera } from 'lucide-react';
@@ -15,14 +17,7 @@ const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 const DIAS_LARGO = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
-const aFecha = (f: FechaISO) => new Date(`${f}T12:00:00`);
-function aISO(d: Date): FechaISO {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
 const hoyISO = () => aISO(new Date());
-const sumarDias = (f: FechaISO, n: number) => { const d = aFecha(f); d.setDate(d.getDate() + n); return aISO(d); };
-const diasEntre = (a: FechaISO, b: FechaISO) => Math.round((aFecha(b).getTime() - aFecha(a).getTime()) / 86400000);
 const fechaLinda = (f: FechaISO) => { const d = aFecha(f); return `${DIAS_LARGO[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`; };
 
 function cuenta(f: FechaISO, hoy: FechaISO): string {
@@ -35,11 +30,33 @@ function cuenta(f: FechaISO, hoy: FechaISO): string {
 
 const unidades = (m: number) => `≈ ${m * 25} min`;
 
-export default function AgendaPlanPublica({ token, datos }: { token: string; datos?: PlanPublico }) {
+const CLAVE_VISTA = 'agendaPlanVista';
+function vistaGuardada(): Vista {
+  try {
+    const v = localStorage.getItem(CLAVE_VISTA);
+    if (v === 'dia' || v === 'semana' || v === 'mes') return v;
+  } catch { /* sin almacenamiento: vista por defecto */ }
+  return 'semana';
+}
+
+/**
+ * `hoy` (opcional) sustituye a la fecha real en TODA la página: cuentas regresivas, atrasos,
+ * día elegido y «Entregado». Lo usa la agenda de demostración. Con `datos` no se lee Firestore.
+ */
+export default function AgendaPlanPublica({ token, datos, hoy: hoyForzado }: { token: string; datos?: PlanPublico; hoy?: FechaISO }) {
   const [plan, setPlan] = useState<PlanPublico | null | undefined>(datos); // undefined=cargando, null=no existe
   const [sinRed, setSinRed] = useState(false);
-  const [hoy] = useState(hoyISO);
+  const [hoyReal] = useState(hoyISO);
+  const hoy = hoyForzado ?? hoyReal;
   const [dia, setDia] = useState<FechaISO>(hoy);
+  const [vista, setVistaEstado] = useState<Vista>(vistaGuardada);
+  const setVista = (v: Vista) => {
+    setVistaEstado(v);
+    try { localStorage.setItem(CLAVE_VISTA, v); } catch { /* ignorar */ }
+  };
+
+  // Si «hoy» simulado cambia, la agenda salta a ese día.
+  useEffect(() => { setDia(hoy); }, [hoy]);
 
   useEffect(() => {
     if (datos) { setPlan(datos); return; }
@@ -51,16 +68,31 @@ export default function AgendaPlanPublica({ token, datos }: { token: string; dat
     return () => { vivo = false; };
   }, [token, datos]);
 
+  // Con fecha simulada, lo «entregado» después de esa fecha todavía no ha ocurrido.
+  const planVisto = useMemo(() => {
+    if (!plan || !hoyForzado) return plan;
+    const pendiente = (ms?: number) => !!ms && aISO(new Date(ms)) > hoyForzado;
+    return {
+      ...plan,
+      pasos: plan.pasos.map(p => {
+        if (!pendiente(p.entregadoEn)) return p;
+        const { entregadoEn: _e, revisado: _r, comentario: _c, ...resto } = p;
+        return { ...resto, componentes: p.componentes?.map(c => ({ ...c, revisado: false, comentario: undefined })) };
+      }),
+    };
+  }, [plan, hoyForzado]);
+
+  const ancho = vista === 'dia' ? 'max-w-md' : 'max-w-3xl';
   const marco = (hijo: React.ReactNode) => (
     <div className="min-h-screen flex flex-col items-center px-4 py-6">
-      <div className="w-full max-w-md space-y-4">{hijo}</div>
+      <div className={`w-full ${ancho} space-y-4`}>{hijo}</div>
     </div>
   );
 
-  if (plan === undefined) {
+  if (planVisto === undefined) {
     return marco(<div className="rounded-2xl border border-line bg-elevated/40 p-6 text-center text-base text-muted">Cargando tu plan…</div>);
   }
-  if (plan === null) {
+  if (planVisto === null) {
     return marco(
       <div className="rounded-2xl border border-line bg-card p-6 text-center space-y-2">
         <p className="text-lg font-semibold text-strong">
@@ -72,10 +104,10 @@ export default function AgendaPlanPublica({ token, datos }: { token: string; dat
       </div>,
     );
   }
-  return marco(<Contenido plan={plan} token={datos ? '' : token} hoy={hoy} dia={dia} setDia={setDia} />);
+  return marco(<Contenido plan={planVisto} token={datos ? '' : token} hoy={hoy} dia={dia} setDia={setDia} vista={vista} setVista={setVista} />);
 }
 
-function Contenido({ plan, token, hoy, dia, setDia }: { plan: PlanPublico; token: string; hoy: FechaISO; dia: FechaISO; setDia: (f: FechaISO) => void }) {
+function Contenido({ plan, token, hoy, dia, setDia, vista, setVista }: { plan: PlanPublico; token: string; hoy: FechaISO; dia: FechaISO; setDia: (f: FechaISO) => void; vista: Vista; setVista: (v: Vista) => void }) {
   const delDia = useMemo(() => plan.pasos.filter(p => p.fecha === dia), [plan, dia]);
   const total = delDia.reduce((s, p) => s + p.momentos, 0);
   const esHoy = dia === hoy;
@@ -88,11 +120,14 @@ function Contenido({ plan, token, hoy, dia, setDia }: { plan: PlanPublico; token
   }, [plan, hoy]);
 
   // Tira de la semana que contiene el día elegido (lunes a viernes).
-  const semana = useMemo(() => {
-    const d = aFecha(dia);
-    const lunes = sumarDias(dia, -((d.getDay() + 6) % 7));
-    return [0, 1, 2, 3, 4].map(i => sumarDias(lunes, i));
-  }, [dia]);
+  const semana = useMemo(() => semanaDe(dia).slice(0, 5), [dia]);
+  const porDia = useMemo(() => agruparPorDia(plan.pasos), [plan]);
+  const sustPorDia = useMemo(() => agruparPorDia(plan.sustentaciones), [plan]);
+  const colores = useMemo(() => {
+    const nombres = [...new Set(plan.pasos.map(p => p.asignatura))].sort();
+    return (a: string) => colorAsignatura(Math.max(0, nombres.indexOf(a)));
+  }, [plan]);
+  const irADia = (f: FechaISO) => { setDia(f); setVista('dia'); };
 
   const sust = [...plan.sustentaciones].sort((a, b) => ((a.fecha ?? '9') < (b.fecha ?? '9') ? -1 : 1));
 
@@ -107,6 +142,12 @@ function Contenido({ plan, token, hoy, dia, setDia }: { plan: PlanPublico; token
         </div>
       </header>
 
+      <SelectorVista vista={vista} setVista={setVista} />
+
+      {vista === 'semana' && <VistaSemana plan={plan} hoy={hoy} dia={dia} setDia={setDia} porDia={porDia} sustPorDia={sustPorDia} color={colores} irADia={irADia} />}
+      {vista === 'mes' && <VistaMes plan={plan} hoy={hoy} dia={dia} porDia={porDia} sustPorDia={sustPorDia} irADia={irADia} />}
+
+      {vista === 'dia' && <>
       <nav aria-label="Semana" className="grid grid-cols-5 gap-1.5">
         {semana.map(f => {
           const n = plan.pasos.filter(p => p.fecha === f).length;
@@ -131,8 +172,9 @@ function Contenido({ plan, token, hoy, dia, setDia }: { plan: PlanPublico; token
           <p className="rounded-2xl border border-line bg-card p-4 text-base text-soft">
             {esHoy ? 'Hoy no tienes pasos. ¡Buen descanso!' : 'Este día no tiene pasos.'}
           </p>
-        ) : delDia.map(p => <TarjetaPaso key={`${p.asignatura}-${p.id}`} p={p} token={token} />)}
+        ) : delDia.map(p => <TarjetaPaso key={`${p.asignatura}-${p.id}`} p={p} token={token} hoy={hoy} />)}
       </section>
+      </>}
 
       <section className="space-y-2">
         <h2 className="text-lg font-bold text-strong">Próximas entregas</h2>
@@ -188,7 +230,8 @@ function Contenido({ plan, token, hoy, dia, setDia }: { plan: PlanPublico; token
   );
 }
 
-function TarjetaPaso({ p, token }: { p: Paso; token: string }) {
+function TarjetaPaso({ p, token, hoy }: { p: Paso; token: string; hoy: FechaISO }) {
+  const atraso = p.fecha && p.guiaId && !p.entregadoEn && p.fecha < hoy ? diasEntre(p.fecha, hoy) : 0;
   return (
     <article className="rounded-2xl border border-line bg-card p-4 space-y-2">
       <div className="flex items-start justify-between gap-2">
@@ -200,6 +243,11 @@ function TarjetaPaso({ p, token }: { p: Paso; token: string }) {
       {p.esEntregaParcial && (
         <p className="inline-flex items-center gap-1.5 rounded-full bg-accent text-accent-fg text-sm font-semibold px-3 py-1">
           <PackageCheck size={16} /> Entrega de la semana{p.semana ? ' ' + p.semana : ''}
+        </p>
+      )}
+      {atraso > 0 && (
+        <p className="rounded-xl bg-warning-soft text-warning-soft-fg px-3 py-1.5 text-sm font-semibold">
+          Sin entregar · venció {atraso === 1 ? 'ayer' : `hace ${atraso} días`}. ¡Aún puedes enviarlo!
         </p>
       )}
       <h3 className="text-lg font-bold text-strong leading-snug">{p.titulo}</h3>
@@ -243,7 +291,9 @@ function TarjetaPaso({ p, token }: { p: Paso; token: string }) {
           ))}
         </div>
       )}
-      {token && p.guiaId && <Entregar p={p} token={token} />}
+      {token && p.guiaId
+        ? <Entregar p={p} token={token} />
+        : (p.entregadoEn || p.revisado) ? <Entregar p={p} token="" soloLectura /> : null}
     </article>
   );
 }
@@ -256,7 +306,7 @@ const fechaHora = (ms: number) => {
 type FaseEntrega = 'quieto' | 'elegido' | 'enviando' | 'ok';
 
 /** Botón «Entregar»: foto (cámara), audio o PDF; o un enlace para los videos. */
-function Entregar({ p, token }: { p: Paso; token: string }) {
+function Entregar({ p, token, soloLectura }: { p: Paso; token: string; soloLectura?: boolean }) {
   const [entregadoEn, setEntregadoEn] = useState<number | undefined>(p.entregadoEn);
   const [fase, setFase] = useState<FaseEntrega>('quieto');
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -323,6 +373,7 @@ function Entregar({ p, token }: { p: Paso; token: string }) {
           {p.comentario && <p className="mt-1 whitespace-pre-wrap">«{p.comentario}»</p>}
         </div>
       )}
+      {!soloLectura && <>
       <input ref={input} type="file" accept={ACCEPT_ENTREGA} className="hidden"
         onChange={e => elegir(e.target.files?.[0])} aria-label="Elegir archivo para entregar" />
       {/* `capture` abre la cámara directamente; el otro input deja elegir audio o PDF. */}
@@ -372,6 +423,7 @@ function Entregar({ p, token }: { p: Paso; token: string }) {
       )}
       {fase === 'ok' && <p role="status" className="text-base text-strong">¡Listo! Tu docente ya puede verlo.</p>}
       {error && <p role="alert" className="text-base text-red-600 dark:text-red-400">{error}</p>}
+      </>}
     </div>
   );
 }
