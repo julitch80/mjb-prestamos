@@ -52,6 +52,7 @@ export default function PanelSuperusuario() {
 
   // "Ver como" — suplantación real (Cloud Function `suplantar`)
   const [busquedaVerComo, setBusquedaVerComo] = useState('');
+  const [soloSinIngresar, setSoloSinIngresar] = useState(false);
   const [suplantando, setSuplantando] = useState<string | null>(null); // correo en curso
   const [errorSuplantacion, setErrorSuplantacion] = useState<string | null>(null);
 
@@ -218,7 +219,10 @@ export default function PanelSuperusuario() {
   const yoEmailLower = (userId ?? '').toLowerCase();
   const puedeVerComo = (u: UsuarioFirestore) =>
     rol === 'superusuario' && u.active && u.role !== 'superusuario' && u.email.toLowerCase() !== yoEmailLower;
+  // Sin uid = nunca ha iniciado sesión (el uid se escribe en el primer ingreso).
+  const sinIngresarCentral = usuarios.filter((u) => u.active && !u.uid && (u.sede ?? 'central') === 'central');
   const personasFiltradas = usuarios.filter((u) => {
+    if (soloSinIngresar && !sinIngresarCentral.includes(u)) return false;
     const q = busquedaVerComo.trim().toLowerCase();
     if (!q) return true;
     return u.displayName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.includes(q);
@@ -620,6 +624,10 @@ export default function PanelSuperusuario() {
             onChange={(e) => setBusquedaVerComo(e.target.value)}
             className="w-full sm:w-72 min-h-[44px] px-3 py-2 rounded-lg bg-elevated border border-line text-strong text-sm placeholder:text-muted focus:outline-none focus:border-line-strong"
           />
+          <label className="flex items-center gap-2 text-xs text-soft min-h-[44px]">
+            <input type="checkbox" checked={soloSinIngresar} onChange={(e) => setSoloSinIngresar(e.target.checked)} />
+            Solo sede central sin ingresar ({sinIngresarCentral.length})
+          </label>
         </div>
         <p className="text-muted text-xs leading-snug max-w-2xl">
           «Ver como» abre una sesión real y de <b>solo lectura</b> como esa persona (usa «Salir» en la barra de arriba para volver).
@@ -680,6 +688,7 @@ export default function PanelSuperusuario() {
                         >
                           {u.active ? 'Activo' : 'Inactivo'}
                         </span>
+                        {!u.uid && <span className="block mt-1 text-xs text-warning">Nunca ha ingresado</span>}
                       </td>
                       <td className="py-2 pr-4">
                         <div className="flex flex-wrap items-center gap-2">
