@@ -49,7 +49,10 @@ export default function AgendaPlanPublica({ token, datos, hoy: hoyForzado }: { t
   const [hoyReal] = useState(hoyISO);
   const hoy = hoyForzado ?? hoyReal;
   const [dia, setDia] = useState<FechaISO>(hoy);
-  const [vista, setVistaEstado] = useState<Vista>(vistaGuardada);
+  // Las vistas Semana/Mes solo están en la demostración hasta que Julián las apruebe para las familias.
+  const conVistas = hoyForzado !== undefined;
+  const [vistaElegida, setVistaEstado] = useState<Vista>(vistaGuardada);
+  const vista: Vista = conVistas ? vistaElegida : 'dia';
   const setVista = (v: Vista) => {
     setVistaEstado(v);
     try { localStorage.setItem(CLAVE_VISTA, v); } catch { /* ignorar */ }
@@ -104,10 +107,10 @@ export default function AgendaPlanPublica({ token, datos, hoy: hoyForzado }: { t
       </div>,
     );
   }
-  return marco(<Contenido plan={planVisto} token={datos ? '' : token} hoy={hoy} dia={dia} setDia={setDia} vista={vista} setVista={setVista} />);
+  return marco(<Contenido plan={planVisto} token={datos ? '' : token} hoy={hoy} dia={dia} setDia={setDia} vista={vista} setVista={setVista} conVistas={conVistas} />);
 }
 
-function Contenido({ plan, token, hoy, dia, setDia, vista, setVista }: { plan: PlanPublico; token: string; hoy: FechaISO; dia: FechaISO; setDia: (f: FechaISO) => void; vista: Vista; setVista: (v: Vista) => void }) {
+function Contenido({ plan, token, hoy, dia, setDia, vista, setVista, conVistas }: { plan: PlanPublico; token: string; hoy: FechaISO; dia: FechaISO; setDia: (f: FechaISO) => void; vista: Vista; setVista: (v: Vista) => void; conVistas: boolean }) {
   const delDia = useMemo(() => plan.pasos.filter(p => p.fecha === dia), [plan, dia]);
   const total = delDia.reduce((s, p) => s + p.momentos, 0);
   const esHoy = dia === hoy;
@@ -142,7 +145,7 @@ function Contenido({ plan, token, hoy, dia, setDia, vista, setVista }: { plan: P
         </div>
       </header>
 
-      <SelectorVista vista={vista} setVista={setVista} />
+      {conVistas && <SelectorVista vista={vista} setVista={setVista} />}
 
       {vista === 'semana' && <VistaSemana plan={plan} hoy={hoy} dia={dia} setDia={setDia} porDia={porDia} sustPorDia={sustPorDia} color={colores} irADia={irADia} />}
       {vista === 'mes' && <VistaMes plan={plan} hoy={hoy} dia={dia} porDia={porDia} sustPorDia={sustPorDia} irADia={irADia} />}
