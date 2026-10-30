@@ -6,12 +6,57 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { fechaValida, hoyBogota, vencido } from './reemplazoFechas.js';
+import { cambiosAsignatura, cambiosGuia, cambiosPlan } from './planesTransferencia.js';
 
 const db = () => getFirestore();
 
 async function revocar(uid: unknown) {
   if (typeof uid !== 'string' || !uid) return;
   try { await getAuth().revokeRefreshTokens(uid); } catch { /* no crítico */ }
+}
+
+// Pasa los planes académicos especiales (planesCasa) no cerrados de un docente a otro:
+// plan.docentesCorreos, asignaturas.docenteCorreo y guias.responsableCorreo/docentesCorreos.
+// Idempotente. Sin nombres de estudiantes ni motivos en los registros.
+export async function transferirPlanesCasa(
+  firestore: FirebaseFirestore.Firestore, deEmail: string, aEmail: string,
+): Promise<{ planes: number; asignaturas: number; guias: number }> {
+  const de = deEmail.trim().toLowerCase();
+  const a = aEmail.trim().toLowerCase();
+  const res = { planes: 0, asignaturas: 0, guias: 0 };
+  if (!de || !a || de === a) return res;
+  const planes = await firestore.collection('planesCasa').where('docentesCorreos', 'array-contains', de).get();
+  const ops: Array<{ ref: FirebaseFirestore.DocumentReference; data: Record<string, unknown> }> = [];
+  for (const p of planes.docs) {
+    if (p.get('estado') === 'cerrado') continue;
+    const cp = cambiosPlan(p.data(), de, a);
+    if (cp) { ops.push({ ref: p.ref, data: { ...cp } }); res.planes++; }
+    const [as, gs] = await Promise.all([p.ref.collection('asignaturas').get(), p.ref.collection('guias').get()]);
+    for (const d of as.docs) {
+      const c = cambiosAsignatura(d.data(), de, a);
+      if (c) { ops.push({ ref: d.ref, data: { ...c } }); res.asignaturas++; }
+    }
+    for (const d of gs.docs) {
+      const c = cambiosGuia(d.data(), de, a);
+      if (c) { ops.push({ ref: d.ref, data: { ...c } }); res.guias++; }
+    }
+  }
+  for (let i = 0; i < ops.length; i += 450) {
+    const b = firestore.batch();
+    for (const o of ops.slice(i, i + 450)) b.update(o.ref, o.data);
+    await b.commit();
+  }
+  return res;
+}
+
+// Tolerante: un fallo se registra pero no rompe el reemplazo.
+async function transferirSeguro(de: string, a: string) {
+  try {
+    return { ...(await transferirPlanesCasa(db(), de, a)), error: false };
+  } catch (e) {
+    console.error('transferirPlanesCasa', e instanceof Error ? e.message : 'error');
+    return { planes: 0, asignaturas: 0, guias: 0, error: true };
+  }
 }
 
 // Devuelve el puesto al titular y deja al reemplazo sin acceso. Compartida por
@@ -50,6 +95,7 @@ async function finalizarReemplazo(id: string, motivo: 'manual' | 'vencido', por:
     status: 'ok',
   });
   await batch.commit();
+  await transferirSeguro(String(snap.get('reemplazoEmail')), String(snap.get('titularEmail')));
   await revocar(rSnap.get('uid'));
   await revocar(tSnap.get('uid')); // su próxima sesión carga el puesto restaurado
   return true;
@@ -131,7 +177,8 @@ export const reemplazoTemporal = onCall(
         });
         await batch.commit();
         await revocar(v.tSnap.get('uid')); // que su próxima sesión recoja el solo lectura
-        return { ok: true, id: ref.id, slot: v.slot, hasta: v.hasta };
+        const planes = await transferirSeguro(v.titularEmail, v.reemplazoEmail);
+        return { ok: true, id: ref.id, slot: v.slot, hasta: v.hasta, planes };
       }
 
       const id = String(request.data?.id ?? '');
@@ -180,4 +227,28 @@ export const finalizarReemplazosVencidos = onSchedule(
         catch (e) { console.error('finalizarReemplazosVencidos', d.id, e); }
       }
     }
+    // Sincronía idempotente: planes creados durante el reemplazo pasan al reemplazo.
+    const vigentes = await db().collection('reemplazosTemporales').where('estado', '==', 'activo').get();
+    for (const d of vigentes.docs) await transferirSeguro(String(d.get('titularEmail')), String(d.get('reemplazoEmail')));
+  });
+
+// Superusuario: pasa ahora los planes académicos a los reemplazos activos.
+export const sincronizarPlanesReemplazos = onCall(
+  { region: 'us-central1', timeoutSeconds: 300, invoker: 'public' },
+  async (request) => {
+    const callerEmail = (request.auth?.token?.email ?? '').toLowerCase();
+    if (!request.auth || !callerEmail) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    if (request.auth.token?.suplantadoPor) throw new HttpsError('permission-denied', 'No se puede hacer esto desde una sesión suplantada.');
+    const c = await db().doc(`users/${callerEmail}`).get();
+    if (!c.exists || c.get('role') !== 'superusuario' || c.get('active') !== true) {
+      throw new HttpsError('permission-denied', 'Solo el superusuario puede hacer esto.');
+    }
+    const act = await db().collection('reemplazosTemporales').where('estado', '==', 'activo').get();
+    const total = { reemplazos: act.size, planes: 0, asignaturas: 0, guias: 0, errores: 0 };
+    for (const d of act.docs) {
+      const r = await transferirSeguro(String(d.get('titularEmail')), String(d.get('reemplazoEmail')));
+      total.planes += r.planes; total.asignaturas += r.asignaturas; total.guias += r.guias;
+      if (r.error) total.errores++;
+    }
+    return { ok: true, ...total };
   });

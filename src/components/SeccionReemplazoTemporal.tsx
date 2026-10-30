@@ -117,6 +117,25 @@ export default function SeccionReemplazoTemporal({ usuarios, onCambio }: Props) 
     }
   }
 
+  async function pasarPlanes() {
+    setMsg(null);
+    setOcupado(true);
+    try {
+      if (!functions) throw new Error('Firebase Functions no está configurado.');
+      const r = (await httpsCallable(functions, 'sincronizarPlanesReemplazos')({})).data as
+        { reemplazos: number; planes: number; asignaturas: number; guias: number; errores: number };
+      setMsg({
+        tipo: r.errores ? 'error' : 'ok',
+        texto: `Reemplazos activos: ${r.reemplazos}. Pasaron ${r.planes} planes, ${r.asignaturas} asignaturas y ${r.guias} guías.` +
+          (r.errores ? ` Fallaron ${r.errores} reemplazos; revisa los registros.` : ''),
+      });
+    } catch (e) {
+      setMsg({ tipo: 'error', texto: (e as Error).message });
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   async function cambiarFecha() {
     if (!editando) return;
     setMsg(null);
@@ -235,6 +254,9 @@ export default function SeccionReemplazoTemporal({ usuarios, onCambio }: Props) 
             )}
           </div>
         ))}
+        <button type="button" onClick={pasarPlanes} disabled={ocupado || activos.length === 0} className={boton + ' bg-elevated text-strong'}>
+          Pasar planes académicos a los reemplazos activos
+        </button>
       </div>
     </div>
   );

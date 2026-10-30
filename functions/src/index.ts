@@ -299,4 +299,4 @@ export const onMessageCreated = onDocumentCreated(
   });
 
 // Reemplazo temporal (docs/reemplazo-temporal)
-export { reemplazoTemporal, finalizarReemplazosVencidos } from './reemplazoTemporal.js';
+export { reemplazoTemporal, finalizarReemplazosVencidos, sincronizarPlanesReemplazos } from './reemplazoTemporal.js';
