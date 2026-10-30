@@ -28,7 +28,11 @@ describe('construirHtmlCuadernillo', () => {
   it('solo primer nombre, escapa HTML, sin QR ni enlaces', () => {
     expect(html).not.toContain('María');
     expect(html).toContain('&lt;del&gt;');
-    expect(html).not.toMatch(/https?:|<a |qr|whatsapp/i);
+    // El <head> solo trae las fuentes de Google; el contenido no lleva enlaces.
+    const cuerpo = html.slice(html.indexOf('<body>'));
+    expect(cuerpo).not.toMatch(/https?:|<a |qr|whatsapp/i);
+    expect(cuerpo).toContain('escudo-oficial.png');
+    expect(cuerpo).toContain('Lo hice');
   });
   it('solo guías aprobadas; vacío si no hay ninguna', () => {
     expect(construirHtmlCuadernillo(plan, [g('b', undefined, guia)], nombres)).toBe('');
