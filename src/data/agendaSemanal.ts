@@ -2612,6 +2612,168 @@ export const AGENDAS: AgendaSemanal[] = [
       },
     ],
   },
+  {
+    semana: 10,
+    periodo: 3,
+    desde: '2026-11-02',
+    hasta: '2026-11-06',
+    publicadaPor: 'Equipo Técnico Institucional',
+    notaFinal: 'La agenda de profesionales (orientación escolar y programa Escuela Entorno Protector) viene dentro del mismo documento, aparte de la agenda institucional.',
+    dias: [
+      {
+        fecha: '2026-11-02',
+        dia: 'lunes',
+        festivo: 'Día de Todos los Santos',
+        notas: ['Esta semana se finaliza la aplicación de las pruebas Quiero ser, Quiero saber.', 'Los docentes entregan a coordinación los planes de apoyo del tercer periodo e inicia la Evaluación de docentes 1278.'],
+        actividades: [
+        ],
+      },
+      {
+        fecha: '2026-11-03',
+        dia: 'martes',
+        actividades: [
+          {
+            hora: '',
+            actividad: 'Entrega de recursos para la salida pedagógica a COMFAMA La Estrella, grados 10° y 11°',
+            asisten: '',
+            lugar: '',
+            responsables: '',
+          },
+          {
+            hora: '8am',
+            actividad: 'Reunión con padres de familia y estudiantes de 11° que no cumplen requisitos de graduación',
+            asisten: 'Padres y estudiantes citados',
+            lugar: 'Biblioteca',
+            responsables: 'Rectora y coordinadora',
+          },
+          {
+            hora: '11am a 12m',
+            actividad: 'Reunión de equipo directivo: planes de apoyo y evaluación final 1278',
+            asisten: 'Coordinadores',
+            lugar: 'Rectoría',
+            responsables: 'Rectora',
+          },
+          {
+            hora: '1pm a 5pm',
+            actividad: 'Salida pedagógica de los estudiantes del proyecto URBAN LAB',
+            asisten: 'Estudiantes inscritos',
+            lugar: 'Museo de Antioquia',
+            responsables: 'UPB – Urban Lab',
+          },
+          {
+            hora: 'Durante la jornada',
+            actividad: 'Pruebas quiero ser, quiero saber',
+            asisten: 'Estudiantes, docente y tutora PTA',
+            lugar: 'Aula de sistemas (dependiendo de la disponibilidad de la sala y la conectividad)',
+            responsables: 'Beatriz Marín',
+          },
+          {
+            hora: '12:15 m',
+            actividad: 'Actividad: «Acompañarnos en las pérdidas»',
+            asisten: 'Grado 8-4',
+            lugar: 'Aula de clase 8-4',
+            responsables: 'Natalia Rivas - PEEP',
+          },
+          {
+            hora: '1:10 pm',
+            actividad: 'Taller manejo de emociones',
+            asisten: 'Grado 7-1',
+            lugar: 'Aula de clase 7-1',
+            responsables: 'Natalia Rivas - PEEP',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-04',
+        dia: 'miércoles',
+        actividades: [
+          {
+            hora: '6am',
+            actividad: 'Entrega de planes de apoyo académico especial a padres de familia y estudiantes de casos priorizados (físico o digital)',
+            asisten: '',
+            lugar: '',
+            responsables: '',
+          },
+          {
+            hora: '7:30am a 1pm',
+            actividad: 'Segundo encuentro de rectores y directores rurales',
+            asisten: 'Rectora',
+            lugar: 'Mova, centro de innovación del maestro',
+            responsables: 'Carolina Franco, Secretaría de Educación',
+          },
+          {
+            hora: '9am',
+            actividad: 'Capacitación en gestión del riesgo en IE oficiales',
+            asisten: 'Integrantes del Copasst',
+            lugar: 'Enlace virtual',
+            responsables: 'ARL Positiva',
+          },
+          {
+            hora: '8am a 1pm',
+            actividad: 'Salida pedagógica de representantes de grupo y mediadores de Primaria con docentes de Ciencias Sociales',
+            asisten: 'Líderes escolares y docentes asignados de primaria',
+            lugar: 'Jardín Botánico',
+            responsables: 'Macroproyecto «Soy ciudadano, hago parte del estado»',
+          },
+          {
+            hora: '8am a 12m',
+            actividad: 'Salida pedagógica a IU Tecnológico de Antioquia',
+            asisten: 'Estudiantes de 11° con docente asignado',
+            lugar: 'IU TdeA',
+            responsables: 'Claudia Henao y coordinadora',
+          },
+          {
+            hora: 'Durante la jornada',
+            actividad: 'Pruebas quiero ser, quiero saber',
+            asisten: 'Estudiantes, docente y tutora PTA',
+            lugar: 'Aula de sistemas (dependiendo de la disponibilidad de la sala y la conectividad)',
+            responsables: 'Beatriz Marín',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-05',
+        dia: 'jueves',
+        actividades: [
+          {
+            hora: '',
+            actividad: 'Publicación de la lista de admitidos para el año 2027, de grado 1° a 11°, en la página web',
+            asisten: '',
+            lugar: '',
+            responsables: '',
+          },
+          {
+            hora: '8am a 1pm',
+            actividad: 'Salida pedagógica de representantes de grupo y mediadores de Bachillerato con docentes de Ciencias Sociales',
+            asisten: 'Líderes escolares y docentes asignados de Bachillerato',
+            lugar: 'Jardín Botánico',
+            responsables: 'Macroproyecto «Soy ciudadano, hago parte del estado»',
+          },
+          {
+            hora: '8am a 4pm',
+            actividad: 'Salida pedagógica de estudiantes a COMFAMA: «El último timbre». Los estudiantes y docentes llegan a COMFAMA.',
+            asisten: 'Grupos de 10° y 11° con docentes directores de grupo acompañantes',
+            lugar: 'COMFAMA La Estrella',
+            responsables: 'Comfama y coordinadora',
+          },
+          {
+            hora: '11:00 am',
+            actividad: 'Reunión del CAE: evaluación de las acciones realizadas',
+            asisten: 'Integrantes del CAE',
+            lugar: 'Biblioteca',
+            responsables: 'Rectora',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-06',
+        dia: 'viernes',
+        notas: ['FESTIVAL DE DANZA EN CADA SEDE Y JORNADA'],
+        actividades: [
+        ],
+      },
+    ],
+  },
 ];
 
 
