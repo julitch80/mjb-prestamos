@@ -13,7 +13,7 @@ import {
 import {
   asignaturasDelGrupo, cambiarEstadoPlan, crearPlan, escucharAsignaturas, escucharGuias, escucharPlanes, type GuiaTransversalDef,
   autorizarSolicitud, eliminarPlan, cambiarFechaSustentacion, escucharSolicitudes, guardarCierreEdicion, negarSolicitud,
-  guardarContexto, guardarSinTecnologia, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
+  guardarContexto, guardarSinTecnologia, leerEquipo, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
 import { conSinTecnologia, fechaCierre } from '../../data/planCasa/logica';
@@ -22,6 +22,7 @@ import { PestanasSubrayadas } from '../Navegacion';
 import { construirAvanceDocentes, filtrarPorJornada, type DatosPlanAvance, type FiltroJornada } from '../../data/planCasa/avanceDocentes';
 import { claseBarra, construirInformeHTML, construirResumenTexto, filasInforme, fraccionTexto, resumenAvance, ETIQUETA_JORNADA, type Fraccion } from '../../data/planCasa/informeAvance';
 import { useAppStore } from '../../data/store';
+import { auth } from '../../lib/firebase';
 import { abrirImprimibleUAI } from '../../data/planCasa/imprimibleUAI';
 import {
   BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
@@ -439,7 +440,14 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
   const [fechaSust, setFechaSust] = useState<Record<string, string>>({});
   const [cierre, setCierre] = useState(plan.cierreEdicion ?? '');
   const [cierreMsg, setCierreMsg] = useState('');
-  const esSuper = useAppStore(s => s.rol) === 'superusuario';
+  // Eliminar: superusuario y equipo (UAI / orientación); la función lo vuelve a comprobar.
+  const rolActual = useAppStore(s => s.rol);
+  const [enEquipo, setEnEquipo] = useState(false);
+  useEffect(() => {
+    const correo = auth?.currentUser?.email?.toLowerCase() ?? '';
+    leerEquipo().then(lista => setEnEquipo(lista.includes(correo))).catch(() => {});
+  }, []);
+  const esSuper = rolActual === 'superusuario' || enEquipo;
   const [confElim, setConfElim] = useState(false);
   const [tecleado, setTecleado] = useState('');
   const [eliminando, setEliminando] = useState(false);

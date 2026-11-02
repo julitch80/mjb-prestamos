@@ -455,7 +455,7 @@ export const planCasaVerEntrega = onCall(
 
 export const planCasaEliminarPlan = onCall(opciones, async (request) => {
   const quien = await llamante(request);
-  if (quien.role !== 'superusuario') throw new HttpsError('permission-denied', 'Solo el superusuario puede eliminar planes.');
+  if (quien.role !== 'superusuario' && !(await esEquipo(quien.correo))) throw new HttpsError('permission-denied', 'Solo el superusuario o el equipo (UAI / orientación) pueden eliminar planes.');
   const planId = (request.data as { planId?: unknown } | undefined)?.planId;
   if (typeof planId !== 'string' || !RE_ID.test(planId)) throw new HttpsError('invalid-argument', 'planId inválido.');
   const ref = db.doc(`${COL_PLANES}/${planId}`);
