@@ -527,6 +527,7 @@ function ReplicarGuias({ plan, planes, asigs, guias, nombres, puede }: {
 }) {
   const [paso, setPaso] = useState<'cerrado' | 'elegir' | 'corriendo' | 'fin'>('cerrado');
   const [destinoId, setDestinoId] = useState('');
+  const [igualar, setIgualar] = useState(false);
   const [resumen, setResumen] = useState<ResumenReplicar | null>(null);
   const [error, setError] = useState('');
   const destinos = destinosPosibles(plan, planes);
@@ -544,7 +545,7 @@ function ReplicarGuias({ plan, planes, asigs, guias, nombres, puede }: {
     setPaso('corriendo'); setError(''); setResumen(null);
     try {
       const d = await leerAsignaturasYGuias(destino.id);
-      setResumen(await replicarGuias({ origen: plan, destino, asigsO: asigs, guiasO: guias, asigsD: d.asigs, guiasD: d.guias, nombre, etiquetaGuia }));
+      setResumen(await replicarGuias({ origen: plan, destino, asigsO: asigs, guiasO: guias, asigsD: d.asigs, guiasD: d.guias, nombre, etiquetaGuia, igualarAgrupacion: igualar }));
     } catch (e) { setError((e as Error).message); }
     setPaso('fin');
   }
@@ -574,6 +575,13 @@ function ReplicarGuias({ plan, planes, asigs, guias, nombres, puede }: {
               <p><span className="font-medium text-strong">Ajustes del destino:</span> {destino.ajustes.join(' · ') || 'ninguno'}</p>
               <p>Revise que los ajustes sean compatibles: la guía se escribió para los de este caso.</p>
             </div>
+          )}
+          {destino && (
+            <label className="flex items-start gap-2 text-xs text-soft">
+              <input type="checkbox" checked={igualar} onChange={e => setIgualar(e.target.checked)} className="mt-0.5" />
+              <span>Dejar las guías agrupadas <span className="font-medium text-strong">exactamente igual</span> que las de {plan.nombres}.
+                <span className="block text-[11px] text-warning">Reemplaza TODAS las guías de {destino.nombres}, también las ya aprobadas, y borra su avance registrado en ellas.</span></span>
+            </label>
           )}
           <div className="flex flex-wrap gap-2">
             <button disabled={!destino} onClick={ejecutar} className={CLASE_BOTON}><Copy size={15} />Replicar y aprobar</button>

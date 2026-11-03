@@ -1,7 +1,7 @@
 // Plan en casa — lectura/escritura en Firestore y llamadas a las funciones del servidor.
 // Contrato en ./tipos.ts. Los componentes no tocan Firestore directo: pasan por aquí.
 import {
-  addDoc, collection, deleteField, FieldPath, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where,
+  addDoc, collection, deleteDoc, deleteField, FieldPath, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -212,6 +212,14 @@ export async function leerAsignaturasYGuias(planId: string): Promise<{ asigs: As
     asigs: a.docs.map(d => ({ ...(d.data() as AsignaturaPlan), asignaturaId: d.id })),
     guias: g.docs.map(d => ({ ...(d.data() as GuiaPlan), id: d.id })),
   };
+}
+
+/** Gestor: reemplaza las guías de un plan por otras (crea las nuevas y borra las que sobran). */
+export async function reemplazarGuias(planId: string, nuevas: GuiaPlan[], borrar: string[]): Promise<void> {
+  const bd = baseDatos();
+  const ahora = Date.now();
+  for (const id of borrar) await deleteDoc(doc(bd, COL_PLANES, planId, SUB_GUIAS, id));
+  for (const g of nuevas) await setDoc(doc(bd, COL_PLANES, planId, SUB_GUIAS, g.id), limpiar({ ...g, actualizadoEn: ahora }));
 }
 
 export async function guardarGuia(planId: string, guiaId: string, cambios: Partial<GuiaPlan>) {

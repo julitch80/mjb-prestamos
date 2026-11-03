@@ -5,7 +5,7 @@ import { addDias, parseFecha } from '../tareas/calendario';
 import type { AsignaturaPlan, FechaISO, Guia, GuiaPlan, PlanCasa } from './tipos';
 import { gradoDeGrupo } from './completarPlan';
 import { aprobarBorrador } from './completarConIA';
-import { correoActual, guardarAsignatura, guardarGuia, publicarPlan } from './persistencia';
+import { correoActual, guardarAsignatura, guardarGuia, publicarPlan, reemplazarGuias } from './persistencia';
 
 type NombreFn = (id: string) => string;
 type PlanMin = Pick<PlanCasa, 'id' | 'grupo' | 'modalidad' | 'estado' | 'desde' | 'hasta'>;
@@ -61,6 +61,32 @@ export function guiaParaDestino(g: Guia, destino: Pick<PlanCasa, 'desde' | 'hast
   };
 }
 
+/**
+ * Guías del destino con la MISMA agrupación de áreas que el origen (mismos ids). Las áreas del destino
+ * que no estén en ninguna guía del origen quedan en una guía aparte. El responsable es el docente del
+ * destino que dicta el área del responsable del origen.
+ */
+export function agrupacionComoOrigen(guiasO: GuiaPlan[], asigsO: AsignaturaPlan[], asigsD: AsignaturaPlan[], nombre: NombreFn): GuiaPlan[] {
+  const enD = new Set(asigsD.map(a => a.asignaturaId));
+  const correoD = (aid: string) => asigsD.find(a => a.asignaturaId === aid)?.docenteCorreo ?? '';
+  const nueva = (id: string, asignaturaIds: string[], eje: string, responsable: string): GuiaPlan => ({
+    id, asignaturaIds, eje, responsableCorreo: responsable,
+    docentesCorreos: [...new Set(asignaturaIds.map(correoD).filter(Boolean))],
+    vistosBuenos: {}, seguimiento: {}, sustentacionEstado: 'sin_citar', actualizadoEn: 0,
+  });
+  const out: GuiaPlan[] = [];
+  for (const o of guiasO) {
+    const ids = o.asignaturaIds.filter(id => enD.has(id));
+    if (!ids.length) continue;
+    const aidResp = asigsO.find(a => o.asignaturaIds.includes(a.asignaturaId) && a.docenteCorreo.toLowerCase() === o.responsableCorreo.toLowerCase())?.asignaturaId;
+    out.push(nueva(o.id, ids, o.eje, correoD(aidResp && ids.includes(aidResp) ? aidResp : ids[0])));
+  }
+  const cubiertas = new Set(out.flatMap(g => g.asignaturaIds));
+  const sueltas = asigsD.map(a => a.asignaturaId).filter(id => !cubiertas.has(id));
+  if (sueltas.length) out.push(nueva(`g-extra`, sueltas, sueltas.map(nombre).join(' · '), correoD(sueltas[0])));
+  return out;
+}
+
 export interface ResumenReplicar {
   replicadas: string[];
   /** Replicadas desde una guía que no cubre exactamente las mismas asignaturas (revisar). */
@@ -78,6 +104,8 @@ export interface EntradaReplicar {
   asigsO: AsignaturaPlan[]; guiasO: GuiaPlan[];
   asigsD: AsignaturaPlan[]; guiasD: GuiaPlan[];
   nombre: NombreFn; etiquetaGuia: (g: GuiaPlan) => string;
+  /** Reemplazar las guías del destino para que queden agrupadas EXACTAMENTE como las del origen. */
+  igualarAgrupacion?: boolean;
 }
 
 const vacio = (s?: string) => !s?.trim();
@@ -105,11 +133,20 @@ export async function replicarGuias(e: EntradaReplicar): Promise<ResumenReplicar
     catch (er) { res.fallos.push({ texto: `${nombre(d.asignaturaId)}: criterios y entregable`, motivo: (er as Error).message }); }
   }
 
+  // 1b — Agrupación idéntica al origen: se reemplazan las guías del destino (también las aprobadas).
+  let guiasD = e.guiasD;
+  if (e.igualarAgrupacion) {
+    const nuevas = agrupacionComoOrigen(e.guiasO, e.asigsO, [...asigsD.values()], nombre);
+    const ids = new Set(nuevas.map(g => g.id));
+    await reemplazarGuias(destino.id, nuevas, e.guiasD.map(g => g.id).filter(id => !ids.has(id)));
+    guiasD = nuevas;
+  }
+
   // 2 — Guías: copiar pedido y guía, y aprobar una por una (cada reparto depende de las anteriores).
-  const pares = emparejarGuias(e.guiasO, e.guiasD);
+  const pares = emparejarGuias(e.guiasO, guiasD);
   const conPareja = new Set(pares.map(p => p.d.id));
-  for (const d of e.guiasD) if (!conPareja.has(d.id) && !d.aprobada) res.sinOrigen.push(etiquetaGuia(d));
-  const todas = new Map(e.guiasD.map(g => [g.id, g]));
+  for (const d of guiasD) if (!conPareja.has(d.id) && !d.aprobada) res.sinOrigen.push(etiquetaGuia(d));
+  const todas = new Map(guiasD.map(g => [g.id, g]));
   for (const { o, d, exacta } of pares) {
     const texto = etiquetaGuia(d);
     if (d.aprobada) { res.yaAprobadas.push(texto); continue; }
