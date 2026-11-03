@@ -341,8 +341,10 @@ export async function eliminarPlan(planId: string): Promise<void> {
 // ── Corrección hasta la fecha de cierre ───────────────────────────────────
 
 /** Gestor: fija (o quita, con '') la fecha de cierre del plan. */
-export async function guardarCierreEdicion(planId: string, fecha: string) {
-  await updateDoc(doc(baseDatos(), COL_PLANES, planId), { cierreEdicion: fecha || deleteField(), actualizadoEn: Date.now() });
+export async function guardarCierreEdicion(planId: string, fecha: string, hora = '') {
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId), {
+    cierreEdicion: fecha || deleteField(), cierreHora: (fecha && hora) || deleteField(), actualizadoEn: Date.now(),
+  });
 }
 
 /** Gestor: pone la marca «En espera — ingresó tarde» con el plazo de los docentes. */

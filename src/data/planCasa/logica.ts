@@ -255,7 +255,7 @@ export function conSinTecnologia(ajustes: string[], valor: boolean): { sinTecnol
  * Último día (inclusive) para corregir las guías: `plan.cierreEdicion` si coordinación la fijó;
  * si no, el último día hábil (lunes a viernes, sin festivo colombiano) ANTES de `plan.desde`.
  */
-export function fechaCierre(plan: Pick<PlanCasa, 'desde' | 'cierreEdicion' | 'enEspera'>): FechaISO {
+export function fechaCierre(plan: Pick<PlanCasa, 'desde' | 'cierreEdicion' | 'enEspera'> & Partial<Pick<PlanCasa, 'cierreHora'>>): FechaISO {
   let cierre: FechaISO;
   if (plan.cierreEdicion) cierre = plan.cierreEdicion;
   else {
@@ -265,6 +265,16 @@ export function fechaCierre(plan: Pick<PlanCasa, 'desde' | 'cierreEdicion' | 'en
   }
   // Caso «en espera» (ingresó tarde): el cierre efectivo es el mayor entre el cierre y el plazo.
   return plan.enEspera?.hasta && plan.enEspera.hasta > cierre ? plan.enEspera.hasta : cierre;
+}
+
+/** Hora límite del último día, si coordinación la fijó y ese día es el cierre efectivo. */
+export function horaCierre(plan: Pick<PlanCasa, 'desde' | 'cierreEdicion' | 'cierreHora' | 'enEspera'>): string | null {
+  return plan.cierreEdicion && plan.cierreHora && fechaCierre(plan) === plan.cierreEdicion ? plan.cierreHora : null;
+}
+
+/** Hora local 'HH:MM'. */
+export function horaLocal(d = new Date()): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 /** Próximo viernes estrictamente posterior a `hoy` (plazo por defecto de la marca «en espera»). */
@@ -279,17 +289,22 @@ export interface EstadoEdicion {
   motivo: 'antes_cierre' | 'autorizada' | 'cerrada';
   /** Último día editable (cierre o fin de la autorización). En 'cerrada' es el último que estuvo abierto. */
   hasta: FechaISO;
+  /** Hora límite de `hasta` ('HH:MM'), si coordinación la fijó. */
+  hora?: string;
 }
 
-/** ¿Se puede corregir la guía hoy? `hoy` en 'YYYY-MM-DD'. El último día cuenta completo. */
+/** ¿Se puede corregir la guía hoy? `hoy` en 'YYYY-MM-DD'. El último día cuenta completo, salvo que haya hora límite y `hora` ya la pasó. */
 export function estadoEdicion(
-  plan: Pick<PlanCasa, 'desde' | 'cierreEdicion' | 'enEspera'>, guia: Pick<GuiaPlan, 'autorizacion'> | undefined, hoy: FechaISO,
+  plan: Pick<PlanCasa, 'desde' | 'cierreEdicion' | 'cierreHora' | 'enEspera'>, guia: Pick<GuiaPlan, 'autorizacion'> | undefined, hoy: FechaISO, hora?: string,
 ): EstadoEdicion {
   const cierre = fechaCierre(plan);
-  if (hoy <= cierre) return { abierta: true, motivo: 'antes_cierre', hasta: cierre };
+  const hc = horaCierre(plan);
+  const pasoLaHora = hoy === cierre && !!hc && !!hora && hora >= hc;
+  const h = hc ? { hora: hc } : {};
+  if (hoy <= cierre && !pasoLaHora) return { abierta: true, motivo: 'antes_cierre', hasta: cierre, ...h };
   const aut = guia?.autorizacion;
   if (aut?.hasta && hoy <= aut.hasta) return { abierta: true, motivo: 'autorizada', hasta: aut.hasta };
-  return { abierta: false, motivo: 'cerrada', hasta: aut?.hasta && aut.hasta > cierre ? aut.hasta : cierre };
+  return aut?.hasta && aut.hasta > cierre ? { abierta: false, motivo: 'cerrada', hasta: aut.hasta } : { abierta: false, motivo: 'cerrada', hasta: cierre, ...h };
 }
 
 /** Días completos entre dos fechas ISO (b - a). */

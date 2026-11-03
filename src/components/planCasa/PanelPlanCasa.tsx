@@ -20,7 +20,7 @@ import { completarPlanConIA, type ItemProgreso, type ResumenCompletar } from '..
 import { faltantesPlan } from '../../data/planCasa/completarPlan';
 import { destinosPosibles, replicarGuias, type ResumenReplicar } from '../../data/planCasa/replicarGuias';
 import { leerAsignaturasYGuias } from '../../data/planCasa/persistencia';
-import { conSinTecnologia, fechaCierre, proximoViernes } from '../../data/planCasa/logica';
+import { conSinTecnologia, fechaCierre, horaCierre, proximoViernes } from '../../data/planCasa/logica';
 import { hoyLocal } from '../../data/planCasa/completarPlan';
 
 const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -36,7 +36,7 @@ import { VENTANA_SUSTENTACION, textoEntre, resumenProgramadas, fechaValida } fro
 import { abrirImprimibleUAI } from '../../data/planCasa/imprimibleUAI';
 import {
   BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
-  EtiquetaCoordinacion, fechaLarga, resumenGuia, TEXTO_SUSTENTACION,
+  EtiquetaCoordinacion, fechaLarga, resumenGuia, TEXTO_SUSTENTACION, hora12,
 } from './comun';
 
 const SEDE = 'central';
@@ -662,6 +662,7 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
   const [solicitudes, setSolicitudes] = useState<SolicitudAutorizacion[]>([]);
   const [fechaSust, setFechaSust] = useState<Record<string, string>>({});
   const [cierre, setCierre] = useState(plan.cierreEdicion ?? '');
+  const [cierreH, setCierreH] = useState(plan.cierreHora ?? '');
   const [cierreMsg, setCierreMsg] = useState('');
   // Eliminar: superusuario y equipo (UAI / orientación); la función lo vuelve a comprobar.
   const rolActual = useAppStore(s => s.rol);
@@ -729,11 +730,12 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
             <Etiqueta>Fecha de cierre para corregir las guías (último día editable)</Etiqueta>
             <div className="flex flex-wrap items-center gap-2">
               <input type="date" value={cierre} onChange={e => { setCierre(e.target.value); setCierreMsg(''); }} className={cn(CLASE_INPUT, 'max-w-[11rem]')} />
-              <button className={CLASE_BOTON_SEC} disabled={cierre === (plan.cierreEdicion ?? '')}
-                onClick={() => guardarCierreEdicion(plan.id, cierre).then(() => setCierreMsg('Guardado.')).catch(e => setError(e.message))}>Guardar cierre</button>
+              <input type="time" value={cierreH} aria-label="Hora límite" onChange={e => { setCierreH(e.target.value); setCierreMsg(''); }} className={cn(CLASE_INPUT, 'max-w-[8rem]')} />
+              <button className={CLASE_BOTON_SEC} disabled={cierre === (plan.cierreEdicion ?? '') && cierreH === (plan.cierreHora ?? '')}
+                onClick={() => guardarCierreEdicion(plan.id, cierre, cierreH).then(() => setCierreMsg('Guardado.')).catch(e => setError(e.message))}>Guardar cierre</button>
               {cierreMsg && <span className="text-xs text-soft">{cierreMsg}</span>}
             </div>
-            <p className="text-[11px] text-muted">Vigente: {fechaLarga(fechaCierre(plan))}{plan.cierreEdicion ? '' : ' (automática: último día hábil antes del inicio). Déjela vacía para volver a la automática.'}</p>
+            <p className="text-[11px] text-muted">Vigente: {textoVigente(plan)}{plan.cierreEdicion ? (plan.cierreHora ? '' : ' (todo el día; ponga una hora para cerrar antes)') : ' (automática: último día hábil antes del inicio). Déjela vacía para volver a la automática.'}</p>
           </div>
           <p className="text-soft"><span className="font-medium text-strong">Tope diario:</span> {plan.topeDiario} momentos · ritmo {plan.ritmo === 'dia_por_medio' ? 'día por medio' : 'diario'}</p>
           <button onClick={() => cambiarEstadoPlan(plan.id, plan.estado === 'activo' ? 'cerrado' : 'activo').catch(e => setError(e.message))}
@@ -1014,6 +1016,67 @@ function ElegirCartas({ planes, onCerrar }: { planes: PlanCasa[]; onCerrar: () =
   );
 }
 
+/** «martes 4 de noviembre a las 5:00 p. m.» según el cierre vigente del plan. */
+function textoVigente(p: PlanConDocentes): string {
+  const h = horaCierre(p);
+  return `${fechaLarga(fechaCierre(p))}${h ? ` a las ${hora12(h)}` : ''}`;
+}
+
+// ── Abrir plazo a toda una jornada ───────────────────────────────────────
+
+/** Coordinación: pone la misma fecha de cierre a todos los planes activos de una jornada. */
+function AbrirPlazoJornada({ planes, jornadaFija, onCerrar }: { planes: PlanConDocentes[]; jornadaFija: 'manana' | 'tarde' | null; onCerrar: () => void }) {
+  const [jornada, setJornada] = useState<'manana' | 'tarde' | 'ambas'>(jornadaFija ?? 'ambas');
+  const [fecha, setFecha] = useState('');
+  const [hora, setHora] = useState('');
+  const [estado, setEstado] = useState<'' | 'guardando' | 'ok'>('');
+  const [error, setError] = useState('');
+  const elegidos = planes.filter(p => p.estado === 'activo' && (jornada === 'ambas' || jornadaDePlan(p.grupo) === jornada));
+  const etiqueta = jornada === 'manana' ? 'la mañana' : jornada === 'tarde' ? 'la tarde' : 'las dos jornadas';
+
+  async function aplicar() {
+    setEstado('guardando'); setError('');
+    const r = await Promise.allSettled(elegidos.map(p => guardarCierreEdicion(p.id, fecha, hora)));
+    const malos = r.filter(x => x.status === 'rejected').length;
+    if (malos) setError(`No se pudo guardar en ${malos} plan(es). Intente de nuevo.`);
+    setEstado('ok');
+  }
+
+  return (
+    <div className="rounded-xl border border-line p-3 space-y-2 text-sm">
+      <p className="font-medium text-strong">Abrir plazo a los docentes de {etiqueta}</p>
+      {!jornadaFija && (
+        <div className="flex flex-wrap gap-3 text-xs">
+          {(['manana', 'tarde', 'ambas'] as const).map(j => (
+            <label key={j} className="flex items-center gap-1"><input type="radio" checked={jornada === j} onChange={() => { setJornada(j); setEstado(''); }} />
+              {j === 'manana' ? 'Mañana' : j === 'tarde' ? 'Tarde' : 'Ambas'}</label>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-xs text-soft">Último día editable
+          <input type="date" value={fecha} min={hoyLocal()} onChange={e => { setFecha(e.target.value); setEstado(''); }} className={cn(CLASE_INPUT, 'max-w-[11rem]')} /></label>
+        <label className="text-xs text-soft">Hasta la hora
+          <input type="time" value={hora} onChange={e => { setHora(e.target.value); setEstado(''); }} className={cn(CLASE_INPUT, 'max-w-[8rem]')} /></label>
+      </div>
+      {fecha && !hora && <p className="text-[11px] text-warning">Sin hora, el sistema queda abierto todo ese día (hasta las 11:59 p. m.).</p>}
+      <ul className="text-xs text-soft space-y-0.5 max-h-48 overflow-y-auto">
+        {elegidos.map(p => (
+          <li key={p.id}>{p.nombres} {p.apellidos} · {p.grupo} — hoy abierto hasta {textoVigente(p)}{p.enEspera ? ' (en espera)' : ''}</li>
+        ))}
+      </ul>
+      {error && <CajaError>{error}</CajaError>}
+      {estado === 'ok' && !error && <p className="text-xs text-success">Listo: {elegidos.length} plan(es) quedan abiertos hasta {fechaLarga(fecha)}{hora ? ` a las ${hora12(hora)}` : ' (todo el día)'}.</p>}
+      <div className="flex flex-wrap gap-2">
+        <button disabled={!fecha || !elegidos.length || estado === 'guardando'} onClick={aplicar} className={CLASE_BOTON}>
+          {estado === 'guardando' ? 'Guardando…' : `Abrir plazo a ${elegidos.length} plan(es)`}</button>
+        <button onClick={onCerrar} className={CLASE_BOTON_SEC}>Cerrar</button>
+      </div>
+      <p className="text-[11px] text-muted">Aplica a todos los docentes de esos estudiantes. Un caso «en espera» conserva su fecha si es posterior.</p>
+    </div>
+  );
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────
 
 export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguimiento' } = {}) {
@@ -1023,6 +1086,7 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
   const [aviso, setAviso] = useState('');
   const [vista, setVista] = useState<'planes' | 'avance' | 'seguimiento'>(vistaInicial ?? 'planes');
   const [eligiendoCartas, setEligiendoCartas] = useState(false);
+  const [abriendoPlazo, setAbriendoPlazo] = useState(false);
   const rol = useAppStore(s => s.rol);
   const jornadaUsuario = useAppStore(s => s.jornada);
   // Un coordinador solo ve (y envía cartas de) su jornada; el resto ve todo.
@@ -1047,8 +1111,10 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setEligiendoCartas(true)} className={CLASE_BOTON_SEC}><Mail size={15} />Cartas de todas las familias</button>
           <button onClick={() => imprimirPlanilla(visibles).catch(e => setError(e.message))} className={CLASE_BOTON_SEC}>Planilla de entrega</button>
+          {(rol === 'coordinador' || rol === 'superusuario') && !abriendoPlazo && <button onClick={() => setAbriendoPlazo(true)} className={CLASE_BOTON_SEC}>Abrir plazo a la jornada</button>}
         </div>
       )}
+      {vista === 'planes' && abriendoPlazo && <AbrirPlazoJornada planes={visibles} jornadaFija={jornadaFija} onCerrar={() => setAbriendoPlazo(false)} />}
       {vista === 'planes' && eligiendoCartas && <ElegirCartas planes={visibles} onCerrar={() => setEligiendoCartas(false)} />}
       {vista === 'planes' && visibles.map(p => <TarjetaPlan key={p.id} plan={p} planes={planes ?? []} />)}
       {vista === 'avance' && planes && <AvanceDocentes planes={planes} />}

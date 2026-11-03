@@ -5,7 +5,7 @@ import { addDias } from '../../data/tareas/calendario';
 import { cn } from '@/lib/utils';
 import type { AsignaturaPlan, ComponenteEntrega, GuiaPlan, FechaISO, PlanCasa } from '../../data/planCasa/tipos';
 import { sugerirPreguntas, type PreguntaSugerida } from '../../data/planCasa/persistencia';
-import { diasEntre, estadoEdicion, type EstadoEdicion } from '../../data/planCasa/logica';
+import { diasEntre, estadoEdicion, horaLocal, type EstadoEdicion } from '../../data/planCasa/logica';
 import { abrirImprimibleGuia, construirHtmlCuadernillo } from '../../data/planCasa/imprimibleGuia';
 import { abrirImprimibleUAI, construirHtmlUAI, type PlanParaUAI } from '../../data/planCasa/imprimibleUAI';
 
@@ -203,9 +203,25 @@ export function fechaLarga(iso: FechaISO): string {
 }
 
 /** Estado de edición de una guía hoy. Los gestores nunca quedan bloqueados. */
-export function edicionDe(plan: Pick<PlanCasa, 'desde' | 'cierreEdicion' | 'enEspera'>, g: Pick<GuiaPlan, 'autorizacion'> | undefined, gestor: boolean): EstadoEdicion {
-  const e = estadoEdicion(plan, g, hoyLocal());
+export function edicionDe(plan: Pick<PlanCasa, 'desde' | 'cierreEdicion' | 'cierreHora' | 'enEspera'>, g: Pick<GuiaPlan, 'autorizacion'> | undefined, gestor: boolean): EstadoEdicion {
+  const e = estadoEdicion(plan, g, hoyLocal(), horaLocal());
   return gestor && !e.abierta ? { ...e, abierta: true } : e;
+}
+
+/** '17:00' → '5:00 p. m.' */
+export function hora12(h: string): string {
+  const [hh, mm] = h.split(':').map(Number);
+  return `${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${hh < 12 ? 'a. m.' : 'p. m.'}`;
+}
+
+/** «el martes 4 de noviembre a las 5:00 p. m.» o «el martes 4 de noviembre». */
+export function hastaTexto(e: Pick<EstadoEdicion, 'hasta' | 'hora'>): string {
+  return `${fechaLarga(e.hasta)}${e.hora ? ` a las ${hora12(e.hora)}` : ''}`;
+}
+
+/** Desde cuándo está cerrada: con hora límite, ese mismo día a esa hora; si no, el día siguiente. */
+export function cerradaDesdeTexto(e: Pick<EstadoEdicion, 'hasta' | 'hora'>): string {
+  return e.hora ? `${fechaLarga(e.hasta)} a las ${hora12(e.hora)}` : fechaLarga(addDias(e.hasta, 1));
 }
 
 const ETAPAS = ['Borrador', 'Generada', 'Aprobada', 'Cerrada'] as const;
@@ -228,10 +244,10 @@ export function BarraEstadoGuia({ g, edicion }: { g: GuiaPlan; edicion: EstadoEd
       </ol>
       <p className={cn('text-xs', cerrada ? 'text-warning' : 'text-soft')}>
         {cerrada
-          ? `🔒 Cerrada desde el ${fechaLarga(addDias(edicion.hasta, 1))}.`
+          ? `🔒 Cerrada desde el ${cerradaDesdeTexto(edicion)}.`
           : edicion.motivo === 'autorizada'
             ? `Abierta por autorización de coordinación hasta el ${fechaLarga(edicion.hasta)}.`
-            : `Se puede corregir hasta el ${fechaLarga(edicion.hasta)} (${faltan === 0 ? 'último día' : faltan === 1 ? 'falta 1 día' : `faltan ${faltan} días`}).`}
+            : `Se puede corregir hasta el ${hastaTexto(edicion)} (${faltan === 0 ? 'último día' : faltan === 1 ? 'falta 1 día' : `faltan ${faltan} días`}).`}
       </p>
     </div>
   );

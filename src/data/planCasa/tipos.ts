@@ -84,6 +84,8 @@ export interface PlanCasa {
   estado: EstadoPlan;
   /** Último día (inclusive) para corregir las guías. Si falta, es el último día hábil antes de `desde`. */
   cierreEdicion?: FechaISO;
+  /** Hora límite ('HH:MM', hora de Colombia) del día `cierreEdicion`. Sin ella, el último día cuenta completo. */
+  cierreHora?: string;
   /** Caso que ingresó tarde: los docentes tienen hasta `hasta` para su parte. Mientras exista, no se completa con IA y la edición queda abierta hasta esa fecha. */
   enEspera?: EnEsperaPlan;
   /** Última alerta de inactividad (7+ días sin entregar) enviada por el servidor. Solo la escribe la función programada. */

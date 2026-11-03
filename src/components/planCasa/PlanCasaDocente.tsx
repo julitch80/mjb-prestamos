@@ -10,8 +10,7 @@ import type {
   AsignaturaPlan, ComponenteEntrega, EstadoPaso, EstadoSustentacion, Guia, GuiaPlan, PasoGuia, PedidoGuia, RevisionAsignatura, SolicitudAutorizacion,
 } from '../../data/planCasa/tipos';
 import { MODALIDADES_SUSTENTACION, MOTIVOS_SOLICITUD } from '../../data/planCasa/tipos';
-import { asignaturasCambiadas, diasEntre, estadoEdicion, fechaCierre, } from '../../data/planCasa/logica';
-import { addDias } from '../../data/tareas/calendario';
+import { asignaturasCambiadas, diasEntre, estadoEdicion, horaLocal, } from '../../data/planCasa/logica';
 import { construirChequeo, entregasPorRevisar, indiceColor, resumenChequeo } from '../../data/planCasa/checklist';
 import { capacidadPorSemana, esGuiaIntegrable, estadoTrasRevision, faltanPorRevisar, revisionCompleta } from '../../data/planCasa/integrada';
 import {
@@ -26,7 +25,7 @@ import EditorGuia from './EditorGuia';
 import { ListaEntregas, useEntregas } from './EntregasPaso';
 import {
   BarraEstadoGuia, BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, ComponentesEntrega, edicionDe, Etiqueta, EtiquetaCoordinacion, fechaCorta, fechaLarga, hoyLocal, Marca,
-  resumenGuia, SugerirPreguntas,
+  resumenGuia, SugerirPreguntas, hastaTexto, cerradaDesdeTexto,
 } from './comun';
 
 const EST_PASO: Record<EstadoPaso, string> = { pendiente: 'Pendiente', entregado: 'Entregado', revisado: 'Revisado' };
@@ -189,7 +188,7 @@ function PedirAutorizacion({ plan, g }: { plan: PlanConDocentes; g: GuiaPlan }) 
 
   return (
     <div className="rounded-xl bg-warning-soft text-warning-soft-fg p-3 space-y-2 text-sm">
-      <p>🔒 Cerrada desde el {fechaLarga(addDias(fechaCierre(plan), 1))}. Para cambiarla, pida autorización a coordinación.</p>
+      <p>🔒 Cerrada desde el {cerradaDesdeTexto(estadoEdicion(plan, undefined, hoyLocal(), horaLocal()))}. Para cambiarla, pida autorización a coordinación.</p>
       {ultima?.estado === 'pendiente' && <p className="text-xs">Su solicitud está pendiente de respuesta.</p>}
       {ultima?.estado === 'negada' && <p className="text-xs">Su última solicitud no fue autorizada.</p>}
       {!abierto && ultima?.estado !== 'pendiente' && (
@@ -283,7 +282,7 @@ function CriteriosAsignatura({ plan, a, nombre, gestor, eje, guia }: { plan: Pla
         {a.porIA && <EtiquetaCoordinacion c={a.completadoPorCoordinacion} />}
       </div>
       {gestor && <NotaGestor />}
-      {bloqueada && <p className="rounded-xl bg-warning-soft text-warning-soft-fg text-xs p-3">🔒 Cerrada desde el {fechaLarga(addDias(fechaCierre(plan), 1))}: ya no se pueden cambiar los criterios. Para cambiarlos, pida autorización en la guía (más abajo).</p>}
+      {bloqueada && <p className="rounded-xl bg-warning-soft text-warning-soft-fg text-xs p-3">🔒 Cerrada desde el {cerradaDesdeTexto(estadoEdicion(plan, undefined, hoyLocal(), horaLocal()))}: ya no se pueden cambiar los criterios. Para cambiarlos, pida autorización en la guía (más abajo).</p>}
       {plan.contextoDocentes?.trim() && (
         <div className="rounded-xl bg-elevated text-xs p-3">
           <p className="font-medium text-strong mb-1">Contexto del estudiante</p>
@@ -883,7 +882,7 @@ function PlanDocente({ plan, gestor, datos, foco }: { plan: PlanConDocentes; ges
   }
   useEffect(() => { if (foco && asigs && guias) irA(foco.seccion); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [foco?.n, !!(asigs && guias)]);
 
-  const edicion = estadoEdicion(plan, undefined, hoyLocal());
+  const edicion = estadoEdicion(plan, undefined, hoyLocal(), horaLocal());
   const faltan = diasEntre(hoyLocal(), edicion.hasta);
 
   return (
@@ -896,8 +895,8 @@ function PlanDocente({ plan, gestor, datos, foco }: { plan: PlanConDocentes; ges
         {plan.enEspera && <p className="text-xs rounded-lg bg-warning-soft text-warning-soft-fg px-2 py-1 my-1">⏳ Caso nuevo, ingresado después del cierre. Plazo para su parte: {fechaLarga(plan.enEspera.hasta)}.</p>}
         <p className={cn('text-xs', edicion.abierta ? 'text-soft' : 'text-warning')}>
           {edicion.abierta
-            ? `Edición abierta hasta ${fechaLarga(edicion.hasta)} · ${faltan === 0 ? 'último día' : faltan === 1 ? 'falta 1 día' : `faltan ${faltan} días`}`
-            : `🔒 Edición cerrada desde ${fechaLarga(addDias(edicion.hasta, 1))}`}
+            ? `Edición abierta hasta ${hastaTexto(edicion)} · ${faltan === 0 ? 'último día' : faltan === 1 ? 'falta 1 día' : `faltan ${faltan} días`}`
+            : `🔒 Edición cerrada desde ${cerradaDesdeTexto(edicion)}`}
         </p>
       </div>
 

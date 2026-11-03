@@ -224,3 +224,15 @@ describe('cierre efectivo con «en espera»', () => {
     expect(proximoViernes('2026-11-06')).toBe('2026-11-13'); // viernes -> el siguiente
   });
 });
+
+describe('hora límite del cierre', () => {
+  const plan = { desde: '2026-11-10', cierreEdicion: '2026-11-04', cierreHora: '17:00' };
+  it('abre hasta la hora y cierra después', () => {
+    expect(estadoEdicion(plan, undefined, '2026-11-04', '16:59').abierta).toBe(true);
+    expect(estadoEdicion(plan, undefined, '2026-11-04', '17:00').abierta).toBe(false);
+    expect(estadoEdicion(plan, undefined, '2026-11-03', '23:00').abierta).toBe(true);
+  });
+  it('sin hora, el último día cuenta completo', () => {
+    expect(estadoEdicion({ ...plan, cierreHora: undefined }, undefined, '2026-11-04', '23:30').abierta).toBe(true);
+  });
+});
