@@ -3,9 +3,9 @@ import { useState, type ReactNode } from 'react';
 import { AlertTriangle, FileDown, Printer, Loader2, Sparkles } from 'lucide-react';
 import { addDias } from '../../data/tareas/calendario';
 import { cn } from '@/lib/utils';
-import type { AsignaturaPlan, ComponenteEntrega, GuiaPlan, FechaISO, PasoGuia, PlanCasa, RitmoPlan } from '../../data/planCasa/tipos';
+import type { AsignaturaPlan, ComponenteEntrega, GuiaPlan, FechaISO, PlanCasa } from '../../data/planCasa/tipos';
 import { sugerirPreguntas, type PreguntaSugerida } from '../../data/planCasa/persistencia';
-import { diasEntre, estadoEdicion, repartirPasos, type EstadoEdicion } from '../../data/planCasa/logica';
+import { diasEntre, estadoEdicion, type EstadoEdicion } from '../../data/planCasa/logica';
 import { abrirImprimibleGuia, construirHtmlCuadernillo } from '../../data/planCasa/imprimibleGuia';
 import { abrirImprimibleUAI, construirHtmlUAI, type PlanParaUAI } from '../../data/planCasa/imprimibleUAI';
 
@@ -129,23 +129,8 @@ export function BotonCuadernillo({ plan, guias, nombres }: {
 
 // ── Reparto de fechas ─────────────────────────────────────────────────────
 
-/**
- * Reparte los pasos de TODAS las guías aprobadas del plan en días hábiles sin pasar el
- * tope diario (suma de momentos entre asignaturas). Respeta las fechas ya puestas.
- * Devuelve guiaId → pasos con fecha, y los avisos de lo que no cupo.
- */
-export function repartirTodas(
-  plan: { desde: FechaISO; hasta: FechaISO; topeDiario: number; ritmo?: RitmoPlan },
-  guias: { guiaId: string; pasos: PasoGuia[] }[],
-): { pasos: Record<string, PasoGuia[]>; avisos: string[] } {
-  const r = repartirPasos(guias, plan.desde, plan.hasta, plan.topeDiario, hoyLocal(), plan.ritmo ?? 'diario');
-  return { pasos: Object.fromEntries(r.asignaturas.map(g => [g.guiaId, g.pasos])), avisos: r.avisos };
-}
-
-export function hoyLocal(): FechaISO {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+import { hoyLocal } from '../../data/planCasa/completarPlan';
+export { repartirTodas, hoyLocal } from '../../data/planCasa/completarPlan';
 
 // ── Ayudante «Sugerir preguntas orientadoras» ─────────────────────────────
 
@@ -249,5 +234,15 @@ export function BarraEstadoGuia({ g, edicion }: { g: GuiaPlan; edicion: EstadoEd
             : `Se puede corregir hasta el ${fechaLarga(edicion.hasta)} (${faltan === 0 ? 'último día' : faltan === 1 ? 'falta 1 día' : `faltan ${faltan} días`}).`}
       </p>
     </div>
+  );
+}
+
+/** Etiqueta discreta de la traza de «Completar todo con IA» (coordinación). */
+export function EtiquetaCoordinacion({ c }: { c?: { correo: string; fecha: number } }) {
+  if (!c) return null;
+  return (
+    <span className="text-[11px] text-muted" title={`${c.correo} · ${new Date(c.fecha).toLocaleString('es-CO')}`}>
+      Completado por coordinación con IA
+    </span>
   );
 }

@@ -2,7 +2,7 @@
 // Crea planes, muestra el tablero por estudiante y el QR de la agenda pública.
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
-import { Check, ChevronDown, Copy, Plus, QrCode, RefreshCw, Search, X } from 'lucide-react';
+import { Check, ChevronDown, Copy, Plus, QrCode, RefreshCw, Search, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { buscarEstudiantes } from '../../asistencia/datos';
 import type { Student } from '../../asistencia/domain/types';
@@ -16,6 +16,8 @@ import {
   guardarContexto, guardarSinTecnologia, leerEquipo, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
+import { completarPlanConIA, type ItemProgreso, type ResumenCompletar } from '../../data/planCasa/completarConIA';
+import { faltantesPlan } from '../../data/planCasa/completarPlan';
 import { conSinTecnologia, fechaCierre } from '../../data/planCasa/logica';
 import { EntregasGuiaResumen } from './EntregasPaso';
 import { PestanasSubrayadas } from '../Navegacion';
@@ -26,7 +28,7 @@ import { auth } from '../../lib/firebase';
 import { abrirImprimibleUAI } from '../../data/planCasa/imprimibleUAI';
 import {
   BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
-  fechaLarga, resumenGuia, TEXTO_SUSTENTACION,
+  EtiquetaCoordinacion, fechaLarga, resumenGuia, TEXTO_SUSTENTACION,
 } from './comun';
 
 const SEDE = 'central';
@@ -427,6 +429,86 @@ function SolicitudesPendientes({ plan, solicitudes, nombreGuia, onError }: {
   );
 }
 
+/**
+ * «Completar todo con IA» (coordinación): sin esperar a ningún docente, la IA genera lo que falte
+ * (criterios, entregables, guías, integración) y se aprueba todo. Confirmación dentro de la página.
+ */
+function CompletarConIA({ plan, asigs, guias, nombres, puede }: {
+  plan: PlanConDocentes; asigs: AsignaturaPlan[]; guias: GuiaPlan[]; nombres: Record<string, { asignatura: string; docente: string }>; puede: boolean;
+}) {
+  const [paso, setPaso] = useState<'cerrado' | 'confirmar' | 'corriendo' | 'fin'>('cerrado');
+  const [tecleado, setTecleado] = useState('');
+  const [items, setItems] = useState<ItemProgreso[]>([]);
+  const [resumen, setResumen] = useState<ResumenCompletar | null>(null);
+  const [error, setError] = useState('');
+  const nombre = (id: string) => nombres[id]?.asignatura ?? id;
+  const etiquetaGuia = (g: { id: string; eje?: string; asignaturaIds: string[] }) => g.asignaturaIds.length > 1 ? (g.eje?.trim() || g.asignaturaIds.map(nombre).join(' · ')) : nombre(g.asignaturaIds[0] ?? g.id);
+  const f = faltantesPlan(plan, asigs, guias);
+  if (!puede || (paso === 'cerrado' && !f.hayQueHacer)) return null;
+
+  async function ejecutar() {
+    setPaso('corriendo'); setError(''); setResumen(null);
+    try {
+      const r = await completarPlanConIA({ plan, asigs, guias, nombre, etiquetaGuia, onProgreso: setItems });
+      setResumen(r);
+    } catch (e) { setError((e as Error).message); }
+    setPaso('fin');
+  }
+
+  return (
+    <div className="rounded-xl border border-line p-3 space-y-2">
+      {paso === 'cerrado' && (
+        <button onClick={() => { setPaso('confirmar'); setTecleado(''); }} className={CLASE_BOTON_SEC}>
+          <Sparkles size={15} />Completar todo con IA
+        </button>
+      )}
+      {paso === 'confirmar' && (
+        <div role="alert" className="space-y-2">
+          <p className="text-sm text-strong">No se esperará a ningún docente; la IA generará lo que falte y se aprobará todo.</p>
+          <p className="text-xs text-soft">
+            Falta: {f.asignaturas.length ? `campos de ${f.asignaturas.length} asignatura(s)` : 'ningún criterio'}
+            {f.entregables.length > 0 && `, entregable/fecha de ${f.entregables.length}`}
+            {f.guias.length > 0 && `, y aprobar ${f.guias.length} guía(s)`}. Lo que ya escribió un docente no se cambia.
+          </p>
+          <label className="block text-xs text-soft">Escriba COMPLETAR para habilitar el botón
+            <input value={tecleado} onChange={e => setTecleado(e.target.value)} className={CLASE_INPUT} autoComplete="off" /></label>
+          <div className="flex flex-wrap gap-2">
+            <button disabled={tecleado.trim().toUpperCase() !== 'COMPLETAR'} onClick={ejecutar} className={CLASE_BOTON}><Sparkles size={15} />Completar y aprobar</button>
+            <button onClick={() => setPaso('cerrado')} className={CLASE_BOTON_SEC}>Cancelar</button>
+          </div>
+        </div>
+      )}
+      {(paso === 'corriendo' || paso === 'fin') && (
+        <div className="space-y-2" aria-live="polite">
+          <p className="text-sm font-medium text-strong">{paso === 'corriendo' ? 'Completando con IA… no cierre esta página.' : 'Proceso terminado'}</p>
+          <ul className="space-y-0.5">
+            {items.map(it => (
+              <li key={it.id} className={cn('text-xs flex gap-1.5', it.estado === 'fallo' ? 'text-danger' : it.estado === 'ok' ? 'text-success' : 'text-soft')}>
+                <span aria-hidden className="w-4 flex-shrink-0">{it.estado === 'ok' ? '✓' : it.estado === 'fallo' ? '✗' : it.estado === 'curso' ? '…' : '·'}</span>
+                <span>{it.texto}</span>
+              </li>
+            ))}
+          </ul>
+          {error && <CajaError>{error}</CajaError>}
+          {resumen && (
+            <div className="rounded-lg bg-elevated p-2 text-xs space-y-1">
+              <p className="text-strong">{resumen.hechos} paso(s) completados{resumen.publicado ? ' · agenda publicada' : ''}.</p>
+              {resumen.fallos.length > 0 && (<>
+                <p className="text-danger font-medium">No se pudo ({resumen.fallos.length}):</p>
+                <ul className="list-disc pl-4 text-soft">{resumen.fallos.map((x, i) => <li key={i}>{x.texto}: {x.motivo}</li>)}</ul>
+              </>)}
+              {resumen.sinAprobar.length > 0
+                ? <p className="text-warning-soft-fg">Sin aprobar (no entran al cuadernillo): {resumen.sinAprobar.join(', ')}. Puede volver a pulsar el botón para reintentar solo lo que falta.</p>
+                : <p className="text-success">Todas las guías quedaron aprobadas: el cuadernillo ya se puede imprimir completo.</p>}
+            </div>
+          )}
+          {paso === 'fin' && <button onClick={() => setPaso('cerrado')} className={CLASE_BOTON_SEC}>Cerrar</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
   const [asigs, setAsigs] = useState<AsignaturaPlan[] | null>(null);
   const [guias, setGuias] = useState<GuiaPlan[] | null>(null);
@@ -538,6 +620,8 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
         </p>
       )}
 
+      {asigs && guias && <CompletarConIA plan={plan} asigs={asigs} guias={guias} nombres={nombres} puede={rolActual === 'coordinador' || esSuper} />}
+
       <SolicitudesPendientes plan={plan} solicitudes={solicitudes} onError={setError}
         nombreGuia={id => { const g = guias?.find(x => x.id === id); return g ? (g.eje || g.asignaturaIds.map(nombreAsig).join(' · ')) : id; }} />
 
@@ -556,6 +640,7 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
               <li key={a.asignaturaId} className="py-1.5 flex flex-wrap items-center gap-1.5">
                 <span className="text-sm text-strong">{n?.asignatura ?? a.asignaturaId}<span className="text-xs text-muted"> · {n?.docente ?? a.docenteId}</span></span>
                 <Marca ok={criteriosPuestos(a)} etiqueta="Criterios" />
+                {a.porIA && <EtiquetaCoordinacion c={a.completadoPorCoordinacion} />}
               </li>
             ))}
           </ul>
@@ -574,6 +659,7 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
                     {g.eje && g.asignaturaIds.length > 1 && <span className="text-xs text-muted"> · {g.asignaturaIds.map(nombreAsig).join(', ')}</span>}</p>
                   <div className="flex flex-wrap items-center gap-1.5 mt-1">
                     <Marca ok={r.guia} etiqueta="Aprobada" />
+                    {g.completadoPorCoordinacion && g.completadoPorCoordinacion.fecha === g.aprobadaEn && <EtiquetaCoordinacion c={g.completadoPorCoordinacion} />}
                     {g.asignaturaIds.length > 1 && <span className="text-[11px] text-soft">Vistos buenos {r.vistos}/{r.vistosTotal}</span>}
                     {r.guia && <span className="text-[11px] text-soft">{r.avance}% ({r.pasosTotal} pasos) · Sustentación: {TEXTO_SUSTENTACION[r.sustentacion]}</span>}
                   </div>

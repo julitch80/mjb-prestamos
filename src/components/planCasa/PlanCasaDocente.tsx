@@ -10,21 +10,23 @@ import type {
   AsignaturaPlan, ComponenteEntrega, EstadoPaso, EstadoSustentacion, Guia, GuiaPlan, PasoGuia, PedidoGuia, RevisionAsignatura, SolicitudAutorizacion,
 } from '../../data/planCasa/tipos';
 import { MODALIDADES_SUSTENTACION, MOTIVOS_SOLICITUD } from '../../data/planCasa/tipos';
-import { asignaturasCambiadas, diasEntre, estadoEdicion, fechaCierre, protegerPasosPasados, semanasDelPeriodo } from '../../data/planCasa/logica';
+import { asignaturasCambiadas, diasEntre, estadoEdicion, fechaCierre, } from '../../data/planCasa/logica';
 import { addDias } from '../../data/tareas/calendario';
 import { construirChequeo, entregasPorRevisar, indiceColor, resumenChequeo } from '../../data/planCasa/checklist';
 import { capacidadPorSemana, esGuiaIntegrable, estadoTrasRevision, faltanPorRevisar, revisionCompleta } from '../../data/planCasa/integrada';
 import {
   correoActual, darVistoBueno, leerEquipo, escucharAsignaturas, escucharGuias, escucharPlanes, guardarAsignatura,
-  escucharSolicitudes, guardarGuia, guardarRevisionParte, integrarGuiaIA, pedirAutorizacion, pedirGuiaIA, publicarPlan, sugerirCampos, type PlanConDocentes,
+  escucharSolicitudes, guardarGuia, guardarRevisionParte, pedirAutorizacion, publicarPlan, sugerirCampos, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { USUARIOS } from '../../data/maestros';
+import { aprobarBorrador, integrarYGuardarPropuesta, pedirYGuardarPropuesta } from '../../data/planCasa/completarConIA';
+import { errorDeBorrador } from '../../data/planCasa/completarPlan';
 import { asignaturasConNombre, gradoDeGrupo } from './nombres';
 import EditorGuia from './EditorGuia';
 import { ListaEntregas, useEntregas } from './EntregasPaso';
 import {
-  BarraEstadoGuia, BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, ComponentesEntrega, edicionDe, Etiqueta, fechaCorta, fechaLarga, hoyLocal, Marca,
-  repartirTodas, resumenGuia, SugerirPreguntas,
+  BarraEstadoGuia, BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, ComponentesEntrega, edicionDe, Etiqueta, EtiquetaCoordinacion, fechaCorta, fechaLarga, hoyLocal, Marca,
+  resumenGuia, SugerirPreguntas,
 } from './comun';
 
 const EST_PASO: Record<EstadoPaso, string> = { pendiente: 'Pendiente', entregado: 'Entregado', revisado: 'Revisado' };
@@ -278,6 +280,7 @@ function CriteriosAsignatura({ plan, a, nombre, gestor, eje, guia }: { plan: Pla
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-semibold text-strong">{nombre}</h3>
         {a.porIA && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-warning-soft text-warning-soft-fg">✨ Escrito por la IA · revíselo y toque Guardar</span>}
+        {a.porIA && <EtiquetaCoordinacion c={a.completadoPorCoordinacion} />}
       </div>
       {gestor && <NotaGestor />}
       {bloqueada && <p className="rounded-xl bg-warning-soft text-warning-soft-fg text-xs p-3">🔒 Cerrada desde el {fechaLarga(addDias(fechaCierre(plan), 1))}: ya no se pueden cambiar los criterios. Para cambiarlos, pida autorización en la guía (más abajo).</p>}
@@ -402,26 +405,6 @@ function VistosBuenos({ g, asigs }: { g: GuiaPlan; asigs: AsignaturaPlan[] }) {
 
 // ── Guía donde soy responsable ────────────────────────────────────────────
 
-/** Agrega (o actualiza) un paso «Entregable de <asignatura>» por cada asignatura que tenga entregable. */
-function conEntregables(guia: Guia, asigs: AsignaturaPlan[], nombre: (id: string) => string, desde: string): Guia {
-  // Guía integrada: los entregables de los docentes ya están fundidos en la entrega semanal; no se añaden pasos sueltos.
-  if (guia.integrada) return guia;
-  const pasos = [...guia.pasos];
-  for (const a of asigs) {
-    const id = `ent-${a.asignaturaId}`;
-    const i = pasos.findIndex(p => p.id === id);
-    if (!a.entregable?.trim()) { if (i >= 0) pasos.splice(i, 1); continue; }
-    const fecha = a.fechaEntrega || null;
-    const semana = fecha ? Math.max(1, Math.floor((new Date(`${fecha}T12:00:00`).getTime() - new Date(`${desde}T12:00:00`).getTime()) / (7 * 86400000)) + 1) : (pasos[pasos.length - 1]?.semana ?? 1);
-    const paso = {
-      id, titulo: `Entregable de ${nombre(a.asignaturaId)}`, instrucciones: a.entregable.trim(), momentos: 1,
-      evidencia: 'foto' as const, evidenciaDetalle: a.entregable.trim(), semana, fecha,
-    };
-    if (i >= 0) pasos[i] = { ...pasos[i], ...paso }; else pasos.push(paso);
-  }
-  return { ...guia, pasos };
-}
-
 /** Aviso en la página (no window.confirm) antes de pedir otra versión a la IA cuando ya existe una. */
 function AvisoOtraVersion({ onGenerar, onCancelar }: { onGenerar: () => void; onCancelar: () => void }) {
   return (
@@ -462,7 +445,6 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
   const r = resumenGuia(g);
   const edicion = edicionDe(plan, g, gestor);
   const cerrada = !edicion.abierta;
-  const despuesDelCierre = hoyLocal() > fechaCierre(plan);
   const transversal = g.asignaturaIds.length > 1 || plan.modalidad === 'transversal';
   const integrable = esGuiaIntegrable(plan, g);
   const nombre = (id: string) => nombres[id]?.asignatura ?? id;
@@ -501,24 +483,10 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
     finally { setSugiriendo(false); }
   }
 
-  /** Pide la guía a la IA con las asignaturas dadas y la guarda como propuesta. */
+  /** Pide la guía a la IA con las asignaturas dadas y la guarda como propuesta (lógica compartida con «Completar todo con IA»). */
   async function pedirYGuardar(limpio: PedidoGuia, pr: AsignaturaPlan[]) {
-    const guia = await pedirGuiaIA({
-      asignatura: pr.map(a => nombre(a.asignaturaId)).join(', '),
-      ...(transversal ? { transversal: { eje: g.eje, asignaturas: pr.map(a => ({
-        nombre: nombre(a.asignaturaId), criteriosPromocion: a.criteriosPromocion, ...(a.aportes?.trim() ? { aportes: a.aportes.trim() } : {}),
-        ...(a.ebcDba?.trim() ? { ebcDba: a.ebcDba.trim() } : {}),
-        ...(a.evidenciaAprendizaje?.trim() ? { evidenciaAprendizaje: a.evidenciaAprendizaje.trim() } : {}),
-      })) } } : {}),
-      grado: gradoDeGrupo(plan.grupo), desde: plan.desde, hasta: plan.hasta,
-      ajustes: plan.ajustes, topeDiario: plan.topeDiario, ...(plan.sinTecnologia ? { sinTecnologia: true } : {}),
-      semanas: semanasDelPeriodo(plan.desde, plan.hasta), ritmo: plan.ritmo ?? 'diario',
-      criteriosPromocion: pr.map(a => `${transversal ? nombre(a.asignaturaId) + ': ' : ''}${a.criteriosPromocion}${!transversal && a.ebcDba?.trim() ? ` | EBC/DBA priorizado: ${a.ebcDba.trim()}` : ''}${!transversal && a.evidenciaAprendizaje?.trim() ? ` | Evidencia de aprendizaje esperada: ${a.evidenciaAprendizaje.trim()}` : ''}`).join('\n'),
-      pedido: limpio, ...(indicacion.trim() ? { indicacion: indicacion.trim() } : {}),
-    });
-    const conEnt = conEntregables(guia, pr, nombre, plan.desde);
+    const conEnt = await pedirYGuardarPropuesta({ plan, g, propias: pr, nombre, pedido: limpio, indicacion });
     setBorrador(conEnt); setIndicacion('');
-    await guardarGuia(plan.id, g.id, { pedido: limpio, propuesta: conEnt, propuestaEn: Date.now() });
   }
 
   async function generar() {
@@ -624,18 +592,8 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
     if (!base) return setError('Primero genere la guía.');
     setError(''); setAviso(''); setAvisosIntegrar([]); setIntegrando(true);
     try {
-      const r = await integrarGuiaIA({
-        guia: base, eje: g.eje, grado: gradoDeGrupo(plan.grupo), desde: plan.desde, hasta: plan.hasta,
-        ajustes: plan.ajustes, topeDiario: plan.topeDiario, ritmo: plan.ritmo ?? 'diario', ...(plan.sinTecnologia ? { sinTecnologia: true } : {}),
-        asignaturas: propias.map(a => ({
-          asignaturaId: a.asignaturaId, nombre: nombre(a.asignaturaId), criterios: a.criteriosPromocion,
-          ...(a.aportes?.trim() ? { tematicas: a.aportes.trim() } : {}), ...(a.ebcDba?.trim() ? { competencia: a.ebcDba.trim() } : {}),
-          ...(a.evidenciaAprendizaje?.trim() ? { evidencia: a.evidenciaAprendizaje.trim() } : {}),
-          ...(a.entregable?.trim() ? { entregable: a.entregable.trim() } : {}), ...(a.fechaEntrega ? { fechaEntrega: a.fechaEntrega } : {}),
-        })),
-      });
+      const r = await integrarYGuardarPropuesta({ plan, g, base, propias, nombre });
       setBorrador(r.guia); setEditando(true); setAvisosIntegrar(r.avisos);
-      await guardarGuia(plan.id, g.id, { propuesta: r.guia, propuestaEn: Date.now() });
       setAviso('Guía integrada. Revise las entregas de cada semana y luego use «Aprobar y publicar».');
       setTimeout(() => refPropuesta.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
     } catch (e) { setError((e as Error).message); }
@@ -651,41 +609,17 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
 
   async function aprobar() {
     if (!borrador) return;
-    if (!borrador.pasos.length || borrador.pasos.some(p => !p.titulo.trim())) return setError('Cada paso necesita un título.');
+    const errB = errorDeBorrador(borrador);
+    if (errB) return setError(errB);
     setError(''); setAviso(''); setAprobando(true);
     try {
-      const otras = todas.filter(x => x.id !== g.id && x.aprobada).map(x => ({ guiaId: x.id, pasos: x.aprobada!.pasos }));
-      // Los entregables que cada docente puso en su asignatura (pueden haber llegado después de generar).
-      const base = conEntregables(borrador, propias, nombre, plan.desde);
-      const { pasos: rep, avisos } = repartirTodas(plan, [...otras, { guiaId: g.id, pasos: base.pasos }]);
-      let aprobada: Guia = { ...base, pasos: rep[g.id] ?? base.pasos };
-      // Pasada la fecha de cierre, lo que ya ocurrió (fecha anterior a mañana) no se toca.
-      let protegidos = 0;
-      if (despuesDelCierre) {
-        const pr = protegerPasosPasados(aprobada.pasos, g.aprobada?.pasos, addDias(hoyLocal(), 1));
-        aprobada = { ...aprobada, pasos: pr.pasos }; protegidos = pr.restaurados;
-      }
-      const cambio = !g.aprobada || JSON.stringify(g.aprobada) !== JSON.stringify(aprobada);
-      const ahora = Date.now();
-      await guardarGuia(plan.id, g.id, {
-        aprobada, aprobadaEn: ahora, propuesta: aprobada, propuestaEn: ahora,
-        // Una guía integrada conserva los vistos buenos: solo reorganiza lo que los docentes ya dieron.
-        ...(cambio && !aprobada.integrada && Object.keys(g.vistosBuenos ?? {}).length ? { vistosBuenos: {} } : {}),
-      });
-      setBorrador(aprobada);
-      let sinPermiso = 0;
-      for (const x of todas) {
-        if (x.id === g.id || !x.aprobada || !rep[x.id]) continue;
-        // Las fechas ya puestas se respetan al repartir: solo se escribe si algo cambió.
-        if (JSON.stringify(rep[x.id].map(p => p.fecha)) === JSON.stringify(x.aprobada.pasos.map(p => p.fecha))) continue;
-        try { await guardarGuia(plan.id, x.id, { aprobada: { ...x.aprobada, pasos: rep[x.id] } }); } catch { sinPermiso++; }
-      }
+      const r = await aprobarBorrador({ plan, g, borrador, todas, propias, nombre, publicar: true });
+      setBorrador(r.aprobada);
       let msg = 'Guía aprobada.';
-      try { await publicarPlan(plan.id); msg += ' Ya está en la agenda del estudiante.'; }
-      catch (e) { msg += ` No se pudo publicar la agenda: ${(e as Error).message}`; }
-      if (avisos.length) msg += ` ${avisos.join(' ')}`;
-      if (protegidos) msg += ` Se conservaron sin cambios ${protegidos} paso(s) cuya fecha ya pasó.`;
-      if (sinPermiso) msg += ` (${sinPermiso} guía(s) de otros docentes no se reprogramaron.)`;
+      msg += r.errorPublicar === null ? ' Ya está en la agenda del estudiante.' : ` No se pudo publicar la agenda: ${r.errorPublicar}`;
+      if (r.avisos.length) msg += ` ${r.avisos.join(' ')}`;
+      if (r.protegidos) msg += ` Se conservaron sin cambios ${r.protegidos} paso(s) cuya fecha ya pasó.`;
+      if (r.sinPermiso) msg += ` (${r.sinPermiso} guía(s) de otros docentes no se reprogramaron.)`;
       setAviso(msg); setEditando(false);
     } catch (e) { setError((e as Error).message); }
     finally { setAprobando(false); }
@@ -699,6 +633,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
           {transversal && <p className="text-xs text-muted">{g.eje ? `Pregunta orientadora: ${g.eje}` : 'Pregunta orientadora pendiente.'}</p>}
         </div>
         {r.guia && <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-success-soft text-success-soft-fg flex-shrink-0">✓ Aprobada</span>}
+        {g.completadoPorCoordinacion && g.completadoPorCoordinacion.fecha === g.aprobadaEn && <EtiquetaCoordinacion c={g.completadoPorCoordinacion} />}
       </div>
       <BarraEstadoGuia g={g} edicion={edicion} />
       {gestor && <NotaGestor />}

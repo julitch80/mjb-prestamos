@@ -204,6 +204,9 @@ export interface RevisionAsignatura {
 }
 
 /** planesCasa/{planId}/asignaturas/{asignaturaId} — lo de cada asignatura que no es la guía. */
+/** Traza de «Completar todo con IA»: quién y cuándo (ms). */
+export interface CompletadoPorCoordinacion { correo: string; fecha: number }
+
 export interface AsignaturaPlan {
   asignaturaId: string;
   docenteId: string;          // id de USUARIOS
@@ -222,6 +225,8 @@ export interface AsignaturaPlan {
   fechaEntrega?: FechaISO;
   /** Los campos los llenó la IA («Generar todo») y el docente aún no los ha guardado él mismo. */
   porIA?: boolean;
+  /** Lo completó coordinación con «Completar todo con IA» (sin esperar al docente). Se muestra solo mientras `porIA` siga activo. */
+  completadoPorCoordinacion?: CompletadoPorCoordinacion;
   actualizadoEn: number;
 }
 
@@ -246,6 +251,8 @@ export interface GuiaPlan {
   /** La guía aprobada: es la que ve el estudiante. La aprueba el responsable. */
   aprobada?: Guia;
   aprobadaEn?: number;
+  /** La aprobó coordinación con «Completar todo con IA»; `fecha` = `aprobadaEn` (si el docente reaprueba, deja de coincidir y la etiqueta desaparece). */
+  completadoPorCoordinacion?: CompletadoPorCoordinacion;
   /** ms en que el líder guardó la última propuesta (generada o reaprobada). */
   propuestaEn?: number;
   /** Coordinación autorizó corregir después del cierre. Solo la escribe un gestor. */
