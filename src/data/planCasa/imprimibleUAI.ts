@@ -6,6 +6,7 @@ import type {
   AsignaturaPlan, FechaISO, Guia, GuiaPlan, PlanCasa, RitmoPlan,
 } from './tipos';
 import { MODALIDADES_SUSTENTACION } from './tipos';
+import { textoEntre } from './ventanaSustentacion';
 
 export type PlanParaUAI = Pick<PlanCasa, 'nombres' | 'grupo' | 'desde' | 'hasta' | 'ajustes' | 'topeDiario'> & { ritmo?: RitmoPlan; sinTecnologia?: boolean };
 
@@ -59,7 +60,7 @@ function seccionGuia(
   const esPregunta = g.eje.trim() && !g.asignaturaIds.includes(g.eje) && !nombresAreas.includes(g.eje);
   const modal = MODALIDADES_SUSTENTACION.find(m => m.id === guia.sustentacion.modalidad)?.texto ?? guia.sustentacion.modalidad;
   const s = guia.sustentacion;
-  const detalleSust = [s.fecha ? fecha(s.fecha) : '', s.hora ?? '', s.lugarOEnlace].filter(Boolean).join(' · ');
+  const detalleSust = [s.fecha ? fecha(s.fecha) : `${textoEntre()} (por confirmar)`, s.hora ?? '', s.lugarOEnlace].filter(Boolean).join(' · ');
 
   const filaPasos = guia.pasos.map(p => `<tr class="${p.esEntregaParcial ? 'parcial' : ''}">
     <td>${esc(p.titulo)}${p.esEntregaParcial ? '<span class="tag">Entrega parcial</span>' : ''}</td>

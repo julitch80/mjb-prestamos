@@ -2,6 +2,7 @@
 // planesCasaPublico/{token}. Solo primer nombre; nunca apellidos.
 import { subpasos } from '../../data/planCasa/subpasos';
 import { aFecha, aISO, agruparPorDia, diasEntre, semanaDe, sumarDias } from '../../data/planCasa/calendarioAgenda';
+import { pendientesPorDia, textoEntre, textoVentana } from '../../data/planCasa/ventanaSustentacion';
 import { SelectorVista, VistaMes, VistaSemana, colorAsignatura, type Vista } from './VistasCalendario';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
@@ -125,7 +126,10 @@ function Contenido({ plan, token, hoy, dia, setDia, vista, setVista, conVistas }
   // Tira de la semana que contiene el día elegido (lunes a viernes).
   const semana = useMemo(() => semanaDe(dia).slice(0, 5), [dia]);
   const porDia = useMemo(() => agruparPorDia(plan.pasos), [plan]);
-  const sustPorDia = useMemo(() => agruparPorDia(plan.sustentaciones), [plan]);
+  // Las sustentaciones sin fecha se avisan en cada día de la ventana institucional.
+  const sustPorDia = useMemo(() => agruparPorDia(plan.sustentaciones.filter(s => s.fecha)), [plan]);
+  const pendPorDia = useMemo(() => pendientesPorDia(plan.sustentaciones), [plan]);
+  const pendDelDia = pendPorDia[dia] ?? [];
   const colores = useMemo(() => {
     const nombres = [...new Set(plan.pasos.map(p => p.asignatura))].sort();
     return (a: string) => colorAsignatura(Math.max(0, nombres.indexOf(a)));
@@ -147,8 +151,8 @@ function Contenido({ plan, token, hoy, dia, setDia, vista, setVista, conVistas }
 
       {conVistas && <SelectorVista vista={vista} setVista={setVista} />}
 
-      {vista === 'semana' && <VistaSemana plan={plan} hoy={hoy} dia={dia} setDia={setDia} porDia={porDia} sustPorDia={sustPorDia} color={colores} irADia={irADia} />}
-      {vista === 'mes' && <VistaMes plan={plan} hoy={hoy} dia={dia} porDia={porDia} sustPorDia={sustPorDia} irADia={irADia} />}
+      {vista === 'semana' && <VistaSemana plan={plan} hoy={hoy} dia={dia} setDia={setDia} porDia={porDia} sustPorDia={sustPorDia} pendPorDia={pendPorDia} color={colores} irADia={irADia} />}
+      {vista === 'mes' && <VistaMes plan={plan} hoy={hoy} dia={dia} porDia={porDia} sustPorDia={sustPorDia} pendPorDia={pendPorDia} irADia={irADia} />}
 
       {vista === 'dia' && <>
       <nav aria-label="Semana" className="grid grid-cols-5 gap-1.5">
@@ -171,6 +175,7 @@ function Contenido({ plan, token, hoy, dia, setDia, vista, setVista, conVistas }
           <h2 className="text-lg font-bold text-strong">{esHoy ? 'Hoy' : fechaLinda(dia)}</h2>
           {total > 0 && <span className="text-sm text-soft">{total} {total === 1 ? 'momento' : 'momentos'} · {unidades(total)}</span>}
         </div>
+        {pendDelDia.length > 0 && <AvisoSustentaciones areas={pendDelDia} />}
         {delDia.length === 0 ? (
           <p className="rounded-2xl border border-line bg-card p-4 text-base text-soft">
             {esHoy ? 'Hoy no tienes pasos. ¡Buen descanso!' : 'Este día no tiene pasos.'}
@@ -206,7 +211,7 @@ function Contenido({ plan, token, hoy, dia, setDia, vista, setVista, conVistas }
             <div key={i} className="rounded-2xl border border-line bg-card p-4 space-y-2">
               <p className="text-base font-semibold text-strong">{s.asignatura}</p>
               <p className="text-base text-soft">
-                {s.fecha ? `${fechaLinda(s.fecha)} (${cuenta(s.fecha, hoy)})` : 'Fecha por confirmar'}
+                {s.fecha ? `${fechaLinda(s.fecha)} (${cuenta(s.fecha, hoy)})` : `${textoEntre()} · fecha y hora por confirmar`}
                 {s.hora ? ` · ${s.hora}` : ''} · {MODALIDADES_SUSTENTACION.find(m => m.id === s.modalidad)?.texto ?? 'Presencial'}
               </p>
               {s.lugarOEnlace && (/^https?:\/\//.test(s.lugarOEnlace)
@@ -230,6 +235,16 @@ function Contenido({ plan, token, hoy, dia, setDia, vista, setVista, conVistas }
 
       <footer className="text-center text-xs text-muted pb-4">I.E. Manuel J. Betancur · Un paso a la vez, tú puedes.</footer>
     </>
+  );
+}
+
+/** Aviso de la semana de sustentaciones para las áreas que aún no tienen fecha. */
+export function AvisoSustentaciones({ areas }: { areas: string[] }) {
+  return (
+    <div role="note" className="rounded-2xl border border-accent bg-card p-3 space-y-1">
+      <p className="text-base font-semibold text-strong">🎤 Semana de sustentaciones ({textoVentana()}) — fecha y hora por confirmar</p>
+      <p className="text-sm text-soft">Áreas pendientes: {areas.join(' · ')}</p>
+    </div>
   );
 }
 

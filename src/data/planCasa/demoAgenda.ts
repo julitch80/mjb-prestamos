@@ -2,6 +2,7 @@
 // Todo es relativo a un lunes (el de la semana actual) para que la demo siempre tenga sentido.
 import type { FechaISO, PlanPublico } from './tipos';
 import { aISO, lunesDe, sumarDias } from './calendarioAgenda';
+import { diasVentana } from './ventanaSustentacion';
 
 export interface DemoAgenda {
   datos: PlanPublico;
@@ -51,7 +52,9 @@ export function crearDemoAgenda(hoyReal: FechaISO = aISO(new Date())): DemoAgend
       },
       { id: 'e5', semana: 3, esEntregaParcial: true, canalEntrega: 'Foto por WhatsApp', asignatura: 'Español', docente: 'Docente de Español', guiaId: G.esp, titulo: 'Texto final', instrucciones: 'Pasa en limpio tu texto y toma una foto.', momentos: 1, evidencia: 'foto', evidenciaDetalle: 'Foto del texto final', fecha: f(18) },
     ],
-    sustentaciones: [{ asignatura: 'Física', docente: 'Docente de Física', modalidad: 'virtual', fecha: f(18), hora: '09:00', lugarOEnlace: 'https://meet.google.com/demo-demo-demo', preguntasGuia: ['¿Qué es la velocidad?', '¿Cómo la mediste en tu experimento?', '¿Qué fue lo más difícil?'] }],
+    sustentaciones: [{ asignatura: 'Física', docente: 'Docente de Física', modalidad: 'virtual', fecha: diasVentana()[1], hora: '09:00', lugarOEnlace: 'https://meet.google.com/demo-demo-demo', preguntasGuia: ['¿Qué es la velocidad?', '¿Cómo la mediste en tu experimento?', '¿Qué fue lo más difícil?'] },
+      // Sin fecha todavía: la agenda avisa «semana de sustentaciones» en los días de la ventana.
+      { asignatura: 'Matemáticas', docente: 'Docente de Matemáticas', modalidad: 'presencial', fecha: null, hora: null, lugarOEnlace: '', preguntasGuia: ['¿Qué es una proporción directa?', '¿Cómo resolviste el problema del mercado?'] }],
   };
 
   return { datos, desde: f(0), hasta: f(18), atajos: { inicio: f(0), mitad: f(9), entrega: f(17), despues: f(21) } };

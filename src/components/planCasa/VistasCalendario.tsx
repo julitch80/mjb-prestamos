@@ -6,6 +6,7 @@ import {
   aFecha, cuadriculaMes, enRango, hayMesAnterior, hayMesSiguiente, limitarMes, primeroDeMes, semanaDe, sumarDias, sumarMeses,
 } from '../../data/planCasa/calendarioAgenda';
 import type { FechaISO, PlanPublico } from '../../data/planCasa/tipos';
+import { limiteAgenda } from '../../data/planCasa/ventanaSustentacion';
 
 type Paso = PlanPublico['pasos'][number];
 type Sust = PlanPublico['sustentaciones'][number];
@@ -41,12 +42,13 @@ export function SelectorVista({ vista, setVista }: { vista: Vista; setVista: (v:
   );
 }
 
-export function VistaSemana({ plan, hoy, dia, setDia, porDia, sustPorDia, color, irADia }: {
+export function VistaSemana({ plan, hoy, dia, setDia, porDia, sustPorDia, pendPorDia = {}, color, irADia }: {
   plan: PlanPublico; hoy: FechaISO; dia: FechaISO; setDia: (f: FechaISO) => void;
-  porDia: Agrupado<Paso>; sustPorDia: Agrupado<Sust>;
+  porDia: Agrupado<Paso>; sustPorDia: Agrupado<Sust>; pendPorDia?: Record<FechaISO, string[]>;
   color: (a: string) => { fondo: string; borde: string }; irADia: (f: FechaISO) => void;
 }) {
   const dias = semanaDe(dia);
+  const limite = limiteAgenda(plan.hasta); // incluye la ventana de sustentaciones aunque el plan termine antes
   const lunes = dias[0], domingo = dias[6];
   const mover = (n: number) => setDia(sumarDias(dia, n * 7));
   return (
@@ -54,14 +56,15 @@ export function VistaSemana({ plan, hoy, dia, setDia, porDia, sustPorDia, color,
       <div className="flex items-center justify-between gap-2">
         <button onClick={() => mover(-1)} disabled={lunes <= plan.desde} aria-label="Semana anterior" className={botonNav}><ChevronLeft size={20} /></button>
         <p className="text-base font-semibold text-strong text-center">{fechaCorta(lunes)} – {fechaCorta(domingo)}</p>
-        <button onClick={() => mover(1)} disabled={domingo >= plan.hasta} aria-label="Semana siguiente" className={botonNav}><ChevronRight size={20} /></button>
+        <button onClick={() => mover(1)} disabled={domingo >= limite} aria-label="Semana siguiente" className={botonNav}><ChevronRight size={20} /></button>
       </div>
       <ul className="grid grid-cols-1 sm:grid-cols-7 gap-1.5">
         {dias.map(f => {
           const pasos = porDia[f] ?? [];
           const sust = sustPorDia[f] ?? [];
+          const pend = pendPorDia[f] ?? [];
           const esHoy = f === hoy;
-          const fuera = !enRango(f, plan.desde, plan.hasta);
+          const fuera = !enRango(f, plan.desde, limite);
           return (
             <li key={f} className="min-w-0">
               <button onClick={() => irADia(f)} aria-label={`${fechaLinda(f)}: ${pasos.length} pasos`}
@@ -71,7 +74,7 @@ export function VistaSemana({ plan, hoy, dia, setDia, porDia, sustPorDia, color,
                   <span className={`text-base font-bold ${esHoy ? 'text-accent' : 'text-strong'}`}>{aFecha(f).getDate()}</span>
                   {esHoy && <span className="text-[10px] font-semibold text-accent"> hoy</span>}
                 </div>
-                {pasos.length === 0 && sust.length === 0 && <p className="text-xs text-muted">·</p>}
+                {pasos.length === 0 && sust.length === 0 && pend.length === 0 && <p className="text-xs text-muted">·</p>}
                 {pasos.map(p => {
                   const c = color(p.asignatura);
                   return (
@@ -87,6 +90,12 @@ export function VistaSemana({ plan, hoy, dia, setDia, porDia, sustPorDia, color,
                 {sust.map((s, i) => (
                   <div key={i} className="rounded-md px-1.5 py-1 text-xs leading-tight font-semibold bg-accent text-accent-fg">🎤 Sustentación · {s.asignatura}</div>
                 ))}
+                {pend.length > 0 && (
+                  <div className="rounded-md px-1.5 py-1 text-xs leading-tight border border-dashed border-accent text-strong break-words">
+                    🎤 Semana de sustentaciones · por confirmar
+                    <span className="block text-muted">{pend.join(' · ')}</span>
+                  </div>
+                )}
               </button>
             </li>
           );
@@ -97,11 +106,11 @@ export function VistaSemana({ plan, hoy, dia, setDia, porDia, sustPorDia, color,
   );
 }
 
-export function VistaMes({ plan, hoy, dia, porDia, sustPorDia, irADia }: {
+export function VistaMes({ plan, hoy, dia, porDia, sustPorDia, pendPorDia = {}, irADia }: {
   plan: PlanPublico; hoy: FechaISO; dia: FechaISO;
-  porDia: Agrupado<Paso>; sustPorDia: Agrupado<Sust>; irADia: (f: FechaISO) => void;
+  porDia: Agrupado<Paso>; sustPorDia: Agrupado<Sust>; pendPorDia?: Record<FechaISO, string[]>; irADia: (f: FechaISO) => void;
 }) {
-  const [mes, setMes] = useState<FechaISO>(() => limitarMes(primeroDeMes(dia), plan.desde, plan.hasta));
+  const [mes, setMes] = useState<FechaISO>(() => limitarMes(primeroDeMes(dia), plan.desde, limiteAgenda(plan.hasta)));
   const celdas = cuadriculaMes(mes);
   const m = aFecha(mes);
   return (
@@ -109,7 +118,7 @@ export function VistaMes({ plan, hoy, dia, porDia, sustPorDia, irADia }: {
       <div className="flex items-center justify-between gap-2">
         <button onClick={() => setMes(sumarMeses(mes, -1))} disabled={!hayMesAnterior(mes, plan.desde)} aria-label="Mes anterior" className={botonNav}><ChevronLeft size={20} /></button>
         <p className="text-base font-semibold text-strong capitalize">{MESES_LARGO[m.getMonth()]} {m.getFullYear()}</p>
-        <button onClick={() => setMes(sumarMeses(mes, 1))} disabled={!hayMesSiguiente(mes, plan.hasta)} aria-label="Mes siguiente" className={botonNav}><ChevronRight size={20} /></button>
+        <button onClick={() => setMes(sumarMeses(mes, 1))} disabled={!hayMesSiguiente(mes, limiteAgenda(plan.hasta))} aria-label="Mes siguiente" className={botonNav}><ChevronRight size={20} /></button>
       </div>
       <div className="grid grid-cols-7 gap-1 text-center text-xs uppercase text-muted">
         {['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'].map(d => <div key={d}>{d}</div>)}
@@ -118,12 +127,13 @@ export function VistaMes({ plan, hoy, dia, porDia, sustPorDia, irADia }: {
         {celdas.map(c => {
           const pasos = porDia[c.fecha] ?? [];
           const sust = (sustPorDia[c.fecha] ?? []).length > 0;
+          const pendiente = (pendPorDia[c.fecha] ?? []).length > 0;
           const entrega = pasos.some(p => p.esEntregaParcial);
-          const enPlan = enRango(c.fecha, plan.desde, plan.hasta);
+          const enPlan = enRango(c.fecha, plan.desde, limiteAgenda(plan.hasta));
           const esHoy = c.fecha === hoy;
           return (
             <button key={c.fecha} onClick={() => irADia(c.fecha)}
-              aria-label={`${fechaLinda(c.fecha)}: ${pasos.length} pasos${entrega ? ', hay entrega' : ''}${sust ? ', sustentación' : ''}`}
+              aria-label={`${fechaLinda(c.fecha)}: ${pasos.length} pasos${entrega ? ', hay entrega' : ''}${sust ? ', sustentación' : ''}${pendiente ? ', semana de sustentaciones por confirmar' : ''}`}
               className={`min-w-0 min-h-[52px] rounded-lg border p-1 flex flex-col items-center justify-between text-sm
                 ${enPlan ? 'bg-elevated border-line' : 'border-transparent'} ${c.delMes ? 'text-strong' : 'text-muted opacity-50'}
                 ${esHoy ? 'ring-2 ring-accent' : ''}`}>
@@ -132,12 +142,13 @@ export function VistaMes({ plan, hoy, dia, porDia, sustPorDia, irADia }: {
                 {pasos.length > 0 && <span className="px-1 rounded-full bg-accent/25 text-strong font-semibold">{pasos.length}</span>}
                 {entrega && <span aria-hidden className="text-accent">★</span>}
                 {sust && <span aria-hidden>🎤</span>}
+                {!sust && pendiente && <span aria-hidden title="Sustentaciones por confirmar" className="opacity-50">🎤</span>}
               </span>
             </button>
           );
         })}
       </div>
-      <p className="text-xs text-muted">El número es la cantidad de pasos · ★ entrega · 🎤 sustentación · el fondo marcado es el plan. Toca un día para abrirlo.</p>
+      <p className="text-xs text-muted">El número es la cantidad de pasos · ★ entrega · 🎤 sustentación (tenue: por confirmar) · el fondo marcado es el plan. Toca un día para abrirlo.</p>
     </section>
   );
 }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
 import { Check, ChevronDown, Copy, Mail, Plus, QrCode, RefreshCw, Search, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { buscarEstudiantes } from '../../asistencia/datos';
+import { buscarEstudiantes, leerEstudiante } from '../../asistencia/datos';
 import type { Student } from '../../asistencia/domain/types';
 import { ASIGNACION_2026 } from '../../data/asignacionAcademica';
 import {
@@ -28,7 +28,8 @@ import { construirAvanceDocentes, filtrarPorJornada, jornadaDePlan, type DatosPl
 import { claseBarra, construirInformeHTML, construirResumenTexto, filasInforme, fraccionTexto, resumenAvance, ETIQUETA_JORNADA, type Fraccion } from '../../data/planCasa/informeAvance';
 import { useAppStore } from '../../data/store';
 import { auth } from '../../lib/firebase';
-import { abrirCartas, construirHtmlCartas, type EntradaCarta } from '../../data/planCasa/imprimibleCarta';
+import { abrirCartas, abrirPlanilla, construirHtmlCartas, construirHtmlPlanilla, type EntradaCarta } from '../../data/planCasa/imprimibleCarta';
+import { VENTANA_SUSTENTACION, textoEntre, resumenProgramadas, fechaValida } from '../../data/planCasa/ventanaSustentacion';
 import { abrirImprimibleUAI } from '../../data/planCasa/imprimibleUAI';
 import {
   BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
@@ -518,9 +519,19 @@ async function imprimirCartas(planes: PlanCasa[]) {
   const entradas: EntradaCarta[] = await Promise.all(planes.map(async plan => {
     const url = urlPublica(plan.tokenPublico);
     const qr = await QRCode.toDataURL(url, { width: 400, margin: 1 }).catch(() => undefined);
-    return { plan, url, qr };
+    const est = await leerEstudiante(plan.studentId).catch(() => null);
+    return { plan, url, qr, acudiente: est?.acudiente, parentesco: est?.parentesco };
   }));
   abrirCartas(construirHtmlCartas(entradas));
+}
+
+/** Abre la planilla de entrega (firmas de recibido) de los planes dados. */
+async function imprimirPlanilla(planes: PlanCasa[]) {
+  const filas = await Promise.all(planes.map(async plan => {
+    const est = await leerEstudiante(plan.studentId).catch(() => null);
+    return { plan, acudiente: est?.acudiente };
+  }));
+  abrirPlanilla(construirHtmlPlanilla(filas));
 }
 
 /** Control para activar/quitar «En espera — ingresó tarde» (plazo por defecto: próximo viernes). */
@@ -707,6 +718,12 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
       {guias && guias.length > 0 && (
         <div>
           <p className="text-xs font-medium text-soft mb-1">Guías ({plan.modalidad === 'transversal' ? 'transversales' : 'por asignatura'})</p>
+          {(() => {
+            const aprobadas = guias.filter(x => x.aprobada);
+            if (aprobadas.length === 0) return null;
+            const r = resumenProgramadas(aprobadas.map(x => x.aprobada!.sustentacion.fecha));
+            return <p className="text-xs text-soft mb-1" data-testid="resumen-sustentaciones">{r.texto}. {textoEntre()}.</p>;
+          })()}
           <ul className="divide-y divide-line">
             {guias.map(g => {
               const r = resumenGuia(g);
@@ -727,8 +744,10 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
                     <div className="flex flex-wrap items-center gap-2 mt-1.5">
                       <label className="text-[11px] text-soft">Sustentación:</label>
                       <input type="date" aria-label="Fecha de sustentación" value={fechaSust[g.id] ?? g.aprobada.sustentacion.fecha ?? ''} onChange={e => setFechaSust(f => ({ ...f, [g.id]: e.target.value }))}
+                        min={VENTANA_SUSTENTACION.desde} max={VENTANA_SUSTENTACION.hasta}
                         className="px-2 py-1 rounded-lg bg-elevated border border-line text-xs text-strong" />
-                      <button disabled={fechaSust[g.id] === undefined || fechaSust[g.id] === (g.aprobada.sustentacion.fecha ?? '')}
+                      <span className="text-[11px] text-muted">{textoEntre()}</span>
+                      <button disabled={fechaSust[g.id] === undefined || fechaSust[g.id] === (g.aprobada.sustentacion.fecha ?? '') || !fechaValida(fechaSust[g.id])}
                         onClick={() => cambiarFechaSustentacion(plan.id, g, fechaSust[g.id]).then(() => setFechaSust(f => { const n = { ...f }; delete n[g.id]; return n; })).catch(e => setError(e.message))}
                         className="text-xs px-3 py-1.5 rounded-lg bg-elevated text-soft hover:text-strong disabled:opacity-40">Guardar y publicar</button>
                     </div>
@@ -880,6 +899,10 @@ function ElegirCartas({ planes, onCerrar }: { planes: PlanCasa[]; onCerrar: () =
     setOcupado(true); setError('');
     try { await imprimirCartas(elegidos); } catch (e) { setError((e as Error).message); } finally { setOcupado(false); }
   }
+  async function planilla() {
+    setOcupado(true); setError('');
+    try { await imprimirPlanilla(elegidos); } catch (e) { setError((e as Error).message); } finally { setOcupado(false); }
+  }
   return (
     <div className="rounded-2xl border border-line bg-card p-4 space-y-2">
       <p className="text-sm font-semibold text-strong">Cartas para las familias</p>
@@ -900,6 +923,7 @@ function ElegirCartas({ planes, onCerrar }: { planes: PlanCasa[]; onCerrar: () =
       {error && <CajaError>{error}</CajaError>}
       <div className="flex gap-2">
         <button onClick={imprimir} disabled={ocupado || elegidos.length === 0} className={CLASE_BOTON}><Mail size={15} />{ocupado ? 'Preparando…' : `Imprimir ${elegidos.length} carta${elegidos.length === 1 ? '' : 's'}`}</button>
+        <button onClick={planilla} disabled={ocupado || elegidos.length === 0} className={CLASE_BOTON_SEC}>Planilla de entrega</button>
         <button onClick={onCerrar} className={CLASE_BOTON_SEC}>Cerrar</button>
       </div>
     </div>
@@ -936,7 +960,10 @@ export default function PanelPlanCasa() {
       {!planes && <Cargando texto="Cargando planes…" />}
       {vista === 'planes' && planes && planes.length === 0 && !error && <p className="text-sm text-soft">Aún no hay planes. Cree el primero con «Nuevo plan».</p>}
       {vista === 'planes' && visibles.length > 0 && !eligiendoCartas && (
-        <button onClick={() => setEligiendoCartas(true)} className={CLASE_BOTON_SEC}><Mail size={15} />Cartas de todas las familias</button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setEligiendoCartas(true)} className={CLASE_BOTON_SEC}><Mail size={15} />Cartas de todas las familias</button>
+          <button onClick={() => imprimirPlanilla(visibles).catch(e => setError(e.message))} className={CLASE_BOTON_SEC}>Planilla de entrega</button>
+        </div>
       )}
       {vista === 'planes' && eligiendoCartas && <ElegirCartas planes={visibles} onCerrar={() => setEligiendoCartas(false)} />}
       {vista === 'planes' && visibles.map(p => <TarjetaPlan key={p.id} plan={p} />)}

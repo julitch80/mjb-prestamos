@@ -5,6 +5,7 @@ import { esc } from '../simulacros/imprimirGuion';
 import { abrirImprimibleUAI } from './imprimibleUAI';
 import { subpasos } from './subpasos';
 import { MODALIDADES_SUSTENTACION } from './tipos';
+import { textoEntre } from './ventanaSustentacion';
 import type { FechaISO, Guia, GuiaPlan, PasoGuia, PlanCasa } from './tipos';
 
 export type PlanParaGuia = Pick<PlanCasa, 'nombres' | 'grupo' | 'desde' | 'hasta'> & Partial<Pick<PlanCasa, 'topeDiario' | 'ritmo'>>;
@@ -180,7 +181,7 @@ function seccionEntregas(items: Aprobada[], nombres: Nombres): string {
     const s = guia.sustentacion;
     const modal = MODALIDADES_SUSTENTACION.find(m => m.id === s.modalidad)?.texto ?? s.modalidad;
     return `<div class="preg"><h3>🗣️ Sustentación: ${esc(tituloGuia(g, nombres).areas.join(' · '))}</h3>
-      <p>Modalidad: <b>${esc(modal)}</b> · Fecha: <b>${esc(fecha(s.fecha)) || '________'}</b> · Hora: <b>${esc(s.hora ?? '') || '______'}</b> · Lugar: <b>${esc(s.lugarOEnlace) || '____________'}</b></p>
+      <p>Modalidad: <b>${esc(modal)}</b> · Fecha: <b>${esc(fecha(s.fecha)) || `${esc(textoEntre())} (por confirmar)`}</b> · Hora: <b>${esc(s.hora ?? '') || '______'}</b> · Lugar: <b>${esc(s.lugarOEnlace) || '____________'}</b></p>
       ${s.preguntasGuia.map((q, i) => `<div class="preg"><p><b>${i + 1}. ${esc(q)}</b></p>${lineasCaja(1)}</div>`).join('')}</div>`;
   }).join('');
   return `<section class="entregas"><h2>Entregas y sustentación</h2>
