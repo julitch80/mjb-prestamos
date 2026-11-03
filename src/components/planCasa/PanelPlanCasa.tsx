@@ -17,8 +17,8 @@ import {
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
 import { completarPlanConIA, type ItemProgreso, type ResumenCompletar } from '../../data/planCasa/completarConIA';
-import { faltantesPlan } from '../../data/planCasa/completarPlan';
-import { destinosPosibles, replicarGuias, type ResumenReplicar } from '../../data/planCasa/replicarGuias';
+import { faltantesPlan, gradoDeGrupo } from '../../data/planCasa/completarPlan';
+import { destinosPosibles, errorReplicar, replicarGuias, type ResumenReplicar } from '../../data/planCasa/replicarGuias';
 import { leerAsignaturasYGuias } from '../../data/planCasa/persistencia';
 import { conSinTecnologia, fechaCierre, horaCierre, proximoViernes } from '../../data/planCasa/logica';
 import { hoyLocal } from '../../data/planCasa/completarPlan';
@@ -531,7 +531,10 @@ function ReplicarGuias({ plan, planes, asigs, guias, nombres, puede }: {
   const [error, setError] = useState('');
   const destinos = destinosPosibles(plan, planes);
   const conGuia = guias.some(g => g.aprobada || g.propuesta);
-  if (!puede || !conGuia || (paso === 'cerrado' && !destinos.length)) return null;
+  // Los que no se pueden elegir se muestran con el motivo, para que se entienda por qué.
+  const bloqueados = planes.filter(p => p.id !== plan.id && p.estado === 'activo' && gradoDeGrupo(p.grupo) === gradoDeGrupo(plan.grupo))
+    .map(p => ({ p, motivo: errorReplicar(plan, p) })).filter((x): x is { p: PlanConDocentes; motivo: string } => !!x.motivo);
+  if (!puede || !conGuia) return null;
   const nombre = (id: string) => nombres[id]?.asignatura ?? id;
   const etiquetaGuia = (g: GuiaPlan) => g.asignaturaIds.length > 1 ? (g.eje?.trim() || g.asignaturaIds.map(nombre).join(' · ')) : nombre(g.asignaturaIds[0] ?? g.id);
   const destino = destinos.find(p => p.id === destinoId);
@@ -558,6 +561,12 @@ function ReplicarGuias({ plan, planes, asigs, guias, nombres, puede }: {
             <option value="">— Elija el estudiante (solo de {gradoTexto(plan.grupo)}) —</option>
             {destinos.map(p => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos} · {p.grupo}</option>)}
           </select>
+          {!destinos.length && <p className="text-xs text-warning">No hay otro estudiante de {gradoTexto(plan.grupo)} al que se pueda replicar.</p>}
+          {bloqueados.length > 0 && (
+            <ul className="text-[11px] text-muted list-disc pl-4">
+              {bloqueados.map(({ p, motivo }) => <li key={p.id}>{p.nombres} {p.apellidos} · {p.grupo}: {motivo}</li>)}
+            </ul>
+          )}
           {destino && (
             <div className="rounded-lg bg-elevated p-2 text-xs text-soft space-y-1">
               <p>Se copian criterios, entregables y guías, y se aprueban con las fechas de {destino.nombres} ({fechaLarga(destino.desde)} a {fechaLarga(destino.hasta)}). Lo que ese plan ya tenga escrito o aprobado no se cambia.</p>
