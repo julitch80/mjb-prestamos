@@ -13,9 +13,9 @@ describe('replicar guías', () => {
     expect(errorReplicar(plan('a', '9.1'), plan('a', '9.1'))).toMatch(/otro/);
   });
   it('empareja por asignaturas cubiertas', () => {
-    const g = (id: string, a: string[]) => ({ id, asignaturaIds: a }) as GuiaPlan;
-    const r = emparejarGuias([g('x', ['mat', 'fis']), g('y', ['len'])], [g('p', ['fis', 'mat']), g('q', ['ing'])]);
-    expect(r.map(x => [x.o.id, x.d.id])).toEqual([['x', 'p']]);
+    const g = (id: string, a: string[]) => ({ id, asignaturaIds: a, propuesta: {} }) as GuiaPlan;
+    const r = emparejarGuias([g('x', ['mat', 'fis', 'rel']), g('y', ['len', 'ing'])], [g('p', ['fis', 'mat']), g('q', ['ing', 'len', 'rel']), g('z', ['art'])]);
+    expect(r.map(x => [x.o.id, x.d.id, x.exacta])).toEqual([['x', 'p', false], ['y', 'q', false]]);
   });
   it('traslada fechas sin salirse del periodo', () => {
     expect(trasladarFecha('2026-11-10', '2026-11-04', '2026-11-05', '2026-11-27')).toBe('2026-11-11');

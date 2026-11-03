@@ -24,12 +24,23 @@ export function destinosPosibles<T extends PlanMin>(origen: PlanMin, planes: T[]
   return planes.filter(p => !errorReplicar(origen, p));
 }
 
-const clave = (ids: string[]) => [...ids].sort().join('|');
-
-/** Empareja cada guía del destino con la del origen que cubre las mismas asignaturas. */
-export function emparejarGuias(origen: GuiaPlan[], destino: GuiaPlan[]): { o: GuiaPlan; d: GuiaPlan }[] {
-  const porClave = new Map(origen.map(g => [clave(g.asignaturaIds), g]));
-  return destino.flatMap(d => { const o = porClave.get(clave(d.asignaturaIds)); return o ? [{ o, d }] : []; });
+/**
+ * Empareja cada guía del destino con la del origen que comparte MÁS asignaturas (los grupos de un
+ * mismo grado pueden agrupar las áreas distinto, p. ej. Religiosa en otra guía). Empate: la de menos diferencias.
+ * Solo se usan guías del origen que tengan contenido (aprobada o propuesta).
+ */
+export function emparejarGuias(origen: GuiaPlan[], destino: GuiaPlan[]): { o: GuiaPlan; d: GuiaPlan; exacta: boolean }[] {
+  const conContenido = origen.filter(g => g.aprobada || g.propuesta);
+  return destino.flatMap(d => {
+    let mejor: { o: GuiaPlan; comunes: number; dif: number } | null = null;
+    for (const o of conContenido) {
+      const comunes = d.asignaturaIds.filter(id => o.asignaturaIds.includes(id)).length;
+      if (!comunes) continue;
+      const dif = d.asignaturaIds.length + o.asignaturaIds.length - 2 * comunes;
+      if (!mejor || comunes > mejor.comunes || (comunes === mejor.comunes && dif < mejor.dif)) mejor = { o, comunes, dif };
+    }
+    return mejor ? [{ o: mejor.o, d, exacta: mejor.dif === 0 }] : [];
+  });
 }
 
 /** Traslada una fecha del periodo del origen al del destino (mismo desfase desde el inicio, sin salirse). */
@@ -52,6 +63,8 @@ export function guiaParaDestino(g: Guia, destino: Pick<PlanCasa, 'desde' | 'hast
 
 export interface ResumenReplicar {
   replicadas: string[];
+  /** Replicadas desde una guía que no cubre exactamente las mismas asignaturas (revisar). */
+  aproximadas: string[];
   /** Guías del destino que ya estaban aprobadas: no se tocaron. */
   yaAprobadas: string[];
   /** Guías del destino sin pareja aprobada en el origen. */
@@ -75,7 +88,7 @@ export async function replicarGuias(e: EntradaReplicar): Promise<ResumenReplicar
   if (err) throw new Error(err);
   const correo = correoActual();
   const traza = { completadoPorCoordinacion: { correo, fecha: Date.now() } };
-  const res: ResumenReplicar = { replicadas: [], yaAprobadas: [], sinOrigen: [], fallos: [], publicado: false };
+  const res: ResumenReplicar = { replicadas: [], aproximadas: [], yaAprobadas: [], sinOrigen: [], fallos: [], publicado: false };
 
   // 1 — Campos de cada asignatura: solo lo que el destino tenga vacío.
   const asigsO = new Map(e.asigsO.map(a => [a.asignaturaId, a]));
@@ -97,7 +110,7 @@ export async function replicarGuias(e: EntradaReplicar): Promise<ResumenReplicar
   const conPareja = new Set(pares.map(p => p.d.id));
   for (const d of e.guiasD) if (!conPareja.has(d.id) && !d.aprobada) res.sinOrigen.push(etiquetaGuia(d));
   const todas = new Map(e.guiasD.map(g => [g.id, g]));
-  for (const { o, d } of pares) {
+  for (const { o, d, exacta } of pares) {
     const texto = etiquetaGuia(d);
     if (d.aprobada) { res.yaAprobadas.push(texto); continue; }
     const fuente = o.aprobada ?? o.propuesta;
@@ -110,6 +123,7 @@ export async function replicarGuias(e: EntradaReplicar): Promise<ResumenReplicar
       todas.set(d.id, { ...todas.get(d.id)!, aprobada: r.aprobada });
       for (const [id, ps] of Object.entries(r.reprogramadas)) { const x = todas.get(id); if (x?.aprobada) todas.set(id, { ...x, aprobada: { ...x.aprobada, pasos: ps } }); }
       res.replicadas.push(texto);
+      if (!exacta) res.aproximadas.push(texto);
     } catch (er) { res.fallos.push({ texto, motivo: (er as Error).message }); }
   }
 

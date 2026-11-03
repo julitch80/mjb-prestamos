@@ -588,6 +588,7 @@ function ReplicarGuias({ plan, planes, asigs, guias, nombres, puede }: {
           {resumen && (
             <div className="rounded-lg bg-elevated p-2 space-y-1">
               <p className="text-strong">{resumen.replicadas.length} guía(s) replicadas y aprobadas{resumen.publicado ? ' · agenda publicada' : ''}.</p>
+              {resumen.aproximadas.length > 0 && <p className="text-warning-soft-fg">Copiadas de una guía con áreas un poco distintas (revíselas): {resumen.aproximadas.join(', ')}.</p>}
               {resumen.yaAprobadas.length > 0 && <p className="text-soft">Ya estaban aprobadas (no se tocaron): {resumen.yaAprobadas.join(', ')}.</p>}
               {resumen.sinOrigen.length > 0 && <p className="text-warning-soft-fg">Sin guía para copiar (quedan pendientes): {resumen.sinOrigen.join(', ')}.</p>}
               {resumen.fallos.length > 0 && <ul className="list-disc pl-4 text-danger">{resumen.fallos.map((x, i) => <li key={i}>{x.texto}: {x.motivo}</li>)}</ul>}
