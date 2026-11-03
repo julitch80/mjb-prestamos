@@ -216,6 +216,11 @@ export default function App() {
       setVistaActual('chat' as typeof vistaActual);
       if (canal) useChatStore.getState().abrirCanal(canal);
     } else {
+      // `?ir=plan_casa&sub=seguimiento`: el Plan Académico Especial lee la marca al montarse.
+      const sub = params.get('sub');
+      if (ir === 'plan_casa' && sub === 'seguimiento') {
+        try { sessionStorage.setItem('mjb_sub_plan_casa', sub); } catch { /* sin almacenamiento: abre en la pestaña por defecto */ }
+      }
       setVistaActual(ir as typeof vistaActual);
     }
     const url = new URL(window.location.href);

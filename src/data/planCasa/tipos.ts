@@ -86,6 +86,8 @@ export interface PlanCasa {
   cierreEdicion?: FechaISO;
   /** Caso que ingresó tarde: los docentes tienen hasta `hasta` para su parte. Mientras exista, no se completa con IA y la edición queda abierta hasta esa fecha. */
   enEspera?: EnEsperaPlan;
+  /** Última alerta de inactividad (7+ días sin entregar) enviada por el servidor. Solo la escribe la función programada. */
+  alertaInactividad?: { en: number; dias: number };
   /** Token largo e imposible de adivinar de la página pública (QR). */
   tokenPublico: string;
   creadoPor: string;   // correo
@@ -403,4 +405,18 @@ export interface SolicitudAutorizacion {
   respondidaPor?: string;
   respondidaEn?: number;
   hasta?: FechaISO;
+}
+
+// ── Seguimiento del estudiante (2-nov-2026) ──
+
+export const SUB_LLAMADAS = 'llamadas'; // planesCasa/{planId}/llamadas/{id}
+
+/** planesCasa/{planId}/llamadas/{id} — registro de «Ya llamamos a la familia». Sin motivo ni salud. */
+export interface LlamadaFamilia {
+  id: string;
+  /** Correo de quien llamó. */
+  por: string;
+  /** ms */
+  en: number;
+  nota: string;
 }

@@ -664,6 +664,15 @@ service cloud.firestore {
           || pcDocenteDe(get(/databases/$(database)/documents/planesCasa/$(planId)).data);
         allow write: if !esSuplantacion() && (false);
       }
+      // Llamadas a la familia (pestana Seguimiento): equipo, coordinacion, rectoria y
+      // superusuario las leen (los docentes NO). Crea el equipo o un coordinador/superusuario
+      // activo a su nombre; sin update ni delete (queda como bitacora).
+      match /llamadas/{llamadaId} {
+        allow read: if pcLeeAmplio();
+        allow create: if !esSuplantacion() && pcGestiona()
+          && request.resource.data.por.lower() == callerEmail();
+        allow update, delete: if false;
+      }
     }
     match /planesCasaPublico/{token} {
       allow get: if true;

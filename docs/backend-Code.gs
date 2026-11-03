@@ -384,6 +384,8 @@ function manejar(e) {
       // llamada (la hace la Cloud Function `notificaciones`, servidor a
       // servidor), se autentica comparando p.secreto con PUSH_SECRETO.
       case 'correoAccidenteLaboral': resultado = correoAccidenteLaboral(p); break;
+      // Igual que la anterior: servidor a servidor (Cloud Function planCasaAlertaInactividad), con secreto.
+      case 'correoInactividadPlanCasa': resultado = correoInactividadPlanCasa(p); break;
       default:
         resultado = { ok: false, error: 'Acción desconocida: ' + p.action };
     }
@@ -776,6 +778,48 @@ function correoAccidenteLaboral(p) {
   } catch (err) {
     return { ok: false, error: String(err.message || err) };
   }
+}
+
+// ── Plan Académico Especial: resumen diario de inactividad ───────────────────
+// Lo llama la Cloud Function `planCasaAlertaInactividad` (servidor a servidor, 7:00 a. m.)
+// con p.resumenes = JSON [{destinatario, estudiantes:[{nombre, grupo, dias}]}]. Se autentica
+// con la propiedad PUSH_SECRETO igual que correoAccidenteLaboral. Un correo por destinatario.
+// Privacidad: solo primer nombre, grupo y días; nunca motivo ni salud.
+// ⚠ Requiere redespliegue de este script para quedar activa (si falta, la función solo registra y sigue).
+function correoInactividadPlanCasa(p) {
+  const secreto = PropertiesService.getScriptProperties().getProperty('PUSH_SECRETO');
+  if (!secreto || String(p.secreto || '') !== secreto) {
+    return { ok: false, error: 'no-autorizado' };
+  }
+  var resumenes;
+  try { resumenes = JSON.parse(String(p.resumenes || '[]')); } catch (e) { return { ok: false, error: 'resumenes-invalidos' }; }
+  if (!Array.isArray(resumenes)) return { ok: false, error: 'resumenes-invalidos' };
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  var enviados = 0;
+  resumenes.slice(0, 20).forEach(function(r) {
+    const destino = String((r && r.destinatario) || '').trim().toLowerCase();
+    // Solo cuentas institucionales: aunque el secreto se filtrara, no sirve para escribir a cualquiera.
+    if (!/^[^@\s]+@iemanueljbetancur\.edu\.co$/.test(destino)) return;
+    const lista = (Array.isArray(r.estudiantes) ? r.estudiantes : []).slice(0, 60);
+    if (lista.length === 0) return;
+    var filas = lista.map(function(e) {
+      return '<tr><td style="padding:4px 8px">' + esc(e.nombre) + '</td><td style="padding:4px 8px">' + esc(e.grupo) +
+        '</td><td style="padding:4px 8px;text-align:right">' + esc(Number(e.dias) || 0) + ' días</td></tr>';
+    }).join('');
+    const html = '<h2 style="color:#b45309">Plan Académico Especial · estudiantes sin entregas</h2>' +
+      '<p style="font-size:13px">Estos estudiantes llevan 7 días o más sin entregar en su plan. Por favor contacten a la familia.</p>' +
+      '<table style="width:100%;font-size:13px;border-collapse:collapse"><tr style="text-align:left;background:#f3f4f6">' +
+      '<th style="padding:4px 8px">Estudiante</th><th style="padding:4px 8px">Grupo</th><th style="padding:4px 8px;text-align:right">Sin entregar</th></tr>' +
+      filas + '</table>' +
+      '<p style="font-size:12px;margin-top:12px"><a href="https://julitch80.github.io/mjb-prestamos/prestamo_mjb.html" target="_blank">Abrir la app → Plan Académico Especial → Seguimiento</a></p>';
+    try {
+      enviarHtml(destino, 'Plan Académico Especial – ' + lista.length + ' estudiante' + (lista.length === 1 ? '' : 's') + ' sin entregas', html, null, {});
+      enviados++;
+    } catch (err) { /* un fallo con un destinatario no detiene a los demás */ }
+  });
+  return { ok: enviados > 0, enviados: enviados };
 }
 
 // Correo (uno o varios destinatarios) a nombre del colegio: además del

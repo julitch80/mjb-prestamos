@@ -9,7 +9,7 @@ import { auth, db, functions } from '../../lib/firebase';
 import { USUARIOS } from '../maestros';
 import { getAsignatura } from '../asignacionAcademica';
 import {
-  COL_PLANES, DOC_EQUIPO, DOC_MOTIVO, SUB_ASIGNATURAS, SUB_GUIAS, SUB_RESERVADO, SUB_SOLICITUDES, type SolicitudAutorizacion,
+  COL_PLANES, DOC_EQUIPO, DOC_MOTIVO, SUB_ASIGNATURAS, SUB_GUIAS, SUB_RESERVADO, SUB_SOLICITUDES, SUB_LLAMADAS, type LlamadaFamilia, type SolicitudAutorizacion,
   type AsignaturaPlan, type GuiaPlan, type ModalidadGuias, type EntradaGuiaIA, type Guia, type MotivoReservado, type PlanCasa,
   type RitmoPlan, type SalidaGuiaIA, type EntradaIntegrarGuia, type SalidaIntegrarGuia, type RevisionAsignatura, type EstadoPaso,
 } from './tipos';
@@ -385,4 +385,21 @@ export async function cambiarFechaSustentacion(planId: string, g: GuiaPlan, fech
     aprobada: limpiar({ ...g.aprobada, sustentacion: { ...g.aprobada.sustentacion, fecha: fecha || null } }), actualizadoEn: Date.now(),
   });
   await publicarPlan(planId);
+}
+
+// ── Llamadas a la familia (Seguimiento) ───────────────────────────────────
+
+/** Historial de llamadas de un plan, la más reciente primero. Solo equipo, coordinación y rectoría pueden leerlo. */
+export function escucharLlamadas(planId: string, cb: (l: LlamadaFamilia[]) => void, onError: (e: Error) => void = () => {}): Unsubscribe {
+  if (!db) return () => {};
+  return onSnapshot(collection(db, COL_PLANES, planId, SUB_LLAMADAS), snap => {
+    cb(snap.docs.map(d => ({ ...(d.data() as LlamadaFamilia), id: d.id })).sort((a, b) => b.en - a.en));
+  }, onError);
+}
+
+/** «Ya llamamos a la familia»: guarda quién, cuándo y una nota corta (sin motivo ni salud). */
+export async function registrarLlamada(planId: string, nota: string): Promise<void> {
+  const por = correoActual();
+  if (!por) throw new Error('Inicia sesión primero.');
+  await addDoc(collection(baseDatos(), COL_PLANES, planId, SUB_LLAMADAS), { por, en: Date.now(), nota: nota.trim().slice(0, 300) });
 }

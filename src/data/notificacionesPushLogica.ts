@@ -16,7 +16,8 @@ export type TipoNotificacion =
   | 'horario_modificado'
   | 'sugerencia'
   | 'accidente_nuevo'
-  | 'plan_casa_entrega';
+  | 'plan_casa_entrega'
+  | 'plan_casa_inactividad';
 
 /** Categorías que la persona controla en «Mis notificaciones» (PRD D1). */
 export type CategoriaNotificacion =
@@ -64,6 +65,7 @@ export function categoriaDeTipo(tipo: TipoNotificacion): CategoriaNotificacion {
     case 'coordinador':
     case 'intercambio':
     case 'plan_casa_entrega':
+    case 'plan_casa_inactividad':
       return 'avisos';
     case 'horario_modificado':
       return 'horario';

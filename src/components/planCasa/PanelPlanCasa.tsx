@@ -23,6 +23,7 @@ import { hoyLocal } from '../../data/planCasa/completarPlan';
 
 const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 import { EntregasGuiaResumen } from './EntregasPaso';
+import SeguimientoPlanCasa from './SeguimientoPlanCasa';
 import { PestanasSubrayadas } from '../Navegacion';
 import { construirAvanceDocentes, filtrarPorJornada, jornadaDePlan, type DatosPlanAvance, type FiltroJornada } from '../../data/planCasa/avanceDocentes';
 import { claseBarra, construirInformeHTML, construirResumenTexto, filasInforme, fraccionTexto, resumenAvance, ETIQUETA_JORNADA, type Fraccion } from '../../data/planCasa/informeAvance';
@@ -932,12 +933,12 @@ function ElegirCartas({ planes, onCerrar }: { planes: PlanCasa[]; onCerrar: () =
 
 // ── Panel ─────────────────────────────────────────────────────────────────
 
-export default function PanelPlanCasa() {
+export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguimiento' } = {}) {
   const [planes, setPlanes] = useState<PlanConDocentes[] | null>(null);
   const [error, setError] = useState('');
   const [creando, setCreando] = useState(false);
   const [aviso, setAviso] = useState('');
-  const [vista, setVista] = useState<'planes' | 'avance'>('planes');
+  const [vista, setVista] = useState<'planes' | 'avance' | 'seguimiento'>(vistaInicial ?? 'planes');
   const [eligiendoCartas, setEligiendoCartas] = useState(false);
   const rol = useAppStore(s => s.rol);
   const jornadaUsuario = useAppStore(s => s.jornada);
@@ -953,7 +954,7 @@ export default function PanelPlanCasa() {
         <h2 className="text-lg font-semibold text-strong flex-1">Plan Académico Especial</h2>
         {!creando && <button onClick={() => { setCreando(true); setAviso(''); }} className={CLASE_BOTON}><Plus size={16} />Nuevo plan</button>}
       </div>
-      <PestanasSubrayadas opciones={[{ id: 'planes', label: 'Planes' }, { id: 'avance', label: 'Avance docentes' }]} activa={vista} onCambio={setVista} />
+      <PestanasSubrayadas opciones={[{ id: 'planes', label: 'Planes' }, { id: 'avance', label: 'Avance docentes' }, { id: 'seguimiento', label: 'Seguimiento' }]} activa={vista} onCambio={setVista} />
       {aviso && <p className="rounded-xl bg-success-soft text-success-soft-fg text-sm p-3">{aviso}</p>}
       {creando && <NuevoPlan onCerrar={() => setCreando(false)} onCreado={m => { setCreando(false); setAviso(m); }} />}
       {error && <CajaError>{error}</CajaError>}
@@ -968,6 +969,7 @@ export default function PanelPlanCasa() {
       {vista === 'planes' && eligiendoCartas && <ElegirCartas planes={visibles} onCerrar={() => setEligiendoCartas(false)} />}
       {vista === 'planes' && visibles.map(p => <TarjetaPlan key={p.id} plan={p} />)}
       {vista === 'avance' && planes && <AvanceDocentes planes={planes} />}
+      {vista === 'seguimiento' && <SeguimientoPlanCasa />}
     </div>
   );
 }

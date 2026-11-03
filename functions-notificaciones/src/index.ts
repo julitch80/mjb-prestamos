@@ -26,6 +26,10 @@ import {
   debeAlertarInvestigacion, destinatariosAccidente, horaLimiteFurat,
 } from '../../src/data/sst/accidenteLaboral';
 import { cuerpoAvisoEntrega, destinatariosAvisoEntrega, TITULO_AVISO_ENTREGA } from '../../src/data/planCasa/avisoEntrega';
+import {
+  agruparPorDestinatario, cuerpoAlertaInactividad, destinatariosAlerta, planesAAlertar, TITULO_ALERTA_INACTIVIDAD,
+  type CoordinadorMin, type PlanParaAlerta,
+} from '../../src/data/planCasa/alertaInactividad';
 import { agruparPendientes, enviarAhora, enviarAUsuarios, enviarPrueba, type EnviarOpciones } from './enviar';
 
 // Techo de copias simultáneas (mismo patrón que `calendario`, 23-sep-2026).
@@ -130,6 +134,86 @@ export const alNuevaEntregaPlanCasa = onDocumentCreated(
       url: `${BASE_URL}?ir=plan_casa`,
       tag: `mjb-plancasa-${planId}`,
     });
+  });
+
+// ── Plan Académico Especial: alerta diaria de inactividad (2-nov-2026) ──
+
+/** POST best-effort al Apps Script con UN resumen por destinatario (sin motivo ni salud).
+ * Si el Apps Script aún no tiene la acción (falta redesplegar), solo se registra. */
+async function enviarCorreoInactividad(
+  secreto: string, resumenes: { destinatario: string; estudiantes: { nombre: string; grupo: string; dias: number }[] }[],
+): Promise<void> {
+  if (resumenes.length === 0) return;
+  try {
+    const body = new URLSearchParams({
+      action: 'correoInactividadPlanCasa',
+      secreto,
+      resumenes: JSON.stringify(resumenes),
+    });
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    const texto = await resp.text();
+    let ok = false;
+    try { ok = JSON.parse(texto).ok === true; } catch { /* respuesta no JSON */ }
+    if (!ok) logger.warn('planCasaAlertaInactividad: el Apps Script no confirmó el correo (¿falta redesplegar?)', texto.slice(0, 200));
+  } catch (err) {
+    logger.error('planCasaAlertaInactividad: fallo enviando correo (Apps Script)', err);
+  }
+}
+
+/** Cada día a las 7:00 (Bogotá): estudiantes con plan activo y 7+ días sin entregar. Avisa al
+ * equipo y a los coordinadores de la jornada; no repite hasta que entreguen o pasen 7 días. */
+export const planCasaAlertaInactividad = onSchedule(
+  { schedule: '0 7 * * *', timeZone: 'America/Bogota', region: REGION, secrets: [PUSH_SECRETO] },
+  async () => {
+    const ahoraMs = Date.now();
+    const hoy = new Date(ahoraMs - 5 * 60 * 60 * 1000).toISOString().slice(0, 10); // día de Bogotá (UTC-5 fijo)
+
+    const planesSnap = await db.collection('planesCasa').where('estado', '==', 'activo').get();
+    const candidatos: PlanParaAlerta[] = [];
+    for (const d of planesSnap.docs) {
+      const p = d.data();
+      if (p.enEspera || !(String(p.desde) <= hoy && hoy <= String(p.hasta))) continue;
+      const ult = await d.ref.collection('entregas').orderBy('creadoEn', 'desc').limit(1).get();
+      candidatos.push({
+        id: d.id, nombres: String(p.nombres ?? ''), grupo: String(p.grupo ?? ''), desde: String(p.desde), hasta: String(p.hasta),
+        estado: String(p.estado), enEspera: p.enEspera, alertaInactividad: p.alertaInactividad,
+        ultimaEntregaMs: ult.empty ? null : Number(ult.docs[0].data().creadoEn) || null,
+      });
+    }
+    const alertas = planesAAlertar(candidatos, hoy, ahoraMs);
+    if (alertas.length === 0) { logger.info('planCasaAlertaInactividad: nada que alertar', { revisados: candidatos.length }); return; }
+
+    const equipoSnap = await db.doc('planCasaConfig/equipo').get();
+    const equipo: string[] = Array.isArray(equipoSnap.data()?.correos) ? equipoSnap.data()!.correos : [];
+    const usersSnap = await db.collection('users').where('active', '==', true).where('role', '==', 'coordinador').get();
+    const coordinadores: CoordinadorMin[] = usersSnap.docs.map(d => ({ correo: d.id, jornada: d.data().jornada ?? null }));
+
+    // Push: uno por estudiante a sus destinatarios (el silencio nocturno no aplica a las 7:00).
+    for (const a of alertas) {
+      const destinatarios = destinatariosAlerta(a.jornada, equipo, coordinadores);
+      if (destinatarios.length > 0) {
+        await enviarAUsuarios(db, destinatarios, {
+          tipo: 'plan_casa_inactividad',
+          titulo: TITULO_ALERTA_INACTIVIDAD,
+          cuerpo: cuerpoAlertaInactividad(a),
+          url: `${BASE_URL}?ir=plan_casa&sub=seguimiento`,
+          tag: `mjb-plancasa-inactividad-${a.planId}`,
+        });
+      }
+      await db.doc(`planesCasa/${a.planId}`).update({ alertaInactividad: { en: ahoraMs, dias: a.dias } });
+    }
+
+    // Correo: una sola llamada con el resumen de cada destinatario.
+    const resumenes = [...agruparPorDestinatario(alertas, equipo, coordinadores)].map(([destinatario, lista]) => ({
+      destinatario,
+      estudiantes: lista.map(x => ({ nombre: x.primerNombre, grupo: x.grupo, dias: x.dias })),
+    }));
+    await enviarCorreoInactividad(PUSH_SECRETO.value(), resumenes);
+    logger.info('planCasaAlertaInactividad: enviadas', { alertas: alertas.length, destinatarios: resumenes.length });
   });
 
 // ── Traduce un id de directivo (rectora/coord_manana/coord_tarde) a correo ──
