@@ -849,11 +849,62 @@ function EscuchaPlan({ planId, onDatos }: { planId: string; onDatos: (id: string
 
 // ── Un plan ───────────────────────────────────────────────────────────────
 
-function PlanDocente({ plan, gestor, datos, foco }: { plan: PlanConDocentes; gestor: boolean; datos: DatosPlan; foco?: { seccion: string; n: number } }) {
+/**
+ * Coordinación: en vez de una torre de secciones, pastillas agrupadas por guía (una por asignatura
+ * más la de la guía). Se ve UNA sección a la vez; las pastillas quedan arriba para saltar a otra.
+ * Sin guías: una matriz con todas las asignaturas.
+ */
+function NavegadorGestor({ plan, asigs, guias, nombres, gestor }: { plan: PlanConDocentes; asigs: AsignaturaPlan[]; guias: GuiaPlan[]; nombres: Nombres; gestor: boolean }) {
+  const nombre = (id: string) => nombres[id]?.asignatura ?? id;
+  const orden = (ids: string[]) => [...ids].sort((x, y) => nombre(x).localeCompare(nombre(y), 'es'));
+  const grupos = guias.map((g, i) => ({ g, n: i + 1, ids: orden(g.asignaturaIds.filter(id => asigs.some(a => a.asignaturaId === id))) }));
+  const sueltas = orden(asigs.map(a => a.asignaturaId).filter(id => !guias.some(g => g.asignaturaIds.includes(id))));
+  const [sel, setSel] = useState<string>(() => grupos[0] ? `g:${grupos[0].g.id}` : `a:${sueltas[0] ?? asigs[0].asignaturaId}`);
+  const guiaDe = (id: string) => guias.find(g => g.asignaturaIds.includes(id));
+  const listo = (a: AsignaturaPlan) => !!a.criteriosPromocion?.trim();
+  const pastilla = (clave: string, texto: string, ok: boolean, fuerte = false) => (
+    <button key={clave} type="button" onClick={() => setSel(clave)} aria-pressed={sel === clave}
+      className={cn('text-xs px-2.5 py-1 rounded-full transition border',
+        sel === clave ? 'bg-accent text-strong border-transparent' : ok ? 'bg-success-soft text-success-soft-fg border-transparent' : 'bg-elevated text-soft border-line hover:text-strong',
+        fuerte && 'font-semibold')}>
+      {ok ? '✓ ' : ''}{texto}
+    </button>
+  );
+  const asigSel = sel.startsWith('a:') ? asigs.find(a => a.asignaturaId === sel.slice(2)) : undefined;
+  const guiaSel = sel.startsWith('g:') ? guias.find(g => g.id === sel.slice(2)) : undefined;
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl border border-line bg-card p-3 space-y-2">
+        {grupos.map(({ g, n, ids }) => (
+          <div key={g.id} className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-muted">Guía {n}{g.asignaturaIds.length > 1 && g.eje ? ` · ${g.eje}` : ''}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {pastilla(`g:${g.id}`, grupos.length === guias.length && g.asignaturaIds.length === 1 ? 'Guía' : `Guía ${n}`, !!g.aprobada, true)}
+              {ids.map(id => pastilla(`a:${id}`, nombre(id), listo(asigs.find(a => a.asignaturaId === id)!)))}
+            </div>
+          </div>
+        ))}
+        {sueltas.length > 0 && (
+          <div className="space-y-1">
+            {grupos.length > 0 && <p className="text-[11px] uppercase tracking-wide text-muted">Sin guía</p>}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              {sueltas.map(id => pastilla(`a:${id}`, nombre(id), listo(asigs.find(a => a.asignaturaId === id)!)))}
+            </div>
+          </div>
+        )}
+      </div>
+      {asigSel && <CriteriosAsignatura key={asigSel.asignaturaId} plan={plan} a={asigSel} gestor={gestor} eje={guiaDe(asigSel.asignaturaId)?.eje} guia={guiaDe(asigSel.asignaturaId)} nombre={nombre(asigSel.asignaturaId)} />}
+      {guiaSel && <GuiaResponsable key={guiaSel.id} gestor={gestor} plan={plan} g={guiaSel} todas={guias} asigs={asigs} nombres={nombres} />}
+    </div>
+  );
+}
+
+function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: PlanConDocentes; gestor: boolean; amplio?: boolean; datos: DatosPlan; foco?: { seccion: string; n: number } }) {
   const { asigs, guias, error } = datos;
   const nombres = useMemo(() => asignaturasConNombre(plan.grupo), [plan.grupo]);
   const yo = correoActual();
-  const mias = (asigs ?? []).filter(a => gestor || a.docenteCorreo.toLowerCase() === yo);
+  const mias = (asigs ?? []).filter(a => amplio || a.docenteCorreo.toLowerCase() === yo);
   const responsable = (guias ?? []).filter(g => gestor || g.responsableCorreo.toLowerCase() === yo);
   const propiasMias = mias.filter(a => a.docenteCorreo.toLowerCase() === yo);
   const otrasMias = mias.filter(a => a.docenteCorreo.toLowerCase() !== yo);
@@ -925,7 +976,10 @@ function PlanDocente({ plan, gestor, datos, foco }: { plan: PlanConDocentes; ges
       {error && <CajaError>{error}</CajaError>}
       {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
       {asigs && guias && mias.length === 0 && !error && <p className="text-sm text-soft">No tiene asignaturas en este plan.</p>}
-      {propiasMias.length > 0 && (
+      {amplio && asigs && guias && asigs.length > 0 && (
+        <NavegadorGestor plan={plan} asigs={asigs} guias={guias} nombres={nombres} gestor={gestor} />
+      )}
+      {!amplio && propiasMias.length > 0 && (
         <details id={idSec('mis')} open={abierta('mis')} onToggle={e => marcar('mis', e.currentTarget.open)} className="scroll-mt-40 rounded-2xl border border-line bg-card p-4">
           <summary className="cursor-pointer text-sm font-medium text-strong">Paso 1 · {propiasMias.length === 1 ? 'Mi asignatura' : 'Mis asignaturas'}: temáticas, competencia, criterios, entregable y fecha de entrega</summary>
           <div className="space-y-3 mt-3">
@@ -933,7 +987,7 @@ function PlanDocente({ plan, gestor, datos, foco }: { plan: PlanConDocentes; ges
           </div>
         </details>
       )}
-      {otrasMias.length > 0 && (
+      {!amplio && otrasMias.length > 0 && (
         <details id={idSec('otras')} open={abierta('otras')} onToggle={e => marcar('otras', e.currentTarget.open)} className="scroll-mt-40 rounded-2xl border border-line bg-card p-4">
           <summary className="cursor-pointer text-sm font-medium text-strong">Asignaturas de los otros docentes ({otrasMias.length})</summary>
           <div className="space-y-3 mt-3">
@@ -941,7 +995,7 @@ function PlanDocente({ plan, gestor, datos, foco }: { plan: PlanConDocentes; ges
           </div>
         </details>
       )}
-      {responsable.map(g => (
+      {!amplio && responsable.map(g => (
         <details key={g.id} id={idSec(`g-${g.id}`)} open={abierta(`g-${g.id}`)} onToggle={e => marcar(`g-${g.id}`, e.currentTarget.open)} className="scroll-mt-40">
           <summary className="cursor-pointer text-sm font-medium text-strong px-1 py-1">Guía: {g.eje || 'pendiente'} · responsable</summary>
           <div className="mt-2"><GuiaResponsable gestor={gestor} plan={plan} g={g} todas={guias ?? []} asigs={asigs ?? []} nombres={nombres} /></div>
@@ -964,7 +1018,9 @@ export default function PlanCasaDocente() {
   const [enEquipo, setEnEquipo] = useState<boolean | null>(null);
   useEffect(() => { leerEquipo().then(l => setEnEquipo(l.includes(correoActual()))); }, []);
   const gestor = rol === 'superusuario' || rol === 'coordinador' || enEquipo === true;
-  useEffect(() => enEquipo === null ? undefined : escucharPlanes(gestor, setPlanes, e => { setError(e.message || 'No se pudieron leer los planes.'); setPlanes([]); }), [gestor, enEquipo]);
+  // La rectora revisa todos los planes (solo lectura: las reglas no la dejan escribir).
+  const amplio = gestor || rol === 'rectora';
+  useEffect(() => enEquipo === null ? undefined : escucharPlanes(amplio, setPlanes, e => { setError(e.message || 'No se pudieron leer los planes.'); setPlanes([]); }), [amplio, enEquipo]);
 
   const claveSel = `pae-docente-sel:${correoActual()}`;
   const [datos, setDatos] = useState<Record<string, DatosPlan>>({});
@@ -1059,7 +1115,7 @@ export default function PlanCasaDocente() {
       )}
 
       {actual
-        ? <PlanDocente key={actual.id} plan={actual} gestor={gestor} datos={datos[actual.id] ?? SIN_DATOS} foco={foco} />
+        ? <PlanDocente key={actual.id} plan={actual} gestor={gestor} amplio={amplio} datos={datos[actual.id] ?? SIN_DATOS} foco={foco} />
         : visibles.length > 1 && <p className="text-sm text-soft">Escoja un estudiante para ver su plan.</p>}
     </div>
   );
