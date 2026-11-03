@@ -234,6 +234,39 @@ export async function quitarAsignatura(plan: PlanCasa, asignaturaId: string, asi
   try { await publicarPlan(plan.id); } catch { /* la agenda se republica en el próximo cambio */ }
 }
 
+/**
+ * Gestor: vuelve a poner el correo de quien ocupa HOY cada puesto (p. ej. un reemplazo que llegó
+ * después de crear el plan). Actualiza asignaturas, guías (docentes, responsable y vistos buenos) y
+ * la lista de docentes del plan. Devuelve cuántos correos cambió.
+ */
+export async function sincronizarDocentes(planId: string): Promise<number> {
+  const bd = baseDatos();
+  const { asigs, guias } = await leerAsignaturasYGuias(planId);
+  const actual = await correosDeDocentes([...new Set(asigs.map(a => a.docenteId))]);
+  const cambio: Record<string, string> = {};
+  for (const a of asigs) {
+    const nuevo = actual[a.docenteId];
+    const viejo = (a.docenteCorreo ?? '').toLowerCase();
+    if (!nuevo || nuevo === viejo) continue;
+    if (viejo) cambio[viejo] = nuevo;
+    await updateDoc(doc(bd, COL_PLANES, planId, SUB_ASIGNATURAS, a.asignaturaId), { docenteCorreo: nuevo });
+    a.docenteCorreo = nuevo;
+  }
+  const n = Object.keys(cambio).length;
+  const correoDe = (aid: string) => asigs.find(a => a.asignaturaId === aid)?.docenteCorreo ?? '';
+  const mapa = (c: string) => cambio[c.toLowerCase()] ?? c;
+  for (const g of guias) {
+    const docentesCorreos = [...new Set(g.asignaturaIds.map(correoDe).filter(Boolean))];
+    const responsableCorreo = mapa(g.responsableCorreo);
+    const vistosBuenos = Object.fromEntries(Object.entries(g.vistosBuenos ?? {}).map(([c, v]) => [mapa(c), v]));
+    if (JSON.stringify([docentesCorreos, responsableCorreo, vistosBuenos]) === JSON.stringify([g.docentesCorreos, g.responsableCorreo, g.vistosBuenos ?? {}])) continue;
+    await updateDoc(doc(bd, COL_PLANES, planId, SUB_GUIAS, g.id), { docentesCorreos, responsableCorreo, vistosBuenos, actualizadoEn: Date.now() });
+  }
+  const docentes = [...new Set(asigs.map(a => a.docenteCorreo).filter(Boolean))];
+  await updateDoc(doc(bd, COL_PLANES, planId), { docentesCorreos: docentes, actualizadoEn: Date.now() });
+  return n;
+}
+
 /** Gestor: reemplaza las guías de un plan por otras (crea las nuevas y borra las que sobran). */
 export async function reemplazarGuias(planId: string, nuevas: GuiaPlan[], borrar: string[]): Promise<void> {
   const bd = baseDatos();

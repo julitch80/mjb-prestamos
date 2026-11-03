@@ -19,7 +19,7 @@ import { asignaturasConNombre } from './nombres';
 import { completarPlanConIA, type ItemProgreso, type ResumenCompletar } from '../../data/planCasa/completarConIA';
 import { faltantesPlan, gradoDeGrupo } from '../../data/planCasa/completarPlan';
 import { destinosPosibles, errorReplicar, replicarGuias, type ResumenReplicar } from '../../data/planCasa/replicarGuias';
-import { leerAsignaturasYGuias, quitarAsignatura } from '../../data/planCasa/persistencia';
+import { leerAsignaturasYGuias, quitarAsignatura, sincronizarDocentes } from '../../data/planCasa/persistencia';
 import { conSinTecnologia, fechaCierre, horaCierre, proximoViernes } from '../../data/planCasa/logica';
 import { hoyLocal } from '../../data/planCasa/completarPlan';
 
@@ -1181,6 +1181,7 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
   const [eligiendoCartas, setEligiendoCartas] = useState(false);
   const [abriendoPlazo, setAbriendoPlazo] = useState(false);
   const [completandoTodos, setCompletandoTodos] = useState(false);
+  const [sincMsg, setSincMsg] = useState('');
   const rol = useAppStore(s => s.rol);
   const jornadaUsuario = useAppStore(s => s.jornada);
   // Un coordinador solo ve (y envía cartas de) su jornada; el resto ve todo.
@@ -1208,10 +1209,18 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
           <button onClick={() => imprimirPlanilla(visibles).catch(e => setError(e.message))} className={CLASE_BOTON_SEC}>Planilla de entrega</button>
           {(rol === 'coordinador' || rol === 'superusuario') && <button onClick={() => setAbriendoPlazo(v => !v)} aria-expanded={abriendoPlazo} className={cn(CLASE_BOTON_SEC, abriendoPlazo && 'ring-1 ring-accent')}>
             {abriendoPlazo && <X size={15} />}{abriendoPlazo ? 'Ocultar plazo' : 'Abrir plazo a la jornada'}</button>}
+          {(rol === 'coordinador' || rol === 'superusuario') && <button disabled={sincMsg === 'Actualizando…'} title="Pone en cada plan el correo de quien ocupa hoy cada puesto (reemplazos)" className={CLASE_BOTON_SEC}
+            onClick={async () => {
+              setSincMsg('Actualizando…');
+              let n = 0, malos = 0;
+              for (const p of visibles.filter(x => x.estado === 'activo')) { try { n += await sincronizarDocentes(p.id); } catch { malos++; } }
+              setSincMsg(`Docentes actualizados: ${n} cambio(s) de correo${malos ? ` · ${malos} plan(es) con error` : ''}.`);
+            }}><RefreshCw size={15} />Actualizar docentes</button>}
           {(rol === 'coordinador' || rol === 'superusuario') && <button onClick={() => setCompletandoTodos(v => !v)} aria-expanded={completandoTodos} className={cn(CLASE_BOTON_SEC, completandoTodos && 'ring-1 ring-accent')}>
             {completandoTodos ? <X size={15} /> : <Sparkles size={15} />}{completandoTodos ? 'Ocultar completar' : 'Completar a todos con IA'}</button>}
         </div>
       )}
+      {vista === 'planes' && sincMsg && <p className="text-xs text-soft" aria-live="polite">{sincMsg}</p>}
       {vista === 'planes' && completandoTodos && <CompletarTodos planes={visibles} onCerrar={() => setCompletandoTodos(false)} />}
       {vista === 'planes' && abriendoPlazo && <AbrirPlazoJornada planes={visibles} jornadaFija={jornadaFija} onCerrar={() => setAbriendoPlazo(false)} />}
       {vista === 'planes' && eligiendoCartas && <ElegirCartas planes={visibles} onCerrar={() => setEligiendoCartas(false)} />}
