@@ -214,6 +214,26 @@ export async function leerAsignaturasYGuias(planId: string): Promise<{ asigs: As
   };
 }
 
+/**
+ * Gestor: quita una asignatura (y su docente) de un plan, p. ej. Media Técnica, que no va en estas guías.
+ * La saca de las guías que la cubren (borra la guía si era la única), recalcula los docentes y republica.
+ */
+export async function quitarAsignatura(plan: PlanCasa, asignaturaId: string, asigs: AsignaturaPlan[], guias: GuiaPlan[]): Promise<void> {
+  const bd = baseDatos();
+  const resto = asigs.filter(a => a.asignaturaId !== asignaturaId);
+  const correoDe = (aid: string) => resto.find(a => a.asignaturaId === aid)?.docenteCorreo ?? '';
+  for (const g of guias.filter(x => x.asignaturaIds.includes(asignaturaId))) {
+    const ids = g.asignaturaIds.filter(id => id !== asignaturaId);
+    if (!ids.length) { await deleteDoc(doc(bd, COL_PLANES, plan.id, SUB_GUIAS, g.id)); continue; }
+    const docentesCorreos = [...new Set(ids.map(correoDe).filter(Boolean))];
+    const responsableCorreo = docentesCorreos.includes(g.responsableCorreo) ? g.responsableCorreo : (docentesCorreos[0] ?? '');
+    await updateDoc(doc(bd, COL_PLANES, plan.id, SUB_GUIAS, g.id), { asignaturaIds: ids, docentesCorreos, responsableCorreo, actualizadoEn: Date.now() });
+  }
+  await deleteDoc(doc(bd, COL_PLANES, plan.id, SUB_ASIGNATURAS, asignaturaId));
+  await updateDoc(doc(bd, COL_PLANES, plan.id), { docentesCorreos: [...new Set(resto.map(a => a.docenteCorreo).filter(Boolean))], actualizadoEn: Date.now() });
+  try { await publicarPlan(plan.id); } catch { /* la agenda se republica en el próximo cambio */ }
+}
+
 /** Gestor: reemplaza las guías de un plan por otras (crea las nuevas y borra las que sobran). */
 export async function reemplazarGuias(planId: string, nuevas: GuiaPlan[], borrar: string[]): Promise<void> {
   const bd = baseDatos();

@@ -47,7 +47,8 @@ export interface DatosPlanAvance {
 
 /** Mismo criterio que `CriteriosListos` en PlanCasaDocente: escritos y no generados por la IA. */
 export function criteriosListos(a: AsignaturaPlan): boolean {
-  return !!a.criteriosPromocion?.trim() && !a.porIA;
+  // Lo escrito por la IA cuenta cuando lo hizo coordinación («Completar todo con IA»): ya no depende del docente.
+  return !!a.criteriosPromocion?.trim() && (!a.porIA || !!a.completadoPorCoordinacion);
 }
 
 export function filaAsignatura(a: AsignaturaPlan, guias: GuiaPlan[], asignatura: string): FilaAsignaturaAvance {

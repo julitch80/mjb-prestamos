@@ -626,7 +626,7 @@ service cloud.firestore {
           || (isActiveUser() && resource.data.docenteCorreo.lower() == callerEmail()
               && request.resource.data.docenteCorreo == resource.data.docenteCorreo
               && request.resource.data.asignaturaId == resource.data.asignaturaId));
-        allow delete: if !esSuplantacion() && (pcEquipo() || isSuper());
+        allow delete: if !esSuplantacion() && pcGestiona();
       }
       // Guias: una por asignatura (por_asignatura) o varias asignaturas alrededor de un eje.
       match /guias/{guiaId} {

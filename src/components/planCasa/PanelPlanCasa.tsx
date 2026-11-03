@@ -19,7 +19,7 @@ import { asignaturasConNombre } from './nombres';
 import { completarPlanConIA, type ItemProgreso, type ResumenCompletar } from '../../data/planCasa/completarConIA';
 import { faltantesPlan, gradoDeGrupo } from '../../data/planCasa/completarPlan';
 import { destinosPosibles, errorReplicar, replicarGuias, type ResumenReplicar } from '../../data/planCasa/replicarGuias';
-import { leerAsignaturasYGuias } from '../../data/planCasa/persistencia';
+import { leerAsignaturasYGuias, quitarAsignatura } from '../../data/planCasa/persistencia';
 import { conSinTecnologia, fechaCierre, horaCierre, proximoViernes } from '../../data/planCasa/logica';
 import { hoyLocal } from '../../data/planCasa/completarPlan';
 
@@ -693,6 +693,7 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
   // La rectora solo ve la marca; la ponen/quitan coordinación, superusuario y equipo.
   const puedeMarcar = rolActual === 'coordinador' || esSuper;
   const [confElim, setConfElim] = useState(false);
+  const [quitando, setQuitando] = useState('');
   const [tecleado, setTecleado] = useState('');
   const [eliminando, setEliminando] = useState(false);
   const primerNombre = (plan.nombres ?? '').trim().split(/\s+/)[0] ?? '';
@@ -803,6 +804,13 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
       {error && <CajaError>{error}</CajaError>}
       {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
 
+      {/* Impresos siempre a la vista (sin desplegar detalles): formato UAI y cuadernillo. */}
+      {guias && (
+        <div className="flex flex-wrap gap-2">
+          {asigs && guias.some(g => g.aprobada || g.propuesta) && <BotonFormatoUAI plan={plan} guias={guias} asigs={asigs} nombres={nombres} />}
+          <BotonCuadernillo plan={plan} guias={guias} nombres={nombres} />
+        </div>
+      )}
       {abierto && (<>
       {filas.length > 0 && (
         <div>
@@ -813,6 +821,13 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
                 <span className="text-sm text-strong">{n?.asignatura ?? a.asignaturaId}<span className="text-xs text-muted"> · {n?.docente ?? a.docenteId}</span></span>
                 <Marca ok={criteriosPuestos(a)} etiqueta="Criterios" />
                 {a.porIA && <EtiquetaCoordinacion c={a.completadoPorCoordinacion} />}
+                {puedeMarcar && (quitando === a.asignaturaId
+                  ? <span className="flex items-center gap-1 text-xs">
+                      <span className="text-warning">¿Quitar {n?.asignatura ?? a.asignaturaId} de este plan?</span>
+                      <button className="underline text-danger" onClick={() => { setQuitando(''); quitarAsignatura(plan, a.asignaturaId, asigs ?? [], guias ?? []).catch(e => setError(e.message)); }}>Sí, quitar</button>
+                      <button className="underline text-soft" onClick={() => setQuitando('')}>No</button>
+                    </span>
+                  : <button className="ml-auto text-xs text-muted underline" onClick={() => setQuitando(a.asignaturaId)}>Quitar del plan</button>)}
               </li>
             ))}
           </ul>
@@ -863,10 +878,6 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
         </div>
       )}
 
-      {guias && asigs && guias.some(g => g.aprobada || g.propuesta) && (
-        <BotonFormatoUAI plan={plan} guias={guias} asigs={asigs} nombres={nombres} />
-      )}
-      {guias && <BotonCuadernillo plan={plan} guias={guias} nombres={nombres} />}
       <button onClick={() => imprimirCartas([plan]).catch(e => setError(e.message))} className={CLASE_BOTON_SEC}
         title="Carta de entrega con el QR de la agenda (sin motivo ni datos de salud)"><Mail size={15} />Carta para la familia</button>
       </>)}
