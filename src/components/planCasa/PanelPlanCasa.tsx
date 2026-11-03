@@ -1022,6 +1022,70 @@ function textoVigente(p: PlanConDocentes): string {
   return `${fechaLarga(fechaCierre(p))}${h ? ` a las ${hora12(h)}` : ''}`;
 }
 
+// ── Completar con IA a todos los estudiantes ────────────────────────────
+
+interface FilaMasiva { id: string; texto: string; estado: 'espera' | 'curso' | 'ok' | 'fallo' | 'nada'; detalle?: string }
+
+/** Coordinación: «Completar todo con IA» en cada plan activo que lo necesite, uno tras otro. */
+function CompletarTodos({ planes, onCerrar }: { planes: PlanConDocentes[]; onCerrar: () => void }) {
+  const [paso, setPaso] = useState<'confirmar' | 'corriendo' | 'fin'>('confirmar');
+  const [tecleado, setTecleado] = useState('');
+  const [filas, setFilas] = useState<FilaMasiva[]>([]);
+  const candidatos = planes.filter(p => p.estado === 'activo' && !p.enEspera);
+  const enEspera = planes.filter(p => p.estado === 'activo' && p.enEspera).length;
+
+  async function ejecutar() {
+    setPaso('corriendo');
+    const fs: FilaMasiva[] = candidatos.map(p => ({ id: p.id, texto: `${p.nombres} ${p.apellidos} · ${p.grupo}`, estado: 'espera' }));
+    const pintar = () => setFilas(fs.map(x => ({ ...x })));
+    pintar();
+    for (const [i, plan] of candidatos.entries()) {
+      fs[i].estado = 'curso'; pintar();
+      try {
+        const { asigs, guias } = await leerAsignaturasYGuias(plan.id);
+        if (!faltantesPlan(plan, asigs, guias).hayQueHacer) { fs[i].estado = 'nada'; fs[i].detalle = 'ya estaba completo'; pintar(); continue; }
+        const nombres = asignaturasConNombre(plan.grupo);
+        const nombre = (id: string) => nombres[id]?.asignatura ?? id;
+        const etiquetaGuia = (g: GuiaPlan) => g.asignaturaIds.length > 1 ? (g.eje?.trim() || g.asignaturaIds.map(nombre).join(' · ')) : nombre(g.asignaturaIds[0] ?? g.id);
+        const r = await completarPlanConIA({ plan, asigs, guias, nombre, etiquetaGuia, onProgreso: () => {} });
+        const malo = r.fallos.length > 0 || r.sinAprobar.length > 0;
+        fs[i].estado = malo ? 'fallo' : 'ok';
+        fs[i].detalle = `${r.hechos} paso(s)${r.publicado ? ', agenda publicada' : ''}${r.sinAprobar.length ? ` · sin aprobar: ${r.sinAprobar.join(', ')}` : ''}${r.fallos.length ? ` · ${r.fallos.length} fallo(s)` : ''}`;
+      } catch (e) { fs[i].estado = 'fallo'; fs[i].detalle = (e as Error).message; }
+      pintar();
+    }
+    setPaso('fin');
+  }
+
+  return (
+    <div className="rounded-xl border border-line p-3 space-y-2 text-sm">
+      <p className="font-medium text-strong">Completar con IA a todos los estudiantes</p>
+      {paso === 'confirmar' && (<>
+        <p className="text-xs text-soft">Se revisan {candidatos.length} plan(es) activos, uno por uno. En cada uno la IA llena solo lo que falte y se aprueba todo; lo que ya escribió un docente no se cambia y las guías aprobadas no se tocan.{enEspera > 0 && ` Se omiten ${enEspera} caso(s) «en espera».`}</p>
+        <label className="block text-xs text-soft">Escriba COMPLETAR para habilitar el botón
+          <input value={tecleado} onChange={e => setTecleado(e.target.value)} className={CLASE_INPUT} autoComplete="off" /></label>
+        <div className="flex flex-wrap gap-2">
+          <button disabled={tecleado.trim().toUpperCase() !== 'COMPLETAR' || !candidatos.length} onClick={ejecutar} className={CLASE_BOTON}><Sparkles size={15} />Completar a todos</button>
+          <button onClick={onCerrar} className={CLASE_BOTON_SEC}>Cancelar</button>
+        </div>
+      </>)}
+      {paso !== 'confirmar' && (<>
+        <p className="text-xs text-strong" aria-live="polite">{paso === 'corriendo' ? 'Completando… no cierre esta página (puede tardar varios minutos).' : 'Proceso terminado.'}</p>
+        <ul className="space-y-0.5 max-h-72 overflow-y-auto">
+          {filas.map(f => (
+            <li key={f.id} className={cn('text-xs flex gap-1.5', f.estado === 'fallo' ? 'text-danger' : f.estado === 'ok' ? 'text-success' : 'text-soft')}>
+              <span aria-hidden className="w-4 flex-shrink-0">{f.estado === 'ok' ? '✓' : f.estado === 'fallo' ? '✗' : f.estado === 'curso' ? '…' : f.estado === 'nada' ? '–' : '·'}</span>
+              <span>{f.texto}{f.detalle ? ` — ${f.detalle}` : ''}</span>
+            </li>
+          ))}
+        </ul>
+        {paso === 'fin' && <p className="text-[11px] text-muted">Si alguno quedó con ✗, ábralo y use «Completar todo con IA» en su tarjeta para reintentar solo lo que falta.</p>}
+        {paso === 'fin' && <button onClick={onCerrar} className={CLASE_BOTON_SEC}>Cerrar</button>}
+      </>)}
+    </div>
+  );
+}
+
 // ── Abrir plazo a toda una jornada ───────────────────────────────────────
 
 /** Coordinación: pone la misma fecha de cierre a todos los planes activos de una jornada. */
@@ -1087,6 +1151,7 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
   const [vista, setVista] = useState<'planes' | 'avance' | 'seguimiento'>(vistaInicial ?? 'planes');
   const [eligiendoCartas, setEligiendoCartas] = useState(false);
   const [abriendoPlazo, setAbriendoPlazo] = useState(false);
+  const [completandoTodos, setCompletandoTodos] = useState(false);
   const rol = useAppStore(s => s.rol);
   const jornadaUsuario = useAppStore(s => s.jornada);
   // Un coordinador solo ve (y envía cartas de) su jornada; el resto ve todo.
@@ -1114,8 +1179,11 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
           <button onClick={() => imprimirPlanilla(visibles).catch(e => setError(e.message))} className={CLASE_BOTON_SEC}>Planilla de entrega</button>
           {(rol === 'coordinador' || rol === 'superusuario') && <button onClick={() => setAbriendoPlazo(v => !v)} aria-expanded={abriendoPlazo} className={cn(CLASE_BOTON_SEC, abriendoPlazo && 'ring-1 ring-accent')}>
             {abriendoPlazo && <X size={15} />}{abriendoPlazo ? 'Ocultar plazo' : 'Abrir plazo a la jornada'}</button>}
+          {(rol === 'coordinador' || rol === 'superusuario') && <button onClick={() => setCompletandoTodos(v => !v)} aria-expanded={completandoTodos} className={cn(CLASE_BOTON_SEC, completandoTodos && 'ring-1 ring-accent')}>
+            {completandoTodos ? <X size={15} /> : <Sparkles size={15} />}{completandoTodos ? 'Ocultar completar' : 'Completar a todos con IA'}</button>}
         </div>
       )}
+      {vista === 'planes' && completandoTodos && <CompletarTodos planes={visibles} onCerrar={() => setCompletandoTodos(false)} />}
       {vista === 'planes' && abriendoPlazo && <AbrirPlazoJornada planes={visibles} jornadaFija={jornadaFija} onCerrar={() => setAbriendoPlazo(false)} />}
       {vista === 'planes' && eligiendoCartas && <ElegirCartas planes={visibles} onCerrar={() => setEligiendoCartas(false)} />}
       {vista === 'planes' && visibles.map(p => <TarjetaPlan key={p.id} plan={p} planes={planes ?? []} />)}
