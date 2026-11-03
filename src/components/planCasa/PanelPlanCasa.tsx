@@ -1107,11 +1107,13 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
       {error && <CajaError>{error}</CajaError>}
       {!planes && <Cargando texto="Cargando planes…" />}
       {vista === 'planes' && planes && planes.length === 0 && !error && <p className="text-sm text-soft">Aún no hay planes. Cree el primero con «Nuevo plan».</p>}
-      {vista === 'planes' && visibles.length > 0 && !eligiendoCartas && (
+      {vista === 'planes' && visibles.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => setEligiendoCartas(true)} className={CLASE_BOTON_SEC}><Mail size={15} />Cartas de todas las familias</button>
+          <button onClick={() => setEligiendoCartas(v => !v)} aria-expanded={eligiendoCartas} className={cn(CLASE_BOTON_SEC, eligiendoCartas && 'ring-1 ring-accent')}>
+            {eligiendoCartas ? <X size={15} /> : <Mail size={15} />}{eligiendoCartas ? 'Ocultar cartas' : 'Cartas de todas las familias'}</button>
           <button onClick={() => imprimirPlanilla(visibles).catch(e => setError(e.message))} className={CLASE_BOTON_SEC}>Planilla de entrega</button>
-          {(rol === 'coordinador' || rol === 'superusuario') && !abriendoPlazo && <button onClick={() => setAbriendoPlazo(true)} className={CLASE_BOTON_SEC}>Abrir plazo a la jornada</button>}
+          {(rol === 'coordinador' || rol === 'superusuario') && <button onClick={() => setAbriendoPlazo(v => !v)} aria-expanded={abriendoPlazo} className={cn(CLASE_BOTON_SEC, abriendoPlazo && 'ring-1 ring-accent')}>
+            {abriendoPlazo && <X size={15} />}{abriendoPlazo ? 'Ocultar plazo' : 'Abrir plazo a la jornada'}</button>}
         </div>
       )}
       {vista === 'planes' && abriendoPlazo && <AbrirPlazoJornada planes={visibles} jornadaFija={jornadaFija} onCerrar={() => setAbriendoPlazo(false)} />}
