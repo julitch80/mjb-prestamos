@@ -18,6 +18,8 @@ import {
 import { asignaturasConNombre } from './nombres';
 import { completarPlanConIA, type ItemProgreso, type ResumenCompletar } from '../../data/planCasa/completarConIA';
 import { faltantesPlan } from '../../data/planCasa/completarPlan';
+import { destinosPosibles, replicarGuias, type ResumenReplicar } from '../../data/planCasa/replicarGuias';
+import { leerAsignaturasYGuias } from '../../data/planCasa/persistencia';
 import { conSinTecnologia, fechaCierre, proximoViernes } from '../../data/planCasa/logica';
 import { hoyLocal } from '../../data/planCasa/completarPlan';
 
@@ -515,6 +517,86 @@ function CompletarConIA({ plan, asigs, guias, nombres, puede }: {
   );
 }
 
+/**
+ * «Replicar guías a otro estudiante» (coordinación): para casos muy parecidos del mismo grado.
+ * Copia criterios, entregables y guías de este plan al elegido y las aprueba con SUS fechas.
+ */
+function ReplicarGuias({ plan, planes, asigs, guias, nombres, puede }: {
+  plan: PlanConDocentes; planes: PlanConDocentes[]; asigs: AsignaturaPlan[]; guias: GuiaPlan[];
+  nombres: Record<string, { asignatura: string; docente: string }>; puede: boolean;
+}) {
+  const [paso, setPaso] = useState<'cerrado' | 'elegir' | 'corriendo' | 'fin'>('cerrado');
+  const [destinoId, setDestinoId] = useState('');
+  const [resumen, setResumen] = useState<ResumenReplicar | null>(null);
+  const [error, setError] = useState('');
+  const destinos = destinosPosibles(plan, planes);
+  const conGuia = guias.some(g => g.aprobada || g.propuesta);
+  if (!puede || !conGuia || (paso === 'cerrado' && !destinos.length)) return null;
+  const nombre = (id: string) => nombres[id]?.asignatura ?? id;
+  const etiquetaGuia = (g: GuiaPlan) => g.asignaturaIds.length > 1 ? (g.eje?.trim() || g.asignaturaIds.map(nombre).join(' · ')) : nombre(g.asignaturaIds[0] ?? g.id);
+  const destino = destinos.find(p => p.id === destinoId);
+
+  async function ejecutar() {
+    if (!destino) return;
+    setPaso('corriendo'); setError(''); setResumen(null);
+    try {
+      const d = await leerAsignaturasYGuias(destino.id);
+      setResumen(await replicarGuias({ origen: plan, destino, asigsO: asigs, guiasO: guias, asigsD: d.asigs, guiasD: d.guias, nombre, etiquetaGuia }));
+    } catch (e) { setError((e as Error).message); }
+    setPaso('fin');
+  }
+
+  return (
+    <div className="rounded-xl border border-line p-3 space-y-2">
+      {paso === 'cerrado' && (
+        <button onClick={() => { setPaso('elegir'); setDestinoId(''); }} className={CLASE_BOTON_SEC}><Copy size={15} />Replicar guías a otro estudiante</button>
+      )}
+      {paso === 'elegir' && (
+        <div className="space-y-2">
+          <p className="text-sm text-strong">Copiar las guías de {plan.nombres} {plan.apellidos} ({plan.grupo}) a:</p>
+          <select value={destinoId} onChange={e => setDestinoId(e.target.value)} className={CLASE_INPUT}>
+            <option value="">— Elija el estudiante (solo de {gradoTexto(plan.grupo)}) —</option>
+            {destinos.map(p => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos} · {p.grupo}</option>)}
+          </select>
+          {destino && (
+            <div className="rounded-lg bg-elevated p-2 text-xs text-soft space-y-1">
+              <p>Se copian criterios, entregables y guías, y se aprueban con las fechas de {destino.nombres} ({fechaLarga(destino.desde)} a {fechaLarga(destino.hasta)}). Lo que ese plan ya tenga escrito o aprobado no se cambia.</p>
+              <p><span className="font-medium text-strong">Ajustes de este caso:</span> {plan.ajustes.join(' · ') || 'ninguno'}</p>
+              <p><span className="font-medium text-strong">Ajustes del destino:</span> {destino.ajustes.join(' · ') || 'ninguno'}</p>
+              <p>Revise que los ajustes sean compatibles: la guía se escribió para los de este caso.</p>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button disabled={!destino} onClick={ejecutar} className={CLASE_BOTON}><Copy size={15} />Replicar y aprobar</button>
+            <button onClick={() => setPaso('cerrado')} className={CLASE_BOTON_SEC}>Cancelar</button>
+          </div>
+        </div>
+      )}
+      {paso === 'corriendo' && <p className="text-sm text-strong" aria-live="polite">Replicando… no cierre esta página.</p>}
+      {paso === 'fin' && (
+        <div className="space-y-2 text-xs" aria-live="polite">
+          {error && <CajaError>{error}</CajaError>}
+          {resumen && (
+            <div className="rounded-lg bg-elevated p-2 space-y-1">
+              <p className="text-strong">{resumen.replicadas.length} guía(s) replicadas y aprobadas{resumen.publicado ? ' · agenda publicada' : ''}.</p>
+              {resumen.yaAprobadas.length > 0 && <p className="text-soft">Ya estaban aprobadas (no se tocaron): {resumen.yaAprobadas.join(', ')}.</p>}
+              {resumen.sinOrigen.length > 0 && <p className="text-warning-soft-fg">Sin guía para copiar (quedan pendientes): {resumen.sinOrigen.join(', ')}.</p>}
+              {resumen.fallos.length > 0 && <ul className="list-disc pl-4 text-danger">{resumen.fallos.map((x, i) => <li key={i}>{x.texto}: {x.motivo}</li>)}</ul>}
+            </div>
+          )}
+          <button onClick={() => setPaso('cerrado')} className={CLASE_BOTON_SEC}>Cerrar</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** '9.2' → 'noveno', '7º1' → 'séptimo'. */
+function gradoTexto(grupo: string): string {
+  const n = parseInt(grupo, 10);
+  return ({ 6: 'sexto', 7: 'séptimo', 8: 'octavo', 9: 'noveno', 10: 'décimo', 11: 'once' } as Record<number, string>)[n] ?? `grado ${n}`;
+}
+
 /** Genera los QR de varios planes y abre las cartas para la familia (una por página). */
 async function imprimirCartas(planes: PlanCasa[]) {
   const entradas: EntradaCarta[] = await Promise.all(planes.map(async plan => {
@@ -568,7 +650,7 @@ function EnEsperaControl({ plan, onError }: { plan: PlanConDocentes; onError: (m
   );
 }
 
-function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
+function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConDocentes[] }) {
   const [asigs, setAsigs] = useState<AsignaturaPlan[] | null>(null);
   const [guias, setGuias] = useState<GuiaPlan[] | null>(null);
   const [abierto, setAbierto] = useState(false);
@@ -690,6 +772,7 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
       {puedeMarcar && <EnEsperaControl plan={plan} onError={setError} />}
 
       {asigs && guias && <CompletarConIA plan={plan} asigs={asigs} guias={guias} nombres={nombres} puede={rolActual === 'coordinador' || esSuper} />}
+      {asigs && guias && <ReplicarGuias plan={plan} planes={planes} asigs={asigs} guias={guias} nombres={nombres} puede={rolActual === 'coordinador' || esSuper} />}
 
       <SolicitudesPendientes plan={plan} solicitudes={solicitudes} onError={setError}
         nombreGuia={id => { const g = guias?.find(x => x.id === id); return g ? (g.eje || g.asignaturaIds.map(nombreAsig).join(' · ')) : id; }} />
@@ -967,7 +1050,7 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
         </div>
       )}
       {vista === 'planes' && eligiendoCartas && <ElegirCartas planes={visibles} onCerrar={() => setEligiendoCartas(false)} />}
-      {vista === 'planes' && visibles.map(p => <TarjetaPlan key={p.id} plan={p} />)}
+      {vista === 'planes' && visibles.map(p => <TarjetaPlan key={p.id} plan={p} planes={planes ?? []} />)}
       {vista === 'avance' && planes && <AvanceDocentes planes={planes} />}
       {vista === 'seguimiento' && <SeguimientoPlanCasa />}
     </div>

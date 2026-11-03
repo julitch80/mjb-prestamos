@@ -202,6 +202,18 @@ export function escucharGuias(
   }, onError);
 }
 
+/** Lectura única de asignaturas y guías de un plan (para replicar a otro estudiante). */
+export async function leerAsignaturasYGuias(planId: string): Promise<{ asigs: AsignaturaPlan[]; guias: GuiaPlan[] }> {
+  const [a, g] = await Promise.all([
+    getDocs(collection(baseDatos(), COL_PLANES, planId, SUB_ASIGNATURAS)),
+    getDocs(collection(baseDatos(), COL_PLANES, planId, SUB_GUIAS)),
+  ]);
+  return {
+    asigs: a.docs.map(d => ({ ...(d.data() as AsignaturaPlan), asignaturaId: d.id })),
+    guias: g.docs.map(d => ({ ...(d.data() as GuiaPlan), id: d.id })),
+  };
+}
+
 export async function guardarGuia(planId: string, guiaId: string, cambios: Partial<GuiaPlan>) {
   await updateDoc(doc(baseDatos(), COL_PLANES, planId, SUB_GUIAS, guiaId), {
     ...limpiar(cambios), actualizadoEn: Date.now(),
