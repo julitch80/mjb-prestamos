@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { armarAprobacion, construirPasos, errorDeBorrador, faltantesPlan, fechaEntregaSugerida } from './completarPlan';
+import { armarAprobacion, completarBloqueado, construirPasos, errorDeBorrador, faltantesPlan, fechaEntregaSugerida } from './completarPlan';
 import type { AsignaturaPlan, Guia, GuiaPlan, PasoGuia } from './tipos';
 
 const plan = { modalidad: 'por_asignatura' as const, desde: '2026-11-09', hasta: '2026-11-27', estado: 'activo' as const };
@@ -90,5 +90,19 @@ describe('armarAprobacion / errorDeBorrador', () => {
     expect(errorDeBorrador(guiaIA({ pasos: [] }))).toBeTruthy();
     expect(errorDeBorrador(guiaIA({ pasos: [{ ...paso('a'), titulo: ' ' }] }))).toBeTruthy();
     expect(errorDeBorrador(guiaIA())).toBeNull();
+  });
+});
+
+describe('caso «en espera — ingresó tarde»', () => {
+  const enEspera = { hasta: '2026-11-13', por: 'a@b.co', en: 1 };
+  it('el botón queda oculto (nada que hacer) mientras esté en espera y vuelve al quitarla', () => {
+    const asigs = [asig('mat', { criteriosPromocion: '' })];
+    expect(faltantesPlan({ ...plan, enEspera }, asigs, [gp('mat')]).hayQueHacer).toBe(false);
+    expect(construirPasos({ ...plan, enEspera }, asigs, [gp('mat')], x => x, g => g.id)).toEqual([]);
+    expect(faltantesPlan(plan, asigs, [gp('mat')]).hayQueHacer).toBe(true);
+  });
+  it('completarBloqueado', () => {
+    expect(completarBloqueado({ enEspera })).toBe(true);
+    expect(completarBloqueado({})).toBe(false);
   });
 });

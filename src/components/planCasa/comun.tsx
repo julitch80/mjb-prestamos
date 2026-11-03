@@ -203,7 +203,7 @@ export function fechaLarga(iso: FechaISO): string {
 }
 
 /** Estado de edición de una guía hoy. Los gestores nunca quedan bloqueados. */
-export function edicionDe(plan: Pick<PlanCasa, 'desde' | 'cierreEdicion'>, g: Pick<GuiaPlan, 'autorizacion'> | undefined, gestor: boolean): EstadoEdicion {
+export function edicionDe(plan: Pick<PlanCasa, 'desde' | 'cierreEdicion' | 'enEspera'>, g: Pick<GuiaPlan, 'autorizacion'> | undefined, gestor: boolean): EstadoEdicion {
   const e = estadoEdicion(plan, g, hoyLocal());
   return gestor && !e.abierta ? { ...e, abierta: true } : e;
 }

@@ -4,7 +4,7 @@
 // razonables en lenguaje pedagógico y las asignaturas (igual que ya hacían los botones existentes).
 import type { AsignaturaPlan, CompletadoPorCoordinacion, Guia, GuiaPlan, PasoGuia, PedidoGuia, PlanCasa } from './tipos';
 import { semanasDelPeriodo } from './logica';
-import { armarAprobacion, esTransversal, construirPasos, errorDeBorrador, conEntregables, fechaEntregaSugerida, gradoDeGrupo, hoyLocal, type PasoCompletar } from './completarPlan';
+import { armarAprobacion, completarBloqueado, esTransversal, construirPasos, errorDeBorrador, conEntregables, fechaEntregaSugerida, gradoDeGrupo, hoyLocal, type PasoCompletar } from './completarPlan';
 import { correoActual, guardarAsignatura, guardarGuia, integrarGuiaIA, pedirGuiaIA, publicarPlan, sugerirCampos } from './persistencia';
 
 type NombreFn = (id: string) => string;
@@ -147,6 +147,7 @@ export function pasosParaCompletar(e: Pick<EntradaCompletar, 'plan' | 'asigs' | 
  */
 export async function completarPlanConIA(e: EntradaCompletar): Promise<ResumenCompletar> {
   const { plan, nombre, etiquetaGuia } = e;
+  if (completarBloqueado(plan)) throw new Error('Este caso está en espera (ingresó tarde): no se completa con IA hasta que venza el plazo de los docentes o se quite la marca.');
   const correo = correoActual();
   const pasos = pasosParaCompletar(e);
   const items: ItemProgreso[] = pasos.map(p => ({ id: p.id, texto: p.texto, estado: 'espera' }));

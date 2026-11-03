@@ -255,10 +255,22 @@ export function conSinTecnologia(ajustes: string[], valor: boolean): { sinTecnol
  * Último día (inclusive) para corregir las guías: `plan.cierreEdicion` si coordinación la fijó;
  * si no, el último día hábil (lunes a viernes, sin festivo colombiano) ANTES de `plan.desde`.
  */
-export function fechaCierre(plan: Pick<PlanCasa, 'desde' | 'cierreEdicion'>): FechaISO {
-  if (plan.cierreEdicion) return plan.cierreEdicion;
-  let f = addDias(plan.desde, -1);
-  for (let i = 0; i < 20 && !esDiaHabil(f); i++) f = addDias(f, -1);
+export function fechaCierre(plan: Pick<PlanCasa, 'desde' | 'cierreEdicion' | 'enEspera'>): FechaISO {
+  let cierre: FechaISO;
+  if (plan.cierreEdicion) cierre = plan.cierreEdicion;
+  else {
+    let f = addDias(plan.desde, -1);
+    for (let i = 0; i < 20 && !esDiaHabil(f); i++) f = addDias(f, -1);
+    cierre = f;
+  }
+  // Caso «en espera» (ingresó tarde): el cierre efectivo es el mayor entre el cierre y el plazo.
+  return plan.enEspera?.hasta && plan.enEspera.hasta > cierre ? plan.enEspera.hasta : cierre;
+}
+
+/** Próximo viernes estrictamente posterior a `hoy` (plazo por defecto de la marca «en espera»). */
+export function proximoViernes(hoy: FechaISO): FechaISO {
+  let f = addDias(hoy, 1);
+  for (let i = 0; i < 7 && parseFecha(f).getDay() !== 5; i++) f = addDias(f, 1);
   return f;
 }
 
@@ -271,7 +283,7 @@ export interface EstadoEdicion {
 
 /** ¿Se puede corregir la guía hoy? `hoy` en 'YYYY-MM-DD'. El último día cuenta completo. */
 export function estadoEdicion(
-  plan: Pick<PlanCasa, 'desde' | 'cierreEdicion'>, guia: Pick<GuiaPlan, 'autorizacion'> | undefined, hoy: FechaISO,
+  plan: Pick<PlanCasa, 'desde' | 'cierreEdicion' | 'enEspera'>, guia: Pick<GuiaPlan, 'autorizacion'> | undefined, hoy: FechaISO,
 ): EstadoEdicion {
   const cierre = fechaCierre(plan);
   if (hoy <= cierre) return { abierta: true, motivo: 'antes_cierre', hasta: cierre };

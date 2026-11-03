@@ -84,11 +84,24 @@ export interface PlanCasa {
   estado: EstadoPlan;
   /** Último día (inclusive) para corregir las guías. Si falta, es el último día hábil antes de `desde`. */
   cierreEdicion?: FechaISO;
+  /** Caso que ingresó tarde: los docentes tienen hasta `hasta` para su parte. Mientras exista, no se completa con IA y la edición queda abierta hasta esa fecha. */
+  enEspera?: EnEsperaPlan;
   /** Token largo e imposible de adivinar de la página pública (QR). */
   tokenPublico: string;
   creadoPor: string;   // correo
   creadoEn: number;    // ms
   actualizadoEn: number;
+}
+
+/** Marca «En espera — ingresó tarde». */
+export interface EnEsperaPlan {
+  /** Plazo de los docentes (YYYY-MM-DD, inclusive). */
+  hasta: FechaISO;
+  nota?: string;
+  /** Correo de quien la puso. */
+  por: string;
+  /** ms */
+  en: number;
 }
 
 export interface MotivoReservado {

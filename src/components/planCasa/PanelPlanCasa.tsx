@@ -2,7 +2,7 @@
 // Crea planes, muestra el tablero por estudiante y el QR de la agenda pública.
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
-import { Check, ChevronDown, Copy, Plus, QrCode, RefreshCw, Search, Sparkles, X } from 'lucide-react';
+import { Check, ChevronDown, Copy, Mail, Plus, QrCode, RefreshCw, Search, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { buscarEstudiantes } from '../../asistencia/datos';
 import type { Student } from '../../asistencia/domain/types';
@@ -13,18 +13,22 @@ import {
 import {
   asignaturasDelGrupo, cambiarEstadoPlan, crearPlan, escucharAsignaturas, escucharGuias, escucharPlanes, type GuiaTransversalDef,
   autorizarSolicitud, eliminarPlan, cambiarFechaSustentacion, escucharSolicitudes, guardarCierreEdicion, negarSolicitud,
-  guardarContexto, guardarSinTecnologia, leerEquipo, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
+  ponerEnEspera, quitarEnEspera, guardarContexto, guardarSinTecnologia, leerEquipo, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
 import { completarPlanConIA, type ItemProgreso, type ResumenCompletar } from '../../data/planCasa/completarConIA';
 import { faltantesPlan } from '../../data/planCasa/completarPlan';
-import { conSinTecnologia, fechaCierre } from '../../data/planCasa/logica';
+import { conSinTecnologia, fechaCierre, proximoViernes } from '../../data/planCasa/logica';
+import { hoyLocal } from '../../data/planCasa/completarPlan';
+
+const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 import { EntregasGuiaResumen } from './EntregasPaso';
 import { PestanasSubrayadas } from '../Navegacion';
-import { construirAvanceDocentes, filtrarPorJornada, type DatosPlanAvance, type FiltroJornada } from '../../data/planCasa/avanceDocentes';
+import { construirAvanceDocentes, filtrarPorJornada, jornadaDePlan, type DatosPlanAvance, type FiltroJornada } from '../../data/planCasa/avanceDocentes';
 import { claseBarra, construirInformeHTML, construirResumenTexto, filasInforme, fraccionTexto, resumenAvance, ETIQUETA_JORNADA, type Fraccion } from '../../data/planCasa/informeAvance';
 import { useAppStore } from '../../data/store';
 import { auth } from '../../lib/firebase';
+import { abrirCartas, construirHtmlCartas, type EntradaCarta } from '../../data/planCasa/imprimibleCarta';
 import { abrirImprimibleUAI } from '../../data/planCasa/imprimibleUAI';
 import {
   BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
@@ -509,6 +513,49 @@ function CompletarConIA({ plan, asigs, guias, nombres, puede }: {
   );
 }
 
+/** Genera los QR de varios planes y abre las cartas para la familia (una por página). */
+async function imprimirCartas(planes: PlanCasa[]) {
+  const entradas: EntradaCarta[] = await Promise.all(planes.map(async plan => {
+    const url = urlPublica(plan.tokenPublico);
+    const qr = await QRCode.toDataURL(url, { width: 400, margin: 1 }).catch(() => undefined);
+    return { plan, url, qr };
+  }));
+  abrirCartas(construirHtmlCartas(entradas));
+}
+
+/** Control para activar/quitar «En espera — ingresó tarde» (plazo por defecto: próximo viernes). */
+function EnEsperaControl({ plan, onError }: { plan: PlanConDocentes; onError: (m: string) => void }) {
+  const [editando, setEditando] = useState(false);
+  const [hasta, setHasta] = useState(plan.enEspera?.hasta ?? proximoViernes(hoyLocal()));
+  const [nota, setNota] = useState(plan.enEspera?.nota ?? '');
+  const fallo = (e: unknown) => onError((e as Error).message);
+  if (!editando) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {plan.enEspera
+          ? <>
+              <button className={CLASE_BOTON_SEC} onClick={() => { setHasta(plan.enEspera!.hasta); setNota(plan.enEspera!.nota ?? ''); setEditando(true); }}>Cambiar plazo</button>
+              <button className={CLASE_BOTON_SEC} onClick={() => quitarEnEspera(plan.id).catch(fallo)}>Quitar «en espera»</button>
+            </>
+          : <button className={CLASE_BOTON_SEC} onClick={() => setEditando(true)}>Marcar «en espera — ingresó tarde»</button>}
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-line p-3 space-y-2">
+      <Etiqueta>Plazo para los docentes (último día)</Etiqueta>
+      <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className={cn(CLASE_INPUT, 'max-w-[11rem]')} />
+      <Etiqueta>Nota (opcional)</Etiqueta>
+      <input value={nota} onChange={e => setNota(e.target.value)} className={CLASE_INPUT} />
+      <div className="flex gap-2">
+        <button className={CLASE_BOTON_SEC} disabled={!hasta}
+          onClick={() => ponerEnEspera(plan.id, hasta, nota).then(() => setEditando(false)).catch(fallo)}>Guardar</button>
+        <button className={CLASE_BOTON_SEC} onClick={() => setEditando(false)}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
 function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
   const [asigs, setAsigs] = useState<AsignaturaPlan[] | null>(null);
   const [guias, setGuias] = useState<GuiaPlan[] | null>(null);
@@ -530,6 +577,8 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
     leerEquipo().then(lista => setEnEquipo(lista.includes(correo))).catch(() => {});
   }, []);
   const esSuper = rolActual === 'superusuario' || enEquipo;
+  // La rectora solo ve la marca; la ponen/quitan coordinación, superusuario y equipo.
+  const puedeMarcar = rolActual === 'coordinador' || esSuper;
   const [confElim, setConfElim] = useState(false);
   const [tecleado, setTecleado] = useState('');
   const [eliminando, setEliminando] = useState(false);
@@ -620,6 +669,14 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
         </p>
       )}
 
+      {plan.enEspera && (
+        <div role="status" className="rounded-xl bg-warning-soft text-warning-soft-fg text-xs p-3 space-y-1">
+          <p>⏳ Este caso ingresó el {plan.creadoEn ? fechaLarga(isoLocal(new Date(plan.creadoEn))) : 'día de su creación'}, después del cierre. Plazo para los docentes: {fechaLarga(plan.enEspera.hasta)}. No completar con IA antes de esa fecha.</p>
+          {plan.enEspera.nota && <p>{plan.enEspera.nota}</p>}
+        </div>
+      )}
+      {puedeMarcar && <EnEsperaControl plan={plan} onError={setError} />}
+
       {asigs && guias && <CompletarConIA plan={plan} asigs={asigs} guias={guias} nombres={nombres} puede={rolActual === 'coordinador' || esSuper} />}
 
       <SolicitudesPendientes plan={plan} solicitudes={solicitudes} onError={setError}
@@ -687,6 +744,8 @@ function TarjetaPlan({ plan }: { plan: PlanConDocentes }) {
         <BotonFormatoUAI plan={plan} guias={guias} asigs={asigs} nombres={nombres} />
       )}
       {guias && <BotonCuadernillo plan={plan} guias={guias} nombres={nombres} />}
+      <button onClick={() => imprimirCartas([plan]).catch(e => setError(e.message))} className={CLASE_BOTON_SEC}
+        title="Carta de entrega con el QR de la agenda (sin motivo ni datos de salud)"><Mail size={15} />Carta para la familia</button>
       </>)}
     </div>
   );
@@ -810,6 +869,43 @@ function AvanceDocentes({ planes }: { planes: PlanConDocentes[] }) {
   );
 }
 
+/** Lista con casillas (todas marcadas) para imprimir las cartas de varias familias en un solo documento. */
+function ElegirCartas({ planes, onCerrar }: { planes: PlanCasa[]; onCerrar: () => void }) {
+  const [marcados, setMarcados] = useState<Set<string>>(() => new Set(planes.map(p => p.id)));
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState('');
+  const alternar = (id: string) => setMarcados(m => { const n = new Set(m); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const elegidos = planes.filter(p => marcados.has(p.id));
+  async function imprimir() {
+    setOcupado(true); setError('');
+    try { await imprimirCartas(elegidos); } catch (e) { setError((e as Error).message); } finally { setOcupado(false); }
+  }
+  return (
+    <div className="rounded-2xl border border-line bg-card p-4 space-y-2">
+      <p className="text-sm font-semibold text-strong">Cartas para las familias</p>
+      <div className="flex gap-3 text-xs">
+        <button onClick={() => setMarcados(new Set(planes.map(p => p.id)))} className="text-soft underline">Marcar todos</button>
+        <button onClick={() => setMarcados(new Set())} className="text-soft underline">Desmarcar todos</button>
+      </div>
+      <ul className="max-h-64 overflow-y-auto divide-y divide-line">
+        {planes.map(p => (
+          <li key={p.id}>
+            <label className="flex items-center gap-2 py-1.5 text-sm text-strong min-h-[40px]">
+              <input type="checkbox" checked={marcados.has(p.id)} onChange={() => alternar(p.id)} />
+              {p.apellidos} {p.nombres} <span className="text-xs text-soft">· {p.grupo}{p.estado === 'cerrado' ? ' · cerrado' : ''}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      {error && <CajaError>{error}</CajaError>}
+      <div className="flex gap-2">
+        <button onClick={imprimir} disabled={ocupado || elegidos.length === 0} className={CLASE_BOTON}><Mail size={15} />{ocupado ? 'Preparando…' : `Imprimir ${elegidos.length} carta${elegidos.length === 1 ? '' : 's'}`}</button>
+        <button onClick={onCerrar} className={CLASE_BOTON_SEC}>Cerrar</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────
 
 export default function PanelPlanCasa() {
@@ -818,6 +914,12 @@ export default function PanelPlanCasa() {
   const [creando, setCreando] = useState(false);
   const [aviso, setAviso] = useState('');
   const [vista, setVista] = useState<'planes' | 'avance'>('planes');
+  const [eligiendoCartas, setEligiendoCartas] = useState(false);
+  const rol = useAppStore(s => s.rol);
+  const jornadaUsuario = useAppStore(s => s.jornada);
+  // Un coordinador solo ve (y envía cartas de) su jornada; el resto ve todo.
+  const jornadaFija = rol === 'coordinador' && (jornadaUsuario === 'manana' || jornadaUsuario === 'tarde') ? jornadaUsuario : null;
+  const visibles = useMemo(() => (planes ?? []).filter(p => !jornadaFija || jornadaDePlan(p.grupo) === jornadaFija), [planes, jornadaFija]);
 
   useEffect(() => escucharPlanes(true, setPlanes, e => { setError(e.message || 'No se pudieron leer los planes.'); setPlanes([]); }), []);
 
@@ -833,7 +935,11 @@ export default function PanelPlanCasa() {
       {error && <CajaError>{error}</CajaError>}
       {!planes && <Cargando texto="Cargando planes…" />}
       {vista === 'planes' && planes && planes.length === 0 && !error && <p className="text-sm text-soft">Aún no hay planes. Cree el primero con «Nuevo plan».</p>}
-      {vista === 'planes' && planes?.map(p => <TarjetaPlan key={p.id} plan={p} />)}
+      {vista === 'planes' && visibles.length > 0 && !eligiendoCartas && (
+        <button onClick={() => setEligiendoCartas(true)} className={CLASE_BOTON_SEC}><Mail size={15} />Cartas de todas las familias</button>
+      )}
+      {vista === 'planes' && eligiendoCartas && <ElegirCartas planes={visibles} onCerrar={() => setEligiendoCartas(false)} />}
+      {vista === 'planes' && visibles.map(p => <TarjetaPlan key={p.id} plan={p} />)}
       {vista === 'avance' && planes && <AvanceDocentes planes={planes} />}
     </div>
   );

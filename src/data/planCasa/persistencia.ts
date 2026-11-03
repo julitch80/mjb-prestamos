@@ -333,6 +333,18 @@ export async function guardarCierreEdicion(planId: string, fecha: string) {
   await updateDoc(doc(baseDatos(), COL_PLANES, planId), { cierreEdicion: fecha || deleteField(), actualizadoEn: Date.now() });
 }
 
+/** Gestor: pone la marca «En espera — ingresó tarde» con el plazo de los docentes. */
+export async function ponerEnEspera(planId: string, hasta: string, nota?: string) {
+  const marca: Record<string, unknown> = { hasta, por: correoActual(), en: Date.now() };
+  if (nota?.trim()) marca.nota = nota.trim();
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId), { enEspera: marca, actualizadoEn: Date.now() });
+}
+
+/** Gestor: quita la marca; todo vuelve al comportamiento normal. */
+export async function quitarEnEspera(planId: string) {
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId), { enEspera: deleteField(), actualizadoEn: Date.now() });
+}
+
 export async function pedirAutorizacion(planId: string, d: { guiaId: string; motivo: string; detalle: string }) {
   await addDoc(collection(baseDatos(), COL_PLANES, planId, SUB_SOLICITUDES), {
     guiaId: d.guiaId, correo: correoActual(), motivo: d.motivo, detalle: d.detalle.trim(), creadaEn: Date.now(), estado: 'pendiente',

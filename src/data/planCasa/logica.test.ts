@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   agendaDelDia, aPublico, docentesDelGrupo, esDiaDePlan, guiasIniciales, nuevoToken, progresoAsignatura, progresoGuia,
-  proximasEntregas, repartirPasos, fechaCierre, estadoEdicion, asignaturasCambiadas, protegerPasosPasados, resumenTablero, semanasDelPeriodo, conSinTecnologia,
+  proximasEntregas, repartirPasos, fechaCierre, proximoViernes, estadoEdicion, asignaturasCambiadas, protegerPasosPasados, resumenTablero, semanasDelPeriodo, conSinTecnologia,
 } from './logica';
 import { addDias } from '../tareas/calendario';
 import type { AsignaturaPlan, Guia, GuiaPlan, PasoGuia, PlanCasa } from './tipos';
@@ -202,5 +202,25 @@ describe('cierre de edición', () => {
     expect(r.restaurados).toBe(1);
     expect(r.pasos.find(x => x.id === 'a')!.fecha).toBe('2026-11-02');
     expect(r.pasos.find(x => x.id === 'b')!.fecha).toBe('2026-11-11');
+  });
+});
+
+describe('cierre efectivo con «en espera»', () => {
+  const en = (hasta: string) => ({ hasta, por: 'x', en: 1 });
+  it('es el mayor entre el cierre y el plazo', () => {
+    expect(fechaCierre({ desde: '2026-11-04', enEspera: en('2026-11-13') })).toBe('2026-11-13');
+    expect(fechaCierre({ desde: '2026-11-04', cierreEdicion: '2026-11-20', enEspera: en('2026-11-13') })).toBe('2026-11-20');
+    expect(fechaCierre({ desde: '2026-11-04' })).toBe('2026-11-03');
+  });
+  it('los docentes editan pasado el cierre automático hasta el plazo; luego se cierra', () => {
+    const p = { desde: '2026-11-04', enEspera: en('2026-11-13') };
+    expect(estadoEdicion(p, undefined, '2026-11-10').abierta).toBe(true);
+    expect(estadoEdicion(p, undefined, '2026-11-13').abierta).toBe(true);
+    expect(estadoEdicion(p, undefined, '2026-11-14').abierta).toBe(false);
+    expect(estadoEdicion({ desde: '2026-11-04' }, undefined, '2026-11-10').abierta).toBe(false);
+  });
+  it('proximoViernes', () => {
+    expect(proximoViernes('2026-11-02')).toBe('2026-11-06'); // lunes
+    expect(proximoViernes('2026-11-06')).toBe('2026-11-13'); // viernes -> el siguiente
   });
 });

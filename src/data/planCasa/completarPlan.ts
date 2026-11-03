@@ -56,7 +56,10 @@ export const esTransversal = (plan: Pick<PlanCasa, 'modalidad'>, g: Pick<GuiaPla
 
 // ── Qué falta ─────────────────────────────────────────────────────────────
 
-type PlanMin = Pick<PlanCasa, 'modalidad' | 'desde' | 'hasta' | 'estado'>;
+type PlanMin = Pick<PlanCasa, 'modalidad' | 'desde' | 'hasta' | 'estado'> & Partial<Pick<PlanCasa, 'enEspera'>>;
+
+/** Mientras el caso esté «en espera — ingresó tarde», no se completa con IA. */
+export const completarBloqueado = (plan: Pick<PlanCasa, 'enEspera'>): boolean => !!plan.enEspera;
 type GuiaMin = Pick<GuiaPlan, 'id' | 'asignaturaIds' | 'aprobada' | 'propuesta' | 'pedido'>;
 type AsigMin = Pick<AsignaturaPlan, 'asignaturaId' | 'criteriosPromocion' | 'ebcDba' | 'evidenciaAprendizaje' | 'aportes' | 'entregable' | 'fechaEntrega'>;
 
@@ -75,7 +78,7 @@ const vacio = (s?: string) => !s?.trim();
 
 /** Qué le falta a un plan para que todas las guías puedan aprobarse y el cuadernillo salga completo. */
 export function faltantesPlan(plan: PlanMin, asigs: AsigMin[], guias: GuiaMin[]): Faltantes {
-  if (plan.estado === 'cerrado') return { asignaturas: [], entregables: [], guias: [], hayQueHacer: false };
+  if (plan.estado === 'cerrado' || completarBloqueado(plan)) return { asignaturas: [], entregables: [], guias: [], hayQueHacer: false };
   const enPendiente = new Set(guias.filter(g => !g.aprobada).flatMap(g => g.asignaturaIds));
   const asignaturas = asigs.filter(a =>
     vacio(a.criteriosPromocion) || (enPendiente.has(a.asignaturaId) && (vacio(a.ebcDba) || vacio(a.evidenciaAprendizaje) || vacio(a.aportes)))).map(a => a.asignaturaId);
@@ -109,6 +112,7 @@ export function construirPasos(
   plan: PlanMin, asigs: AsigMin[], guias: GuiaPlan[], nombre: (id: string) => string, etiquetaGuia: (g: GuiaPlan) => string,
 ): PasoCompletar[] {
   const f = faltantesPlan(plan, asigs, guias);
+  if (completarBloqueado(plan)) return [];
   const pasos: PasoCompletar[] = [];
   for (const id of f.asignaturas) pasos.push({ id: `asig-${id}`, tipo: 'asignatura', ref: id, texto: `${nombre(id)}: criterios y campos` });
   for (const id of f.entregables) pasos.push({ id: `ent-${id}`, tipo: 'entregable', ref: id, texto: `${nombre(id)}: entregable y fecha` });

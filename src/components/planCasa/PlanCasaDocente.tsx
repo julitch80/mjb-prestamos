@@ -893,6 +893,7 @@ function PlanDocente({ plan, gestor, datos, foco }: { plan: PlanConDocentes; ges
         style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
         <h3 className="text-base font-semibold text-strong">{plan.nombres.split(' ')[0]} {plan.apellidos.split(' ')[0]} · {plan.grupo}</h3>
         <p className="text-xs text-soft">Del {fechaCorta(plan.desde)} al {fechaCorta(plan.hasta)} · máximo {plan.topeDiario} momentos por día{plan.ritmo === 'dia_por_medio' ? ' (día por medio)' : ''} · guías {plan.modalidad === 'transversal' ? 'transversales' : 'por asignatura'}</p>
+        {plan.enEspera && <p className="text-xs rounded-lg bg-warning-soft text-warning-soft-fg px-2 py-1 my-1">⏳ Caso nuevo, ingresado después del cierre. Plazo para su parte: {fechaLarga(plan.enEspera.hasta)}.</p>}
         <p className={cn('text-xs', edicion.abierta ? 'text-soft' : 'text-warning')}>
           {edicion.abierta
             ? `Edición abierta hasta ${fechaLarga(edicion.hasta)} · ${faltan === 0 ? 'último día' : faltan === 1 ? 'falta 1 día' : `faltan ${faltan} días`}`
