@@ -58,6 +58,13 @@ export const TECNICAS_RESPIRACION: TecnicaRespiracion[] = [
     fases: [f('inhala', 2, ESCALA_MIN, 0.82), f('inhala2', 1, 0.82, ESCALA_MAX), f('exhala', 6, ESCALA_MAX, ESCALA_MIN)],
   },
   {
+    id: 'larga',
+    nombre: 'Respira largo',
+    patron: '4-6',
+    explicacion: 'Cuatro segundos entrando por la nariz y seis saliendo despacio, sin retener el aire. Calma el cuerpo antes de estudiar.',
+    fases: [f('inhala', 4, ESCALA_MIN, ESCALA_MAX), f('exhala', 6, ESCALA_MAX, ESCALA_MIN)],
+  },
+  {
     id: 'coherente',
     nombre: 'Coherente',
     patron: '5-5',

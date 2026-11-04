@@ -95,13 +95,14 @@ export function guardarHorario(clave: string, h: HorarioEstudio): void {
 
 // ── Pildoritas para la familia ───────────────────────────────────────────────
 
-export type GrupoSugerencia = 'ambiente' | 'concentracion' | 'acompanamiento' | 'tecnologia' | 'bienestar' | 'atrasos';
+export type GrupoSugerencia = 'ambiente' | 'concentracion' | 'cuerpo' | 'acompanamiento' | 'tecnologia' | 'bienestar' | 'atrasos';
 
 export interface Sugerencia { id: string; grupo: GrupoSugerencia; titulo: string; texto: string }
 
 export const GRUPOS_SUGERENCIA: { id: GrupoSugerencia; titulo: string; icono: string }[] = [
   { id: 'ambiente', titulo: 'El lugar de estudio', icono: '🪑' },
   { id: 'concentracion', titulo: 'Concentración', icono: '🎯' },
+  { id: 'cuerpo', titulo: 'Cuerpo y respiración', icono: '🌬️' },
   { id: 'acompanamiento', titulo: 'Cómo acompañar', icono: '🤝' },
   { id: 'tecnologia', titulo: 'Tecnología y fotos de la entrega', icono: '📱' },
   { id: 'bienestar', titulo: 'Bienestar', icono: '🌱' },
@@ -117,6 +118,13 @@ export const SUGERENCIAS: Sugerencia[] = [
   { id: 'c3', grupo: 'concentracion', titulo: 'El celular, en otro cuarto', texto: 'Tenerlo a la vista distrae aunque no suene. Déjenlo en otra habitación durante el momento de estudio.' },
   { id: 'c4', grupo: 'concentracion', titulo: 'Antes de empezar', texto: 'Tres cosas: mirar juntos qué toca hoy, preparar los materiales y decidir cómo sabrán que terminaron. Toma dos minutos.' },
   { id: 'c5', grupo: 'concentracion', titulo: 'Practicar con preguntas', texto: 'Al terminar, cierren el cuaderno y pídanle que cuente con sus palabras lo que hizo. Recordar sin mirar enseña más que releer.' },
+  { id: 'r1', grupo: 'cuerpo', titulo: 'Cuerpo en marcha', texto: 'Antes de abrir el cuaderno, muévanse 5 a 10 minutos: marchar, subir escaleras, saltar suave. Con el corazón un poco acelerado, la mente suele quedar más lista para atender.' },
+  { id: 'r2', grupo: 'cuerpo', titulo: 'Pausa: párate y muévete', texto: 'En los 5 minutos de pausa, párate, estírate, camina por la casa y toma agua. Moverse un rato ayuda a volver a la tarea con más atención.' },
+  { id: 'r3', grupo: 'cuerpo', titulo: 'Respira largo', texto: 'Inhala por la nariz contando 4 y suelta el aire despacio contando 6, unas 10 veces. Soltar el aire más lento ayuda al cuerpo a calmarse. Usa el botón «Respiración guiada».' },
+  { id: 'r4', grupo: 'cuerpo', titulo: 'Suspiro para soltar tensión', texto: 'Toma aire por la nariz, suma un segundo sorbito y suéltalo despacio por la boca, como un suspiro largo. Cinco a diez suspiros ayudan cuando aparece la rabia o el desánimo.' },
+  { id: 'r5', grupo: 'cuerpo', titulo: 'Un minuto de silencio atento', texto: 'Mira un punto fijo o cierra los ojos y sigue tu respiración uno a tres minutos. Si la mente se va, tráela de vuelta con amabilidad.' },
+  { id: 'r6', grupo: 'cuerpo', titulo: 'Sacudir y volver', texto: 'Si ya no puedes más, párate dos minutos: sacude brazos y piernas, camina en el sitio y estira el cuello. Luego intenta solo la siguiente parte pequeña.' },
+  { id: 'r7', grupo: 'cuerpo', titulo: '¿Movimiento o respiración?', texto: 'Si está inquieto, primero movimiento. Si está nervioso o enojado, primero respiración. Prueben y vean qué le funciona mejor. Respiren suave: si hay mareo, paren y respiren normal.' },
   { id: 'p1', grupo: 'acompanamiento', titulo: 'Preguntar sin hacer la tarea', texto: 'Cambie «¿ya hiciste la tarea?» por «¿cómo vas a empezar?» o «¿qué parte te cuesta?». Si se traba, ayude a pensar, no a resolver.' },
   { id: 'p2', grupo: 'acompanamiento', titulo: 'Elogiar el esfuerzo', texto: 'Destaque lo que hizo: «me gustó que lo intentaste otra vez» vale más que «qué inteligente eres». El esfuerzo se puede repetir mañana.' },
   { id: 'p3', grupo: 'acompanamiento', titulo: 'Revisar la agenda juntos', texto: 'Al comenzar el día miren qué toca y a qué hora lo harán. Al terminar, miren qué se logró. Bastan cinco minutos.' },

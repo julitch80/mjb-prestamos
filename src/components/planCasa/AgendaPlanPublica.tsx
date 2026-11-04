@@ -14,7 +14,8 @@ import { prepararArchivo, subirEntrega } from '../../data/planCasa/entregasClien
 import { BotonSugerencias, ComoMeFue, HoraDeEstudio, PildoraDelDia, Sugerencias, TemporizadorMomento, useHorarioEstudio } from './OrientacionFamilia';
 import { db } from '../../lib/firebase';
 import { cn } from '@/lib/utils';
-import { guardarHechos, leerHechos, progresoDia } from '../../data/planCasa/orientacionFamilia';
+import { SUGERENCIAS, guardarHechos, leerHechos, pildoraDelDia, progresoDia } from '../../data/planCasa/orientacionFamilia';
+import { RespiracionGuiada } from '../RespiracionGuiada';
 import { COL_PUBLICO, MODALIDADES_SUSTENTACION, type FechaISO, type PlanPublico } from '../../data/planCasa/tipos';
 
 type Paso = PlanPublico['pasos'][number];
@@ -265,6 +266,16 @@ function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { pla
         {esHoy && (
           <section className="space-y-3" aria-label="Para estudiar mejor">
             <PildoraDelDia fecha={hoy} clave={token} abrirSugerencias={() => setVerSugerencias(true)} />
+            {total > 0 && (() => {
+              const cuerpo = SUGERENCIAS.filter(x => x.grupo === 'cuerpo');
+              const sug = pildoraDelDia(hoy, cuerpo, token + 'cuerpo');
+              return (
+                <div className="rounded-2xl border border-sky-500/40 bg-sky-500/10 p-4 space-y-3">
+                  <p className="text-sm font-semibold text-strong">🌬️ Antes de empezar: {sug.titulo}</p>
+                  <p className="text-sm text-soft">{sug.texto}</p>
+                  <RespiracionGuiada tecnicas={['larga', 'suspiro', 'coherente']} subtitulo="Respira largo o suspira junto a la pantalla · 1 a 3 minutos" />
+                </div>);
+            })()}
             {total > 0 && <TemporizadorMomento />}
             {total > 0 && <ComoMeFue clave={token} fecha={hoy} />}
           </section>

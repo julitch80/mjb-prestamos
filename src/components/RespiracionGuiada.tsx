@@ -26,7 +26,10 @@ const RADIO = 46;
 const LARGO = 2 * Math.PI * RADIO;
 
 /** Botón de entrada + pantalla completa con la respiración guiada. */
-export function RespiracionGuiada() {
+export function RespiracionGuiada({ tecnicas, subtitulo = 'Para respirar junto al estudiante · pantalla completa' }: {
+  /** Ids de las técnicas que se ofrecen (la primera es la recomendada). Sin esto: todas. */
+  tecnicas?: string[]; subtitulo?: string;
+} = {}) {
   const [abierta, setAbierta] = useState(false);
   return (
     <>
@@ -38,16 +41,18 @@ export function RespiracionGuiada() {
         <span className="text-2xl" aria-hidden="true">🌬️</span>
         <span className="flex flex-col">
           <span className="text-sm font-bold text-strong">Respiración guiada</span>
-          <span className="text-xs text-soft">Para respirar junto al estudiante · pantalla completa</span>
+          <span className="text-xs text-soft">{subtitulo}</span>
         </span>
       </button>
-      {abierta && <PantallaRespiracion onCerrar={() => setAbierta(false)} />}
+      {abierta && <PantallaRespiracion onCerrar={() => setAbierta(false)} tecnicas={tecnicas} />}
     </>
   );
 }
 
-function PantallaRespiracion({ onCerrar }: { onCerrar: () => void }) {
-  const [tecnicaId, setTecnicaId] = useState(TECNICA_DEFECTO);
+function PantallaRespiracion({ onCerrar, tecnicas }: { onCerrar: () => void; tecnicas?: string[] }) {
+  const lista = tecnicas?.length ? TECNICAS_RESPIRACION.filter(t => tecnicas.includes(t.id)) : TECNICAS_RESPIRACION;
+  const defecto = tecnicas?.length ? tecnicas[0] : TECNICA_DEFECTO;
+  const [tecnicaId, setTecnicaId] = useState(defecto);
   const [corriendo, setCorriendo] = useState(false);
   const [sonido, setSonido] = useState(false);
   const [vibrar, setVibrar] = useState(false);
@@ -274,7 +279,7 @@ function PantallaRespiracion({ onCerrar }: { onCerrar: () => void }) {
         </button>
 
         <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="Técnica de respiración">
-          {TECNICAS_RESPIRACION.map(t => (
+          {lista.map(t => (
             <button
               key={t.id}
               type="button"
@@ -285,13 +290,13 @@ function PantallaRespiracion({ onCerrar }: { onCerrar: () => void }) {
                 tecnicaId === t.id ? 'border-accent bg-accent text-accent-fg' : 'border-line bg-elevated text-soft',
               )}
             >
-              {t.nombre}{t.id === TECNICA_DEFECTO ? ' ★' : ''}
+              {t.nombre}{t.id === defecto ? ' ★' : ''}
             </button>
           ))}
         </div>
         <p className="text-sm text-soft text-center max-w-md">
           <strong className="text-strong">{tecnica.nombre} {tecnica.patron}.</strong> {tecnica.explicacion}
-          {tecnica.id === TECNICA_DEFECTO && ' Recomendada para estudiantes.'}
+          {tecnica.id === defecto && ' Recomendada para estudiantes.'}
         </p>
 
         <div className="flex gap-2">

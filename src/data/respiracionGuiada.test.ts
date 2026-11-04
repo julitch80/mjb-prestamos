@@ -2,13 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { TECNICAS_RESPIRACION, buscarTecnica, duracionCiclo, estadoEn, ESCALA_MIN, ESCALA_MAX } from './respiracionGuiada';
 
 describe('respiracionGuiada', () => {
-  it('define las 5 técnicas con la calma por defecto primero', () => {
-    expect(TECNICAS_RESPIRACION.map(t => t.id)).toEqual(['calma', '4-2-8', 'caja', 'suspiro', 'coherente']);
+  it('define las 6 técnicas con la calma por defecto primero', () => {
+    expect(TECNICAS_RESPIRACION.map(t => t.id)).toEqual(['calma', '4-2-8', 'caja', 'suspiro', 'larga', 'coherente']);
     expect(duracionCiclo(buscarTecnica('calma'))).toBe(12);
     expect(duracionCiclo(buscarTecnica('4-2-8'))).toBe(14);
     expect(duracionCiclo(buscarTecnica('caja'))).toBe(16);
     expect(duracionCiclo(buscarTecnica('suspiro'))).toBe(9);
     expect(duracionCiclo(buscarTecnica('coherente'))).toBe(10);
+    expect(duracionCiclo(buscarTecnica('larga'))).toBe(10);
   });
 
   it('calma: fase y cuenta regresiva según el tiempo', () => {
