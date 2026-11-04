@@ -137,49 +137,106 @@ export function Sugerencias({ onCerrar }: { onCerrar: () => void }) {
 }
 
 /** Temporizador de un momento: 25 minutos de trabajo y 5 de pausa. */
-export function TemporizadorMomento() {
-  const [fase, setFase] = useState<'trabajo' | 'pausa'>('trabajo');
+/** Sonido suave de aviso (dos notas). Solo suena si el usuario ya tocó la página (Empezar). */
+function campana() {
+  try {
+    const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
+    const ctx = new Ctx();
+    [523.25, 783.99].forEach((f, k) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      const t = ctx.currentTime + k * 0.35;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+      o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 1);
+    });
+    setTimeout(() => ctx.close().catch(() => {}), 2000);
+  } catch { /* sin audio */ }
+  try { navigator.vibrate?.([300, 150, 300]); } catch { /* sin vibración */ }
+}
+
+/** Sugerencias para la pausa de 5 minutos (cuerpo y respiración, con evidencia). */
+const PAUSAS = SUGERENCIAS.filter(x => ['r2', 'r6', 'r3', 'b1'].includes(x.id));
+
+/**
+ * Temporizador de los momentos del día: «Momento N de T», campana al terminar, ofrece tachar el
+ * momento en la lista, arranca solo la pausa de 5 min con una sugerencia y, tras el último
+ * momento, felicita sin proponer otra pausa.
+ */
+export function TemporizadorMomento({ total = 1, hechos = 0, onTachar, extraPausa }: {
+  /** Momentos del día y cuántos ya están tachados en la lista. */
+  total?: number; hechos?: number;
+  /** Tacha el siguiente momento pendiente en la lista de chequeo. */
+  onTachar?: () => void;
+  /** Lo que se muestra durante la pausa además de la sugerencia (p. ej. la respiración guiada). */
+  extraPausa?: React.ReactNode;
+}) {
+  const [fase, setFase] = useState<'trabajo' | 'pausa' | 'fin'>('trabajo');
   const [segundos, setSegundos] = useState(SEGUNDOS_MOMENTO);
   const [corre, setCorre] = useState(false);
+  const [porTachar, setPorTachar] = useState(false);
   const [aviso, setAviso] = useState('');
+  const [nPausa, setNPausa] = useState(0);
   const fin = useRef(0);
+  const actual = Math.min(total, hechos + 1);
 
   useEffect(() => {
     if (!corre) return;
     const id = setInterval(() => {
       const resto = Math.round((fin.current - Date.now()) / 1000); // por reloj real: sigue exacto si la pantalla se apaga
       if (resto > 0) { setSegundos(resto); return; }
-      setCorre(false);
+      campana();
       if (fase === 'trabajo') {
-        setAviso('¡Terminó el momento! Tómese 5 minutos: pararse, agua y mirar lejos.');
-        setFase('pausa'); setSegundos(SEGUNDOS_PAUSA);
+        setPorTachar(!!onTachar && hechos < total);
+        if (hechos + 1 >= total) {
+          setCorre(false); setFase('fin'); setSegundos(0);
+          setAviso('🎉 ¡Terminaste tus momentos de hoy! Revisa tu lista y, si tienes entrega, envíala.');
+        } else {
+          // La pausa arranca sola.
+          setFase('pausa'); setSegundos(SEGUNDOS_PAUSA); fin.current = Date.now() + SEGUNDOS_PAUSA * 1000;
+          setNPausa(n => n + 1);
+          setAviso('¡Terminó el momento! Ahora 5 minutos de pausa.');
+        }
       } else {
-        setAviso('La pausa terminó. Cuando estén listos, empiecen otro momento.');
-        setFase('trabajo'); setSegundos(SEGUNDOS_MOMENTO);
+        setCorre(false); setFase('trabajo'); setSegundos(SEGUNDOS_MOMENTO);
+        setAviso('La pausa terminó. Cuando estés listo, toca «Empezar» para el siguiente momento.');
       }
-      try { navigator.vibrate?.(300); } catch { /* sin vibración */ }
     }, 500);
     return () => clearInterval(id);
-  }, [corre, fase]);
+  }, [corre, fase, hechos, total, onTachar]);
 
   const alternar = () => {
-    if (!corre) { fin.current = Date.now() + segundos * 1000; setAviso(''); }
+    if (!corre) { fin.current = Date.now() + segundos * 1000; if (fase === 'trabajo') setAviso(''); }
     setCorre(c => !c);
   };
-  const reiniciar = () => { setCorre(false); setFase('trabajo'); setSegundos(SEGUNDOS_MOMENTO); setAviso(''); };
+  const reiniciar = () => { setCorre(false); setFase('trabajo'); setSegundos(SEGUNDOS_MOMENTO); setAviso(''); setPorTachar(false); };
+  const sugerencia = PAUSAS[nPausa % PAUSAS.length];
 
   return (
-    <div className="rounded-2xl border border-line bg-card p-4 space-y-2">
-      <p className="text-sm font-semibold text-strong">{fase === 'trabajo' ? 'Temporizador de un momento (25 min)' : 'Pausa (5 min)'}</p>
-      <div className="flex items-center gap-3">
-        <span className="text-3xl font-bold tabular-nums text-strong" role="timer" aria-live="off">{formatoReloj(segundos)}</span>
-        <button onClick={alternar} className={`${botonAccent} inline-flex items-center gap-1.5`}>
-          {corre ? <><Pause size={16} /> Pausar</> : <><Play size={16} /> {segundos === (fase === 'trabajo' ? SEGUNDOS_MOMENTO : SEGUNDOS_PAUSA) ? 'Empezar' : 'Seguir'}</>}
-        </button>
-        <button onClick={reiniciar} aria-label="Reiniciar" className={`${botonSuave} px-3`}><RotateCcw size={16} /></button>
-      </div>
-      {aviso && <p className="text-sm text-soft" role="status">{aviso}</p>}
-      <p className="text-xs text-muted">Mantenga la pantalla encendida mientras corre. Antes de empezar: materiales listos, celular lejos y agua a la mano.</p>
+    <div className={`rounded-2xl border p-4 space-y-2 ${fase === 'pausa' ? 'border-sky-500/40 bg-sky-500/10' : fase === 'fin' ? 'border-success/40 bg-success/10' : 'border-line bg-card'}`}>
+      <p className="text-sm font-semibold text-strong">
+        {fase === 'trabajo' ? `Momento ${actual} de ${total} · 25 min` : fase === 'pausa' ? 'Pausa · 5 min' : 'Momentos de hoy completos'}
+      </p>
+      {fase !== 'fin' && (
+        <div className="flex items-center gap-3">
+          <span className="text-3xl font-bold tabular-nums text-strong" role="timer" aria-live="off">{formatoReloj(segundos)}</span>
+          <button onClick={alternar} className={`${botonAccent} inline-flex items-center gap-1.5`}>
+            {corre ? <><Pause size={16} /> Pausar</> : <><Play size={16} /> {segundos === (fase === 'trabajo' ? SEGUNDOS_MOMENTO : SEGUNDOS_PAUSA) ? 'Empezar' : 'Seguir'}</>}
+          </button>
+          <button onClick={reiniciar} aria-label="Reiniciar" className={`${botonSuave} px-3`}><RotateCcw size={16} /></button>
+        </div>
+      )}
+      {aviso && <p className="text-sm text-strong" role="status">{aviso}</p>}
+      {porTachar && (
+        <button onClick={() => { onTachar?.(); setPorTachar(false); }} className={`${botonSuave} w-full`}>☑ Tachar el momento en mi lista</button>
+      )}
+      {fase === 'pausa' && (
+        <div className="space-y-2">
+          <p className="text-sm text-soft"><b className="text-strong">{sugerencia.titulo}:</b> {sugerencia.texto}</p>
+          {extraPausa}
+        </div>
+      )}
+      {fase === 'fin' && <button onClick={reiniciar} className={`${botonSuave}`}>Otro momento extra</button>}
+      {fase === 'trabajo' && <p className="text-xs text-muted">Mantén la pantalla encendida mientras corre. Antes de empezar: materiales listos, celular lejos y agua a la mano.</p>}
     </div>
   );
 }

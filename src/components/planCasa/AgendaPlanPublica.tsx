@@ -276,7 +276,16 @@ function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { pla
                   <RespiracionGuiada tecnicas={['larga', 'suspiro', 'coherente']} subtitulo="Respira largo o suspira junto a la pantalla · 1 a 3 minutos" />
                 </div>);
             })()}
-            {total > 0 && <TemporizadorMomento />}
+            {total > 0 && (() => {
+              const claves = delDia.map(p => ({ key: clavePaso(dia, p), momentos: p.momentos }));
+              const pr = progresoDia(claves, hechos);
+              const tachar = () => {
+                const sig = claves.find(c => (hechos[c.key] ?? 0) < c.momentos);
+                if (sig) setHechos(guardarHechos(token, sig.key, (hechos[sig.key] ?? 0) + 1));
+              };
+              return <TemporizadorMomento total={pr.total} hechos={pr.hechos} onTachar={tachar}
+                extraPausa={<RespiracionGuiada tecnicas={['larga', 'suspiro', 'coherente']} subtitulo="Respira un minuto en la pausa" />} />;
+            })()}
             {total > 0 && <ComoMeFue clave={token} fecha={hoy} />}
           </section>
         )}
