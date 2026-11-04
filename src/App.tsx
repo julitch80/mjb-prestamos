@@ -95,6 +95,7 @@ const BancoPlanPublico = import.meta.env.DEV ? lazy(() => import('./dev/BancoPla
 // Agenda pública del plan de trabajo en casa (QR del estudiante, sin login).
 const AgendaPlanPublica = lazy(() => import('./components/planCasa/AgendaPlanPublica'));
 const AgendaDemo = lazy(() => import('./components/planCasa/AgendaDemo'));
+const AgendaPresentacion = lazy(() => import('./components/planCasa/AgendaDemo').then(m => ({ default: m.AgendaPresentacion })));
 
 export default function App() {
   const [sugerenciaAbierta, setSugerenciaAbierta] = useState(false);
@@ -256,6 +257,13 @@ export default function App() {
     );
   }
   // Demostración con datos ficticios y fecha simulable (disponible en producción).
+  if (hash === '#/plan-ejemplo') {
+    return (
+      <Suspense fallback={null}>
+        <AgendaPresentacion />
+      </Suspense>
+    );
+  }
   if (hash === '#/plan-demo') {
     return (
       <Suspense fallback={null}>

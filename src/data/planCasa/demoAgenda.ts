@@ -59,3 +59,18 @@ export function crearDemoAgenda(hoyReal: FechaISO = aISO(new Date())): DemoAgend
 
   return { datos, desde: f(0), hasta: f(18), atajos: { inicio: f(0), mitad: f(9), entrega: f(17), despues: f(21) } };
 }
+
+/**
+ * Versión para PRESENTAR a las familias: el mismo plan ficticio, «hoy» es el día real y solo lo
+ * anterior a hoy aparece entregado; lo de hoy en adelante, pendiente y sin comentarios.
+ */
+export function crearPresentacion(hoyReal: FechaISO = aISO(new Date())): { datos: PlanPublico; hoy: FechaISO } {
+  const d = crearDemoAgenda(hoyReal);
+  // Fin de semana: se presenta el lunes siguiente.
+  const dia = new Date(`${hoyReal}T12:00:00`).getDay();
+  const hoy = dia === 6 ? sumarDias(hoyReal, 2) : dia === 0 ? sumarDias(hoyReal, 1) : hoyReal;
+  const pasos = d.datos.pasos.map(p => (p.fecha && p.fecha >= hoy
+    ? { ...p, entregadoEn: undefined, revisado: undefined, comentario: undefined, componentes: p.componentes?.map(c => ({ ...c, revisado: undefined, comentario: undefined })) }
+    : p));
+  return { datos: { ...d.datos, primerNombre: 'Valentina', pasos: JSON.parse(JSON.stringify(pasos)) }, hoy };
+}

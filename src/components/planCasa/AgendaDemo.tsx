@@ -3,9 +3,20 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import AgendaPlanPublica from './AgendaPlanPublica';
-import { crearDemoAgenda } from '../../data/planCasa/demoAgenda';
+import { crearDemoAgenda, crearPresentacion } from '../../data/planCasa/demoAgenda';
 import { aISO, sumarDias } from '../../data/planCasa/calendarioAgenda';
 import type { FechaISO } from '../../data/planCasa/tipos';
+
+/** #/plan-ejemplo: el estudiante de prueba listo para proyectar a las familias (sin barra de demo). */
+export function AgendaPresentacion() {
+  const p = useMemo(() => crearPresentacion(), []);
+  return (
+    <>
+      <p className="text-center text-xs font-semibold text-warning-soft-fg bg-warning/10 border-b border-warning/30 py-1">Ejemplo con un estudiante ficticio</p>
+      <AgendaPlanPublica token="" datos={p.datos} hoy={p.hoy} />
+    </>
+  );
+}
 
 export default function AgendaDemo() {
   const demo = useMemo(() => crearDemoAgenda(), []);

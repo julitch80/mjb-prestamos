@@ -11,7 +11,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { ExternalLink, Clock, PackageCheck, Upload, Link2, CheckCircle2, Camera } from 'lucide-react';
 import { ACCEPT_ENTREGA, formatoTamano, validarArchivo, validarEnlace } from '../../data/planCasa/entregas';
 import { prepararArchivo, subirEntrega } from '../../data/planCasa/entregasCliente';
-import { BotonSugerencias, ComoMeFue, HoraDeEstudio, PildoraDelDia, Sugerencias, TemporizadorMomento, useHorarioEstudio } from './OrientacionFamilia';
+import { BotonSugerencias, ComoMeFue, Manual, HoraDeEstudio, PildoraDelDia, Sugerencias, TemporizadorMomento, useHorarioEstudio } from './OrientacionFamilia';
 import { db } from '../../lib/firebase';
 import { cn } from '@/lib/utils';
 import { SUGERENCIAS, guardarHechos, leerHechos, pildoraDelDia, progresoDia } from '../../data/planCasa/orientacionFamilia';
@@ -141,6 +141,7 @@ function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { pla
   const horario = useHorarioEstudio(token, hoy); // token vacío = demostración
   const [hechos, setHechos] = useState(() => leerHechos(token));
   const [verSugerencias, setVerSugerencias] = useState(false);
+  const [verManual, setVerManual] = useState(false);
 
   // Guías en el orden en que aparecen; cada una con su color.
   const guias = useMemo<InfoGuia[]>(() => {
@@ -200,7 +201,12 @@ function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { pla
             {' · '}{totalHoy > 0 ? `hoy ${totalHoy} ${totalHoy === 1 ? 'momento' : 'momentos'} (${unidades(totalHoy)})` : 'hoy sin pasos'}
           </p>
         </div>
+        <button onClick={() => setVerManual(true)} aria-label="Manual de la agenda"
+          className="flex-shrink-0 inline-flex items-center gap-1 min-h-[40px] px-3 rounded-full border border-sky-500/40 bg-sky-500/10 text-sm font-semibold text-strong">
+          📖 Manual
+        </button>
       </header>
+      {verManual && <Manual onCerrar={() => setVerManual(false)} desde={plan.desde} hasta={plan.hasta} />}
 
       <div><BotonSugerencias onClick={() => setVerSugerencias(true)} /></div>
       {verSugerencias && <Sugerencias onCerrar={() => setVerSugerencias(false)} />}

@@ -266,6 +266,58 @@ export function ComoMeFue({ clave, fecha }: { clave: string; fecha: FechaISO }) 
 }
 
 /** Botón de la cabecera que abre las sugerencias. */
+/** Pasos del manual de la agenda (lo que se le explica a la familia el primer día). */
+const PASOS_MANUAL: { icono: string; titulo: string; texto: string }[] = [
+  { icono: '📲', titulo: 'Abran la agenda', texto: 'Escaneen el QR de la carta. Para tenerla siempre a mano: en el menú del navegador, «Agregar a la pantalla de inicio».' },
+  { icono: '🕒', titulo: 'Elijan la hora de estudio', texto: 'En «Hoy», toquen «Elegir la hora» y decidan juntos a qué hora se estudia. Puede ser la misma todos los días.' },
+  { icono: '📅', titulo: 'Miren qué toca', texto: '«Hoy» muestra el trabajo del día; «Semana» y «Mes», lo que viene; «Mis guías», cada guía con su avance; «Entregas», lo que hay que enviar.' },
+  { icono: '⏱️', titulo: 'Trabajen por momentos', texto: 'Un momento son 25 minutos de trabajo y 5 de pausa. Toquen «Empezar» en el temporizador: avisa al terminar y arranca la pausa.' },
+  { icono: '☑️', titulo: 'Tachen lo que hicieron', texto: 'En cada tarjeta, toquen «Momento 1», «Momento 2»… al terminarlos. La barra verde muestra cuánto falta del día.' },
+  { icono: '📸', titulo: 'Entreguen a tiempo', texto: 'Abran «Ver instrucciones»: ahí dice qué entregar y cómo. Tomen la foto o suban el archivo con los botones de entrega.' },
+  { icono: '🌬️', titulo: 'Antes de empezar y en la pausa', texto: 'Muévanse un poco o usen la «Respiración guiada». En «Sugerencias de estudio» hay más ideas para acompañar.' },
+  { icono: '💬', titulo: 'Pidan ayuda a tiempo', texto: 'Si algo no se entiende o no se alcanza, escriban al docente de la asignatura o a coordinación. Avisar a tiempo siempre ayuda.' },
+];
+
+/** «Manual» de la agenda: instructivo breve, siempre a mano. */
+export function Manual({ onCerrar, desde, hasta }: { onCerrar: () => void; desde: FechaISO; hasta: FechaISO }) {
+  const cierre = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    cierre.current?.focus();
+    const f = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
+    window.addEventListener('keydown', f);
+    return () => window.removeEventListener('keydown', f);
+  }, [onCerrar]);
+  const corta = (f: FechaISO) => { const [y, m, d] = f.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('es-CO', { day: 'numeric', month: 'long' }); };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={onCerrar}>
+      <div role="dialog" aria-modal="true" aria-label="Manual de la agenda" onClick={e => e.stopPropagation()}
+        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-line bg-card p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h2 className="text-xl font-bold text-strong">Cómo usar esta agenda</h2>
+            <p className="text-sm text-soft">Trabajo del {corta(desde)} al {corta(hasta)} · sustentaciones del 24 al 27 de noviembre.</p>
+          </div>
+          <button ref={cierre} onClick={onCerrar} aria-label="Cerrar" className="min-h-[44px] min-w-[44px] rounded-xl border border-line bg-card text-strong flex items-center justify-center">
+            <X size={20} />
+          </button>
+        </div>
+        <ol className="space-y-2">
+          {PASOS_MANUAL.map((p, i) => (
+            <li key={p.titulo} className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 flex gap-3">
+              <span className="text-2xl leading-none" aria-hidden>{p.icono}</span>
+              <div className="min-w-0">
+                <p className="text-base font-semibold text-strong">{i + 1}. {p.titulo}</p>
+                <p className="text-sm text-soft">{p.texto}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <p className="rounded-xl border border-success/40 bg-success/10 p-3 text-sm text-strong">Si cada día cumplen sus momentos a la hora acordada, llegan sin afán a las entregas y a la sustentación.</p>
+      </div>
+    </div>
+  );
+}
+
 export function BotonSugerencias({ onClick }: { onClick: () => void }) {
   return (
     <button onClick={onClick}
