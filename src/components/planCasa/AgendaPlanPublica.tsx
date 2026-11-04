@@ -273,7 +273,7 @@ function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { pla
                 <div className="rounded-2xl border border-sky-500/40 bg-sky-500/10 p-4 space-y-3">
                   <p className="text-sm font-semibold text-strong">🌬️ Antes de empezar: {sug.titulo}</p>
                   <p className="text-sm text-soft">{sug.texto}</p>
-                  <RespiracionGuiada tecnicas={['larga', 'suspiro', 'coherente']} subtitulo="Respira largo o suspira junto a la pantalla · 1 a 3 minutos" />
+                  <RespiracionGuiada sinAvisoEmergencia tecnicas={['larga', 'suspiro', 'coherente']} subtitulo="Respira largo o suspira junto a la pantalla · 1 a 3 minutos" />
                 </div>);
             })()}
             {total > 0 && (() => {
@@ -284,7 +284,7 @@ function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { pla
                 if (sig) setHechos(guardarHechos(token, sig.key, (hechos[sig.key] ?? 0) + 1));
               };
               return <TemporizadorMomento total={pr.total} hechos={pr.hechos} onTachar={tachar}
-                extraPausa={<RespiracionGuiada tecnicas={['larga', 'suspiro', 'coherente']} subtitulo="Respira un minuto en la pausa" />} />;
+                extraPausa={<RespiracionGuiada sinAvisoEmergencia tecnicas={['larga', 'suspiro', 'coherente']} subtitulo="Respira un minuto en la pausa" />} />;
             })()}
             {total > 0 && <ComoMeFue clave={token} fecha={hoy} />}
           </section>

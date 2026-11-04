@@ -26,9 +26,11 @@ const RADIO = 46;
 const LARGO = 2 * Math.PI * RADIO;
 
 /** Botón de entrada + pantalla completa con la respiración guiada. */
-export function RespiracionGuiada({ tecnicas, subtitulo = 'Para respirar junto al estudiante · pantalla completa' }: {
+export function RespiracionGuiada({ tecnicas, subtitulo = 'Para respirar junto al estudiante · pantalla completa', sinAvisoEmergencia = false }: {
   /** Ids de las técnicas que se ofrecen (la primera es la recomendada). Sin esto: todas. */
   tecnicas?: string[]; subtitulo?: string;
+  /** Oculta el aviso de emergencia (123): en la agenda de las familias no aplica. */
+  sinAvisoEmergencia?: boolean;
 } = {}) {
   const [abierta, setAbierta] = useState(false);
   return (
@@ -44,12 +46,12 @@ export function RespiracionGuiada({ tecnicas, subtitulo = 'Para respirar junto a
           <span className="text-xs text-soft">{subtitulo}</span>
         </span>
       </button>
-      {abierta && <PantallaRespiracion onCerrar={() => setAbierta(false)} tecnicas={tecnicas} />}
+      {abierta && <PantallaRespiracion onCerrar={() => setAbierta(false)} tecnicas={tecnicas} sinAvisoEmergencia={sinAvisoEmergencia} />}
     </>
   );
 }
 
-function PantallaRespiracion({ onCerrar, tecnicas }: { onCerrar: () => void; tecnicas?: string[] }) {
+function PantallaRespiracion({ onCerrar, tecnicas, sinAvisoEmergencia }: { onCerrar: () => void; tecnicas?: string[]; sinAvisoEmergencia?: boolean }) {
   const lista = tecnicas?.length ? TECNICAS_RESPIRACION.filter(t => tecnicas.includes(t.id)) : TECNICAS_RESPIRACION;
   const defecto = tecnicas?.length ? tecnicas[0] : TECNICA_DEFECTO;
   const [tecnicaId, setTecnicaId] = useState(defecto);
@@ -322,7 +324,7 @@ function PantallaRespiracion({ onCerrar, tecnicas }: { onCerrar: () => void; tec
       </div>
 
       <div className="px-4 pb-4 text-center text-[11px] text-muted leading-relaxed">
-        <p>Si el estudiante no puede respirar, tiene silbidos, labios morados o se desmaya, no es ansiedad: llame al 123.</p>
+        {!sinAvisoEmergencia && <p>Si el estudiante no puede respirar, tiene silbidos, labios morados o se desmaya, no es ansiedad: llame al 123.</p>}
         <p>Si se marea, vuelva a respirar normal.</p>
       </div>
 
