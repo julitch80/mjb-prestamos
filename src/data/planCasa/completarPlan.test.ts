@@ -32,9 +32,9 @@ describe('faltantesPlan', () => {
     expect(f.guias).toEqual(['mat', 'len']);
     expect(f.hayQueHacer).toBe(true);
   });
-  it('entregables solo se piden en guías sin aprobar', () => {
+  it('entregables sin fecha se piden también en guías ya aprobadas (cuentan en el avance)', () => {
     const f = faltantesPlan(plan, [asig('mat', { entregable: '' })], [gp('mat', { aprobada: guiaIA() })]);
-    expect(f.entregables).toEqual([]);
+    expect(f.entregables).toEqual(['mat']);
   });
   it('criterios vacíos en una guía ya aprobada también cuentan', () => {
     expect(faltantesPlan(plan, [asig('mat', { criteriosPromocion: '' })], [gp('mat', { aprobada: guiaIA() })]).hayQueHacer).toBe(true);

@@ -86,11 +86,12 @@ export function faltantesPlan(plan: PlanMin, asigs: AsigMin[], guias: GuiaMin[])
   const enPendiente = new Set(guias.filter(g => !g.aprobada).flatMap(g => g.asignaturaIds));
   const asignaturas = asigs.filter(a =>
     vacio(a.criteriosPromocion) || (enPendiente.has(a.asignaturaId) && (vacio(a.ebcDba) || vacio(a.evidenciaAprendizaje) || vacio(a.aportes)))).map(a => a.asignaturaId);
-  const entregables = asigs.filter(a => enPendiente.has(a.asignaturaId) && (vacio(a.entregable) || !a.fechaEntrega)).map(a => a.asignaturaId);
+  // Toda asignatura sin entregable o sin fecha (también las de guías ya aprobadas: cuentan en el avance).
+  const entregables = asigs.filter(a => vacio(a.entregable) || !a.fechaEntrega).map(a => a.asignaturaId);
   const gs = guias.filter(g => !g.aprobada).map(g => g.id);
   const ejes = guias.filter(g => vacio(g.eje)).map(g => g.id);
-  const fechas = asigs.filter(a => !enPendiente.has(a.asignaturaId) && !vacio(a.entregable) && !a.fechaEntrega).map(a => a.asignaturaId);
-  return { asignaturas, entregables, guias: gs, ejes, fechas, hayQueHacer: asignaturas.length > 0 || gs.length > 0 || ejes.length > 0 || fechas.length > 0 };
+  const fechas: string[] = [];
+  return { asignaturas, entregables, guias: gs, ejes, fechas, hayQueHacer: asignaturas.length > 0 || entregables.length > 0 || gs.length > 0 || ejes.length > 0 };
 }
 
 /** Fecha de entrega sugerida: reparte las k asignaturas en días hábiles del periodo (posición i de k). */
