@@ -75,6 +75,16 @@ export function repartirPasos(
     guiaId: a.guiaId, pasos: a.pasos.map(p => ({ ...p })),
   }));
   const colas = salida.map(a => a.pasos.filter(p => !p.fecha));
+  // Si la guía se pensó para más semanas de las que tiene el periodo (p. ej. 4 semanas en 3),
+  // se comprimen sus semanas en proporción para que nada quede por fuera.
+  const W = semanaIdx.length ? semanaIdx[semanaIdx.length - 1] : 0;
+  for (const cola of colas) {
+    const maxK = Math.max(0, ...cola.map(p => Number(p.semana)).filter(k => Number.isFinite(k)));
+    if (W >= 1 && maxK > W) for (const p of cola) {
+      const k = Number(p.semana);
+      if (Number.isFinite(k) && k >= 1) p.semana = Math.max(1, Math.ceil((k * W) / maxK));
+    }
+  }
   const sugeridas = salida.flatMap((a, gi) => a.pasos.map((p, pi) => ({ gi, pi, p })).filter(x => x.p.fecha && x.p.fecha > hoy && esPasoEntrega(x.p)))
     .map(x => ({ ...x, sugerida: x.p.fecha! }));
   const desdeDia = salida.map(() => 0); // índice mínimo de día por materia (conserva el orden)
@@ -103,6 +113,8 @@ export function repartirPasos(
     } else {
       while (d < dias.length && !libre(d)) d++;
     }
+    // Sin cupo después del último paso de su guía: se busca cualquier día con cupo antes que dejarlo sin fecha.
+    if (d >= dias.length) { const j = dias.findIndex((_, x) => libre(x)); if (j >= 0) d = j; }
     if (d >= dias.length) {
       noCabe.push(`${salida[i].guiaId}: «${paso.titulo}»`);
       desdeDia[i] = dias.length; // los siguientes de esa materia tampoco caben (orden)
