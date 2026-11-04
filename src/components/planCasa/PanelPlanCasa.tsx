@@ -30,12 +30,14 @@ import { PestanasSubrayadas } from '../Navegacion';
 import { construirAvanceDocentes, filtrarPorJornada, jornadaDePlan, type DatosPlanAvance, type FiltroJornada } from '../../data/planCasa/avanceDocentes';
 import { claseBarra, construirInformeHTML, construirResumenTexto, filasInforme, fraccionTexto, resumenAvance, ETIQUETA_JORNADA, type Fraccion } from '../../data/planCasa/informeAvance';
 import { useAppStore } from '../../data/store';
+import Ficha from '../../asistencia/Ficha';
+import { leerDirectores } from '../../asistencia/datos';
 import { auth } from '../../lib/firebase';
 import { abrirCartas, abrirPlanilla, construirHtmlCartas, construirHtmlPlanilla, type EntradaCarta } from '../../data/planCasa/imprimibleCarta';
 import { VENTANA_SUSTENTACION, textoEntre, resumenProgramadas, fechaValida } from '../../data/planCasa/ventanaSustentacion';
 import { abrirImprimibleUAI } from '../../data/planCasa/imprimibleUAI';
 import {
-  BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
+  MenuAcciones, tinteEstudiante, BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, criteriosPuestos, Etiqueta, fechaCorta, Marca,
   EtiquetaCoordinacion, fechaLarga, resumenGuia, TEXTO_SUSTENTACION, hora12,
 } from './comun';
 
@@ -696,6 +698,11 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
   const puedeMarcar = rolActual === 'coordinador' || esSuper;
   const [confElim, setConfElim] = useState(false);
   const [quitando, setQuitando] = useState('');
+  const [accion, setAccion] = useState<'' | 'espera' | 'completar' | 'replicar'>('');
+  const [verFicha, setVerFicha] = useState(false);
+  const [directores, setDirectores] = useState<Record<string, string>>({});
+  const userId = useAppStore(s => s.userId);
+  const tinte = tinteEstudiante(plan.id);
   const [tecleado, setTecleado] = useState('');
   const [eliminando, setEliminando] = useState(false);
   const primerNombre = (plan.nombres ?? '').trim().split(/\s+/)[0] ?? '';
@@ -717,11 +724,12 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
   }
 
   return (
-    <div className="rounded-2xl border border-line bg-card p-4 space-y-3">
-      <div className="flex items-start gap-2">
+    <div className={cn('rounded-2xl border p-3 space-y-2', tinte.fondo, tinte.borde, (abierto || accion || verQR) && 'sm:col-span-2 lg:col-span-3')}>
+      <div className="flex items-start gap-1">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-strong truncate">{plan.apellidos} {plan.nombres}</p>
-          <p className="text-xs text-soft">{plan.grupo} · {fechaCorta(plan.desde)} a {fechaCorta(plan.hasta)}{plan.estado === 'cerrado' && ' · cerrado'}{plan.creadoEn ? ` · creado el ${new Date(plan.creadoEn).toLocaleDateString('es-CO')}` : ''}</p>
+          <p className="text-sm font-semibold text-strong leading-tight">{plan.nombres} {plan.apellidos}</p>
+          <p className="text-xs text-soft">{plan.grupo} · {fechaCorta(plan.desde)} a {fechaCorta(plan.hasta)}{plan.estado === 'cerrado' && ' · cerrado'}</p>
+          {plan.creadoEn ? <p className="text-[11px] text-muted">Creado el {new Date(plan.creadoEn).toLocaleDateString('es-CO')}</p> : null}
         </div>
         <button onClick={() => setVerQR(v => !v)} aria-label="QR de la agenda" aria-pressed={verQR}
           className="p-2 rounded-lg text-soft hover:text-strong hover:bg-elevated"><QrCode size={18} /></button>
@@ -780,11 +788,26 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
         </div>
       )}
 
-      {asigs && guias && (faltanCriterios > 0 || faltanGuias > 0) && (
-        <p className="text-xs text-soft">
-          Faltan criterios en {faltanCriterios} de {filas.length} asignaturas y aprobar {faltanGuias} de {guias.length} guías.
+      {asigs && guias && (
+        <p className={cn('text-xs', faltanCriterios || faltanGuias ? 'text-warning' : 'text-success')}>
+          {faltanCriterios || faltanGuias
+            ? `○ ${guias.length - faltanGuias} de ${guias.length} guías aprobadas${faltanCriterios ? ` · faltan criterios en ${faltanCriterios}` : ''}`
+            : `✓ ${guias.length} de ${guias.length} guías aprobadas`}
         </p>
       )}
+      <MenuAcciones etiqueta="Acciones">
+        {cerrar => (<>
+          <button onClick={() => { cerrar(); setVerFicha(true); leerDirectores().then(setDirectores).catch(() => {}); }}>Ficha del estudiante</button>
+          {puedeMarcar && <button onClick={() => { cerrar(); setAccion(a => a === 'espera' ? '' : 'espera'); }}>{plan.enEspera ? 'Editar «en espera»' : 'Marcar en espera · ingresó tarde'}</button>}
+          {(rolActual === 'coordinador' || esSuper) && <button onClick={() => { cerrar(); setAccion(a => a === 'completar' ? '' : 'completar'); }}>Completar todo con IA</button>}
+          {(rolActual === 'coordinador' || esSuper) && <button onClick={() => { cerrar(); setAccion(a => a === 'replicar' ? '' : 'replicar'); }}>Replicar guías a otro estudiante</button>}
+          {guias && asigs && guias.some(g => g.aprobada || g.propuesta) && <span onClick={cerrar}><BotonFormatoUAI plan={plan} guias={guias} asigs={asigs} nombres={nombres} /></span>}
+          {guias && <span onClick={cerrar}><BotonCuadernillo plan={plan} guias={guias} nombres={nombres} /></span>}
+          <button onClick={() => { cerrar(); imprimirCartas([plan]).catch(e => setError(e.message)); }}>Carta para la familia</button>
+          <button onClick={() => { cerrar(); setVerQR(v => !v); }}>{verQR ? 'Ocultar QR' : 'Ver QR de la agenda'}</button>
+          <button onClick={() => { cerrar(); verMotivo(); }}>{abierto ? 'Ocultar detalle' : 'Ver detalle del plan'}</button>
+        </>)}
+      </MenuAcciones>
 
       {plan.enEspera && (
         <div role="status" className="rounded-xl bg-warning-soft text-warning-soft-fg text-xs p-3 space-y-1">
@@ -792,10 +815,18 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
           {plan.enEspera.nota && <p>{plan.enEspera.nota}</p>}
         </div>
       )}
-      {puedeMarcar && <EnEsperaControl plan={plan} onError={setError} />}
-
-      {asigs && guias && <CompletarConIA plan={plan} asigs={asigs} guias={guias} nombres={nombres} puede={rolActual === 'coordinador' || esSuper} />}
-      {asigs && guias && <ReplicarGuias plan={plan} planes={planes} asigs={asigs} guias={guias} nombres={nombres} puede={rolActual === 'coordinador' || esSuper} />}
+      {accion === 'espera' && puedeMarcar && <EnEsperaControl plan={plan} onError={setError} />}
+      {accion === 'completar' && asigs && guias && <CompletarConIA plan={plan} asigs={asigs} guias={guias} nombres={nombres} puede={rolActual === 'coordinador' || esSuper} />}
+      {accion === 'completar' && asigs && guias && !faltantesPlan(plan, asigs, guias).hayQueHacer && <p className="text-xs text-success">✓ No le falta nada por completar.</p>}
+      {accion === 'replicar' && asigs && guias && <ReplicarGuias plan={plan} planes={planes} asigs={asigs} guias={guias} nombres={nombres} puede={rolActual === 'coordinador' || esSuper} />}
+      {accion && <button onClick={() => setAccion('')} className="text-xs text-soft underline">Cerrar</button>}
+      {verFicha && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm overflow-y-auto p-3" role="dialog" aria-label="Ficha del estudiante">
+          <div className="max-w-2xl mx-auto rounded-2xl bg-card border border-line p-3">
+            <Ficha studentId={plan.studentId} rol={rolActual} slotId={userId} directores={directores} onVolver={() => setVerFicha(false)} />
+          </div>
+        </div>
+      )}
 
       <SolicitudesPendientes plan={plan} solicitudes={solicitudes} onError={setError}
         nombreGuia={id => { const g = guias?.find(x => x.id === id); return g ? (g.eje || g.asignaturaIds.map(nombreAsig).join(' · ')) : id; }} />
@@ -806,13 +837,6 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
       {error && <CajaError>{error}</CajaError>}
       {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
 
-      {/* Impresos siempre a la vista (sin desplegar detalles): formato UAI y cuadernillo. */}
-      {guias && (
-        <div className="flex flex-wrap gap-2">
-          {asigs && guias.some(g => g.aprobada || g.propuesta) && <BotonFormatoUAI plan={plan} guias={guias} asigs={asigs} nombres={nombres} />}
-          <BotonCuadernillo plan={plan} guias={guias} nombres={nombres} />
-        </div>
-      )}
       {abierto && (<>
       {filas.length > 0 && (
         <div>
@@ -880,8 +904,6 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
         </div>
       )}
 
-      <button onClick={() => imprimirCartas([plan]).catch(e => setError(e.message))} className={CLASE_BOTON_SEC}
-        title="Carta de entrega con el QR de la agenda (sin motivo ni datos de salud)"><Mail size={15} />Carta para la familia</button>
       </>)}
     </div>
   );
@@ -1184,16 +1206,24 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
   const [abriendoPlazo, setAbriendoPlazo] = useState(false);
   const [completandoTodos, setCompletandoTodos] = useState(false);
   const [sincMsg, setSincMsg] = useState('');
+  const [busca, setBusca] = useState('');
+  const [jorFiltro, setJorFiltro] = useState<'todas' | 'manana' | 'tarde'>('todas');
   const rol = useAppStore(s => s.rol);
   const jornadaUsuario = useAppStore(s => s.jornada);
   // Un coordinador solo ve (y envía cartas de) su jornada; el resto ve todo.
   const jornadaFija = rol === 'coordinador' && (jornadaUsuario === 'manana' || jornadaUsuario === 'tarde') ? jornadaUsuario : null;
   const visibles = useMemo(() => (planes ?? []).filter(p => !jornadaFija || jornadaDePlan(p.grupo) === jornadaFija), [planes, jornadaFija]);
 
+  const sinTilde = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const filtrados = visibles.filter(p => (jornadaFija || jorFiltro === 'todas' || jornadaDePlan(p.grupo) === jorFiltro)
+    && (!busca.trim() || sinTilde(`${p.nombres} ${p.apellidos} ${p.grupo}`).includes(sinTilde(busca.trim()))))
+    .sort((a, b) => `${a.nombres} ${a.apellidos}`.localeCompare(`${b.nombres} ${b.apellidos}`, 'es'));
+  const gestiona = rol === 'coordinador' || rol === 'superusuario';
+
   useEffect(() => escucharPlanes(true, setPlanes, e => { setError(e.message || 'No se pudieron leer los planes.'); setPlanes([]); }), []);
 
   return (
-    <div className="space-y-4 max-w-2xl mx-auto">
+    <div className={cn('space-y-4 mx-auto', vista === 'planes' ? 'max-w-5xl' : 'max-w-2xl')}>
       <div className="flex items-center gap-2">
         <h2 className="text-lg font-semibold text-strong flex-1">Plan Académico Especial</h2>
         {!creando && <button onClick={() => { setCreando(true); setAviso(''); }} className={CLASE_BOTON}><Plus size={16} />Nuevo plan</button>}
@@ -1205,28 +1235,46 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
       {!planes && <Cargando texto="Cargando planes…" />}
       {vista === 'planes' && planes && planes.length === 0 && !error && <p className="text-sm text-soft">Aún no hay planes. Cree el primero con «Nuevo plan».</p>}
       {vista === 'planes' && visibles.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => setEligiendoCartas(v => !v)} aria-expanded={eligiendoCartas} className={cn(CLASE_BOTON_SEC, eligiendoCartas && 'ring-1 ring-accent')}>
-            {eligiendoCartas ? <X size={15} /> : <Mail size={15} />}{eligiendoCartas ? 'Ocultar cartas' : 'Cartas de todas las familias'}</button>
-          <button onClick={() => imprimirPlanilla(visibles).catch(e => setError(e.message))} className={CLASE_BOTON_SEC}>Planilla de entrega</button>
-          {(rol === 'coordinador' || rol === 'superusuario') && <button onClick={() => setAbriendoPlazo(v => !v)} aria-expanded={abriendoPlazo} className={cn(CLASE_BOTON_SEC, abriendoPlazo && 'ring-1 ring-accent')}>
-            {abriendoPlazo && <X size={15} />}{abriendoPlazo ? 'Ocultar plazo' : 'Abrir plazo a la jornada'}</button>}
-          {(rol === 'coordinador' || rol === 'superusuario') && <button disabled={sincMsg === 'Actualizando…'} title="Pone en cada plan el correo de quien ocupa hoy cada puesto (reemplazos)" className={CLASE_BOTON_SEC}
-            onClick={async () => {
-              setSincMsg('Actualizando…');
-              let n = 0, malos = 0;
-              for (const p of visibles.filter(x => x.estado === 'activo')) { try { n += await sincronizarDocentes(p.id); } catch { malos++; } }
-              setSincMsg(`Docentes actualizados: ${n} cambio(s) de correo${malos ? ` · ${malos} plan(es) con error` : ''}.`);
-            }}><RefreshCw size={15} />Actualizar docentes</button>}
-          {(rol === 'coordinador' || rol === 'superusuario') && <button onClick={() => setCompletandoTodos(v => !v)} aria-expanded={completandoTodos} className={cn(CLASE_BOTON_SEC, completandoTodos && 'ring-1 ring-accent')}>
-            {completandoTodos ? <X size={15} /> : <Sparkles size={15} />}{completandoTodos ? 'Ocultar completar' : 'Completar a todos con IA'}</button>}
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="relative flex-1 min-w-[12rem]">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
+            <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar estudiante por nombre" aria-label="Buscar estudiante" className={cn(CLASE_INPUT, 'pl-9')} />
+          </label>
+          {!jornadaFija && (
+            <div className="flex gap-1">
+              {(['todas', 'manana', 'tarde'] as const).map(j => (
+                <button key={j} onClick={() => setJorFiltro(j)} aria-pressed={jorFiltro === j}
+                  className={cn('text-xs px-3 py-1.5 rounded-full border transition', jorFiltro === j ? 'bg-accent/15 border-accent/50 text-strong' : 'border-line text-soft hover:text-strong')}>
+                  {j === 'todas' ? 'Todas' : j === 'manana' ? 'Mañana' : 'Tarde'}</button>))}
+            </div>
+          )}
+          <MenuAcciones etiqueta="Acciones generales" alinear="derecha">
+            {cerrar => (<>
+              <button onClick={() => { cerrar(); setEligiendoCartas(v => !v); }}>{eligiendoCartas ? 'Ocultar cartas' : 'Cartas de todas las familias'}</button>
+              <button onClick={() => { cerrar(); imprimirPlanilla(visibles).catch(e => setError(e.message)); }}>Planilla de entrega</button>
+              {gestiona && <button onClick={() => { cerrar(); setAbriendoPlazo(v => !v); }}>{abriendoPlazo ? 'Ocultar plazo' : 'Abrir plazo a la jornada'}</button>}
+              {gestiona && <button disabled={sincMsg === 'Actualizando…'} onClick={async () => {
+                cerrar(); setSincMsg('Actualizando…');
+                let n = 0, malos = 0;
+                for (const p of visibles.filter(x => x.estado === 'activo')) { try { n += await sincronizarDocentes(p.id); } catch { malos++; } }
+                setSincMsg(`Docentes actualizados: ${n} cambio(s) de correo${malos ? ` · ${malos} plan(es) con error` : ''}.`);
+              }}>Actualizar docentes</button>}
+              {gestiona && <button onClick={() => { cerrar(); setCompletandoTodos(v => !v); }}>{completandoTodos ? 'Ocultar completar' : 'Completar a todos con IA'}</button>}
+              <button onClick={() => { cerrar(); setCreando(true); setAviso(''); }}>Nuevo plan</button>
+            </>)}
+          </MenuAcciones>
         </div>
       )}
       {vista === 'planes' && sincMsg && <p className="text-xs text-soft" aria-live="polite">{sincMsg}</p>}
       {vista === 'planes' && completandoTodos && <CompletarTodos planes={visibles} onCerrar={() => setCompletandoTodos(false)} />}
       {vista === 'planes' && abriendoPlazo && <AbrirPlazoJornada planes={visibles} jornadaFija={jornadaFija} onCerrar={() => setAbriendoPlazo(false)} />}
       {vista === 'planes' && eligiendoCartas && <ElegirCartas planes={visibles} onCerrar={() => setEligiendoCartas(false)} />}
-      {vista === 'planes' && visibles.map(p => <TarjetaPlan key={p.id} plan={p} planes={planes ?? []} />)}
+      {vista === 'planes' && visibles.length > 0 && filtrados.length === 0 && <p className="text-sm text-soft">Ningún estudiante coincide con «{busca}».</p>}
+      {vista === 'planes' && filtrados.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-start">
+          {filtrados.map(p => <TarjetaPlan key={p.id} plan={p} planes={planes ?? []} />)}
+        </div>
+      )}
       {vista === 'avance' && planes && <AvanceDocentes planes={planes} />}
       {vista === 'seguimiento' && <SeguimientoPlanCasa />}
     </div>

@@ -12,6 +12,7 @@ import type {
 import { MODALIDADES_SUSTENTACION, MOTIVOS_SOLICITUD } from '../../data/planCasa/tipos';
 import { asignaturasCambiadas, diasEntre, estadoEdicion, horaLocal, } from '../../data/planCasa/logica';
 import { construirChequeo, entregasPorRevisar, indiceColor, resumenChequeo } from '../../data/planCasa/checklist';
+import { criteriosListos } from '../../data/planCasa/avanceDocentes';
 import { capacidadPorSemana, esGuiaIntegrable, estadoTrasRevision, faltanPorRevisar, revisionCompleta } from '../../data/planCasa/integrada';
 import {
   correoActual, darVistoBueno, leerEquipo, escucharAsignaturas, escucharGuias, escucharPlanes, guardarAsignatura,
@@ -22,7 +23,7 @@ import { aprobarBorrador, integrarYGuardarPropuesta, pedirYGuardarPropuesta } fr
 import { errorDeBorrador } from '../../data/planCasa/completarPlan';
 import { asignaturasConNombre, gradoDeGrupo } from './nombres';
 import EditorGuia from './EditorGuia';
-import { ListaEntregas, useEntregas } from './EntregasPaso';
+import { EntregasGuiaResumen, ListaEntregas, useEntregas } from './EntregasPaso';
 import {
   BarraEstadoGuia, BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, ComponentesEntrega, edicionDe, Etiqueta, EtiquetaCoordinacion, fechaCorta, fechaLarga, hoyLocal, Marca,
   resumenGuia, SugerirPreguntas, hastaTexto, cerradaDesdeTexto,
@@ -849,87 +850,50 @@ function EscuchaPlan({ planId, onDatos }: { planId: string; onDatos: (id: string
 
 // ── Un plan ───────────────────────────────────────────────────────────────
 
-/**
- * Coordinación: en vez de una torre de secciones, pastillas agrupadas por guía (una por asignatura
- * más la de la guía). Se ve UNA sección a la vez; las pastillas quedan arriba para saltar a otra.
- * Sin guías: una matriz con todas las asignaturas.
- */
-function NavegadorGestor({ plan, asigs, guias, nombres, gestor }: { plan: PlanConDocentes; asigs: AsignaturaPlan[]; guias: GuiaPlan[]; nombres: Nombres; gestor: boolean }) {
-  const nombre = (id: string) => nombres[id]?.asignatura ?? id;
-  const orden = (ids: string[]) => [...ids].sort((x, y) => nombre(x).localeCompare(nombre(y), 'es'));
-  const grupos = guias.map((g, i) => ({ g, n: i + 1, ids: orden(g.asignaturaIds.filter(id => asigs.some(a => a.asignaturaId === id))) }));
-  const sueltas = orden(asigs.map(a => a.asignaturaId).filter(id => !guias.some(g => g.asignaturaIds.includes(id))));
-  const [sel, setSel] = useState<string>(() => grupos[0] ? `g:${grupos[0].g.id}` : `a:${sueltas[0] ?? asigs[0].asignaturaId}`);
-  const guiaDe = (id: string) => guias.find(g => g.asignaturaIds.includes(id));
-  const listo = (a: AsignaturaPlan) => !!a.criteriosPromocion?.trim();
-  const pastilla = (clave: string, texto: string, ok: boolean, fuerte = false) => (
-    <button key={clave} type="button" onClick={() => setSel(clave)} aria-pressed={sel === clave}
-      className={cn('text-xs px-2.5 py-1 rounded-full transition border',
-        sel === clave ? 'bg-accent text-strong border-transparent' : ok ? 'bg-success-soft text-success-soft-fg border-transparent' : 'bg-elevated text-soft border-line hover:text-strong',
-        fuerte && 'font-semibold')}>
-      {ok ? '✓ ' : ''}{texto}
-    </button>
-  );
-  const asigSel = sel.startsWith('a:') ? asigs.find(a => a.asignaturaId === sel.slice(2)) : undefined;
-  const guiaSel = sel.startsWith('g:') ? guias.find(g => g.id === sel.slice(2)) : undefined;
-
-  return (
-    <div className="space-y-3">
-      <div className="rounded-2xl border border-line bg-card p-3 space-y-2">
-        {grupos.map(({ g, n, ids }) => (
-          <div key={g.id} className="space-y-1">
-            <p className="text-[11px] uppercase tracking-wide text-muted">Guía {n}{g.asignaturaIds.length > 1 && g.eje ? ` · ${g.eje}` : ''}</p>
-            <div className="flex flex-wrap gap-1.5">
-              {pastilla(`g:${g.id}`, grupos.length === guias.length && g.asignaturaIds.length === 1 ? 'Guía' : `Guía ${n}`, !!g.aprobada, true)}
-              {ids.map(id => pastilla(`a:${id}`, nombre(id), listo(asigs.find(a => a.asignaturaId === id)!)))}
-            </div>
-          </div>
-        ))}
-        {sueltas.length > 0 && (
-          <div className="space-y-1">
-            {grupos.length > 0 && <p className="text-[11px] uppercase tracking-wide text-muted">Sin guía</p>}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-              {sueltas.map(id => pastilla(`a:${id}`, nombre(id), listo(asigs.find(a => a.asignaturaId === id)!)))}
-            </div>
-          </div>
-        )}
-      </div>
-      {asigSel && <CriteriosAsignatura key={asigSel.asignaturaId} plan={plan} a={asigSel} gestor={gestor} eje={guiaDe(asigSel.asignaturaId)?.eje} guia={guiaDe(asigSel.asignaturaId)} nombre={nombre(asigSel.asignaturaId)} />}
-      {guiaSel && <GuiaResponsable key={guiaSel.id} gestor={gestor} plan={plan} g={guiaSel} todas={guias} asigs={asigs} nombres={nombres} />}
-    </div>
-  );
-}
+/** Velo de color por guía (mismo estilo translúcido de la app: fondo /10, borde /40). */
+const GUIA_TINTES = [
+  { fondo: 'bg-teal-500/10', borde: 'border-teal-500/40', texto: 'text-teal-500', anillo: 'ring-teal-500/60' },
+  { fondo: 'bg-violet-500/10', borde: 'border-violet-500/40', texto: 'text-violet-500', anillo: 'ring-violet-500/60' },
+  { fondo: 'bg-orange-500/10', borde: 'border-orange-500/40', texto: 'text-orange-500', anillo: 'ring-orange-500/60' },
+  { fondo: 'bg-sky-500/10', borde: 'border-sky-500/40', texto: 'text-sky-500', anillo: 'ring-sky-500/60' },
+];
+const TINTE_NEUTRO = { fondo: 'bg-slate-400/10', borde: 'border-slate-400/40', texto: 'text-slate-400', anillo: 'ring-slate-400/60' };
+const TINTE_ENTREGAS = { fondo: 'bg-amber-500/10', borde: 'border-amber-500/40', texto: 'text-amber-500', anillo: 'ring-amber-500/60' };
 
 function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: PlanConDocentes; gestor: boolean; amplio?: boolean; datos: DatosPlan; foco?: { seccion: string; n: number } }) {
   const { asigs, guias, error } = datos;
   const nombres = useMemo(() => asignaturasConNombre(plan.grupo), [plan.grupo]);
   const yo = correoActual();
   const mias = (asigs ?? []).filter(a => amplio || a.docenteCorreo.toLowerCase() === yo);
-  const responsable = (guias ?? []).filter(g => gestor || g.responsableCorreo.toLowerCase() === yo);
   const propiasMias = mias.filter(a => a.docenteCorreo.toLowerCase() === yo);
-  const otrasMias = mias.filter(a => a.docenteCorreo.toLowerCase() !== yo);
   const guiaDe = (id: string) => (guias ?? []).find(g => g.asignaturaIds.includes(id));
-  const ejeDe = (id: string) => guiaDe(id)?.eje;
-  const participo = gestor ? [] : (guias ?? []).filter(g => g.responsableCorreo.toLowerCase() !== yo && g.docentesCorreos.map(c => c.toLowerCase()).includes(yo));
   const tinte = tinteDe(plan.id);
-  const idSec = (s: string) => `pae-${plan.id}-${s}`;
 
   const items = useMemo(() => asigs && guias
     ? construirChequeo({ plan, asigs, guias, correo: yo, gestor, nombre: id => nombres[id]?.asignatura ?? id, hoy: hoyLocal() })
     : [], [plan, asigs, guias, yo, gestor, nombres]);
   const resumen = resumenChequeo(items);
 
-  // Secciones plegadas por defecto, salvo la del «Siguiente paso» (se fija una sola vez al cargar).
-  const [inicial, setInicial] = useState<string | null | undefined>(undefined);
-  useEffect(() => { if (inicial === undefined && asigs && guias) setInicial(resumen.siguiente?.seccion ?? null); }, [inicial, asigs, guias, resumen.siguiente]);
-  const [abiertas, setAbiertas] = useState<Record<string, boolean>>({});
-  const abierta = (s: string) => abiertas[s] ?? (inicial === s);
-  const marcar = (s: string, v: boolean) => setAbiertas(a => (a[s] === v ? a : { ...a, [s]: v }));
+  // Navegación por pastillas: Resumen · Guía N · Entregas. Se ve una sección a la vez.
+  const propia = (id: string) => propiasMias.some(a => a.asignaturaId === id);
+  const verGuias = (guias ?? []).filter(g => amplio || g.responsableCorreo.toLowerCase() === yo
+    || g.docentesCorreos.map(c => c.toLowerCase()).includes(yo) || g.asignaturaIds.some(propia));
+  const numGuia = (id: string) => (guias ?? []).findIndex(g => g.id === id) + 1;
+  const tinteGuia = (id: string) => GUIA_TINTES[Math.max(0, numGuia(id) - 1) % GUIA_TINTES.length];
+  const nombre = (id: string) => nombres[id]?.asignatura ?? id;
+  const ordenar = (ids: string[]) => [...ids].sort((x, y) => nombre(x).localeCompare(nombre(y), 'es'));
+  const [sel, setSel] = useState<{ tab: string; sub: string }>({ tab: 'r', sub: 'guia' });
+  const guiaSel = verGuias.find(g => g.id === sel.tab);
+  const porRevisar = useMemo(() => asigs && guias
+    ? entregasPorRevisar({ plan, asigs, guias, correo: yo, gestor, nombre: id => nombres[id]?.asignatura ?? id, hoy: hoyLocal() })
+    : [], [plan, asigs, guias, yo, gestor, nombres]);
 
-  /** Abre la sección y se desplaza hasta ella. */
+  /** Lleva a la sección de un ítem de la lista de chequeo ('mis', 'otras' o 'g-<guiaId>'). */
   function irA(seccion: string) {
-    setAbiertas(a => ({ ...a, [seccion]: true }));
-    window.setTimeout(() => document.getElementById(idSec(seccion))?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    if (seccion.startsWith('g-')) { setSel({ tab: seccion.slice(2), sub: 'guia' }); return; }
+    const pend = propiasMias.find(a => !criteriosListos(a) || !a.entregable?.trim() || !a.fechaEntrega) ?? propiasMias[0];
+    const g = pend && guiaDe(pend.asignaturaId);
+    if (g && pend) setSel({ tab: g.id, sub: pend.asignaturaId });
   }
   useEffect(() => { if (foco && asigs && guias) irA(foco.seccion); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [foco?.n, !!(asigs && guias)]);
 
@@ -948,63 +912,114 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
           {edicion.abierta
             ? `Edición abierta hasta ${hastaTexto(edicion)} · ${faltan === 0 ? 'último día' : faltan === 1 ? 'falta 1 día' : `faltan ${faltan} días`}`
             : `🔒 Edición cerrada desde ${cerradaDesdeTexto(edicion)}`}
+          {items.length > 0 && <span className={cn('ml-2 font-medium', resumen.pendientes ? 'text-warning' : 'text-success')}>{resumen.pendientes ? '○' : '✓'} {resumen.hechas} de {resumen.total}</span>}
         </p>
+        {asigs && guias && (
+          <nav className="flex flex-wrap gap-1.5 mt-2" aria-label="Secciones del plan">
+            {[{ id: 'r', texto: 'Resumen', t: TINTE_NEUTRO },
+              ...verGuias.map(g => ({ id: g.id, texto: `${g.asignaturaIds.length === 1 ? nombre(g.asignaturaIds[0]) : `Guía ${numGuia(g.id)} · ${g.asignaturaIds.length} áreas`}${g.aprobada ? ' ✓' : ''}`, t: tinteGuia(g.id) })),
+              { id: 'e', texto: `Entregas${porRevisar.length ? ` · ${porRevisar.length}` : ''}`, t: TINTE_ENTREGAS }].map(x => (
+              <button key={x.id} type="button" onClick={() => setSel({ tab: x.id, sub: 'guia' })} aria-pressed={sel.tab === x.id}
+                className={cn('text-xs px-3 py-1 rounded-full border transition text-strong', x.t.fondo, x.t.borde, sel.tab === x.id && cn('ring-2', x.t.anillo))}>
+                {x.texto}
+              </button>))}
+          </nav>
+        )}
       </div>
 
-      {items.length > 0 && (
-        <div className="rounded-2xl border border-line bg-card p-3 space-y-2">
-          <p className="text-xs text-soft"><b className="text-strong">Mi lista de chequeo</b> · {resumen.hechas} de {resumen.total}</p>
-          {resumen.siguiente ? (
-            <button type="button" onClick={() => irA(resumen.siguiente!.seccion)}
-              className="w-full text-left text-sm rounded-xl bg-accent-soft text-accent-soft-fg px-3 py-2 font-medium">
-              Siguiente paso: {resumen.siguiente.texto}
-            </button>
-          ) : <p className="text-sm text-success">✓ Todo al día</p>}
-          <ul className="flex flex-wrap gap-1.5">
-            {items.map(i => (
-              <li key={i.id}>
-                <button type="button" onClick={() => irA(i.seccion)}
-                  className={cn('text-xs px-2.5 py-1 rounded-full transition', i.hecho ? 'bg-success-soft text-success-soft-fg' : 'bg-elevated text-soft hover:text-strong')}>
-                  {i.hecho ? '✓' : '○'} {i.texto}
+
+      {error && <CajaError>{error}</CajaError>}
+      {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
+      {asigs && guias && mias.length === 0 && verGuias.length === 0 && !error && <p className="text-sm text-soft">No tiene asignaturas en este plan.</p>}
+
+      {sel.tab === 'r' && asigs && guias && (
+        <div className="space-y-3">
+          {items.length > 0 && (
+            <div className="rounded-2xl border border-line bg-card/60 p-3 space-y-2">
+              {resumen.siguiente ? (
+                <button type="button" onClick={() => irA(resumen.siguiente!.seccion)}
+                  className="w-full text-left text-sm rounded-xl bg-accent-soft text-accent-soft-fg px-3 py-2 font-medium">
+                  Siguiente paso: {resumen.siguiente.texto}
                 </button>
-              </li>))}
-          </ul>
+              ) : <p className="text-sm text-success">✓ Todo al día</p>}
+              <details>
+                <summary className="cursor-pointer text-xs text-soft">Ver mi lista de chequeo ({resumen.hechas} de {resumen.total})</summary>
+                <ul className="flex flex-wrap gap-1.5 mt-2">
+                  {items.map(i => (
+                    <li key={i.id}>
+                      <button type="button" onClick={() => irA(i.seccion)}
+                        className={cn('text-xs px-2.5 py-1 rounded-full transition', i.hecho ? 'bg-success-soft text-success-soft-fg' : 'bg-elevated text-soft hover:text-strong')}>
+                        {i.hecho ? '✓' : '○'} {i.texto}
+                      </button>
+                    </li>))}
+                </ul>
+              </details>
+            </div>
+          )}
+          {verGuias.map(g => {
+            const t = tinteGuia(g.id);
+            return (
+              <button key={g.id} type="button" onClick={() => setSel({ tab: g.id, sub: 'guia' })}
+                className={cn('w-full text-left rounded-2xl border p-3 space-y-2 transition hover:brightness-110', t.fondo, t.borde)}>
+                <span className="block text-sm text-strong">
+                  <span className={cn('font-semibold', t.texto)}>{g.asignaturaIds.length === 1 ? nombre(g.asignaturaIds[0]) : `Guía ${numGuia(g.id)}`}</span>{g.eje?.trim() && g.asignaturaIds.length > 1 ? ` · ${g.eje}` : ''}
+                  <span className={cn('ml-2 text-[11px]', g.aprobada ? 'text-success' : 'text-warning')}>
+                    {g.aprobada ? `✓ Aprobada${g.aprobada.integrada ? ' e integrada' : ''}` : g.propuesta ? 'Generada, sin aprobar' : 'Sin generar'}
+                  </span>
+                </span>
+                <span className="flex flex-wrap gap-1.5">
+                  {ordenar(g.asignaturaIds).map(id => (
+                    <span key={id} className={cn('text-[11px] px-2 py-0.5 rounded-full border', t.borde, t.fondo, propia(id) ? 'text-strong font-medium' : 'text-soft')}>{nombre(id)}</span>))}
+                </span>
+              </button>);
+          })}
+          <BotonCuadernillo plan={plan} guias={guias} nombres={nombres} />
         </div>
       )}
 
-      {guias && <BotonCuadernillo plan={plan} guias={guias} nombres={nombres} />}
-      {error && <CajaError>{error}</CajaError>}
-      {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
-      {asigs && guias && mias.length === 0 && !error && <p className="text-sm text-soft">No tiene asignaturas en este plan.</p>}
-      {amplio && asigs && guias && asigs.length > 0 && (
-        <NavegadorGestor plan={plan} asigs={asigs} guias={guias} nombres={nombres} gestor={gestor} />
+      {guiaSel && asigs && guias && (() => {
+        const t = tinteGuia(guiaSel.id);
+        const subAsigs = ordenar(guiaSel.asignaturaIds).filter(id => amplio || propia(id));
+        const asigSel = sel.sub !== 'guia' ? asigs.find(a => a.asignaturaId === sel.sub) : undefined;
+        const lider = gestor || guiaSel.responsableCorreo.toLowerCase() === yo;
+        return (
+          <div className={cn('rounded-2xl border p-3 space-y-3', t.fondo, t.borde)}>
+            <div className="flex flex-wrap gap-1.5">
+              <button type="button" onClick={() => setSel({ tab: guiaSel.id, sub: 'guia' })}
+                className={cn('text-xs px-3 py-1 rounded-full border transition', t.borde, sel.sub === 'guia' ? cn('bg-card text-strong ring-2', t.anillo) : 'text-soft hover:text-strong')}>
+                {lider ? 'La guía' : 'Revisar la guía'}
+              </button>
+              {subAsigs.map(id => {
+                const a = asigs.find(x => x.asignaturaId === id);
+                const ok = !!a && criteriosListos(a) && !!a.entregable?.trim() && !!a.fechaEntrega;
+                return (
+                  <button key={id} type="button" onClick={() => setSel({ tab: guiaSel.id, sub: id })}
+                    className={cn('text-xs px-3 py-1 rounded-full border transition', t.borde, sel.sub === id ? cn('bg-card text-strong ring-2', t.anillo) : 'text-soft hover:text-strong')}>
+                    {ok ? '✓ ' : ''}{nombre(id)}
+                  </button>);
+              })}
+            </div>
+            {sel.sub === 'guia' && (lider
+              ? <GuiaResponsable key={guiaSel.id} gestor={gestor} plan={plan} g={guiaSel} todas={guias} asigs={asigs} nombres={nombres} />
+              : <GuiaParticipante key={guiaSel.id} gestor={gestor} plan={plan} g={guiaSel} asigs={asigs} nombres={nombres} />)}
+            {asigSel && <CriteriosAsignatura key={asigSel.asignaturaId} plan={plan} a={asigSel} gestor={gestor} eje={guiaSel.eje} guia={guiaSel} nombre={nombre(asigSel.asignaturaId)} />}
+          </div>);
+      })()}
+
+      {sel.tab === 'e' && guias && (
+        <div className={cn('rounded-2xl border p-3 space-y-3', TINTE_ENTREGAS.fondo, TINTE_ENTREGAS.borde)}>
+          {porRevisar.length === 0 && <p className="text-sm text-soft">No hay entregas por revisar.</p>}
+          {verGuias.filter(g => g.aprobada).map(g => {
+            const t = tinteGuia(g.id);
+            const n = porRevisar.filter(e => e.guiaId === g.id).length;
+            return (
+              <div key={g.id} className={cn('rounded-xl border p-2', t.fondo, t.borde)}>
+                <p className="text-xs"><span className={cn('font-semibold', t.texto)}>{g.asignaturaIds.length === 1 ? nombre(g.asignaturaIds[0]) : `Guía ${numGuia(g.id)}`}</span> · {n ? `${n} por revisar` : 'al día'}</p>
+                <EntregasGuiaResumen planId={plan.id} g={g} />
+              </div>);
+          })}
+        </div>
       )}
-      {!amplio && propiasMias.length > 0 && (
-        <details id={idSec('mis')} open={abierta('mis')} onToggle={e => marcar('mis', e.currentTarget.open)} className="scroll-mt-40 rounded-2xl border border-line bg-card p-4">
-          <summary className="cursor-pointer text-sm font-medium text-strong">Paso 1 · {propiasMias.length === 1 ? 'Mi asignatura' : 'Mis asignaturas'}: temáticas, competencia, criterios, entregable y fecha de entrega</summary>
-          <div className="space-y-3 mt-3">
-            {propiasMias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} eje={ejeDe(a.asignaturaId)} guia={guiaDe(a.asignaturaId)} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
-          </div>
-        </details>
-      )}
-      {!amplio && otrasMias.length > 0 && (
-        <details id={idSec('otras')} open={abierta('otras')} onToggle={e => marcar('otras', e.currentTarget.open)} className="scroll-mt-40 rounded-2xl border border-line bg-card p-4">
-          <summary className="cursor-pointer text-sm font-medium text-strong">Asignaturas de los otros docentes ({otrasMias.length})</summary>
-          <div className="space-y-3 mt-3">
-            {otrasMias.map(a => <CriteriosAsignatura key={a.asignaturaId} plan={plan} a={a} gestor={gestor} eje={ejeDe(a.asignaturaId)} guia={guiaDe(a.asignaturaId)} nombre={nombres[a.asignaturaId]?.asignatura ?? a.asignaturaId} />)}
-          </div>
-        </details>
-      )}
-      {!amplio && responsable.map(g => (
-        <details key={g.id} id={idSec(`g-${g.id}`)} open={abierta(`g-${g.id}`)} onToggle={e => marcar(`g-${g.id}`, e.currentTarget.open)} className="scroll-mt-40">
-          <summary className="cursor-pointer text-sm font-medium text-strong px-1 py-1">Guía: {g.eje || 'pendiente'} · responsable</summary>
-          <div className="mt-2"><GuiaResponsable gestor={gestor} plan={plan} g={g} todas={guias ?? []} asigs={asigs ?? []} nombres={nombres} /></div>
-        </details>))}
-      {participo.map(g => (
-        <details key={g.id} id={idSec(`g-${g.id}`)} open={abierta(`g-${g.id}`)} onToggle={e => marcar(`g-${g.id}`, e.currentTarget.open)} className="scroll-mt-40">
-          <summary className="cursor-pointer text-sm font-medium text-strong px-1 py-1">Guía de {nombreDocente(g.responsableCorreo, asigs ?? [])} · doy visto bueno</summary>
-          <div className="mt-2"><GuiaParticipante gestor={gestor} plan={plan} g={g} asigs={asigs ?? []} nombres={nombres} /></div>
-        </details>))}
     </section>
   );
 }

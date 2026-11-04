@@ -1,7 +1,8 @@
 // Piezas compartidas del módulo «Plan en casa».
-import { useState, type ReactNode } from 'react';
-import { AlertTriangle, FileDown, Printer, Loader2, Sparkles } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AlertTriangle, ChevronDown, FileDown, Printer, Loader2, Sparkles } from 'lucide-react';
 import { addDias } from '../../data/tareas/calendario';
+import { indiceColor } from '../../data/planCasa/checklist';
 import { cn } from '@/lib/utils';
 import type { AsignaturaPlan, ComponenteEntrega, GuiaPlan, FechaISO, PlanCasa } from '../../data/planCasa/tipos';
 import { sugerirPreguntas, type PreguntaSugerida } from '../../data/planCasa/persistencia';
@@ -260,5 +261,48 @@ export function EtiquetaCoordinacion({ c }: { c?: { correo: string; fecha: numbe
     <span className="text-[11px] text-muted" title={`${c.correo} · ${new Date(c.fecha).toLocaleString('es-CO')}`}>
       Completado por coordinación con IA
     </span>
+  );
+}
+
+// ── Tinte del estudiante y menú de acciones (estilo translúcido de la app) ─
+
+/** Tinte propio de cada estudiante (el mismo en «Planes» y en «Mis guías»). */
+export const TINTES_ESTUDIANTE = [
+  { fondo: 'bg-sky-500/10', borde: 'border-sky-500/40', barra: 'bg-sky-500' },
+  { fondo: 'bg-emerald-500/10', borde: 'border-emerald-500/40', barra: 'bg-emerald-500' },
+  { fondo: 'bg-amber-500/10', borde: 'border-amber-500/40', barra: 'bg-amber-500' },
+  { fondo: 'bg-rose-500/10', borde: 'border-rose-500/40', barra: 'bg-rose-500' },
+  { fondo: 'bg-violet-500/10', borde: 'border-violet-500/40', barra: 'bg-violet-500' },
+  { fondo: 'bg-teal-500/10', borde: 'border-teal-500/40', barra: 'bg-teal-500' },
+];
+export const tinteEstudiante = (planId: string) => TINTES_ESTUDIANTE[indiceColor(planId, TINTES_ESTUDIANTE.length)];
+
+/** Botón «Acciones ▾» con un submenú; se cierra al elegir o al tocar fuera. */
+export function MenuAcciones({ etiqueta, alinear = 'izquierda', children }: {
+  etiqueta: string; alinear?: 'izquierda' | 'derecha'; children: (cerrar: () => void) => ReactNode;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!abierto) return;
+    const fuera = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setAbierto(false); };
+    document.addEventListener('mousedown', fuera);
+    return () => document.removeEventListener('mousedown', fuera);
+  }, [abierto]);
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button type="button" onClick={() => setAbierto(a => !a)} aria-expanded={abierto}
+        className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border border-line bg-elevated/60 text-strong hover:bg-elevated transition">
+        {etiqueta}<ChevronDown size={14} className={cn('transition', abierto && 'rotate-180')} />
+      </button>
+      {abierto && (
+        <div role="menu" className={cn('absolute z-40 mt-1 min-w-[15rem] rounded-xl border border-line bg-card/95 backdrop-blur-xl p-1 shadow-lg flex flex-col',
+          '[&>button]:text-left [&>button]:text-sm [&>button]:px-3 [&>button]:py-2 [&>button]:rounded-lg [&>button:hover]:bg-elevated [&>button]:text-strong [&>button:disabled]:opacity-40',
+          '[&>span_p]:hidden [&>span_button]:w-full [&>span_button]:justify-start [&>span_button]:text-left [&>span_button]:px-3 [&>span_button]:py-2 [&>span_button]:text-sm [&>span_button]:font-normal [&>span>button]:w-full [&>span>button]:justify-start [&>span>button]:border-0 [&>span>button]:bg-transparent [&>span>button]:rounded-lg [&>span>button:hover]:bg-elevated',
+          alinear === 'derecha' ? 'right-0' : 'left-0')}>
+          {children(() => setAbierto(false))}
+        </div>
+      )}
+    </div>
   );
 }
