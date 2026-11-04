@@ -922,13 +922,14 @@ function CambiarFechas({ planes, nombreDe, onError }: { planes: PlanConDocentes[
   const uno = planes.length === 1 ? planes[0] : null;
   const [desde, setDesde] = useState(uno?.desde ?? addDias(hoyLocal(), 1));
   const [hasta, setHasta] = useState(uno?.hasta ?? '');
+  const [ajustar, setAjustar] = useState(true);
   const [msg, setMsg] = useState('');
   const [ocupado, setOcupado] = useState(false);
   async function aplicar() {
     setOcupado(true); setMsg('');
     let ok = 0; const malos: string[] = [];
     for (const p of planes) {
-      try { await reprogramarPlan(p, desde, uno ? hasta : p.hasta, nombreDe(p)); ok++; }
+      try { await reprogramarPlan(p, desde, hasta || p.hasta, nombreDe(p), ajustar); ok++; }
       catch (e) { malos.push(`${p.nombres} ${p.apellidos}: ${(e as Error).message}`); }
       setMsg(`Reprogramando… ${ok + malos.length} de ${planes.length}`);
     }
@@ -938,13 +939,15 @@ function CambiarFechas({ planes, nombreDe, onError }: { planes: PlanConDocentes[
   }
   return (
     <div className="rounded-xl border border-line p-3 space-y-2 text-sm">
-      <p className="font-medium text-strong">{uno ? 'Fechas del plan' : `Cambiar el inicio de ${planes.length} plan(es)`}</p>
+      <p className="font-medium text-strong">{uno ? 'Fechas del plan' : `Cambiar las fechas de ${planes.length} plan(es)`}</p>
       <p className="text-xs text-soft">Se reprograman todas las guías aprobadas dentro de las fechas nuevas, respetando el tope diario. Úselo antes de que el estudiante empiece a entregar.</p>
       <div className="flex flex-wrap items-center gap-2">
         <label className="text-xs text-soft">Inicio <input type="date" value={desde} onChange={e => setDesde(e.target.value)} className={cn(CLASE_INPUT, 'max-w-[11rem]')} /></label>
-        {uno && <label className="text-xs text-soft">Fin <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className={cn(CLASE_INPUT, 'max-w-[11rem]')} /></label>}
-        <button disabled={ocupado || !desde || (!!uno && (!hasta || desde > hasta))} onClick={aplicar} className={CLASE_BOTON}>{ocupado ? 'Reprogramando…' : 'Guardar y reprogramar'}</button>
+        {<label className="text-xs text-soft">Fin {uno ? '' : '(vacío = no cambiar)'} <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className={cn(CLASE_INPUT, 'max-w-[11rem]')} /></label>}
+        <button disabled={ocupado || !desde || (!!hasta && desde > hasta) || (!!uno && !hasta)} onClick={aplicar} className={CLASE_BOTON}>{ocupado ? 'Reprogramando…' : 'Guardar y reprogramar'}</button>
       </div>
+      <label className="flex items-center gap-2 text-xs text-soft"><input type="checkbox" checked={ajustar} onChange={e => setAjustar(e.target.checked)} />Subir el tope diario si el trabajo no cabe en las fechas nuevas</label>
+      <p className="text-[11px] text-muted">Recuerde: del 24 al 27 de noviembre son las sustentaciones; para que todo el trabajo termine antes, ponga como fin el viernes 20 o el lunes 23.</p>
       {!uno && <ul className="text-[11px] text-muted max-h-32 overflow-y-auto">{planes.map(p => <li key={p.id}>{p.nombres} {p.apellidos} · {p.grupo} · hoy {fechaCorta(p.desde)} a {fechaCorta(p.hasta)}</li>)}</ul>}
       {msg && <p className="text-xs text-success" aria-live="polite">{msg}</p>}
     </div>
@@ -1346,7 +1349,7 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
                 }
                 setSincMsg(`Dosificación: ${np} plan(es) procesados · ${reac} entrega(s) reacomodadas · días sobre el tope ${antes} → ${despues}${malos ? ` · ${malos} plan(es) con error` : ''}.`);
               }}>Dosificar entregas</button>}
-              {gestiona && <button onClick={() => { cerrar(); setCambiandoInicio(v => !v); }}>{cambiandoInicio ? 'Ocultar cambio de inicio' : 'Cambiar inicio de los planes'}</button>}
+              {gestiona && <button onClick={() => { cerrar(); setCambiandoInicio(v => !v); }}>{cambiandoInicio ? 'Ocultar cambio de fechas' : 'Cambiar fechas de los planes'}</button>}
               {gestiona && <button onClick={() => { cerrar(); setCompletandoTodos(v => !v); }}>{completandoTodos ? 'Ocultar completar' : 'Completar a todos con IA'}</button>}
               <button onClick={() => { cerrar(); setCreando(true); setAviso(''); }}>Nuevo plan</button>
             </>)}

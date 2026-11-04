@@ -3,10 +3,10 @@
 // NUNCA se envía a la IA el nombre, el motivo ni datos de salud del estudiante: solo grado, ajustes
 // razonables en lenguaje pedagógico y las asignaturas (igual que ya hacían los botones existentes).
 import type { AsignaturaPlan, CompletadoPorCoordinacion, Guia, GuiaPlan, PasoGuia, PedidoGuia, PlanCasa } from './tipos';
-import { semanasDelPeriodo } from './logica';
+import { semanasDelPeriodo, topeNecesario } from './logica';
 import { armarAprobacion, fusionarReacomodos, completarBloqueado, esTransversal, construirPasos, errorDeBorrador, conEntregables, fechaEntregaSugerida, gradoDeGrupo, hoyLocal, type PasoCompletar } from './completarPlan';
 import { planificarDosificacion } from './dosificar';
-import { correoActual, guardarAsignatura, guardarFechasPlan, guardarGuia, integrarGuiaIA, leerAsignaturasYGuias, pedirGuiaIA, publicarPlan, sugerirCampos, sugerirPreguntas } from './persistencia';
+import { correoActual, guardarAsignatura, guardarFechasPlan, guardarGuia, guardarTopeDiario, integrarGuiaIA, leerAsignaturasYGuias, pedirGuiaIA, publicarPlan, sugerirCampos, sugerirPreguntas } from './persistencia';
 
 type NombreFn = (id: string) => string;
 
@@ -381,11 +381,17 @@ export async function completarPlanConIA(e: EntradaCompletar): Promise<ResumenCo
  * fechas nuevas (sin conservar fechas viejas: aún no hay trabajo hecho). Los vistos buenos se
  * conservan. Publica la agenda una vez al final.
  */
-export async function reprogramarPlan(plan: PlanCasa, desde: string, hasta: string, nombre: NombreFn): Promise<{ guias: number; avisos: string[] }> {
+export async function reprogramarPlan(plan: PlanCasa, desde: string, hasta: string, nombre: NombreFn, ajustarTope = false): Promise<{ guias: number; avisos: string[]; tope: number }> {
   if (!desde || !hasta || desde > hasta) throw new Error('Revise las fechas: el inicio debe ser antes del fin.');
   await guardarFechasPlan(plan.id, desde, hasta);
   const nuevo: PlanCasa = { ...plan, desde, hasta };
   const { asigs, guias } = await leerAsignaturasYGuias(plan.id);
+  // Si el trabajo ya no cabe en el periodo nuevo, sube el tope al necesario (nunca lo baja).
+  if (ajustarTope) {
+    const total = guias.reduce((t, g) => t + (g.aprobada?.pasos ?? []).reduce((m, p) => m + (p.momentos || 0), 0), 0);
+    const nec = topeNecesario(nuevo, total, hoyLocal()).tope;
+    if (nec > nuevo.topeDiario) { await guardarTopeDiario(plan.id, nec); nuevo.topeDiario = nec; }
+  }
   const propias = (g: GuiaPlan) => g.asignaturaIds.map(id => asigs.find(a => a.asignaturaId === id)).filter((a): a is AsignaturaPlan => !!a);
   // Mientras no se reprograman, las demás guías no ocupan días (sus fechas viejas no cuentan).
   const todas = new Map(guias.map(g => [g.id, { ...g, aprobada: undefined } as GuiaPlan]));
@@ -401,5 +407,5 @@ export async function reprogramarPlan(plan: PlanCasa, desde: string, hasta: stri
     n++;
   }
   await publicarPlan(plan.id);
-  return { guias: n, avisos };
+  return { guias: n, avisos, tope: nuevo.topeDiario };
 }
