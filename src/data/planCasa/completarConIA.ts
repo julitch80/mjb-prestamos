@@ -6,7 +6,7 @@ import type { AsignaturaPlan, CompletadoPorCoordinacion, Guia, GuiaPlan, PasoGui
 import { semanasDelPeriodo } from './logica';
 import { armarAprobacion, fusionarReacomodos, completarBloqueado, esTransversal, construirPasos, errorDeBorrador, conEntregables, fechaEntregaSugerida, gradoDeGrupo, hoyLocal, type PasoCompletar } from './completarPlan';
 import { planificarDosificacion } from './dosificar';
-import { correoActual, guardarAsignatura, guardarGuia, integrarGuiaIA, leerAsignaturasYGuias, pedirGuiaIA, publicarPlan, sugerirCampos, sugerirPreguntas } from './persistencia';
+import { correoActual, guardarAsignatura, guardarFechasPlan, guardarGuia, integrarGuiaIA, leerAsignaturasYGuias, pedirGuiaIA, publicarPlan, sugerirCampos, sugerirPreguntas } from './persistencia';
 
 type NombreFn = (id: string) => string;
 
@@ -372,4 +372,34 @@ export async function completarPlanConIA(e: EntradaCompletar): Promise<ResumenCo
     catch (er) { fallos.push({ texto: 'Publicar la agenda del estudiante', motivo: (er as Error).message }); }
   }
   return { hechos, fallos, publicado, sinAprobar };
+}
+
+// ── Cambiar fechas del plan ───────────────────────────────────────────────
+
+/**
+ * Cambia inicio/fin del plan y reprograma TODAS las guías aprobadas desde cero dentro de las
+ * fechas nuevas (sin conservar fechas viejas: aún no hay trabajo hecho). Los vistos buenos se
+ * conservan. Publica la agenda una vez al final.
+ */
+export async function reprogramarPlan(plan: PlanCasa, desde: string, hasta: string, nombre: NombreFn): Promise<{ guias: number; avisos: string[] }> {
+  if (!desde || !hasta || desde > hasta) throw new Error('Revise las fechas: el inicio debe ser antes del fin.');
+  await guardarFechasPlan(plan.id, desde, hasta);
+  const nuevo: PlanCasa = { ...plan, desde, hasta };
+  const { asigs, guias } = await leerAsignaturasYGuias(plan.id);
+  const propias = (g: GuiaPlan) => g.asignaturaIds.map(id => asigs.find(a => a.asignaturaId === id)).filter((a): a is AsignaturaPlan => !!a);
+  // Mientras no se reprograman, las demás guías no ocupan días (sus fechas viejas no cuentan).
+  const todas = new Map(guias.map(g => [g.id, { ...g, aprobada: undefined } as GuiaPlan]));
+  const avisos: string[] = [];
+  let n = 0;
+  for (const g of guias.filter(x => x.aprobada)) {
+    const borrador: Guia = { ...g.aprobada!, pasos: g.aprobada!.pasos.map(p => ({ ...p, fecha: null })) };
+    const r = await aprobarBorrador({
+      plan: nuevo, g: { ...g, aprobada: undefined }, borrador, todas: [...todas.values()], propias: propias(g), nombre, publicar: false, conservarVistos: true,
+    });
+    todas.set(g.id, { ...g, aprobada: r.aprobada });
+    avisos.push(...r.avisos);
+    n++;
+  }
+  await publicarPlan(plan.id);
+  return { guias: n, avisos };
 }

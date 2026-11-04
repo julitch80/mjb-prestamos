@@ -16,7 +16,7 @@ import {
   ponerEnEspera, quitarEnEspera, guardarContexto, guardarSinTecnologia, leerEquipo, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
-import { completarPlanConIA, dosificarPlan, type ItemProgreso, type ResumenCompletar } from '../../data/planCasa/completarConIA';
+import { completarPlanConIA, dosificarPlan, reprogramarPlan, type ItemProgreso, type ResumenCompletar } from '../../data/planCasa/completarConIA';
 import { faltantesPlan, gradoDeGrupo } from '../../data/planCasa/completarPlan';
 import { destinosPosibles, errorReplicar, replicarGuias, type ResumenReplicar } from '../../data/planCasa/replicarGuias';
 import { guardarTopeDiario, leerAsignaturasYGuias, quitarAsignatura, sincronizarDocentes } from '../../data/planCasa/persistencia';
@@ -30,6 +30,7 @@ import { PestanasSubrayadas } from '../Navegacion';
 import { construirAvanceDocentes, filtrarPorJornada, jornadaDePlan, type DatosPlanAvance, type FiltroJornada } from '../../data/planCasa/avanceDocentes';
 import { claseBarra, construirInformeHTML, construirResumenTexto, filasInforme, fraccionTexto, resumenAvance, ETIQUETA_JORNADA, type Fraccion } from '../../data/planCasa/informeAvance';
 import { useAppStore } from '../../data/store';
+import { addDias } from '../../data/tareas/calendario';
 import Ficha from '../../asistencia/Ficha';
 import { leerDirectores } from '../../asistencia/datos';
 import { auth } from '../../lib/firebase';
@@ -698,7 +699,7 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
   const puedeMarcar = rolActual === 'coordinador' || esSuper;
   const [confElim, setConfElim] = useState(false);
   const [quitando, setQuitando] = useState('');
-  const [accion, setAccion] = useState<'' | 'espera' | 'completar' | 'replicar' | 'tope'>('');
+  const [accion, setAccion] = useState<'' | 'espera' | 'completar' | 'replicar' | 'tope' | 'fechas'>('');
   const [verFicha, setVerFicha] = useState(false);
   const [directores, setDirectores] = useState<Record<string, string>>({});
   const userId = useAppStore(s => s.userId);
@@ -802,6 +803,7 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
           {(rolActual === 'coordinador' || esSuper) && <button onClick={() => { cerrar(); setAccion(a => a === 'completar' ? '' : 'completar'); }}>Completar todo con IA</button>}
           {(rolActual === 'coordinador' || esSuper) && <button onClick={() => { cerrar(); setAccion(a => a === 'replicar' ? '' : 'replicar'); }}>Replicar guías a otro estudiante</button>}
           {(rolActual === 'coordinador' || esSuper) && <button onClick={() => { cerrar(); setAccion(a => a === 'tope' ? '' : 'tope'); }}>Cambiar tope diario ({plan.topeDiario} momentos)</button>}
+          {(rolActual === 'coordinador' || esSuper) && <button onClick={() => { cerrar(); setAccion(a => a === 'fechas' ? '' : 'fechas'); }}>Cambiar fechas del plan</button>}
           {guias && asigs && guias.some(g => g.aprobada || g.propuesta) && <span onClick={cerrar}><BotonFormatoUAI plan={plan} guias={guias} asigs={asigs} nombres={nombres} /></span>}
           {guias && <span onClick={cerrar}><BotonCuadernillo plan={plan} guias={guias} nombres={nombres} /></span>}
           <button onClick={() => { cerrar(); imprimirCartas([plan]).catch(e => setError(e.message)); }}>Carta para la familia</button>
@@ -820,6 +822,7 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
       {accion === 'completar' && asigs && guias && <CompletarConIA plan={plan} asigs={asigs} guias={guias} nombres={nombres} puede={rolActual === 'coordinador' || esSuper} />}
       {accion === 'completar' && asigs && guias && !faltantesPlan(plan, asigs, guias).hayQueHacer && <p className="text-xs text-success">✓ No le falta nada por completar.</p>}
       {accion === 'replicar' && asigs && guias && <ReplicarGuias plan={plan} planes={planes} asigs={asigs} guias={guias} nombres={nombres} puede={rolActual === 'coordinador' || esSuper} />}
+      {accion === 'fechas' && <CambiarFechas planes={[plan]} nombreDe={() => nombreAsig} onError={setError} />}
       {accion === 'tope' && guias && <CambiarTope plan={plan} guias={guias} nombre={nombreAsig} onError={setError} />}
       {accion && <button onClick={() => setAccion('')} className="text-xs text-soft underline">Cerrar</button>}
       {verFicha && (
@@ -907,6 +910,43 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
       )}
 
       </>)}
+    </div>
+  );
+}
+
+/**
+ * Coordinación: cambia inicio (y fin) de uno o varios planes y reprograma sus guías desde cero.
+ * Con varios planes, el fin se conserva y solo se cambia el inicio.
+ */
+function CambiarFechas({ planes, nombreDe, onError }: { planes: PlanConDocentes[]; nombreDe: (p: PlanConDocentes) => (id: string) => string; onError: (m: string) => void }) {
+  const uno = planes.length === 1 ? planes[0] : null;
+  const [desde, setDesde] = useState(uno?.desde ?? addDias(hoyLocal(), 1));
+  const [hasta, setHasta] = useState(uno?.hasta ?? '');
+  const [msg, setMsg] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  async function aplicar() {
+    setOcupado(true); setMsg('');
+    let ok = 0; const malos: string[] = [];
+    for (const p of planes) {
+      try { await reprogramarPlan(p, desde, uno ? hasta : p.hasta, nombreDe(p)); ok++; }
+      catch (e) { malos.push(`${p.nombres} ${p.apellidos}: ${(e as Error).message}`); }
+      setMsg(`Reprogramando… ${ok + malos.length} de ${planes.length}`);
+    }
+    setMsg(`Listo: ${ok} plan(es) reprogramados desde el ${fechaLarga(desde)}; agendas publicadas.`);
+    if (malos.length) onError(malos.join(' · '));
+    setOcupado(false);
+  }
+  return (
+    <div className="rounded-xl border border-line p-3 space-y-2 text-sm">
+      <p className="font-medium text-strong">{uno ? 'Fechas del plan' : `Cambiar el inicio de ${planes.length} plan(es)`}</p>
+      <p className="text-xs text-soft">Se reprograman todas las guías aprobadas dentro de las fechas nuevas, respetando el tope diario. Úselo antes de que el estudiante empiece a entregar.</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-xs text-soft">Inicio <input type="date" value={desde} onChange={e => setDesde(e.target.value)} className={cn(CLASE_INPUT, 'max-w-[11rem]')} /></label>
+        {uno && <label className="text-xs text-soft">Fin <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className={cn(CLASE_INPUT, 'max-w-[11rem]')} /></label>}
+        <button disabled={ocupado || !desde || (!!uno && (!hasta || desde > hasta))} onClick={aplicar} className={CLASE_BOTON}>{ocupado ? 'Reprogramando…' : 'Guardar y reprogramar'}</button>
+      </div>
+      {!uno && <ul className="text-[11px] text-muted max-h-32 overflow-y-auto">{planes.map(p => <li key={p.id}>{p.nombres} {p.apellidos} · {p.grupo} · hoy {fechaCorta(p.desde)} a {fechaCorta(p.hasta)}</li>)}</ul>}
+      {msg && <p className="text-xs text-success" aria-live="polite">{msg}</p>}
     </div>
   );
 }
@@ -1241,6 +1281,7 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
   const [completandoTodos, setCompletandoTodos] = useState(false);
   const [sincMsg, setSincMsg] = useState('');
   const [busca, setBusca] = useState('');
+  const [cambiandoInicio, setCambiandoInicio] = useState(false);
   const [jorFiltro, setJorFiltro] = useState<'todas' | 'manana' | 'tarde'>('todas');
   const rol = useAppStore(s => s.rol);
   const jornadaUsuario = useAppStore(s => s.jornada);
@@ -1305,6 +1346,7 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
                 }
                 setSincMsg(`Dosificación: ${np} plan(es) procesados · ${reac} entrega(s) reacomodadas · días sobre el tope ${antes} → ${despues}${malos ? ` · ${malos} plan(es) con error` : ''}.`);
               }}>Dosificar entregas</button>}
+              {gestiona && <button onClick={() => { cerrar(); setCambiandoInicio(v => !v); }}>{cambiandoInicio ? 'Ocultar cambio de inicio' : 'Cambiar inicio de los planes'}</button>}
               {gestiona && <button onClick={() => { cerrar(); setCompletandoTodos(v => !v); }}>{completandoTodos ? 'Ocultar completar' : 'Completar a todos con IA'}</button>}
               <button onClick={() => { cerrar(); setCreando(true); setAviso(''); }}>Nuevo plan</button>
             </>)}
@@ -1312,6 +1354,10 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
         </div>
       )}
       {vista === 'planes' && sincMsg && <p className="text-xs text-soft" aria-live="polite">{sincMsg}</p>}
+      {vista === 'planes' && cambiandoInicio && (
+        <CambiarFechas planes={visibles.filter(p => p.estado === 'activo')} onError={setError}
+          nombreDe={p => { const n = asignaturasConNombre(p.grupo); return id => n[id]?.asignatura ?? id; }} />
+      )}
       {vista === 'planes' && completandoTodos && <CompletarTodos planes={visibles} onCerrar={() => setCompletandoTodos(false)} />}
       {vista === 'planes' && abriendoPlazo && <AbrirPlazoJornada planes={visibles} jornadaFija={jornadaFija} onCerrar={() => setAbriendoPlazo(false)} />}
       {vista === 'planes' && eligiendoCartas && <ElegirCartas planes={visibles} onCerrar={() => setEligiendoCartas(false)} />}
