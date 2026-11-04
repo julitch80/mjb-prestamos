@@ -11,7 +11,10 @@ import { doc, getDoc } from 'firebase/firestore';
 import { ExternalLink, Clock, PackageCheck, Upload, Link2, CheckCircle2, Camera } from 'lucide-react';
 import { ACCEPT_ENTREGA, formatoTamano, validarArchivo, validarEnlace } from '../../data/planCasa/entregas';
 import { prepararArchivo, subirEntrega } from '../../data/planCasa/entregasCliente';
+import { BotonSugerencias, ComoMeFue, HoraDeEstudio, PildoraDelDia, Sugerencias, TemporizadorMomento, useHorarioEstudio } from './OrientacionFamilia';
 import { db } from '../../lib/firebase';
+import { cn } from '@/lib/utils';
+import { guardarHechos, leerHechos, progresoDia } from '../../data/planCasa/orientacionFamilia';
 import { COL_PUBLICO, MODALIDADES_SUSTENTACION, type FechaISO, type PlanPublico } from '../../data/planCasa/tipos';
 
 type Paso = PlanPublico['pasos'][number];
@@ -126,12 +129,17 @@ function marcarEntregables(pasos: Paso[]): Paso[] {
 }
 
 const claveGuia = (p: Paso) => p.guiaId ?? p.asignatura;
+/** Clave estable de un paso en un día (para la lista de chequeo). */
+const clavePaso = (dia: FechaISO, p: Paso) => `${dia}|${p.guiaId ?? p.asignatura}|${p.id}`;
 
 function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { plan: PlanPublico; token: string; hoy: FechaISO; dia: FechaISO; setDia: (f: FechaISO) => void; pestana: Pestana; setPestana: (v: Pestana) => void }) {
   const delDia = useMemo(() => plan.pasos.filter(p => p.fecha === dia), [plan, dia]);
   const total = delDia.reduce((s, p) => s + p.momentos, 0);
   const esHoy = dia === hoy;
   const totalHoy = useMemo(() => plan.pasos.filter(p => p.fecha === hoy).reduce((s, p) => s + p.momentos, 0), [plan, hoy]);
+  const horario = useHorarioEstudio(token, hoy); // token vacío = demostración
+  const [hechos, setHechos] = useState(() => leerHechos(token));
+  const [verSugerencias, setVerSugerencias] = useState(false);
 
   // Guías en el orden en que aparecen; cada una con su color.
   const guias = useMemo<InfoGuia[]>(() => {
@@ -193,6 +201,9 @@ function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { pla
         </div>
       </header>
 
+      <div><BotonSugerencias onClick={() => setVerSugerencias(true)} /></div>
+      {verSugerencias && <Sugerencias onCerrar={() => setVerSugerencias(false)} />}
+
       <nav role="tablist" aria-label="Secciones" className="flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-1">
         {tabs.map(t => {
           const sel = pestana === t.id;
@@ -205,7 +216,7 @@ function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { pla
         })}
       </nav>
 
-      {pestana === 'semana' && <VistaSemana plan={plan} hoy={hoy} dia={dia} setDia={setDia} porDia={porDia} sustPorDia={sustPorDia} pendPorDia={pendPorDia} color={colorDeAsignatura} irADia={irADia} />}
+      {pestana === 'semana' && <VistaSemana plan={plan} hoy={hoy} dia={dia} setDia={setDia} porDia={porDia} sustPorDia={sustPorDia} pendPorDia={pendPorDia} color={colorDeAsignatura} irADia={irADia} horaDe={horario.horaDe} />}
       {pestana === 'mes' && <VistaMes plan={plan} hoy={hoy} dia={dia} porDia={porDia} sustPorDia={sustPorDia} pendPorDia={pendPorDia} irADia={irADia} />}
 
       {pestana === 'hoy' && <>
@@ -230,15 +241,34 @@ function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { pla
             {total > 0 && <span className="text-sm text-soft">{total} {total === 1 ? 'momento' : 'momentos'} · {unidades(total)}</span>}
           </div>
           {pendDelDia.length > 0 && <AvisoSustentaciones areas={pendDelDia} />}
+          {total > 0 && <HoraDeEstudio h={horario} dia={dia} esHoy={esHoy} momentos={total} />}
+          {total > 0 && (() => {
+            const pr = progresoDia(delDia.map(p => ({ key: clavePaso(dia, p), momentos: p.momentos })), hechos);
+            return (
+              <div className="rounded-2xl border border-success/40 bg-success/10 p-3 space-y-1.5" aria-live="polite">
+                <p className="text-sm font-semibold text-strong">{pr.hechos === pr.total ? '🎉 ¡Terminaste todo lo de este día!' : `Mi lista de ${esHoy ? 'hoy' : 'este día'}: ${pr.hechos} de ${pr.total} ${pr.total === 1 ? 'momento hecho' : 'momentos hechos'}`}</p>
+                <div className="h-2 rounded-full bg-card/60 overflow-hidden"><div className="h-full bg-success transition-all" style={{ width: `${pr.total ? Math.round((pr.hechos / pr.total) * 100) : 0}%` }} /></div>
+                <p className="text-xs text-soft">Tacha cada momento en su tarjeta cuando lo termines.</p>
+              </div>);
+          })()}
           {delDia.length === 0 ? (
             <p className="rounded-2xl border border-line bg-card p-4 text-base text-soft">
               {esHoy ? 'Hoy no tienes pasos. ¡Buen descanso!' : 'Este día no tiene pasos.'}
             </p>
           ) : delDia.map(p => (
             <TarjetaPaso key={`${dia}-${p.asignatura}-${p.id}`} p={p} token={token} hoy={hoy}
-              guia={guiaDe.get(claveGuia(p))} abierta={delDia.length === 1} />
+              guia={guiaDe.get(claveGuia(p))} abierta={delDia.length === 1}
+              hechos={hechos[clavePaso(dia, p)] ?? 0} onHechos={n => setHechos(guardarHechos(token, clavePaso(dia, p), n))} />
           ))}
         </section>
+
+        {esHoy && (
+          <section className="space-y-3" aria-label="Para estudiar mejor">
+            <PildoraDelDia fecha={hoy} clave={token} abrirSugerencias={() => setVerSugerencias(true)} />
+            {total > 0 && <TemporizadorMomento />}
+            {total > 0 && <ComoMeFue clave={token} fecha={hoy} />}
+          </section>
+        )}
       </>}
 
       {pestana === 'guias' && (
@@ -343,7 +373,7 @@ export function AvisoSustentaciones({ areas }: { areas: string[] }) {
 }
 
 /** Tarjeta compacta con velo del color de su guía; el detalle queda plegado bajo «Ver instrucciones». */
-function TarjetaPaso({ p, token, hoy, guia, abierta }: { p: Paso; token: string; hoy: FechaISO; guia?: InfoGuia; abierta: boolean }) {
+function TarjetaPaso({ p, token, hoy, guia, abierta, hechos, onHechos }: { p: Paso; token: string; hoy: FechaISO; guia?: InfoGuia; abierta: boolean; hechos: number; onHechos: (n: number) => void }) {
   const [entregadoEn, setEntregadoEn] = useState<number | undefined>(p.entregadoEn);
   useEffect(() => { setEntregadoEn(p.entregadoEn); }, [p.entregadoEn]);
   const c = colorGuia(guia?.indice ?? 0);
@@ -361,7 +391,18 @@ function TarjetaPaso({ p, token, hoy, guia, abierta }: { p: Paso; token: string;
         </span>
       </div>
       {guia?.eje && <p className="text-sm text-muted truncate" title={guia.eje}>{guia.eje}</p>}
-      <h3 className="text-lg font-bold text-strong leading-snug">{p.titulo}</h3>
+      <h3 className={cn('text-lg font-bold leading-snug', hechos >= p.momentos ? 'text-soft line-through' : 'text-strong')}>{p.titulo}</h3>
+      <div className="flex flex-wrap gap-1.5" aria-label="Momentos hechos">
+        {Array.from({ length: p.momentos }, (_, i) => {
+          const ok = i < hechos;
+          return (
+            <button key={i} type="button" onClick={() => onHechos(ok ? i : i + 1)} aria-pressed={ok}
+              className={cn('min-h-[40px] inline-flex items-center gap-1.5 rounded-full border px-3 text-sm transition',
+                ok ? 'bg-success/15 border-success/50 text-strong line-through' : 'bg-card/50 border-line text-soft hover:text-strong')}>
+              <span aria-hidden>{ok ? '☑' : '☐'}</span> Momento {i + 1}
+            </button>);
+        })}
+      </div>
       <div className="flex flex-wrap items-center gap-1.5">
         {p.esEntregaParcial && (
           <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 border border-warning/40 text-warning-soft-fg text-xs font-semibold px-2.5 py-0.5">

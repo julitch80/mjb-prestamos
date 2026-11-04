@@ -7,6 +7,7 @@ import {
 } from '../../data/planCasa/calendarioAgenda';
 import type { FechaISO, PlanPublico } from '../../data/planCasa/tipos';
 import { limiteAgenda } from '../../data/planCasa/ventanaSustentacion';
+import { formatearHora } from '../../data/planCasa/orientacionFamilia';
 
 type Paso = PlanPublico['pasos'][number];
 type Sust = PlanPublico['sustentaciones'][number];
@@ -49,10 +50,12 @@ export function SelectorVista({ vista, setVista }: { vista: Vista; setVista: (v:
   );
 }
 
-export function VistaSemana({ plan, hoy, dia, setDia, porDia, sustPorDia, pendPorDia = {}, color, irADia }: {
+export function VistaSemana({ plan, hoy, dia, setDia, porDia, sustPorDia, pendPorDia = {}, color, irADia, horaDe }: {
   plan: PlanPublico; hoy: FechaISO; dia: FechaISO; setDia: (f: FechaISO) => void;
   porDia: Agrupado<Paso>; sustPorDia: Agrupado<Sust>; pendPorDia?: Record<FechaISO, string[]>;
   color: (a: string) => { fondo: string; borde: string }; irADia: (f: FechaISO) => void;
+  /** Hora de estudio elegida por la familia para ese día (si la hay). */
+  horaDe?: (f: FechaISO) => string | null;
 }) {
   const dias = semanaDe(dia);
   const limite = limiteAgenda(plan.hasta); // incluye la ventana de sustentaciones aunque el plan termine antes
@@ -83,6 +86,9 @@ export function VistaSemana({ plan, hoy, dia, setDia, porDia, sustPorDia, pendPo
                   {esHoy && <span className="text-[10px] font-semibold text-accent"> hoy</span>}
                 </div>
                 {pasos.length === 0 && sust.length === 0 && pend.length === 0 && <p className="text-xs text-muted">·</p>}
+                {pasos.length > 0 && horaDe && horaDe(f) && (
+                  <p className="text-xs font-semibold text-accent" aria-label={`Hora de estudio ${formatearHora(horaDe(f)!)}`}>🕒 {formatearHora(horaDe(f)!)}</p>
+                )}
                 {pasos.map(p => {
                   const c = color(p.asignatura);
                   return (
