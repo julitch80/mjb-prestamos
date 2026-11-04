@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   capacidadPorSemana, estadoTrasRevision, faltanPorRevisar, fechaEntregaSemana, momentosPorSemana, nSemanas, revisionCompleta,
-  semanaDeFecha, validarIntegrada, esGuiaIntegrable,
+  semanaDeFecha, validarIntegrada, esGuiaIntegrable, esCanalSinEntrega, hayQueEntregar, medioEntrega, partirEtiquetaGuia,
 } from './integrada';
 import type { Guia, PasoGuia } from './tipos';
 
@@ -133,5 +133,38 @@ describe('revisión por asignatura', () => {
     expect(esGuiaIntegrable({ modalidad: 'por_asignatura' }, { asignaturaIds: ['a'] })).toBe(false);
     expect(esGuiaIntegrable({ modalidad: 'por_asignatura' }, { asignaturaIds: ['a', 'b'] })).toBe(true);
     expect(esGuiaIntegrable({ modalidad: 'transversal' }, { asignaturaIds: ['a'] })).toBe(true);
+  });
+});
+
+describe('coherencia de la entrega (Qué entregas / Cómo lo entregas)', () => {
+  it('detecta los canales «sin entrega»', () => {
+    expect(esCanalSinEntrega('Sin entrega: se guarda en el cuaderno')).toBe(true);
+    expect(esCanalSinEntrega('  no se entrega')).toBe(true);
+    expect(esCanalSinEntrega('Foto por WhatsApp')).toBe(false);
+    expect(esCanalSinEntrega(undefined)).toBe(false);
+  });
+  it('la entrega de la semana pierde el canal «Sin entrega» heredado de la IA', () => {
+    const g = guia([
+      paso('a', 1, 1, { canalEntrega: 'Sin entrega: se guarda en el cuaderno' }),
+      paso('b', 1, 1, { canalEntrega: 'Sin entrega: se guarda en el cuaderno', componentes: [comp('mat'), comp('eti')] }),
+      paso('c', 2, 1, { componentes: [comp('mat')] }), paso('d', 3, 1, { componentes: [comp('eti')] }),
+    ]);
+    const { guia: r } = validarIntegrada(g, ctx);
+    const e = r.pasos.find(p => p.semana === 1 && p.esEntregaParcial)!;
+    expect(e.canalEntrega).toBeUndefined();
+    expect(r.pasos.find(p => p.semana === 1 && !p.esEntregaParcial)!.canalEntrega).toMatch(/^Sin entrega/);
+  });
+  it('medioEntrega usa el medio real y «Sin entrega» solo si no hay nada que entregar', () => {
+    const base = { id: 'p1', evidencia: 'foto' as const };
+    expect(medioEntrega({ ...base, esEntregaParcial: true, canalEntrega: 'Sin entrega: cuaderno' })).toBe('Foto');
+    expect(medioEntrega({ ...base, evidencia: 'texto', componentes: [comp('mat')] })).toBe('Foto o archivo');
+    expect(medioEntrega({ ...base, canalEntrega: 'Audio por WhatsApp' })).toBe('Audio por WhatsApp');
+    expect(medioEntrega({ id: 'ent-1', evidencia: 'audio', canalEntrega: 'Sin entrega' })).toBe('Audio');
+    expect(hayQueEntregar({ ...base, canalEntrega: 'Sin entrega: se guarda en el cuaderno' })).toBe(false);
+    expect(hayQueEntregar({ ...base })).toBe(true);
+  });
+  it('partirEtiquetaGuia separa la pregunta orientadora de las materias', () => {
+    expect(partirEtiquetaGuia('¿Cómo cuidamos el agua? (Ciencias · Matemáticas)')).toEqual({ eje: '¿Cómo cuidamos el agua?', materias: ['Ciencias', 'Matemáticas'] });
+    expect(partirEtiquetaGuia('Física')).toEqual({ eje: '', materias: ['Física'] });
   });
 });

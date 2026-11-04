@@ -251,6 +251,9 @@ export interface AsignaturaPlan {
  * planesCasa/{planId}/guias/{guiaId} — una guía. En 'por_asignatura' cubre UNA asignatura
  * (id de guía = asignaturaId). En 'transversal' cubre VARIAS alrededor de un eje.
  */
+/** Una entrega que el reparto movió de la fecha sugerida por el docente a otra con cupo (`en` = ms). */
+export interface ReacomodoEntrega { pasoId: string; asignaturaId?: string; sugerida: FechaISO; final: FechaISO; en: number }
+
 export interface GuiaPlan {
   id: string;
   asignaturaIds: string[];
@@ -275,6 +278,8 @@ export interface GuiaPlan {
   /** Coordinación autorizó corregir después del cierre. Solo la escribe un gestor. */
   autorizacion?: { hasta: FechaISO; por: string; motivo: string; en: number };
   seguimiento: Record<string, SeguimientoPaso>; // por id de paso
+  /** Entregas reacomodadas para no acumular trabajo (la fecha del docente es solo sugerida). */
+  reacomodos?: ReacomodoEntrega[];
   sustentacionEstado: EstadoSustentacion;
   sustentacionObservacion?: string;
   actualizadoEn: number;

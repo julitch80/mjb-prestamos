@@ -16,7 +16,7 @@ import {
   ponerEnEspera, quitarEnEspera, guardarContexto, guardarSinTecnologia, leerEquipo, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
-import { completarPlanConIA, type ItemProgreso, type ResumenCompletar } from '../../data/planCasa/completarConIA';
+import { completarPlanConIA, dosificarPlan, type ItemProgreso, type ResumenCompletar } from '../../data/planCasa/completarConIA';
 import { faltantesPlan, gradoDeGrupo } from '../../data/planCasa/completarPlan';
 import { destinosPosibles, errorReplicar, replicarGuias, type ResumenReplicar } from '../../data/planCasa/replicarGuias';
 import { leerAsignaturasYGuias, quitarAsignatura, sincronizarDocentes } from '../../data/planCasa/persistencia';
@@ -1259,6 +1259,18 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
                 for (const p of visibles.filter(x => x.estado === 'activo')) { try { n += await sincronizarDocentes(p.id); } catch { malos++; } }
                 setSincMsg(`Docentes actualizados: ${n} cambio(s) de correo${malos ? ` · ${malos} plan(es) con error` : ''}.`);
               }}>Actualizar docentes</button>}
+              {gestiona && <button disabled={sincMsg === 'Dosificando…'} onClick={async () => {
+                cerrar(); setSincMsg('Dosificando…');
+                let np = 0, malos = 0, reac = 0, antes = 0, despues = 0;
+                for (const p of visibles.filter(x => x.estado === 'activo' && !x.enEspera)) {
+                  try {
+                    const nombres = asignaturasConNombre(p.grupo);
+                    const r = await dosificarPlan(p, id => nombres[id]?.asignatura ?? id);
+                    np++; reac += r.reacomodadas; antes += r.sobreAntes; despues += r.sobreDespues;
+                  } catch { malos++; }
+                }
+                setSincMsg(`Dosificación: ${np} plan(es) procesados · ${reac} entrega(s) reacomodadas · días sobre el tope ${antes} → ${despues}${malos ? ` · ${malos} plan(es) con error` : ''}.`);
+              }}>Dosificar entregas</button>}
               {gestiona && <button onClick={() => { cerrar(); setCompletandoTodos(v => !v); }}>{completandoTodos ? 'Ocultar completar' : 'Completar a todos con IA'}</button>}
               <button onClick={() => { cerrar(); setCreando(true); setAviso(''); }}>Nuevo plan</button>
             </>)}

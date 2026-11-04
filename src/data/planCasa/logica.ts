@@ -17,10 +17,25 @@ export function semanasDelPeriodo(desde: FechaISO, hasta: FechaISO): number {
 }
 
 export interface EntradaReparto { guiaId: string; pasos: PasoGuia[] }
+/** Una entrega que el reparto movió de la fecha sugerida por el docente a otra con cupo. */
+export interface Reacomodo { guiaId: string; pasoId: string; asignaturaId?: string; sugerida: FechaISO; final: FechaISO }
 export interface ResultadoReparto {
   asignaturas: EntradaReparto[];
   /** Avisos legibles: pasos que no caben antes de `hasta`. */
   avisos: string[];
+  /** Entregas cuya fecha final difiere de la sugerida (para avisar al docente). */
+  reacomodos: Reacomodo[];
+}
+
+/** ¿Es un paso de entrega (parcial, integrada o entregable de una asignatura)? */
+export const esPasoEntrega = (p: Pick<PasoGuia, 'id' | 'esEntregaParcial' | 'componentes'>): boolean =>
+  !!p.esEntregaParcial || !!p.componentes?.length || p.id.startsWith('ent-');
+
+/** Días cuya suma de momentos supera el tope. Medición pura: recibe pasos de todas las guías aprobadas. */
+export function diasSobreTope(pasos: Pick<PasoGuia, 'fecha' | 'momentos'>[], topeDiario: number): { fecha: FechaISO; carga: number }[] {
+  const carga = new Map<FechaISO, number>();
+  for (const p of pasos) if (p.fecha) carga.set(p.fecha, (carga.get(p.fecha) ?? 0) + p.momentos);
+  return [...carga.entries()].filter(([, c]) => c > topeDiario).map(([fecha, c]) => ({ fecha, carga: c })).sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
 }
 
 /** Día en que se pueden asignar pasos: lunes a viernes, sin festivo ni receso. */
@@ -29,8 +44,10 @@ export function esDiaDePlan(f: FechaISO): boolean {
 }
 
 /**
- * Asigna `fecha` a cada paso. Respeta las fechas ya fijadas por el docente (las reserva),
- * no supera `topeDiario` momentos por día sumando materias, intercala materias por turnos
+ * Asigna `fecha` a cada paso. Respeta las fechas ya fijadas de los pasos que NO son entrega (las
+ * reserva); la fecha de un paso de entrega es solo una SUGERENCIA: se coloca en el día hábil más
+ * cercano con cupo (preferiblemente sin otra entrega ese día y no antes de los pasos que la preparan)
+ * y, si difiere, se reporta en `reacomodos`. No supera `topeDiario` momentos por día sumando materias, intercala materias por turnos
  * y mantiene el orden dentro de cada una. Nada antes de max(desde, día siguiente a hoy).
  * Con ritmo 'dia_por_medio' solo se usa un día hábil de cada dos. Un paso con `semana` k se
  * ubica dentro de la semana k del plan (la k-ésima semana lunes-domingo desde `desde`)
@@ -42,7 +59,8 @@ export function repartirPasos(
 ): ResultadoReparto {
   const carga = new Map<FechaISO, number>();
   const sumar = (f: FechaISO, m: number) => carga.set(f, (carga.get(f) ?? 0) + m);
-  for (const a of asignaturas) for (const p of a.pasos) if (p.fecha) sumar(p.fecha, p.momentos);
+  // Las entregas con fecha FUTURA son sugerencias: no reservan día de antemano (se colocan al final). Lo ya ocurrido (hasta hoy) no se mueve.
+  for (const a of asignaturas) for (const p of a.pasos) if (p.fecha && (!esPasoEntrega(p) || p.fecha <= hoy)) sumar(p.fecha, p.momentos);
 
   let inicio = addDias(hoy, 1);
   if (desde > inicio) inicio = desde;
@@ -57,6 +75,8 @@ export function repartirPasos(
     guiaId: a.guiaId, pasos: a.pasos.map(p => ({ ...p })),
   }));
   const colas = salida.map(a => a.pasos.filter(p => !p.fecha));
+  const sugeridas = salida.flatMap((a, gi) => a.pasos.map((p, pi) => ({ gi, pi, p })).filter(x => x.p.fecha && x.p.fecha > hoy && esPasoEntrega(x.p)))
+    .map(x => ({ ...x, sugerida: x.p.fecha! }));
   const desdeDia = salida.map(() => 0); // índice mínimo de día por materia (conserva el orden)
   const noCabe: string[] = [];
   const fueraSemana: string[] = [];
@@ -92,14 +112,57 @@ export function repartirPasos(
     sumar(dias[d], paso.momentos);
     desdeDia[i] = d;
   }
+
+  // Entregas con fecha sugerida: día hábil más cercano con cupo, una entrega por día si se puede.
+  const reacomodos: Reacomodo[] = [];
+  const diaEntrega = new Set<FechaISO>();
+  const sinCupo: string[] = [];
+  sugeridas.sort((x, y) => (x.sugerida < y.sugerida ? -1 : x.sugerida > y.sugerida ? 1 : x.gi - y.gi || x.pi - y.pi));
+  for (const { gi, pi, p, sugerida } of sugeridas) {
+    const pasos = salida[gi].pasos;
+    // Piso blando: no antes de los pasos previos de su guía que la preparan (misma semana o anterior).
+    let piso = '';
+    for (let k = 0; k < pi; k++) {
+      const q = pasos[k];
+      if (q.fecha && (!esPasoEntrega(q) ? q.semana <= p.semana : true) && q.fecha > piso) piso = q.fecha;
+    }
+    let objetivo = dias.findIndex(f => f >= sugerida);
+    if (objetivo < 0) objetivo = dias.length - 1;
+    const elegir = (exigirSolo: boolean, conPiso: boolean): number => {
+      let mejor = -1, dist = Infinity;
+      for (let j = 0; j < dias.length; j++) {
+        if ((carga.get(dias[j]) ?? 0) + p.momentos > topeDiario) continue;
+        if (exigirSolo && diaEntrega.has(dias[j])) continue;
+        if (conPiso && dias[j] < piso) continue;
+        const dj = Math.abs(j - objetivo);
+        if (dj < dist) { dist = dj; mejor = j; }
+      }
+      return mejor;
+    };
+    let j = elegir(true, true);
+    if (j < 0) j = elegir(true, false);
+    if (j < 0) j = elegir(false, true);
+    if (j < 0) j = elegir(false, false);
+    if (j < 0) { // sin cupo en todo el periodo: se deja la fecha sugerida y se avisa
+      sumar(sugerida, p.momentos); diaEntrega.add(sugerida);
+      sinCupo.push(`${salida[gi].guiaId}: «${p.titulo}»`);
+      continue;
+    }
+    p.fecha = dias[j]; sumar(dias[j], p.momentos); diaEntrega.add(dias[j]);
+    if (p.fecha !== sugerida) {
+      const asignaturaId = p.id.startsWith('ent-') ? p.id.slice(4) : undefined;
+      reacomodos.push({ guiaId: salida[gi].guiaId, pasoId: p.id, ...(asignaturaId ? { asignaturaId } : {}), sugerida, final: p.fecha });
+    }
+  }
   const avisos: string[] = [];
+  if (sinCupo.length) avisos.push(`${sinCupo.length} entrega(s) no encontraron un día con cupo y conservan su fecha sugerida: ${sinCupo.join('; ')}.`);
   if (noCabe.length) {
     avisos.push(`${noCabe.length} paso(s) no caben antes del ${hasta} con tope de ${topeDiario} momentos por día: ${noCabe.join('; ')}.`);
   }
   if (fueraSemana.length) {
     avisos.push(`${fueraSemana.length} paso(s) no caben en su semana y quedaron más tarde: ${fueraSemana.join('; ')}.`);
   }
-  return { asignaturas: salida, avisos };
+  return { asignaturas: salida, avisos, reacomodos };
 }
 
 export interface PasoPublicoItem extends PasoGuia { asignatura: string; docente: string }

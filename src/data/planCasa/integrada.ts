@@ -63,6 +63,46 @@ export interface ContextoIntegracion {
   asignaturas: AsigIntegracion[]; desde: FechaISO; hasta: FechaISO; topeDiario: number; ritmo: RitmoPlan;
 }
 
+/** ¿El canal dice que NO se entrega nada? («Sin entrega: se guarda en el cuaderno», «No se entrega»…). */
+export function esCanalSinEntrega(canal: string | undefined | null): boolean {
+  return /^\s*(sin\s+entrega|no\s+(se\s+)?entrega|ninguna?)/i.test(String(canal ?? ''));
+}
+
+type PasoEntregable = Pick<PasoGuia, 'id' | 'evidencia' | 'canalEntrega' | 'esEntregaParcial' | 'componentes'>;
+
+/** ¿El paso tiene algo que entregar? Una entrega parcial, con componentes o `ent-*` SIEMPRE se entrega. */
+export function hayQueEntregar(p: PasoEntregable): boolean {
+  if (p.esEntregaParcial || p.componentes?.length || /^ent-/.test(p.id)) return true;
+  return !esCanalSinEntrega(p.canalEntrega);
+}
+
+/** Texto de «Cómo lo entregas»: el canal escrito por el docente o, si falta o contradice, el medio según la evidencia. */
+export function medioEntrega(p: PasoEntregable): string {
+  if (!hayQueEntregar(p)) return 'Sin entrega: se guarda en el cuaderno';
+  const canal = String(p.canalEntrega ?? '').trim();
+  if (canal && !esCanalSinEntrega(canal)) return canal;
+  switch (p.evidencia) {
+    case 'foto': return 'Foto';
+    case 'audio': return 'Audio';
+    case 'video': return 'Enlace del video';
+    case 'documento': return 'Archivo (PDF o foto)';
+    default: return 'Foto o archivo';
+  }
+}
+
+/**
+ * Etiqueta pública de la guía → pregunta orientadora y materias. La copia pública arma
+ * «eje (A · B)» en guías transversales y solo el nombre en las de una asignatura.
+ */
+export function partirEtiquetaGuia(etiqueta: string): { eje: string; materias: string[] } {
+  const m = /^(.+?)\s*\(([^()]*)\)\s*$/.exec(etiqueta.trim());
+  if (m) {
+    const materias = m[2].split('·').map(x => x.trim()).filter(Boolean);
+    if (materias.length) return { eje: m[1].trim(), materias };
+  }
+  return { eje: '', materias: [etiqueta.trim()] };
+}
+
 const RE_URL = /\bhttps?:\/\/\S+|\bwww\.\S+/gi;
 const corto = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(RE_URL, '').replace(/\s+\n/g, '\n').trim().slice(0, max) : '');
 const semanaValida = (s: unknown, n: number) => Math.min(n, Math.max(1, Math.round(Number(s)) || 1));
@@ -122,6 +162,9 @@ export function validarIntegrada(guia: Guia, ctx: ContextoIntegracion): { guia: 
     const e = conComp ?? lista[lista.length - 1];
     const previos = lista.filter(p => p !== e).map(p => { const q = { ...p, esEntregaParcial: false }; delete q.componentes; return q; });
     e.esEntregaParcial = true;
+    // La IA suele dejar en la entrega el canal del paso que ocupaba («Sin entrega: se guarda en el cuaderno»):
+    // contradice a la entrega de la semana, así que se descarta y la agenda muestra el medio real.
+    if (esCanalSinEntrega(e.canalEntrega)) delete e.canalEntrega;
     if (!e.componentes?.length) avisos.push(`La entrega de la semana ${k + 1} no trae partes por asignatura.`);
     ordenados.push(...previos, e);
     entregas.push(e);

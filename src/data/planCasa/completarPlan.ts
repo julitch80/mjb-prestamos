@@ -2,9 +2,9 @@
 // hace y cómo se arma la guía aprobada. Sin Firebase ni React, para poder probarla.
 // La parte con efectos (llamar a la IA, guardar, publicar) vive en ./completarConIA.ts.
 import { addDias, parseFecha } from '../tareas/calendario';
-import type { AsignaturaPlan, FechaISO, Guia, GuiaPlan, PasoGuia, PlanCasa, RitmoPlan } from './tipos';
+import type { AsignaturaPlan, FechaISO, Guia, GuiaPlan, PasoGuia, PlanCasa, ReacomodoEntrega, RitmoPlan } from './tipos';
 import { esGuiaIntegrable } from './integrada';
-import { fechaCierre, protegerPasosPasados, repartirPasos } from './logica';
+import { fechaCierre, protegerPasosPasados, repartirPasos, type Reacomodo } from './logica';
 
 export function hoyLocal(): FechaISO {
   const d = new Date();
@@ -19,9 +19,29 @@ export function hoyLocal(): FechaISO {
 export function repartirTodas(
   plan: { desde: FechaISO; hasta: FechaISO; topeDiario: number; ritmo?: RitmoPlan },
   guias: { guiaId: string; pasos: PasoGuia[] }[],
-): { pasos: Record<string, PasoGuia[]>; avisos: string[] } {
+): { pasos: Record<string, PasoGuia[]>; avisos: string[]; reacomodos: Reacomodo[] } {
   const r = repartirPasos(guias, plan.desde, plan.hasta, plan.topeDiario, hoyLocal(), plan.ritmo ?? 'diario');
-  return { pasos: Object.fromEntries(r.asignaturas.map(g => [g.guiaId, g.pasos])), avisos: r.avisos };
+  return { pasos: Object.fromEntries(r.asignaturas.map(g => [g.guiaId, g.pasos])), avisos: r.avisos, reacomodos: r.reacomodos };
+}
+
+/**
+ * Combina los reacomodos ya guardados en la guía con los del reparto actual. La fecha sugerida
+ * original se conserva mientras el docente no la cambie; si la entrega ya no se mueve y sigue en
+ * su fecha final, el registro se mantiene; si cambió de fecha por otra vía, se descarta.
+ */
+export function fusionarReacomodos(previos: ReacomodoEntrega[] | undefined, nuevos: Reacomodo[], pasos: PasoGuia[], en: number): ReacomodoEntrega[] {
+  const prev = new Map((previos ?? []).map(r => [r.pasoId, r]));
+  const fechaDe = new Map(pasos.map(p => [p.id, p.fecha]));
+  const salida = new Map<string, ReacomodoEntrega>();
+  for (const n of nuevos) {
+    const q = prev.get(n.pasoId);
+    // Si la fecha de partida es la final anterior, el docente no la tocó: vale la sugerida original.
+    const sugerida = q && q.final === n.sugerida ? q.sugerida : n.sugerida;
+    if (sugerida === n.final) continue;
+    salida.set(n.pasoId, { pasoId: n.pasoId, ...(n.asignaturaId ? { asignaturaId: n.asignaturaId } : {}), sugerida, final: n.final, en: q && q.sugerida === sugerida && q.final === n.final ? q.en : en });
+  }
+  for (const q of prev.values()) if (!salida.has(q.pasoId) && fechaDe.get(q.pasoId) === q.final) salida.set(q.pasoId, q);
+  return [...salida.values()];
 }
 
 /** Agrega (o actualiza) un paso «Entregable de <asignatura>» por cada asignatura que tenga entregable. */
@@ -158,6 +178,8 @@ export interface ResultadoAprobacion {
   avisos: string[];
   protegidos: number;
   cambio: boolean;
+  /** Reacomodos por guía (solo los que quedaron vigentes tras proteger lo pasado). */
+  reacomodos: Record<string, Reacomodo[]>;
 }
 
 /** Calcula la guía aprobada y el reparto de fechas (misma lógica que «Aprobar y publicar»). No escribe nada. */
@@ -166,7 +188,7 @@ export function armarAprobacion(e: EntradaAprobacion): ResultadoAprobacion {
   const otras = todas.filter(x => x.id !== guia.id && x.aprobada).map(x => ({ guiaId: x.id, pasos: x.aprobada!.pasos }));
   // Los entregables que cada docente puso en su asignatura (pueden haber llegado después de generar).
   const base = conEntregables(borrador, propias, nombre, plan.desde);
-  const { pasos: rep, avisos } = repartirTodas({ ...plan, ritmo: plan.ritmo ?? 'diario' }, [...otras, { guiaId: guia.id, pasos: base.pasos }]);
+  const { pasos: rep, avisos, reacomodos: reac } = repartirTodas({ ...plan, ritmo: plan.ritmo ?? 'diario' }, [...otras, { guiaId: guia.id, pasos: base.pasos }]);
   let aprobada: Guia = { ...base, pasos: rep[guia.id] ?? base.pasos };
   let protegidos = 0;
   // Pasada la fecha de cierre, lo que ya ocurrió (fecha anterior a mañana) no se toca.
@@ -175,7 +197,11 @@ export function armarAprobacion(e: EntradaAprobacion): ResultadoAprobacion {
     aprobada = { ...aprobada, pasos: pr.pasos }; protegidos = pr.restaurados;
   }
   const cambio = !guia.aprobada || JSON.stringify(guia.aprobada) !== JSON.stringify(aprobada);
-  return { aprobada, repartidas: rep, avisos, protegidos, cambio };
+  // Solo cuentan los reacomodos cuyo paso quedó realmente en la fecha final.
+  const fechaFinal = (gid: string, pid: string) => (gid === guia.id ? aprobada.pasos : rep[gid] ?? []).find(p => p.id === pid)?.fecha;
+  const reacomodos: Record<string, Reacomodo[]> = {};
+  for (const r of reac) if (fechaFinal(r.guiaId, r.pasoId) === r.final) (reacomodos[r.guiaId] ??= []).push(r);
+  return { aprobada, repartidas: rep, avisos, protegidos, cambio, reacomodos };
 }
 
 /** Error legible si el borrador no se puede aprobar; null si está bien. */

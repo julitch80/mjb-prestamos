@@ -4,8 +4,9 @@
 // razonables en lenguaje pedagógico y las asignaturas (igual que ya hacían los botones existentes).
 import type { AsignaturaPlan, CompletadoPorCoordinacion, Guia, GuiaPlan, PasoGuia, PedidoGuia, PlanCasa } from './tipos';
 import { semanasDelPeriodo } from './logica';
-import { armarAprobacion, completarBloqueado, esTransversal, construirPasos, errorDeBorrador, conEntregables, fechaEntregaSugerida, gradoDeGrupo, hoyLocal, type PasoCompletar } from './completarPlan';
-import { correoActual, guardarAsignatura, guardarGuia, integrarGuiaIA, pedirGuiaIA, publicarPlan, sugerirCampos, sugerirPreguntas } from './persistencia';
+import { armarAprobacion, fusionarReacomodos, completarBloqueado, esTransversal, construirPasos, errorDeBorrador, conEntregables, fechaEntregaSugerida, gradoDeGrupo, hoyLocal, type PasoCompletar } from './completarPlan';
+import { planificarDosificacion } from './dosificar';
+import { correoActual, guardarAsignatura, guardarGuia, integrarGuiaIA, leerAsignaturasYGuias, pedirGuiaIA, publicarPlan, sugerirCampos, sugerirPreguntas } from './persistencia';
 
 type NombreFn = (id: string) => string;
 
@@ -66,6 +67,8 @@ export interface EntradaAprobar {
   publicar?: boolean;
   /** Si se pasa, deja la traza «completado por coordinación» en la guía. */
   completadoPor?: string;
+  /** No borrar los vistos buenos aunque cambien las fechas (reacomodo masivo de entregas). */
+  conservarVistos?: boolean;
 }
 
 export interface ResultadoAprobar {
@@ -76,6 +79,8 @@ export interface ResultadoAprobar {
   sinPermiso: number;
   /** Pasos nuevos de otras guías ya aprobadas que SÍ se reprogramaron (guiaId → pasos). */
   reprogramadas: Record<string, PasoGuia[]>;
+  /** Entregas movidas de su fecha sugerida (de esta guía y de las demás reprogramadas). */
+  reacomodadas: number;
   /** Texto de error si se pidió publicar y falló; null si salió bien o no se pidió. */
   errorPublicar: string | null;
 }
@@ -92,21 +97,51 @@ export async function aprobarBorrador(e: EntradaAprobar): Promise<ResultadoAprob
   await guardarGuia(plan.id, g.id, {
     aprobada, aprobadaEn: ahora, propuesta: aprobada, propuestaEn: ahora,
     // Una guía integrada conserva los vistos buenos: solo reorganiza lo que los docentes ya dieron.
-    ...(r.cambio && !aprobada.integrada && Object.keys(g.vistosBuenos ?? {}).length ? { vistosBuenos: {} } : {}),
+    ...(r.cambio && !e.conservarVistos && !aprobada.integrada && Object.keys(g.vistosBuenos ?? {}).length ? { vistosBuenos: {} } : {}),
     ...(traza ? { completadoPorCoordinacion: traza } : {}),
+    reacomodos: fusionarReacomodos(g.reacomodos, r.reacomodos[g.id] ?? [], aprobada.pasos, ahora),
   });
+  let reacomodadas = (r.reacomodos[g.id] ?? []).length;
   let sinPermiso = 0;
   const reprogramadas: Record<string, PasoGuia[]> = {};
   for (const x of todas) {
     if (x.id === g.id || !x.aprobada || !r.repartidas[x.id]) continue;
     // Las fechas ya puestas se respetan al repartir: solo se escribe si algo cambió.
     if (JSON.stringify(r.repartidas[x.id].map(p => p.fecha)) === JSON.stringify(x.aprobada.pasos.map(p => p.fecha))) continue;
-    try { await guardarGuia(plan.id, x.id, { aprobada: { ...x.aprobada, pasos: r.repartidas[x.id] } }); reprogramadas[x.id] = r.repartidas[x.id]; }
+    try {
+      await guardarGuia(plan.id, x.id, { aprobada: { ...x.aprobada, pasos: r.repartidas[x.id] }, reacomodos: fusionarReacomodos(x.reacomodos, r.reacomodos[x.id] ?? [], r.repartidas[x.id], ahora) });
+      reprogramadas[x.id] = r.repartidas[x.id]; reacomodadas += (r.reacomodos[x.id] ?? []).length;
+    }
     catch { sinPermiso++; }
   }
   let errorPublicar: string | null = null;
   if (e.publicar) { try { await publicarPlan(plan.id); } catch (er) { errorPublicar = (er as Error).message; } }
-  return { aprobada, avisos: r.avisos, protegidos: r.protegidos, sinPermiso, reprogramadas, errorPublicar };
+  return { aprobada, avisos: r.avisos, protegidos: r.protegidos, sinPermiso, reprogramadas, reacomodadas, errorPublicar };
+}
+
+// ── Dosificar entregas de un plan ya publicado ───────────────────────────
+
+export interface ResumenDosificar { guiasCambiadas: number; reacomodadas: number; fechasCambiadas: number; sobreAntes: number; sobreDespues: number; publicado: boolean }
+
+/**
+ * Reaplica el reparto a las guías aprobadas de UN plan: las fechas del docente son sugeridas y
+ * las entregas se redistribuyen sin pasar el tope diario. Publica una sola vez, solo si algo cambió.
+ * Idempotente: si ya está dosificado no escribe nada.
+ */
+export async function dosificarPlan(plan: PlanCasa, nombre: NombreFn): Promise<ResumenDosificar> {
+  const { asigs, guias } = await leerAsignaturasYGuias(plan.id);
+  const r = planificarDosificacion(plan, asigs, guias, nombre, hoyLocal());
+  const ahora = Date.now();
+  for (const c of r.cambios) {
+    const g = guias.find(x => x.id === c.guiaId)!;
+    await guardarGuia(plan.id, c.guiaId, {
+      aprobada: { ...g.aprobada!, pasos: c.pasos },
+      reacomodos: c.reacomodos.map(x => ({ ...x, en: x.en || ahora })),
+    });
+  }
+  let publicado = false;
+  if (r.cambios.length) { await publicarPlan(plan.id); publicado = true; }
+  return { guiasCambiadas: r.cambios.length, reacomodadas: r.reacomodadas, fechasCambiadas: r.fechasCambiadas, sobreAntes: r.sobreAntes, sobreDespues: r.sobreDespues, publicado };
 }
 
 // ── «Completar todo con IA» ───────────────────────────────────────────────

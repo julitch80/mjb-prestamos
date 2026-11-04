@@ -284,6 +284,11 @@ function CriteriosAsignatura({ plan, a, nombre, gestor, eje, guia }: { plan: Pla
       </div>
       {gestor && <NotaGestor />}
       {bloqueada && <p className="rounded-xl bg-warning-soft text-warning-soft-fg text-xs p-3">🔒 Cerrada desde el {cerradaDesdeTexto(estadoEdicion(plan, undefined, hoyLocal(), horaLocal()))}: ya no se pueden cambiar los criterios. Para cambiarlos, pida autorización en la guía (más abajo).</p>}
+      {(guia?.reacomodos ?? []).filter(r => !r.asignaturaId || r.asignaturaId === a.asignaturaId).map(r => (
+        <p key={r.pasoId} className="rounded-xl bg-warning-soft text-warning-soft-fg text-xs p-3">
+          📅 Su entrega se reacomodó del {fechaLarga(r.sugerida)} al {fechaLarga(r.final)} para no acumular trabajo al estudiante; recíbala en la nueva fecha.
+        </p>
+      ))}
       {plan.contextoDocentes?.trim() && (
         <div className="rounded-xl bg-elevated text-xs p-3">
           <p className="font-medium text-strong mb-1">Contexto del estudiante</p>

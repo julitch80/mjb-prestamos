@@ -26,6 +26,13 @@ export function colorAsignatura(i: number): { fondo: string; borde: string } {
   return { fondo: `hsl(${h} 70% 50% / 0.16)`, borde: `hsl(${h} 65% 50%)` };
 }
 
+/** Colores por guía, en orden (teal, violeta, naranja, cielo, rosa, lima, ámbar, índigo): velo translúcido + borde. */
+const TONOS_GUIA = [175, 262, 25, 199, 330, 90, 45, 235];
+export function colorGuia(i: number): { fondo: string; borde: string; chip: string } {
+  const h = TONOS_GUIA[((i % TONOS_GUIA.length) + TONOS_GUIA.length) % TONOS_GUIA.length];
+  return { fondo: `hsl(${h} 70% 50% / 0.10)`, borde: `hsl(${h} 65% 50% / 0.40)`, chip: `hsl(${h} 70% 50% / 0.20)` };
+}
+
 const botonNav = 'min-h-[44px] min-w-[44px] rounded-xl border border-line bg-card text-soft disabled:opacity-30 flex items-center justify-center';
 
 export function SelectorVista({ vista, setVista }: { vista: Vista; setVista: (v: Vista) => void }) {
@@ -65,10 +72,11 @@ export function VistaSemana({ plan, hoy, dia, setDia, porDia, sustPorDia, pendPo
           const pend = pendPorDia[f] ?? [];
           const esHoy = f === hoy;
           const fuera = !enRango(f, plan.desde, limite);
+          const conEntrega = pasos.some(p => p.esEntregaParcial);
           return (
             <li key={f} className="min-w-0">
               <button onClick={() => irADia(f)} aria-label={`${fechaLinda(f)}: ${pasos.length} pasos`}
-                className={`w-full h-full text-left rounded-xl border p-2 space-y-1 sm:min-h-[140px] ${esHoy ? 'border-accent ring-2 ring-accent' : 'border-line'} ${fuera ? 'opacity-60' : 'bg-card'}`}>
+                className={`w-full h-full text-left rounded-xl border p-2 space-y-1 sm:min-h-[140px] ${esHoy ? 'border-accent ring-2 ring-accent' : conEntrega ? 'border-warning/40' : 'border-line'} ${fuera ? 'opacity-60' : conEntrega ? 'bg-warning/10' : 'bg-card'}`}>
                 <div className="flex sm:block items-baseline gap-2">
                   <span className="text-xs uppercase text-muted">{DIAS[aFecha(f).getDay()]}</span>
                   <span className={`text-base font-bold ${esHoy ? 'text-accent' : 'text-strong'}`}>{aFecha(f).getDate()}</span>
@@ -101,7 +109,7 @@ export function VistaSemana({ plan, hoy, dia, setDia, porDia, sustPorDia, pendPo
           );
         })}
       </ul>
-      <p className="text-xs text-muted">★ entrega · ✓ ya entregado · toca un día para ver sus pasos.</p>
+      <p className="text-xs text-muted">★ entrega (día en ámbar) · ✓ ya entregado · toca un día para ver sus pasos.</p>
     </section>
   );
 }
@@ -135,12 +143,12 @@ export function VistaMes({ plan, hoy, dia, porDia, sustPorDia, pendPorDia = {}, 
             <button key={c.fecha} onClick={() => irADia(c.fecha)}
               aria-label={`${fechaLinda(c.fecha)}: ${pasos.length} pasos${entrega ? ', hay entrega' : ''}${sust ? ', sustentación' : ''}${pendiente ? ', semana de sustentaciones por confirmar' : ''}`}
               className={`min-w-0 min-h-[52px] rounded-lg border p-1 flex flex-col items-center justify-between text-sm
-                ${enPlan ? 'bg-elevated border-line' : 'border-transparent'} ${c.delMes ? 'text-strong' : 'text-muted opacity-50'}
+                ${enPlan ? (entrega ? 'bg-warning/10 border-warning/40' : 'bg-elevated border-line') : 'border-transparent'} ${c.delMes ? 'text-strong' : 'text-muted opacity-50'}
                 ${esHoy ? 'ring-2 ring-accent' : ''}`}>
               <span className={`font-semibold ${esHoy ? 'text-accent' : ''}`}>{aFecha(c.fecha).getDate()}</span>
               <span className="flex items-center gap-0.5 h-4 text-[10px] leading-none">
                 {pasos.length > 0 && <span className="px-1 rounded-full bg-accent/25 text-strong font-semibold">{pasos.length}</span>}
-                {entrega && <span aria-hidden className="text-accent">★</span>}
+                {entrega && <span aria-hidden className="text-warning-soft-fg">★</span>}
                 {sust && <span aria-hidden>🎤</span>}
                 {!sust && pendiente && <span aria-hidden title="Sustentaciones por confirmar" className="opacity-50">🎤</span>}
               </span>
@@ -148,7 +156,7 @@ export function VistaMes({ plan, hoy, dia, porDia, sustPorDia, pendPorDia = {}, 
           );
         })}
       </div>
-      <p className="text-xs text-muted">El número es la cantidad de pasos · ★ entrega · 🎤 sustentación (tenue: por confirmar) · el fondo marcado es el plan. Toca un día para abrirlo.</p>
+      <p className="text-xs text-muted">El número es la cantidad de pasos · ★ entrega (día en ámbar) · 🎤 sustentación (tenue: por confirmar) · el fondo marcado es el plan. Toca un día para abrirlo.</p>
     </section>
   );
 }
