@@ -402,6 +402,11 @@ export async function eliminarPlan(planId: string): Promise<void> {
 // ── Corrección hasta la fecha de cierre ───────────────────────────────────
 
 /** Gestor: fija (o quita, con '') la fecha de cierre del plan. */
+/** Gestor: cambia el tope diario de momentos del plan (luego se dosifica de nuevo). */
+export async function guardarTopeDiario(planId: string, topeDiario: number) {
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId), { topeDiario, actualizadoEn: Date.now() });
+}
+
 export async function guardarCierreEdicion(planId: string, fecha: string, hora = '') {
   await updateDoc(doc(baseDatos(), COL_PLANES, planId), {
     cierreEdicion: fecha || deleteField(), cierreHora: (fecha && hora) || deleteField(), actualizadoEn: Date.now(),

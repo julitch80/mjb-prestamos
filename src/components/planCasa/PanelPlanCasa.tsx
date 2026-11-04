@@ -19,8 +19,8 @@ import { asignaturasConNombre } from './nombres';
 import { completarPlanConIA, dosificarPlan, type ItemProgreso, type ResumenCompletar } from '../../data/planCasa/completarConIA';
 import { faltantesPlan, gradoDeGrupo } from '../../data/planCasa/completarPlan';
 import { destinosPosibles, errorReplicar, replicarGuias, type ResumenReplicar } from '../../data/planCasa/replicarGuias';
-import { leerAsignaturasYGuias, quitarAsignatura, sincronizarDocentes } from '../../data/planCasa/persistencia';
-import { conSinTecnologia, fechaCierre, horaCierre, proximoViernes } from '../../data/planCasa/logica';
+import { guardarTopeDiario, leerAsignaturasYGuias, quitarAsignatura, sincronizarDocentes } from '../../data/planCasa/persistencia';
+import { conSinTecnologia, fechaCierre, horaCierre, proximoViernes, topeNecesario } from '../../data/planCasa/logica';
 import { hoyLocal } from '../../data/planCasa/completarPlan';
 
 const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -698,7 +698,7 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
   const puedeMarcar = rolActual === 'coordinador' || esSuper;
   const [confElim, setConfElim] = useState(false);
   const [quitando, setQuitando] = useState('');
-  const [accion, setAccion] = useState<'' | 'espera' | 'completar' | 'replicar'>('');
+  const [accion, setAccion] = useState<'' | 'espera' | 'completar' | 'replicar' | 'tope'>('');
   const [verFicha, setVerFicha] = useState(false);
   const [directores, setDirectores] = useState<Record<string, string>>({});
   const userId = useAppStore(s => s.userId);
@@ -801,6 +801,7 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
           {puedeMarcar && <button onClick={() => { cerrar(); setAccion(a => a === 'espera' ? '' : 'espera'); }}>{plan.enEspera ? 'Editar «en espera»' : 'Marcar en espera · ingresó tarde'}</button>}
           {(rolActual === 'coordinador' || esSuper) && <button onClick={() => { cerrar(); setAccion(a => a === 'completar' ? '' : 'completar'); }}>Completar todo con IA</button>}
           {(rolActual === 'coordinador' || esSuper) && <button onClick={() => { cerrar(); setAccion(a => a === 'replicar' ? '' : 'replicar'); }}>Replicar guías a otro estudiante</button>}
+          {(rolActual === 'coordinador' || esSuper) && <button onClick={() => { cerrar(); setAccion(a => a === 'tope' ? '' : 'tope'); }}>Cambiar tope diario ({plan.topeDiario} momentos)</button>}
           {guias && asigs && guias.some(g => g.aprobada || g.propuesta) && <span onClick={cerrar}><BotonFormatoUAI plan={plan} guias={guias} asigs={asigs} nombres={nombres} /></span>}
           {guias && <span onClick={cerrar}><BotonCuadernillo plan={plan} guias={guias} nombres={nombres} /></span>}
           <button onClick={() => { cerrar(); imprimirCartas([plan]).catch(e => setError(e.message)); }}>Carta para la familia</button>
@@ -819,6 +820,7 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
       {accion === 'completar' && asigs && guias && <CompletarConIA plan={plan} asigs={asigs} guias={guias} nombres={nombres} puede={rolActual === 'coordinador' || esSuper} />}
       {accion === 'completar' && asigs && guias && !faltantesPlan(plan, asigs, guias).hayQueHacer && <p className="text-xs text-success">✓ No le falta nada por completar.</p>}
       {accion === 'replicar' && asigs && guias && <ReplicarGuias plan={plan} planes={planes} asigs={asigs} guias={guias} nombres={nombres} puede={rolActual === 'coordinador' || esSuper} />}
+      {accion === 'tope' && guias && <CambiarTope plan={plan} guias={guias} nombre={nombreAsig} onError={setError} />}
       {accion && <button onClick={() => setAccion('')} className="text-xs text-soft underline">Cerrar</button>}
       {verFicha && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm overflow-y-auto p-3" role="dialog" aria-label="Ficha del estudiante">
@@ -905,6 +907,38 @@ function TarjetaPlan({ plan, planes }: { plan: PlanConDocentes; planes: PlanConD
       )}
 
       </>)}
+    </div>
+  );
+}
+
+/** Coordinación: cambia el tope diario del plan y vuelve a dosificar sus entregas. */
+function CambiarTope({ plan, guias, nombre, onError }: { plan: PlanConDocentes; guias: GuiaPlan[]; nombre: (id: string) => string; onError: (m: string) => void }) {
+  const total = guias.reduce((s, g) => s + (g.aprobada?.pasos ?? []).reduce((t, p) => t + (p.momentos || 0), 0), 0);
+  const nec = topeNecesario(plan, total, hoyLocal());
+  const [tope, setTope] = useState(Math.max(plan.topeDiario, nec.tope));
+  const [msg, setMsg] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  async function aplicar() {
+    setOcupado(true); setMsg('');
+    try {
+      await guardarTopeDiario(plan.id, tope);
+      const r = await dosificarPlan({ ...plan, topeDiario: tope }, nombre);
+      setMsg(`Tope ${tope} guardado y entregas dosificadas: ${r.reacomodadas} reacomodada(s) · días sobre el tope ${r.sobreAntes} → ${r.sobreDespues}${r.publicado ? ' · agenda publicada' : ''}.`);
+    } catch (e) { onError((e as Error).message); }
+    setOcupado(false);
+  }
+  return (
+    <div className="rounded-xl border border-line p-3 space-y-2 text-sm">
+      <p className="font-medium text-strong">Tope diario de momentos</p>
+      <p className="text-xs text-soft">Sus guías aprobadas suman {total} momentos para {nec.dias} día(s) de trabajo que quedan: necesita al menos <b className="text-strong">{nec.tope}</b> por día (cada momento ≈ 25 min). Hoy tiene {plan.topeDiario}.</p>
+      {nec.tope > 6 && <p className="text-xs text-warning">Más de 6 momentos diarios (≈ 2½ horas) es mucho trabajo: considere reducir o agrupar las guías en lugar de subir el tope.</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <input type="number" min={1} max={12} value={tope} onChange={e => { setTope(Math.max(1, Math.min(12, Number(e.target.value) || 1))); setMsg(''); }}
+          aria-label="Tope diario" className={cn(CLASE_INPUT, 'max-w-[6rem]')} />
+        <button disabled={ocupado} onClick={aplicar} className={CLASE_BOTON}>
+          {ocupado ? 'Guardando…' : 'Guardar y dosificar'}</button>
+      </div>
+      {msg && <p className="text-xs text-success">{msg}</p>}
     </div>
   );
 }

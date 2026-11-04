@@ -340,6 +340,19 @@ export function horaLocal(d = new Date()): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/**
+ * Tope diario que hace caber el trabajo: momentos totales de las guías aprobadas repartidos en
+ * los días de trabajo que quedan del periodo (desde mañana o desde el inicio, según ritmo).
+ */
+export function topeNecesario(plan: Pick<PlanCasa, 'desde' | 'hasta' | 'ritmo'>, momentosTotales: number, hoy: FechaISO): { tope: number; dias: number } {
+  let inicio = addDias(hoy, 1);
+  if (plan.desde > inicio) inicio = plan.desde;
+  const habiles: FechaISO[] = [];
+  for (let f = inicio; f <= plan.hasta && habiles.length < 400; f = addDias(f, 1)) if (esDiaDePlan(f)) habiles.push(f);
+  const dias = plan.ritmo === 'dia_por_medio' ? Math.ceil(habiles.length / 2) : habiles.length;
+  return { tope: dias ? Math.ceil(momentosTotales / dias) : momentosTotales, dias };
+}
+
 /** Próximo viernes estrictamente posterior a `hoy` (plazo por defecto de la marca «en espera»). */
 export function proximoViernes(hoy: FechaISO): FechaISO {
   let f = addDias(hoy, 1);
