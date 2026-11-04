@@ -476,7 +476,9 @@ function CompletarConIA({ plan, asigs, guias, nombres, puede }: {
           <p className="text-xs text-soft">
             Falta: {f.asignaturas.length ? `campos de ${f.asignaturas.length} asignatura(s)` : 'ningún criterio'}
             {f.entregables.length > 0 && `, entregable/fecha de ${f.entregables.length}`}
-            {f.guias.length > 0 && `, y aprobar ${f.guias.length} guía(s)`}. Lo que ya escribió un docente no se cambia.
+            {f.guias.length > 0 && `, y aprobar ${f.guias.length} guía(s)`}
+            {f.ejes.length > 0 && `, pregunta orientadora de ${f.ejes.length} guía(s)`}
+            {f.fechas.length > 0 && `, fecha de ${f.fechas.length} entregable(s)`}. Lo que ya escribió un docente no se cambia.
           </p>
           <label className="block text-xs text-soft">Escriba COMPLETAR para habilitar el botón
             <input value={tecleado} onChange={e => setTecleado(e.target.value)} className={CLASE_INPUT} autoComplete="off" /></label>

@@ -60,7 +60,7 @@ type PlanMin = Pick<PlanCasa, 'modalidad' | 'desde' | 'hasta' | 'estado'> & Part
 
 /** Mientras el caso esté «en espera — ingresó tarde», no se completa con IA. */
 export const completarBloqueado = (plan: Pick<PlanCasa, 'enEspera'>): boolean => !!plan.enEspera;
-type GuiaMin = Pick<GuiaPlan, 'id' | 'asignaturaIds' | 'aprobada' | 'propuesta' | 'pedido'>;
+type GuiaMin = Pick<GuiaPlan, 'id' | 'asignaturaIds' | 'aprobada' | 'propuesta' | 'pedido'> & Partial<Pick<GuiaPlan, 'eje'>>;
 type AsigMin = Pick<AsignaturaPlan, 'asignaturaId' | 'criteriosPromocion' | 'ebcDba' | 'evidenciaAprendizaje' | 'aportes' | 'entregable' | 'fechaEntrega'>;
 
 export interface Faltantes {
@@ -70,6 +70,10 @@ export interface Faltantes {
   entregables: string[];
   /** Guías sin aprobar. */
   guias: string[];
+  /** Guías (aprobadas o no) sin pregunta orientadora / eje. */
+  ejes: string[];
+  /** Asignaturas de guías YA aprobadas que tienen entregable pero no fecha. */
+  fechas: string[];
   /** ¿Hay algo que hacer? (el botón solo aparece si es true y el plan no está cerrado). */
   hayQueHacer: boolean;
 }
@@ -78,13 +82,15 @@ const vacio = (s?: string) => !s?.trim();
 
 /** Qué le falta a un plan para que todas las guías puedan aprobarse y el cuadernillo salga completo. */
 export function faltantesPlan(plan: PlanMin, asigs: AsigMin[], guias: GuiaMin[]): Faltantes {
-  if (plan.estado === 'cerrado' || completarBloqueado(plan)) return { asignaturas: [], entregables: [], guias: [], hayQueHacer: false };
+  if (plan.estado === 'cerrado' || completarBloqueado(plan)) return { asignaturas: [], entregables: [], guias: [], ejes: [], fechas: [], hayQueHacer: false };
   const enPendiente = new Set(guias.filter(g => !g.aprobada).flatMap(g => g.asignaturaIds));
   const asignaturas = asigs.filter(a =>
     vacio(a.criteriosPromocion) || (enPendiente.has(a.asignaturaId) && (vacio(a.ebcDba) || vacio(a.evidenciaAprendizaje) || vacio(a.aportes)))).map(a => a.asignaturaId);
   const entregables = asigs.filter(a => enPendiente.has(a.asignaturaId) && (vacio(a.entregable) || !a.fechaEntrega)).map(a => a.asignaturaId);
   const gs = guias.filter(g => !g.aprobada).map(g => g.id);
-  return { asignaturas, entregables, guias: gs, hayQueHacer: asignaturas.length > 0 || gs.length > 0 };
+  const ejes = guias.filter(g => vacio(g.eje)).map(g => g.id);
+  const fechas = asigs.filter(a => !enPendiente.has(a.asignaturaId) && !vacio(a.entregable) && !a.fechaEntrega).map(a => a.asignaturaId);
+  return { asignaturas, entregables, guias: gs, ejes, fechas, hayQueHacer: asignaturas.length > 0 || gs.length > 0 || ejes.length > 0 || fechas.length > 0 };
 }
 
 /** Fecha de entrega sugerida: reparte las k asignaturas en días hábiles del periodo (posición i de k). */
@@ -101,7 +107,7 @@ export function fechaEntregaSugerida(desde: FechaISO, hasta: FechaISO, i: number
 
 // ── Orden de los pasos ────────────────────────────────────────────────────
 
-export type TipoPaso = 'asignatura' | 'entregable' | 'pedido' | 'propuesta' | 'integrar' | 'aprobar';
+export type TipoPaso = 'asignatura' | 'entregable' | 'fecha' | 'eje' | 'pedido' | 'propuesta' | 'integrar' | 'aprobar';
 export interface PasoCompletar { id: string; tipo: TipoPaso; ref: string; texto: string }
 
 /**
@@ -116,6 +122,8 @@ export function construirPasos(
   const pasos: PasoCompletar[] = [];
   for (const id of f.asignaturas) pasos.push({ id: `asig-${id}`, tipo: 'asignatura', ref: id, texto: `${nombre(id)}: criterios y campos` });
   for (const id of f.entregables) pasos.push({ id: `ent-${id}`, tipo: 'entregable', ref: id, texto: `${nombre(id)}: entregable y fecha` });
+  for (const id of f.fechas) pasos.push({ id: `fec-${id}`, tipo: 'fecha', ref: id, texto: `${nombre(id)}: fecha del entregable` });
+  for (const id of f.ejes) { const g = guias.find(x => x.id === id)!; pasos.push({ id: `eje-${id}`, tipo: 'eje', ref: id, texto: `${etiquetaGuia(g)}: pregunta orientadora` }); }
   const pend = guias.filter(g => !g.aprobada);
   for (const g of pend) {
     const e = etiquetaGuia(g);

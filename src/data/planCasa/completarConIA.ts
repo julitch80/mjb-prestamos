@@ -5,7 +5,7 @@
 import type { AsignaturaPlan, CompletadoPorCoordinacion, Guia, GuiaPlan, PasoGuia, PedidoGuia, PlanCasa } from './tipos';
 import { semanasDelPeriodo } from './logica';
 import { armarAprobacion, completarBloqueado, esTransversal, construirPasos, errorDeBorrador, conEntregables, fechaEntregaSugerida, gradoDeGrupo, hoyLocal, type PasoCompletar } from './completarPlan';
-import { correoActual, guardarAsignatura, guardarGuia, integrarGuiaIA, pedirGuiaIA, publicarPlan, sugerirCampos } from './persistencia';
+import { correoActual, guardarAsignatura, guardarGuia, integrarGuiaIA, pedirGuiaIA, publicarPlan, sugerirCampos, sugerirPreguntas } from './persistencia';
 
 type NombreFn = (id: string) => string;
 
@@ -218,6 +218,37 @@ export async function completarPlanConIA(e: EntradaCompletar): Promise<ResumenCo
       const fechaEntrega = a.fechaEntrega || fechaEntregaSugerida(plan.desde, plan.hasta, conEnt.indexOf(p), conEnt.length);
       await guardarAsignatura(plan.id, p.ref, { entregable, fechaEntrega, porIA: true, ...traza });
       asigs.set(p.ref, { ...a, entregable, fechaEntrega }); hechos++; marcar(p.id, 'ok');
+    } catch (er) { fallar(p, er); }
+  });
+
+  // Fase 1c — fecha de entrega que falte en asignaturas de guías ya aprobadas.
+  const conFecha = pasos.filter(p => p.tipo === 'fecha');
+  for (const p of conFecha) {
+    marcar(p.id, 'curso');
+    try {
+      const fechaEntrega = fechaEntregaSugerida(plan.desde, plan.hasta, conFecha.indexOf(p), conFecha.length);
+      await guardarAsignatura(plan.id, p.ref, { fechaEntrega, ...traza });
+      const a = asigs.get(p.ref); if (a) asigs.set(p.ref, { ...a, fechaEntrega });
+      hechos++; marcar(p.id, 'ok');
+    } catch (er) { fallar(p, er); }
+  }
+
+  // Fase 1d — pregunta orientadora (eje) de las guías que no la tienen.
+  await enLotes(pasos.filter(p => p.tipo === 'eje'), 3, async p => {
+    marcar(p.id, 'curso');
+    const g = e.guias.find(x => x.id === p.ref)!;
+    try {
+      let eje = '';
+      if (g.asignaturaIds.length === 1 && plan.modalidad !== 'transversal') eje = nombre(g.asignaturaIds[0]);
+      else {
+        const fuente = g.aprobada ?? g.propuesta;
+        const tematica = g.pedido?.tematicas?.trim() || fuente?.productoFinal || g.asignaturaIds.map(nombre).join(', ');
+        const r = await sugerirPreguntas({ tematica, asignaturas: g.asignaturaIds.map(nombre), grado, ajustes: plan.ajustes });
+        eje = r[0]?.pregunta?.trim() ?? '';
+      }
+      if (!eje) throw new Error('la IA no devolvió una pregunta');
+      await guardarGuia(plan.id, g.id, { eje });
+      g.eje = eje; hechos++; marcar(p.id, 'ok');
     } catch (er) { fallar(p, er); }
   });
 
