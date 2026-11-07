@@ -28,6 +28,11 @@ import {
 import { ESQUEMA_GUIA, MODELO, SISTEMA, construirPrompt, sanearGuia } from './guia';
 import { cambioAfectaPublico, construirPublico } from './publico';
 import { SISTEMA_INTEGRAR, construirPromptIntegrar, esquemaIntegrar, sanearIntegrada } from './integrar';
+import {
+  COL_CONSULTAS, cupoConsultas, tiposVisibles, tokenValido, validarConsulta, validarRespuesta,
+  type ConsultaFamilia, type ConsultaPlan, type EntradaEnviarConsulta, type EntradaResponderConsulta,
+  type SalidaEnviarConsulta, type SalidaListarConsultas, type SalidaMisConsultas,
+} from '../../src/data/planCasa/consultas';
 import { LOTE_LIMPIEZA, seleccionarVencidas } from './limpieza';
 import { SISTEMA_CAMPOS, construirPromptCampos, esquemaCampos, sanearCampos, type EntradaCampos } from './campos';
 import { ESQUEMA_PREGUNTAS, SISTEMA_PREGUNTAS, construirPromptPreguntas, sanearPreguntas, type EntradaPreguntas, type PreguntaSugerida } from './preguntas';
@@ -479,5 +484,85 @@ export const planCasaRegistrarRechazo = onCall({ ...opciones, memory: '256MiB' }
     token: e.token.slice(0, 6), extension: String(e.nombre ?? '').split('.').pop()?.slice(0, 10) ?? '',
     mime: String(e.mime ?? '').slice(0, 100), bytes: Number(e.bytes) || 0, motivo: String(e.motivo ?? '').slice(0, 200),
   });
+  return { ok: true };
+});
+
+
+// ---------------------------------------------------- Consultas de las familias
+// Colección planesCasaConsultas: sin acceso directo del cliente (reglas: deny). Todo pasa por
+// estas callables. Pedagógicas → equipo y superusuario; técnicas → solo superusuario.
+// No se envía push: la bandeja «Consultas» del panel muestra el contador de pendientes.
+
+/** Plan y copia pública de un token, o null si el enlace no existe. */
+async function planDeToken(token: string): Promise<{ planId?: string; primerNombre?: string; grupo?: string } | null> {
+  const pub = await db.doc(`${COL_PUBLICO}/${token}`).get();
+  if (!pub.exists) return null;
+  const planes = await db.collection(COL_PLANES).where('tokenPublico', '==', token).limit(1).get();
+  return {
+    ...(planes.empty ? {} : { planId: planes.docs[0].id }),
+    ...(typeof pub.get('primerNombre') === 'string' ? { primerNombre: pub.get('primerNombre') as string } : {}),
+    ...(typeof pub.get('grupo') === 'string' ? { grupo: pub.get('grupo') as string } : {}),
+  };
+}
+
+export const planCasaEnviarConsulta = onCall(opciones, async (request): Promise<SalidaEnviarConsulta> => {
+  const e = (request.data ?? {}) as Partial<EntradaEnviarConsulta>;
+  if (!tokenValido(e.token)) throw new HttpsError('invalid-argument', 'Enlace inválido.');
+  const v = validarConsulta(e);
+  if (!v.ok) return { ok: false, error: v.error };
+  const origen = await planDeToken(e.token);
+  if (!origen) return { ok: false, error: 'Este enlace ya no es válido. Pida uno nuevo en el colegio.' };
+  const ahora = Date.now();
+  const previas = await db.collection(COL_CONSULTAS).where('token', '==', e.token).get();
+  const hoy = previas.docs.filter(d => Number(d.get('creada')) >= inicioDiaColombia(ahora)).length;
+  const cupo = cupoConsultas(hoy);
+  if (!cupo.ok) return { ok: false, error: cupo.error };
+  const doc: Omit<ConsultaPlan, 'id'> = {
+    token: e.token, ...origen, tipo: v.tipo, texto: v.texto, contacto: v.contacto, creada: ahora, estado: 'pendiente',
+  };
+  await db.collection(COL_CONSULTAS).add(doc);
+  logger.info('planCasaEnviarConsulta', { planId: origen.planId ?? null, tipo: v.tipo });
+  return { ok: true };
+});
+
+export const planCasaMisConsultas = onCall(opciones, async (request): Promise<SalidaMisConsultas> => {
+  const e = (request.data ?? {}) as { token?: unknown };
+  if (!tokenValido(e.token)) throw new HttpsError('invalid-argument', 'Enlace inválido.');
+  const snap = await db.collection(COL_CONSULTAS).where('token', '==', e.token).get();
+  const consultas: ConsultaFamilia[] = snap.docs.map(d => {
+    const c = d.data() as ConsultaPlan;
+    return {
+      id: d.id, tipo: c.tipo, texto: c.texto, creada: c.creada, estado: c.estado,
+      ...(c.respuesta ? { respuesta: c.respuesta } : {}), ...(c.respondidaEn ? { respondidaEn: c.respondidaEn } : {}),
+    };
+  }).sort((a, b) => b.creada - a.creada).slice(0, 50);
+  return { ok: true, consultas };
+});
+
+async function tiposDe(quien: Llamante): Promise<ReturnType<typeof tiposVisibles>> {
+  return tiposVisibles(quien.role === 'superusuario', await esEquipo(quien.correo));
+}
+
+export const planCasaListarConsultas = onCall(opciones, async (request): Promise<SalidaListarConsultas> => {
+  const quien = await llamante(request);
+  const tipos = await tiposDe(quien);
+  if (!tipos.length) throw new HttpsError('permission-denied', 'No tiene permiso para ver las consultas.');
+  const snap = await db.collection(COL_CONSULTAS).where('tipo', 'in', tipos).get();
+  const consultas = snap.docs.map(d => ({ ...(d.data() as ConsultaPlan), id: d.id }))
+    .sort((a, b) => b.creada - a.creada).slice(0, 300);
+  return { ok: true, consultas };
+});
+
+export const planCasaResponderConsulta = onCall(opciones, async (request): Promise<{ ok: boolean; error?: string }> => {
+  const quien = await llamante(request);
+  const e = (request.data ?? {}) as Partial<EntradaResponderConsulta>;
+  if (typeof e.id !== 'string' || !RE_ID.test(e.id)) throw new HttpsError('invalid-argument', 'Consulta inválida.');
+  const v = validarRespuesta(e.respuesta);
+  if (!v.ok) return { ok: false, error: v.error };
+  const ref = db.doc(`${COL_CONSULTAS}/${e.id}`);
+  const s = await ref.get();
+  if (!s.exists) return { ok: false, error: 'Esa consulta ya no existe.' };
+  if (!(await tiposDe(quien)).includes(s.get('tipo'))) throw new HttpsError('permission-denied', 'No tiene permiso para responder esta consulta.');
+  await ref.update({ respuesta: v.texto, estado: 'respondida', respondidaPor: quien.correo, respondidaEn: Date.now() });
   return { ok: true };
 });

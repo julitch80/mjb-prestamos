@@ -13,7 +13,7 @@ import {
 import {
   asignaturasDelGrupo, cambiarEstadoPlan, crearPlan, escucharAsignaturas, escucharGuias, escucharPlanes, type GuiaTransversalDef,
   autorizarSolicitud, eliminarPlan, cambiarFechaSustentacion, escucharSolicitudes, guardarCierreEdicion, negarSolicitud,
-  ponerEnEspera, quitarEnEspera, guardarContexto, guardarSinTecnologia, leerEquipo, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
+  ponerEnEspera, quitarEnEspera, guardarContexto, guardarSinTecnologia, correoActual, leerEquipo, leerMotivo, regenerarToken, urlPublica, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { asignaturasConNombre } from './nombres';
 import { completarPlanConIA, dosificarPlan, reprogramarPlan, type ItemProgreso, type ResumenCompletar } from '../../data/planCasa/completarConIA';
@@ -26,6 +26,7 @@ import { hoyLocal } from '../../data/planCasa/completarPlan';
 const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 import { EntregasGuiaResumen } from './EntregasPaso';
 import SeguimientoPlanCasa from './SeguimientoPlanCasa';
+import { ConsultasPanel, useConsultas } from './ConsultasPanel';
 import { PestanasSubrayadas } from '../Navegacion';
 import { construirAvanceDocentes, filtrarPorJornada, jornadaDePlan, type DatosPlanAvance, type FiltroJornada } from '../../data/planCasa/avanceDocentes';
 import { claseBarra, construirInformeHTML, construirResumenTexto, filasInforme, fraccionTexto, resumenAvance, ETIQUETA_JORNADA, type Fraccion } from '../../data/planCasa/informeAvance';
@@ -1278,7 +1279,9 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
   const [error, setError] = useState('');
   const [creando, setCreando] = useState(false);
   const [aviso, setAviso] = useState('');
-  const [vista, setVista] = useState<'planes' | 'avance' | 'seguimiento'>(vistaInicial ?? 'planes');
+  const [vista, setVista] = useState<'planes' | 'avance' | 'seguimiento' | 'consultas'>(vistaInicial ?? 'planes');
+  const [puedeConsultas, setPuedeConsultas] = useState(false);
+  const consultas = useConsultas(puedeConsultas);
   const [eligiendoCartas, setEligiendoCartas] = useState(false);
   const [abriendoPlazo, setAbriendoPlazo] = useState(false);
   const [completandoTodos, setCompletandoTodos] = useState(false);
@@ -1298,6 +1301,12 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
     .sort((a, b) => `${a.nombres} ${a.apellidos}`.localeCompare(`${b.nombres} ${b.apellidos}`, 'es'));
   const gestiona = rol === 'coordinador' || rol === 'superusuario';
 
+  // La bandeja de consultas es del equipo (UAI / orientación) y del superusuario.
+  useEffect(() => {
+    if (rol === 'superusuario') { setPuedeConsultas(true); return; }
+    leerEquipo().then(l => setPuedeConsultas(l.includes(correoActual()))).catch(() => {});
+  }, [rol]);
+
   useEffect(() => escucharPlanes(true, setPlanes, e => { setError(e.message || 'No se pudieron leer los planes.'); setPlanes([]); }), []);
 
   return (
@@ -1306,7 +1315,8 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
         <h2 className="text-lg font-semibold text-strong flex-1">Plan Académico Especial</h2>
         {!creando && <button onClick={() => { setCreando(true); setAviso(''); }} className={CLASE_BOTON}><Plus size={16} />Nuevo plan</button>}
       </div>
-      <PestanasSubrayadas opciones={[{ id: 'planes', label: 'Planes' }, { id: 'avance', label: 'Avance docentes' }, { id: 'seguimiento', label: 'Seguimiento' }]} activa={vista} onCambio={setVista} />
+      <PestanasSubrayadas opciones={[{ id: 'planes', label: 'Planes' }, { id: 'avance', label: 'Avance docentes' }, { id: 'seguimiento', label: 'Seguimiento' },
+        ...(puedeConsultas ? [{ id: 'consultas', label: consultas.pendientes ? `Consultas (${consultas.pendientes})` : 'Consultas' }] : [])]} activa={vista} onCambio={id => setVista(id as typeof vista)} />
       {aviso && <p className="rounded-xl bg-success-soft text-success-soft-fg text-sm p-3">{aviso}</p>}
       {creando && <NuevoPlan onCerrar={() => setCreando(false)} onCreado={m => { setCreando(false); setAviso(m); }} />}
       {error && <CajaError>{error}</CajaError>}
@@ -1372,6 +1382,7 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
       )}
       {vista === 'avance' && planes && <AvanceDocentes planes={planes} />}
       {vista === 'seguimiento' && <SeguimientoPlanCasa />}
+      {vista === 'consultas' && puedeConsultas && <ConsultasPanel datos={consultas} />}
     </div>
   );
 }

@@ -674,6 +674,11 @@ service cloud.firestore {
         allow update, delete: if false;
       }
     }
+    // Consultas de las familias: sin acceso del cliente; todo por las callables planCasa*Consulta*.
+    match /planesCasaConsultas/{id} {
+      allow read: if false;
+      allow write: if !esSuplantacion() && (false);
+    }
     match /planesCasaPublico/{token} {
       allow get: if true;
       allow list: if false;

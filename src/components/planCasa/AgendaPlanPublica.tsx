@@ -12,6 +12,7 @@ import { ExternalLink, Clock, PackageCheck, Upload, Link2, CheckCircle2, Camera 
 import { ACCEPT_ENTREGA, formatoTamano, validarArchivo, validarEnlace } from '../../data/planCasa/entregas';
 import { prepararArchivo, registrarRechazo, subirEntrega } from '../../data/planCasa/entregasCliente';
 import { BotonSugerencias, ComoMeFue, Manual, HoraDeEstudio, PildoraDelDia, Sugerencias, TemporizadorMomento, useHorarioEstudio } from './OrientacionFamilia';
+import { BotonesConsulta, ComoEnviar } from './ConsultasFamilia';
 import { db } from '../../lib/firebase';
 import { cn } from '@/lib/utils';
 import { SUGERENCIAS, guardarHechos, leerHechos, pildoraDelDia, progresoDia } from '../../data/planCasa/orientacionFamilia';
@@ -206,6 +207,7 @@ function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { pla
           📖 Manual
         </button>
       </header>
+      <div className="flex flex-wrap gap-2"><BotonesConsulta token={token} /></div>
       {verManual && <Manual onCerrar={() => setVerManual(false)} desde={plan.desde} hasta={plan.hasta} />}
 
       <div><BotonSugerencias onClick={() => setVerSugerencias(true)} /></div>
@@ -594,6 +596,7 @@ function Entregar({ p, token, soloLectura, onEntregado }: { p: Paso; token: stri
           <button onClick={() => { setModoEnlace(true); setError(''); }} className={`${boton} border border-line text-soft`}>
             <Link2 size={18} /> Pegar enlace (video)
           </button>
+          <ComoEnviar />
         </div>
       )}
       {modoEnlace && fase !== 'enviando' && (
