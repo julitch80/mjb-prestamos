@@ -469,3 +469,15 @@ export const planCasaEliminarPlan = onCall(opciones, async (request) => {
   logger.info('planCasaEliminarPlan', { planId, por: quien.correo });
   return { ok: true };
 });
+
+// Sin login. Solo deja en el registro un intento de entrega que la agenda rechazó en el celular
+// (tipo o tamaño), para poder ver qué está fallando. No escribe datos.
+export const planCasaRegistrarRechazo = onCall({ ...opciones, memory: '256MiB' }, async (request) => {
+  const e = (request.data ?? {}) as { token?: string; nombre?: string; mime?: string; bytes?: number; motivo?: string };
+  if (typeof e.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(e.token)) return { ok: false };
+  logger.warn('planCasaEntregaRechazada', {
+    token: e.token.slice(0, 6), extension: String(e.nombre ?? '').split('.').pop()?.slice(0, 10) ?? '',
+    mime: String(e.mime ?? '').slice(0, 100), bytes: Number(e.bytes) || 0, motivo: String(e.motivo ?? '').slice(0, 200),
+  });
+  return { ok: true };
+});

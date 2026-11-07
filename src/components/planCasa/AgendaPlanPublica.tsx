@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { ExternalLink, Clock, PackageCheck, Upload, Link2, CheckCircle2, Camera } from 'lucide-react';
 import { ACCEPT_ENTREGA, formatoTamano, validarArchivo, validarEnlace } from '../../data/planCasa/entregas';
-import { prepararArchivo, subirEntrega } from '../../data/planCasa/entregasCliente';
+import { prepararArchivo, registrarRechazo, subirEntrega } from '../../data/planCasa/entregasCliente';
 import { BotonSugerencias, ComoMeFue, Manual, HoraDeEstudio, PildoraDelDia, Sugerencias, TemporizadorMomento, useHorarioEstudio } from './OrientacionFamilia';
 import { db } from '../../lib/firebase';
 import { cn } from '@/lib/utils';
@@ -533,7 +533,7 @@ function Entregar({ p, token, soloLectura, onEntregado }: { p: Paso; token: stri
     if (!f) return;
     // Las fotos se reducen antes de enviar: aquí solo se aplica el tope a audios y PDF.
     const v = validarArchivo(f.name, f.type, f.type.startsWith('image/') ? Math.min(f.size, 1) : f.size);
-    if (!v.ok) { setError(v.error); return; }
+    if (!v.ok) { setError(v.error); registrarRechazo(token, f, v.error); return; }
     setArchivo(f);
     setVista(f.type.startsWith('image/') || f.type.startsWith('audio/') ? URL.createObjectURL(f) : '');
     setFase('elegido');
@@ -551,12 +551,12 @@ function Entregar({ p, token, soloLectura, onEntregado }: { p: Paso; token: stri
       setFase('enviando');
       const prep = await prepararArchivo(archivo);
       const v = validarArchivo(prep.nombre, prep.contentType, prep.blob.size);
-      if (!v.ok) { setError(v.error); setFase('elegido'); return; }
+      if (!v.ok) { setError(v.error); registrarRechazo(token, { name: prep.nombre, type: prep.contentType, size: prep.blob.size }, v.error); setFase('elegido'); return; }
       contenido = prep;
     }
     setFase('enviando');
     const r = await subirEntrega({ token, guiaId: p.guiaId!, pasoId: p.id }, contenido);
-    if (!r.ok) { setError(r.error ?? 'No se pudo enviar.'); setFase(modoEnlace ? 'quieto' : 'elegido'); return; }
+    if (!r.ok) { setError(r.error ?? 'No se pudo enviar.'); if (!modoEnlace && archivo) registrarRechazo(token, archivo, `servidor: ${r.error ?? ''}`); setFase(modoEnlace ? 'quieto' : 'elegido'); return; }
     setEntregadoEn(r.entregadoEn);
     if (r.entregadoEn) onEntregado?.(r.entregadoEn);
     setArchivo(null); setVista(''); setEnlace(''); setModoEnlace(false); setFase('ok');

@@ -3,8 +3,8 @@
 // Ver docs/plan-casa/ENTREGAS-PRD.md.
 import type { EstadoPaso, SeguimientoPaso, TipoEntrega } from './tipos';
 
-/** 10 MB por archivo (decisión de Julián). */
-export const TOPE_BYTES = 10 * 1024 * 1024;
+/** 20 MB por archivo (decisión de Julián, 7-nov): el máximo seguro enviando en base64 por la función. */
+export const TOPE_BYTES = 20 * 1024 * 1024;
 /** Máximo de envíos por día y por plan. */
 export const TOPE_DIARIO_ENVIOS = 20;
 /** Lado mayor al que se reduce una foto en el cliente. */
@@ -16,13 +16,25 @@ export const MIME_ENTREGA: Record<string, Exclude<TipoEntrega, 'enlace'>> = {
   'audio/mpeg': 'audio', 'audio/mp3': 'audio', 'audio/mp4': 'audio', 'audio/x-m4a': 'audio', 'audio/m4a': 'audio', 'audio/aac': 'audio',
   'audio/ogg': 'audio', 'audio/webm': 'audio', 'audio/wav': 'audio', 'audio/x-wav': 'audio', 'audio/wave': 'audio',
   'application/pdf': 'pdf',
+  // Documentos de Office (decisión de Julián, 7-nov): muchos estudiantes entregan en Word o PowerPoint.
+  'application/msword': 'documento',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'documento',
+  'application/vnd.ms-powerpoint': 'documento',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'documento',
+  'application/vnd.ms-excel': 'documento',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'documento',
+  'application/vnd.oasis.opendocument.text': 'documento',
 };
 const EXT_MIME: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', heic: 'image/heic', heif: 'image/heif', webp: 'image/webp',
   mp3: 'audio/mpeg', m4a: 'audio/mp4', ogg: 'audio/ogg', oga: 'audio/ogg', webm: 'audio/webm', wav: 'audio/wav', pdf: 'application/pdf',
+  doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  odt: 'application/vnd.oasis.opendocument.text',
 };
 /** Para el `accept` del input file. */
-export const ACCEPT_ENTREGA = 'image/*,audio/*,application/pdf,.heic,.m4a,.mp3,.ogg,.wav,.webm,.pdf';
+export const ACCEPT_ENTREGA = 'image/*,audio/*,application/pdf,.heic,.m4a,.mp3,.ogg,.wav,.webm,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.odt';
 
 /** Algunos celulares mandan el MIME vacío o genérico: se deduce por la extensión. */
 export function mimeEfectivo(nombre: string, mime: string): string {
@@ -38,11 +50,11 @@ export function validarArchivo(nombre: string, mime: string, bytes: number): Res
   const ct = mimeEfectivo(nombre, mime);
   const tipo = MIME_ENTREGA[ct];
   if (!tipo) {
-    if (ct.startsWith('video/')) return { ok: false, error: 'Los videos no se suben aquí: súbelo a Drive o YouTube y pega el enlace.' };
-    return { ok: false, error: 'Tipo de archivo no permitido. Envía una foto, un audio o un PDF.' };
+    if (ct.startsWith('video/')) return { ok: false, error: 'Los videos no se suben aquí: súbelo a Google Drive o YouTube, compártelo como «Cualquier persona con el enlace» y pega el enlace con «Pegar enlace (video)».' };
+    return { ok: false, error: 'Tipo de archivo no permitido. Envía una foto, un audio, un PDF o un documento de Word, PowerPoint o Excel.' };
   }
   if (!(bytes > 0)) return { ok: false, error: 'El archivo está vacío.' };
-  if (bytes > TOPE_BYTES) return { ok: false, error: `El archivo es muy grande (${(bytes / 1048576).toFixed(1)} MB). El máximo es 10 MB.` };
+  if (bytes > TOPE_BYTES) return { ok: false, error: `El archivo es muy grande (${(bytes / 1048576).toFixed(1)} MB). El máximo es 20 MB. Si es un PDF escaneado, envíalo en partes o como fotos.` };
   return { ok: true, tipo, contentType: ct };
 }
 

@@ -14,7 +14,7 @@ export function useEntregas(planId: string, guiaId: string): { entregas: Entrega
 }
 
 const fecha = (ms: number) => new Date(ms).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-const ICONO = { foto: Imagen, audio: Mic, pdf: FileText, enlace: Link2 } as const;
+const ICONO = { foto: Imagen, audio: Mic, pdf: FileText, documento: FileText, enlace: Link2 } as const;
 
 export function ListaEntregas({ planId, entregas }: { planId: string; entregas: EntregaPlan[] }) {
   const [abriendo, setAbriendo] = useState('');

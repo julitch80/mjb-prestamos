@@ -92,3 +92,9 @@ export async function abrirEntrega(planId: string, entregaId: string): Promise<v
     throw new Error(e instanceof Error && !(e as { code?: string }).code ? e.message : mensajeRed(e));
   }
 }
+
+/** Avisa al servidor (solo para el registro) que la agenda rechazó un archivo. Nunca falla. */
+export function registrarRechazo(token: string, f: { name: string; type: string; size: number }, motivo: string): void {
+  if (!functions || !token) return;
+  httpsCallable(functions, 'planCasaRegistrarRechazo')({ token, nombre: f.name, mime: f.type, bytes: f.size, motivo }).catch(() => {});
+}

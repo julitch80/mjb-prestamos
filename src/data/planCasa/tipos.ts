@@ -358,7 +358,7 @@ export interface SalidaGuiaIA {
 /** planesCasa/{planId}/entregas/{entregaId} — lo escribe SOLO el servidor. */
 export const SUB_ENTREGAS = 'entregas';
 
-export type TipoEntrega = 'foto' | 'audio' | 'pdf' | 'enlace';
+export type TipoEntrega = 'foto' | 'audio' | 'pdf' | 'documento' | 'enlace';
 
 export interface EntregaPlan {
   id: string;
