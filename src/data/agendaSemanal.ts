@@ -2774,6 +2774,135 @@ export const AGENDAS: AgendaSemanal[] = [
       },
     ],
   },
+  {
+    semana: 11,
+    periodo: 3,
+    desde: '2026-11-09',
+    hasta: '2026-11-13',
+    publicadaPor: 'Equipo Técnico Institucional',
+    notaFinal: 'La agenda de profesionales (orientación escolar y programa Escuela Entorno Protector, PTA y UAI) viene dentro del mismo documento, aparte de la agenda institucional.',
+    dias: [
+      {
+        fecha: '2026-11-09',
+        dia: 'lunes',
+        notas: [
+          'Semana de autoevaluación de los estudiantes de grado 11°, se inicia autoevaluación para todos los grados y la próxima semana inician planes de apoyo tercer periodo para grado 11°.',
+          'Inauguración del evento internacional INMERXIA 2026: semana de la IA en Colombia, en la UPB. La IE Manuel J Betancur con SIMON MONTOYA de grado 11° representa a Antioquia.',
+        ],
+        actividades: [
+        ],
+      },
+      {
+        fecha: '2026-11-10',
+        dia: 'martes',
+        actividades: [
+          {
+            hora: '11am a 1pm',
+            actividad: 'Reunión con profesionales de apoyo y coordinadores (informe de acciones e indicadores)',
+            asisten: 'Profesionales y coordinadores',
+            lugar: 'Biblioteca',
+            responsables: 'Rectora',
+          },
+          {
+            hora: '3pm',
+            actividad: 'Acción educativa salud mental',
+            asisten: 'Grupo 8-4',
+            lugar: 'Sede principal',
+            responsables: 'PEEP - Natalia Rivas',
+          },
+          {
+            hora: '4pm',
+            actividad: 'Acción educativa salud mental',
+            asisten: 'Grupo 7-2',
+            lugar: 'Sede principal',
+            responsables: 'PEEP - Natalia Rivas',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-11',
+        dia: 'miércoles',
+        notas: ['PARO DE 24 HORAS DE DOCENTES POR LA SALUD: ver horarios para este día en la WEB'],
+        actividades: [
+          {
+            hora: '8am a 12m',
+            actividad: 'Salida de los líderes ambientales (proyecto PTS postulado y finalista a los premios SER MEJOR)',
+            asisten: 'Líderes y otros estudiantes participantes',
+            lugar: 'MOVA',
+            responsables: 'Juan Carlos Blandón',
+          },
+          {
+            hora: 'En la jornada',
+            actividad: 'Conversatorio con el CEO de GOOGLE en la semana de la IA en Colombia',
+            asisten: 'Simon Montoya, representa a la IE y a Antioquia',
+            lugar: 'IUPB',
+            responsables: 'Rectora y coordinadora',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-12',
+        dia: 'jueves',
+        actividades: [
+          {
+            hora: '6am',
+            actividad: 'Sensibilización de la Media técnica a padres y madres de familia de estudiantes de grado 9°',
+            asisten: 'Todos los padres de familia de grado 9°',
+            lugar: 'Auditorio',
+            responsables: 'Rectora, coordinadora, SENA y IUPB',
+          },
+          {
+            hora: '7am',
+            actividad: 'Reunión de consejo de padres de familia',
+            asisten: 'Integrantes',
+            lugar: 'Biblioteca',
+            responsables: 'Rectora',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-13',
+        dia: 'viernes',
+        actividades: [
+          {
+            hora: 'Por confirmar',
+            actividad: 'Entrega de símbolos de 11° y 10°',
+            asisten: 'Estudiantes jornada AM y docentes',
+            lugar: 'Patio',
+            responsables: 'Directores de grupo 10° y 11°',
+          },
+          {
+            hora: '8:00am a 5:00 pm',
+            actividad: 'Participación en INMERXIA 2026: semana de la IA en Colombia',
+            asisten: 'Estudiantes del Centro de Interés Urban Lab, Uriel, Felipe, Mary Luz, Edwin',
+            lugar: 'UPB',
+            responsables: 'Coordinadora y Juan Carlos Blandón',
+          },
+          {
+            hora: '8am a 10am y 10am a 12m',
+            actividad: 'Inducción de estudiantes nuevos del Grado Transición',
+            asisten: 'Estudiantes admitidos y matriculados',
+            lugar: 'Cada sede',
+            responsables: 'Docentes de Transición',
+          },
+          {
+            hora: 'Durante Jornada PM',
+            actividad: 'Acción educativa sobre alimentación saludable',
+            asisten: 'Grupos 3°3, 4°3 y 5°3 con sus directoras de grupo',
+            lugar: 'Sede Finca',
+            responsables: 'Frey Augusto (Nutricionista)',
+          },
+          {
+            hora: 'Durante la jornada',
+            actividad: 'Acción educativa convivencia escolar',
+            asisten: 'Grado 3 y 5',
+            lugar: 'Sede Gustavo Rodas',
+            responsables: 'PEEP - Natalia Rivas',
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 
