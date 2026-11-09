@@ -93,6 +93,23 @@ export async function abrirEntrega(planId: string, entregaId: string): Promise<v
   }
 }
 
+/** Pide la entrega y devuelve una URL (blob: local y temporal, o el enlace) para mostrarla dentro de la app. */
+export async function cargarEntrega(planId: string, entregaId: string): Promise<{ url: string; contentType: string; esBlob: boolean }> {
+  if (!functions) throw new Error('Firebase no está configurado.');
+  try {
+    const r = await httpsCallable<EntradaVerEntrega, SalidaVerEntrega>(functions, 'planCasaVerEntrega', { timeout: 60_000 })({ planId, entregaId });
+    if (!r.data.ok) throw new Error(r.data.error ?? 'No se pudo abrir.');
+    if (r.data.url) return { url: r.data.url, contentType: r.data.contentType ?? '', esBlob: false };
+    const bin = atob(r.data.datosBase64 ?? '');
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const contentType = r.data.contentType ?? '';
+    return { url: URL.createObjectURL(new Blob([bytes], { type: contentType })), contentType, esBlob: true };
+  } catch (e) {
+    throw new Error(e instanceof Error && !(e as { code?: string }).code ? e.message : mensajeRed(e));
+  }
+}
+
 /** Avisa al servidor (solo para el registro) que la agenda rechazó un archivo. Nunca falla. */
 export function registrarRechazo(token: string, f: { name: string; type: string; size: number }, motivo: string): void {
   if (!functions || !token) return;

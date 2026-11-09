@@ -11,7 +11,8 @@ import type {
 } from '../../data/planCasa/tipos';
 import { MODALIDADES_SUSTENTACION, MOTIVOS_SOLICITUD } from '../../data/planCasa/tipos';
 import { asignaturasCambiadas, diasEntre, estadoEdicion, horaLocal, } from '../../data/planCasa/logica';
-import { construirChequeo, entregasPorRevisar, indiceColor, resumenChequeo } from '../../data/planCasa/checklist';
+import { construirChequeo, indiceColor, resumenChequeo } from '../../data/planCasa/checklist';
+import { contarPorGuia, entregasRecibidasPorRevisar } from '../../data/planCasa/porRevisar';
 import { criteriosListos } from '../../data/planCasa/avanceDocentes';
 import { capacidadPorSemana, esGuiaIntegrable, estadoTrasRevision, faltanPorRevisar, revisionCompleta } from '../../data/planCasa/integrada';
 import {
@@ -128,7 +129,7 @@ function Seguimiento({ plan, g, asigs, nombre, gestor }: { plan: PlanConDocentes
         const seg = g.seguimiento?.[p.id];
         const obs = borrador[p.id] ?? seg?.observacion ?? '';
         return (
-          <div key={p.id} className="rounded-xl border border-line p-3 space-y-2">
+          <div key={p.id} id={`paso-${g.id}-${p.id}`} className="rounded-xl border border-line p-3 space-y-2 scroll-mt-40">
             <p className="text-sm text-strong">{i + 1}. {p.titulo} <span className="text-xs text-muted">· {fechaCorta(p.fecha)} · {p.momentos} mom.</span></p>
             <div className="flex flex-wrap gap-1.5">
               {(Object.keys(EST_PASO) as EstadoPaso[]).map(st => (
@@ -784,6 +785,23 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
 
 // ── Guía donde participo ──────────────────────────────────────────────────
 
+/** (Docente participante) Sus pasos de una guía integrada: revisar su parte y ver las entregas del estudiante. */
+function PasosParticipante({ plan, g, asigs, nombre, yo }: { plan: PlanConDocentes; g: GuiaPlan; asigs: AsignaturaPlan[]; nombre: (id: string) => string; yo: string }) {
+  const { entregas } = useEntregas(plan.id, g.id);
+  const mios = (g.aprobada?.pasos ?? []).filter(p => p.componentes?.some(c => asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo.toLowerCase() === yo));
+  return (
+    <>
+      {mios.map(p => (
+        <div key={p.id} id={`paso-${g.id}-${p.id}`} className="rounded-xl border border-line p-3 space-y-2 scroll-mt-40">
+          <p className="text-sm text-strong">{p.titulo} <span className="text-xs text-muted">· {fechaCorta(p.fecha)}</span></p>
+          <RevisionPartes plan={plan} g={g} p={p} asigs={asigs} nombre={nombre} gestor={false} soloMias />
+          <ListaEntregas planId={plan.id} entregas={entregas.filter(e => e.pasoId === p.id)} />
+        </div>
+      ))}
+    </>
+  );
+}
+
 function GuiaParticipante({ plan, g, asigs, nombres, gestor }: { plan: PlanConDocentes; g: GuiaPlan; asigs: AsignaturaPlan[]; nombres: Nombres; gestor: boolean }) {
   const yo = correoActual();
   const edicion = edicionDe(plan, g, gestor);
@@ -810,12 +828,7 @@ function GuiaParticipante({ plan, g, asigs, nombres, gestor }: { plan: PlanConDo
         <>
           {!g.aprobada && <p className="text-xs text-soft">Propuesta aún sin aprobar.</p>}
           <GuiaLectura guia={guia} nombre={nombre} />
-          {g.aprobada?.integrada && g.aprobada.pasos.filter(p => p.componentes?.some(c => asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo.toLowerCase() === yo)).map(p => (
-            <div key={p.id} className="rounded-xl border border-line p-3 space-y-2">
-              <p className="text-sm text-strong">{p.titulo} <span className="text-xs text-muted">· {fechaCorta(p.fecha)}</span></p>
-              <RevisionPartes plan={plan} g={g} p={p} asigs={asigs} nombre={nombre} gestor={false} soloMias />
-            </div>
-          ))}
+          {g.aprobada?.integrada && <PasosParticipante plan={plan} g={g} asigs={asigs} nombre={nombre} yo={yo} />}
           <div className="flex flex-wrap gap-2">
             <button onClick={alternar} className={dado ? CLASE_BOTON_SEC : CLASE_BOTON}><Check size={15} />{dado ? 'Quitar mi visto bueno' : 'Dar mi visto bueno'}</button>
             <BotonFormatoUAI plan={plan} guias={[g]} asigs={asigs} nombres={nombres} />
@@ -865,7 +878,7 @@ const GUIA_TINTES = [
 const TINTE_NEUTRO = { fondo: 'bg-slate-400/10', borde: 'border-slate-400/40', texto: 'text-slate-400', anillo: 'ring-slate-400/60' };
 const TINTE_ENTREGAS = { fondo: 'bg-amber-500/10', borde: 'border-amber-500/40', texto: 'text-amber-500', anillo: 'ring-amber-500/60' };
 
-function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: PlanConDocentes; gestor: boolean; amplio?: boolean; datos: DatosPlan; foco?: { seccion: string; n: number } }) {
+function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: PlanConDocentes; gestor: boolean; amplio?: boolean; datos: DatosPlan; foco?: { seccion: string; n: number; pasoId?: string } }) {
   const { asigs, guias, error } = datos;
   const nombres = useMemo(() => asignaturasConNombre(plan.grupo), [plan.grupo]);
   const yo = correoActual();
@@ -890,8 +903,9 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
   const [sel, setSel] = useState<{ tab: string; sub: string }>({ tab: 'r', sub: 'guia' });
   const guiaSel = verGuias.find(g => g.id === sel.tab);
   const porRevisar = useMemo(() => asigs && guias
-    ? entregasPorRevisar({ plan, asigs, guias, correo: yo, gestor, nombre: id => nombres[id]?.asignatura ?? id, hoy: hoyLocal() })
+    ? entregasRecibidasPorRevisar([{ plan, asigs, guias }], { correo: yo, gestor, nombre: (_p, id) => nombres[id]?.asignatura ?? id, hoy: hoyLocal() })
     : [], [plan, asigs, guias, yo, gestor, nombres]);
+  const pendientesGuia = useMemo(() => contarPorGuia(porRevisar), [porRevisar]);
 
   /** Lleva a la sección de un ítem de la lista de chequeo ('mis', 'otras' o 'g-<guiaId>'). */
   function irA(seccion: string) {
@@ -900,7 +914,16 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
     const g = pend && guiaDe(pend.asignaturaId);
     if (g && pend) setSel({ tab: g.id, sub: pend.asignaturaId });
   }
-  useEffect(() => { if (foco && asigs && guias) irA(foco.seccion); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [foco?.n, !!(asigs && guias)]);
+  useEffect(() => {
+    if (!foco || !asigs || !guias) return;
+    irA(foco.seccion);
+    // Lleva directo al paso: se espera a que la guía se dibuje y se desplaza hasta él.
+    if (foco.pasoId) {
+      const id = `paso-${foco.seccion.replace(/^g-/, '')}-${foco.pasoId}`;
+      for (const ms of [150, 600]) setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), ms);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foco?.n, !!(asigs && guias)]);
 
   const edicion = estadoEdicion(plan, undefined, hoyLocal(), horaLocal());
   const faltan = diasEntre(hoyLocal(), edicion.hasta);
@@ -922,7 +945,7 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
         {asigs && guias && (
           <nav className="flex flex-wrap gap-1.5 mt-2" aria-label="Secciones del plan">
             {[{ id: 'r', texto: 'Resumen', t: TINTE_NEUTRO },
-              ...verGuias.map(g => ({ id: g.id, texto: `${g.asignaturaIds.length === 1 ? nombre(g.asignaturaIds[0]) : `Guía ${numGuia(g.id)} · ${g.asignaturaIds.length} áreas`}${g.aprobada ? ' ✓' : ''}`, t: tinteGuia(g.id) })),
+              ...verGuias.map(g => ({ id: g.id, texto: `${g.asignaturaIds.length === 1 ? nombre(g.asignaturaIds[0]) : `Guía ${numGuia(g.id)} · ${g.asignaturaIds.length} áreas`}${g.aprobada ? ' ✓' : ''}${pendientesGuia[g.id] ? ` · ${pendientesGuia[g.id]} por revisar` : ''}`, t: tinteGuia(g.id) })),
               { id: 'e', texto: `Entregas${porRevisar.length ? ` · ${porRevisar.length}` : ''}`, t: TINTE_ENTREGAS }].map(x => (
               <button key={x.id} type="button" onClick={() => setSel({ tab: x.id, sub: 'guia' })} aria-pressed={sel.tab === x.id}
                 className={cn('text-xs px-3 py-1 rounded-full border transition text-strong', x.t.fondo, x.t.borde, sel.tab === x.id && cn('ring-2', x.t.anillo))}>
@@ -1029,6 +1052,7 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
   );
 }
 
+const fechaEntrega = (ms: number) => new Date(ms).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 const CLAVE_NOTA = 'pae-docente-nota-estudiante-v1';
 
 export default function PlanCasaDocente() {
@@ -1048,7 +1072,7 @@ export default function PlanCasaDocente() {
   const [sel, setSel] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [nota, setNota] = useState(() => leerLS(CLAVE_NOTA) !== '1');
-  const [foco, setFoco] = useState<{ seccion: string; n: number } | undefined>(undefined);
+  const [foco, setFoco] = useState<{ seccion: string; n: number; pasoId?: string } | undefined>(undefined);
   const yaInicial = useRef(false);
 
   const visibles = useMemo(() => (planes ?? []).filter(p => p.estado === 'activo'), [planes]);
@@ -1066,13 +1090,13 @@ export default function PlanCasaDocente() {
   // Avance de cada estudiante con la misma lista de chequeo que ve el docente al abrirlo.
   const avances = useMemo(() => {
     const yo = correoActual();
-    const r: Record<string, { hechas: number; total: number; pendientes: number; porRevisar: { guiaId: string; pasoId: string; titulo: string }[] } | undefined> = {};
+    const r: Record<string, { hechas: number; total: number; pendientes: number; } | undefined> = {};
     for (const p of visibles) {
       const d = datos[p.id];
       if (!d?.asigs || !d.guias) continue;
       const nombres = asignaturasConNombre(p.grupo);
       const dc = { plan: p, asigs: d.asigs, guias: d.guias, correo: yo, gestor, nombre: (id: string) => nombres[id]?.asignatura ?? id, hoy: hoyLocal() };
-      r[p.id] = { ...resumenChequeo(construirChequeo(dc)), porRevisar: entregasPorRevisar(dc) };
+      r[p.id] = { ...resumenChequeo(construirChequeo(dc)) };
     }
     return r;
   }, [visibles, datos, gestor]);
@@ -1082,7 +1106,17 @@ export default function PlanCasaDocente() {
   const q = busca.trim().toLowerCase();
   const filtrados = q ? ordenados.filter(p => `${p.nombres} ${p.apellidos} ${p.grupo}`.toLowerCase().includes(q)) : ordenados;
   const actual = visibles.find(p => p.id === sel);
-  const porRevisar = ordenados.flatMap(p => (avances[p.id]?.porRevisar ?? []).map(e => ({ plan: p, ...e })));
+  const cargados = visibles.length > 0 && visibles.every(p => datos[p.id]?.asigs && datos[p.id]?.guias);
+  const porRevisar = useMemo(() => {
+    const nombresDe: Record<string, ReturnType<typeof asignaturasConNombre>> = {};
+    const lista = visibles.flatMap(p => {
+      const d = datos[p.id];
+      if (!d?.asigs || !d.guias) return [];
+      nombresDe[p.id] = asignaturasConNombre(p.grupo);
+      return [{ plan: p, asigs: d.asigs, guias: d.guias }];
+    });
+    return entregasRecibidasPorRevisar(lista, { correo: correoActual(), gestor, hoy: hoyLocal(), nombre: (pid, id) => nombresDe[pid]?.[id]?.asignatura ?? id });
+  }, [visibles, datos, gestor]);
 
   return (
     <div className="space-y-5 max-w-2xl mx-auto">
@@ -1122,17 +1156,24 @@ export default function PlanCasaDocente() {
         </div>
       )}
 
-      {porRevisar.length > 0 && (
-        <div className="rounded-2xl border border-line bg-card p-3 space-y-1.5">
-          <p className="text-xs font-medium text-soft">Por revisar ({porRevisar.length})</p>
-          {porRevisar.map(e => (
-            <button key={`${e.plan.id}-${e.guiaId}-${e.pasoId}`} type="button"
-              onClick={() => { escoger(e.plan.id); setFoco(f => ({ seccion: `g-${e.guiaId}`, n: (f?.n ?? 0) + 1 })); }}
-              className="block w-full text-left text-sm text-strong rounded-lg px-2 py-1 hover:bg-elevated">
-              {e.plan.nombres.split(' ')[0]} · {e.plan.grupo} — <span className="text-soft">{e.titulo}</span>
-            </button>))}
+      {cargados && (porRevisar.length > 0 ? (
+        <div className="rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 p-3 space-y-2">
+          <p className="text-sm font-semibold text-strong">Por revisar ({porRevisar.length})</p>
+          <p className="text-xs text-soft">Entregas recibidas, de la más antigua a la más reciente.</p>
+          <ul className="space-y-1.5">
+            {porRevisar.map(e => (
+              <li key={`${e.planId}-${e.guiaId}-${e.pasoId}`} className="flex items-center gap-2 rounded-xl bg-card border border-line px-3 py-2">
+                <span className="flex-1 min-w-0 text-sm text-strong">
+                  <b>{e.estudiante}</b> · {e.grupo}
+                  <span className="block text-xs text-soft">Paso {e.pasoNum}: {e.titulo}{e.partes.length ? ` · ${e.partes.join(', ')}` : ''} · entregó {fechaEntrega(e.entregadoEn)}</span>
+                </span>
+                <button type="button"
+                  onClick={() => { escoger(e.planId); setFoco(f => ({ seccion: `g-${e.guiaId}`, pasoId: e.pasoId, n: (f?.n ?? 0) + 1 })); }}
+                  className="min-h-[40px] px-4 rounded-full bg-accent text-strong text-sm font-medium flex-shrink-0">Revisar</button>
+              </li>))}
+          </ul>
         </div>
-      )}
+      ) : <p className="rounded-2xl border border-line bg-card p-3 text-sm text-success font-medium">Todo revisado ✓</p>)}
 
       {actual
         ? <PlanDocente key={actual.id} plan={actual} gestor={gestor} amplio={amplio} datos={datos[actual.id] ?? SIN_DATOS} foco={foco} />
