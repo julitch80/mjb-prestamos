@@ -29,7 +29,8 @@ export function correoActual(): string {
 
 /** Enlace público (el del QR) de un plan. */
 export function urlPublica(token: string): string {
-  return `${window.location.origin}${import.meta.env.BASE_URL}#/plan/${token}`;
+  // «_» escrito como %5F: WhatsApp lo usa para la cursiva y borraba los de los enlaces viejos.
+  return `${window.location.origin}${import.meta.env.BASE_URL}#/plan/${token.replace(/_/g, '%5F')}`;
 }
 
 // ── Equipo ────────────────────────────────────────────────────────────────

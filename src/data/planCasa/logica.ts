@@ -309,13 +309,17 @@ export function docentesDelGrupo(grupo: string): { asignaturaId: string; docente
   return out;
 }
 
-/** Token de 43 caracteres url-safe (32 bytes aleatorios). */
+/**
+ * Token de 43 caracteres solo con letras y números (sin «-» ni «_»): WhatsApp usa «_» para la
+ * cursiva y dañaba los enlaces al reenviarlos.
+ */
 export function nuevoToken(): string {
-  const b = new Uint8Array(32);
+  const abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const b = new Uint8Array(43);
   globalThis.crypto.getRandomValues(b);
   let s = '';
-  for (const x of b) s += String.fromCharCode(x);
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  for (const x of b) s += abc[x % abc.length];
+  return s;
 }
 
 /** Mantiene sincronizados la bandera «sin tecnología» y el ajuste del mismo nombre. */
