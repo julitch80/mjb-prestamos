@@ -300,3 +300,5 @@ export const onMessageCreated = onDocumentCreated(
 
 // Reemplazo temporal (docs/reemplazo-temporal)
 export { reemplazoTemporal, finalizarReemplazosVencidos, sincronizarPlanesReemplazos } from './reemplazoTemporal.js';
+
+export { cifrasUso } from './cifrasUso.js';

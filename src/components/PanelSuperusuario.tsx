@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import VincularClassroom from './VincularClassroom';
 import CrearSimulacro2026 from './simulacros/CrearSimulacro2026';
 import SeccionReemplazoTemporal from './SeccionReemplazoTemporal';
+import CifrasUso from './CifrasUso';
 import { mapaDirectores, sincronizarAutoridadSede, sincronizarDirectores } from '../data/directoresSync';
 import { sincronizarCuentasUsuarios } from '../data/usuariosSync';
 import { useAppStore } from '../data/store';
@@ -802,6 +803,8 @@ export default function PanelSuperusuario() {
       </div>
 
       <SeccionReemplazoTemporal usuarios={usuarios} onCambio={recargar} />
+
+      <CifrasUso />
 
       {/* ── Auditoría ───────────────────────────────────────────────── */}
       <div className="bg-card rounded-xl p-5 space-y-3 max-w-2xl">
