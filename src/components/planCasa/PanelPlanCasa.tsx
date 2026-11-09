@@ -432,7 +432,7 @@ function SolicitudesPendientes({ plan, solicitudes, nombreGuia, onError }: {
             <div><Etiqueta>Autorizar hasta</Etiqueta>
               <input type="date" value={hasta[s.id] ?? ''} min={hoyISO()} onChange={e => setHasta(h => ({ ...h, [s.id]: e.target.value }))} className={CLASE_INPUT} /></div>
             <button disabled={!hasta[s.id]} className={CLASE_BOTON}
-              onClick={() => autorizarSolicitud(plan.id, s, hasta[s.id]).catch(e => onError(e.message))}>Autorizar hasta esa fecha</button>
+              onClick={() => autorizarSolicitud(plan.id, s, hasta[s.id]).catch(e => onError(e.message))}>Abrir el caso hasta esa fecha</button>
             <button className={CLASE_BOTON_SEC} onClick={() => negarSolicitud(plan.id, s).catch(e => onError(e.message))}>No autorizar</button>
           </div>
         </div>

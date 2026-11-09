@@ -13,7 +13,7 @@ import {
   type AsignaturaPlan, type GuiaPlan, type ModalidadGuias, type EntradaGuiaIA, type Guia, type MotivoReservado, type PlanCasa,
   type RitmoPlan, type SalidaGuiaIA, type EntradaIntegrarGuia, type SalidaIntegrarGuia, type RevisionAsignatura, type EstadoPaso,
 } from './tipos';
-import { docentesDelGrupo, nuevoToken } from './logica';
+import { docentesDelGrupo, fechaCierre, nuevoToken } from './logica';
 
 /** Los docentes del plan se guardan además como lista de correos (para las reglas). */
 export type PlanConDocentes = PlanCasa;
@@ -453,6 +453,11 @@ export async function autorizarSolicitud(planId: string, s: SolicitudAutorizacio
   await updateDoc(doc(baseDatos(), COL_PLANES, planId, SUB_GUIAS, s.guiaId), {
     autorizacion: { hasta, por, motivo: s.motivo + (s.detalle ? `: ${s.detalle}` : ''), en: ahora }, actualizadoEn: ahora,
   });
+  // Una sola acción abre el caso completo: si la fecha autorizada es posterior al cierre vigente,
+  // se corre el cierre del plan y así TODOS los docentes del estudiante pueden corregir sus partes.
+  const ref = doc(baseDatos(), COL_PLANES, planId);
+  const p = (await getDoc(ref)).data() as PlanCasa | undefined;
+  if (p && hasta > fechaCierre(p)) await updateDoc(ref, { cierreEdicion: hasta, cierreHora: deleteField(), actualizadoEn: ahora });
   await updateDoc(doc(baseDatos(), COL_PLANES, planId, SUB_SOLICITUDES, s.id), {
     estado: 'autorizada', respondidaPor: por, respondidaEn: ahora, hasta,
   });
