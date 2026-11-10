@@ -7,6 +7,7 @@ import {
   leerMisGruposDePrograma,
   leerSesionesPrograma,
   leerValoracionesDePrograma,
+  reconstruirInscripcionPorGrado,
 } from './datos';
 import Avatar from './Avatar';
 import {
@@ -149,12 +150,49 @@ export default function PanelPrograma({
       />
       <AsistenciaPorCentro estadistica={estadistica} grupos={grupos} />
       <EntregaDeValoraciones programaId={programaId} grupos={grupos} />
+      {puedeInscribir && <IndiceParaDirectores programaId={programaId} />}
       <BuscadorDelPanel
         sede={sede}
         grupos={grupos}
         estadistica={estadistica}
         sesionesPorGrupo={sesionesPorGrupo}
       />
+    </div>
+  );
+}
+
+/**
+ * El indice que le dice a cada director de grupo en que centro esta cada estudiante suyo
+ * (2026-11-09). Se actualiza SOLO cada vez que se inscribe o se retira; este boton es para
+ * lo inscrito antes de que existiera, o si un director dice que no ve el centro de alguien.
+ */
+function IndiceParaDirectores({ programaId }: { programaId: string }) {
+  const [estado, setEstado] = useState<'quieto' | 'trabajando' | string>('quieto');
+  async function actualizar() {
+    setEstado('trabajando');
+    try {
+      const r = await reconstruirInscripcionPorGrado(programaId);
+      setEstado(`Listo: ${r.estudiantes} estudiantes en ${r.grados} grupos.`);
+    } catch (e) {
+      setEstado(`No se pudo actualizar: ${(e as Error).message}`);
+    }
+  }
+  return (
+    <div className="rounded-xl border border-line bg-card p-3">
+      <p className="text-sm font-semibold text-strong">Centro de cada estudiante, para los directores de grupo</p>
+      <p className="mt-0.5 text-xs text-muted">
+        Cada director ve el centro y el profesor de sus estudiantes, y solo de los suyos. Se
+        actualiza solo al inscribir o retirar. Si un director no ve el centro de alguien,
+        actualícelo aquí.
+      </p>
+      <button
+        onClick={() => void actualizar()}
+        disabled={estado === 'trabajando'}
+        className="mt-2 min-h-[44px] rounded-lg border border-line px-3 text-sm font-medium text-strong disabled:opacity-50"
+      >
+        {estado === 'trabajando' ? 'Actualizando…' : 'Actualizar ahora'}
+      </button>
+      {estado !== 'quieto' && estado !== 'trabajando' && <p className="mt-1 text-xs text-muted">{estado}</p>}
     </div>
   );
 }

@@ -19,6 +19,7 @@
  * El autor de toda escritura sale de `exigirAutor()`, nunca del store (modo "Ver como").
  */
 
+import type { IndiceGrado } from './domain/inscripcion-por-grado';
 import {
   arrayRemove,
   arrayUnion,
@@ -3922,6 +3923,29 @@ export async function leerResumenesAlerta(anio: number): Promise<ResumenJornada[
   if (!(await listo())) return [];
   const snap = await getDocs(query(collection(baseDatos(), 'asistenciaAlertaResumen'), where('anio', '==', anio)));
   return aLista<ResumenJornada>(snap);
+}
+
+/**
+ * El indice de inscripcion de UN grado: en que centro esta cada estudiante (2026-11-09).
+ * Lo lee el director de ese grado sin abrir ningun centro. `null` si todavia no existe o
+ * no se puede leer: la pantalla sigue con lo que traen las valoraciones.
+ */
+export async function leerInscripcionDeGrado(programaId: string, grado: string): Promise<IndiceGrado | null> {
+  if (!(await listo())) return null;
+  try {
+    const snap = await getDoc(doc(baseDatos(), 'asistenciaProgramas', programaId, 'porGrado', grado));
+    return snap.exists() ? ((snap.data().centros ?? {}) as IndiceGrado) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Rehace el indice de inscripcion por grado de un programa. Lo pide la coordinacion. */
+export async function reconstruirInscripcionPorGrado(programaId: string): Promise<{ grados: number; estudiantes: number }> {
+  if (!functions) throw new Error('Firebase no está configurado en esta instalación.');
+  await esperarAuth();
+  const r = await httpsCallable(functions, 'reconstruirInscripcionPorGrado')({ programaId });
+  return r.data as { grados: number; estudiantes: number };
 }
 
 /** Rehace el resumen de un periodo (sede + jornada): para los periodos marcados antes de que existiera. */

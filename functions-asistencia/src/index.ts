@@ -36,6 +36,7 @@ import { enrollmentId } from '../../src/asistencia/domain/ids';
 import { censoDiaId, construirCensoDeSesion } from '../../src/asistencia/domain/evasion';
 import { confirmacionEliminarValida, rolPuedeEliminarSesion } from '../../src/asistencia/domain/columna';
 import type { DocType, Jornada, PlanillaAlerta, Sede, Session, Student } from '../../src/asistencia/domain/types';
+import { cambiosPorEscrituraDeCentro, construirIndicePorGrado, type CabeceraCentro } from '../../src/asistencia/domain/inscripcion-por-grado';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import {
   avisoVencido,
@@ -896,6 +897,95 @@ export const recalcularResumenAlerta = onCall({ region: REGION, cors: true, invo
   const grados = [...new Set(snap.docs.map((x) => (x.data() as PlanillaAlerta).grado))];
   for (const grado of grados) await recalcularResumenGrado({ sede, jornada, anio, periodo, grado });
   return { grupos: grados.length };
+});
+
+// ---------------------------------------------------------------------------------
+//  Inscripcion por grado (2026-11-09): el centro de interes de cada estudiante, para su
+//  director de grupo, SIN abrirle el centro (que trae los inscritos de todos los grados).
+//  Ver src/asistencia/domain/inscripcion-por-grado.ts y la regla de `porGrado`.
+// ---------------------------------------------------------------------------------
+
+/** gradoActual de cada estudiante, leidos de a 100. Los que no existen se omiten. */
+async function gradosDeEstudiantes(ids: string[]): Promise<Map<string, string>> {
+  const grados = new Map<string, string>();
+  const unicos = [...new Set(ids)];
+  for (let i = 0; i < unicos.length; i += 100) {
+    const refs = unicos.slice(i, i + 100).map((id) => db.doc(`asistenciaStudents/${id}`));
+    for (const s of await db.getAll(...refs)) {
+      const g = s.exists ? (s.data()?.gradoActual as string | undefined) : undefined;
+      if (g) grados.set(s.id, g);
+    }
+  }
+  return grados;
+}
+
+/**
+ * Cada vez que se escribe un centro (inscribir, retirar, mover, la bandeja, la importacion
+ * o un cambio de nombre o lider), se pone o se quita a esos estudiantes del indice de su
+ * grado. Por campo, con merge: dos escrituras seguidas de centros distintos no se pisan.
+ */
+export const onCentroInteresEscrito = onDocumentWritten(
+  { region: REGION, document: 'asistenciaProgramas/{programaId}/grupos/{grupoId}' },
+  async (event) => {
+    const { programaId, grupoId } = event.params;
+    const antes = (event.data?.before?.data() ?? null) as CabeceraCentro | null;
+    const despues = (event.data?.after?.data() ?? null) as CabeceraCentro | null;
+    const { poner, quitar } = cambiosPorEscrituraDeCentro(antes, despues);
+    if (poner.length === 0 && quitar.length === 0) return;
+
+    const grados = await gradosDeEstudiantes([...poner, ...quitar]);
+    const porGrado = new Map<string, Record<string, Record<string, unknown>>>();
+    const del = (grado: string) => porGrado.get(grado) ?? porGrado.set(grado, {}).get(grado)!;
+    for (const id of quitar) {
+      const g = grados.get(id);
+      if (g) del(g)[id] = { [grupoId]: FieldValue.delete() };
+    }
+    for (const id of poner) {
+      const g = grados.get(id);
+      if (g) del(g)[id] = { [grupoId]: { nombre: despues?.nombre ?? grupoId, lider: (despues?.lider ?? '').toLowerCase() } };
+    }
+    for (const [grado, centros] of porGrado) {
+      await db.doc(`asistenciaProgramas/${programaId}/porGrado/${grado}`).set(
+        { programaId, grado, centros, actualizadoEn: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    }
+  },
+);
+
+/**
+ * Rehace el indice de un programa desde cero: para lo inscrito antes de que existiera, o si
+ * alguna vez queda desfasado (p. ej. un estudiante que cambio de grupo). Lo pide la
+ * coordinacion del programa, un coordinador o el superusuario.
+ */
+export const reconstruirInscripcionPorGrado = onCall({ region: REGION, cors: true, invoker: 'public' }, async (request) => {
+  const email = request.auth?.token?.email?.toLowerCase();
+  if (!email) throw new HttpsError('unauthenticated', 'Sesion no valida.');
+  const { programaId } = (request.data ?? {}) as { programaId?: string };
+  if (!programaId) throw new HttpsError('invalid-argument', 'Falta el programa.');
+  const [usuario, programa] = await Promise.all([db.doc(`users/${email}`).get(), db.doc(`asistenciaProgramas/${programaId}`).get()]);
+  if (!usuario.exists || usuario.data()?.active !== true) throw new HttpsError('permission-denied', 'Usuario no registrado o inactivo.');
+  if (!programa.exists) throw new HttpsError('not-found', 'El programa no existe.');
+  const coordina = ((programa.data()?.coordinadores ?? []) as string[]).map((c) => c.toLowerCase()).includes(email);
+  if (!coordina && !['superusuario', 'coordinador'].includes(usuario.data()?.role)) {
+    throw new HttpsError('permission-denied', 'Solo la coordinacion del programa.');
+  }
+
+  const grupos = await db.collection(`asistenciaProgramas/${programaId}/grupos`).get();
+  const centros = grupos.docs.map((g) => ({ grupoId: g.id, ...(g.data() as CabeceraCentro) }));
+  const grados = await gradosDeEstudiantes(centros.flatMap((c) => (c.activo === false ? [] : c.miembros ?? [])));
+  const indice = construirIndicePorGrado(centros, grados);
+
+  const lote = db.batch();
+  const existentes = await db.collection(`asistenciaProgramas/${programaId}/porGrado`).get();
+  for (const d of existentes.docs) if (!indice.has(d.id)) lote.delete(d.ref);
+  for (const [grado, centrosDelGrado] of indice) {
+    lote.set(db.doc(`asistenciaProgramas/${programaId}/porGrado/${grado}`), {
+      programaId, grado, centros: centrosDelGrado, actualizadoEn: FieldValue.serverTimestamp(),
+    });
+  }
+  await lote.commit();
+  return { grados: indice.size, estudiantes: [...indice.values()].reduce((s, g) => s + Object.keys(g).length, 0) };
 });
 
 function archivador(coleccion: string) {

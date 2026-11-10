@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Avatar from './Avatar';
-import { leerProgramasVisibles, leerValoracionesDeGrado } from './datos';
+import { leerInscripcionDeGrado, leerProgramasVisibles, leerValoracionesDeGrado } from './datos';
+import { centroDeEstudiante, type IndiceGrado } from './domain/inscripcion-por-grado';
 import { nombresDePila } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import { hojaResultadoCentros } from './domain/exports';
@@ -51,6 +52,13 @@ export default function ResultadoCentros({
 }) {
   const [programa, setPrograma] = useState<Programa | null>(null);
   const [valoraciones, setValoraciones] = useState<ValoracionEstudiante[]>([]);
+  /**
+   * El centro de cada estudiante de ESTE grado, segun la inscripcion, aunque no tenga
+   * valoracion (Julian, 2026-11-09). Sale del indice por grado, que el director puede leer
+   * sin abrir ningun centro. `null` = todavia no existe o no se pudo leer: la pantalla sigue
+   * con lo que traen las valoraciones.
+   */
+  const [indice, setIndice] = useState<IndiceGrado | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [descargando, setDescargando] = useState(false);
@@ -74,6 +82,8 @@ export default function ResultadoCentros({
         setPrograma(activo);
         if (!activo) return;
         setValoraciones(await leerValoracionesDeGrado(grado, activo.programaId));
+        const ind = await leerInscripcionDeGrado(activo.programaId, grado);
+        if (vivo) setIndice(ind);
       } catch (e) {
         if (vivo) setError(`No fue posible cargar las valoraciones: ${(e as Error).message}`);
       } finally {
@@ -86,10 +96,10 @@ export default function ResultadoCentros({
   }, [grado]);
 
   const filas = useMemo(
-    // `null` = no se sabe quien esta inscrito: el director no puede leer los centros de
-    // sus estudiantes. Sin esto, un "sin centro" inventado le diria que no espere a nadie.
-    () => consolidarGrupo(estudiantes, valoraciones, null),
-    [estudiantes, valoraciones],
+    // Con el indice se sabe quien esta inscrito, y «sin centro» es un dato. Sin el va
+    // `null`: no se sabe, y la pantalla no lo inventa.
+    () => consolidarGrupo(estudiantes, valoraciones, indice ? new Set(Object.keys(indice)) : null),
+    [estudiantes, valoraciones, indice],
   );
   const resumen = useMemo(() => resumirConsolidado(filas), [filas]);
   const porId = useMemo(
@@ -252,18 +262,23 @@ export default function ResultadoCentros({
                   </td>
 
                   <td className="max-w-[14rem] border-b border-line p-1.5 text-xs">
-                    {!v ? (
-                      <span className="text-muted">—</span>
-                    ) : (
-                      <>
-                        {/* Las valoraciones anteriores al 2026-11-09 no guardaban el nombre: se
-                            deduce del id hasta que el líder abra su pestaña y lo complete. */}
-                        <span className="block font-semibold text-strong">
-                          {v.centro ?? nombreDesdeIdCentro(v.grupoId)}
-                        </span>
-                        {v.lider && <span className="block text-muted">{nombrePorCorreo(v.lider)}</span>}
-                      </>
-                    )}
+                    {(() => {
+                      // Primero la valoracion (es lo que se digita); si no hay, la INSCRIPCION,
+                      // para que salga el centro de todos y no solo de los ya valorados.
+                      const inscrito = centroDeEstudiante(indice, f.studentId);
+                      const nombre = v?.centro ?? inscrito?.nombre ?? (v ? nombreDesdeIdCentro(v.grupoId) : null);
+                      const lider = v?.lider ?? inscrito?.lider ?? null;
+                      if (!nombre) {
+                        return <span className="text-muted">{f.sinCentro ? 'Sin centro' : '—'}</span>;
+                      }
+                      return (
+                        <>
+                          <span className="block font-semibold text-strong">{nombre}</span>
+                          {/* El profesor, entre paréntesis y debajo (Julián, 2026-11-09). */}
+                          {lider && <span className="block text-muted">({nombrePorCorreo(lider)})</span>}
+                        </>
+                      );
+                    })()}
                   </td>
 
                   <td className="max-w-[18rem] border-b border-line p-1.5 text-xs">

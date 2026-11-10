@@ -1811,6 +1811,23 @@ service cloud.firestore {
 
       allow delete: if !esSuplantacion() && (false);   // baja logica con activo:false, como en todo el modulo
 
+      // ---------- Inscripcion por grado: el centro de cada estudiante, para su director ----------
+      //
+      // (2026-11-09) El director de grupo necesita saber en que centro esta cada estudiante SUYO
+      // aunque todavia no tenga valoracion. NO se le abre el centro: tiene los inscritos de todos
+      // los grados, y Julian decidio que un director no los vea. En su lugar, un indice POR GRADO
+      // (estudiante -> centro y lider) que mantiene la funcion `onCentroInteresEscrito`.
+      //
+      // Nadie lo escribe desde la app: si la coordinacion o un lider pudieran, el indice podria
+      // decir algo distinto de la inscripcion real. Se rehace con `reconstruirInscripcionPorGrado`.
+      // Coste del director: users + config/directores (2 documentos).
+      match /porGrado/{grado} {
+        allow read: if asisIsDirectorOf(grado)
+                 || asisCoordinaPrograma(programaId)
+                 || asisConsultaDelPrograma(programaId);
+        allow create, update, delete: if !esSuplantacion() && (false);
+      }
+
       // ---------- Los centros de interes concretos ----------
       //
       // Van como SUBCOLECCION y no sueltos por el mismo motivo que las sesiones de un evento:
