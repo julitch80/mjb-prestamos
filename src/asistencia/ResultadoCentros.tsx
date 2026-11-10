@@ -6,11 +6,19 @@ import { jornadaDeGrado } from './domain/ids';
 import { hojaResultadoCentros } from './domain/exports';
 import {
   consolidarGrupo,
+  motivoSinDigitar,
   nivelDe,
   PLAN_DE_APOYO,
   resumirConsolidado,
 } from './domain/valoracion';
+import { USUARIOS } from '../data/maestros';
 import type { NivelValoracion, Programa, Student, ValoracionEstudiante } from './domain/types';
+
+/** "ana.lara@..." -> su nombre corto en MJB, o lo de antes de la @ si no se encuentra. */
+function nombrePorCorreo(correo: string): string {
+  const u = USUARIOS.find((x) => x.correo?.toLowerCase() === correo.toLowerCase());
+  return u?.nombreCorto || u?.nombre || correo.split('@')[0];
+}
 
 const CLASE_NIVEL: Record<NivelValoracion, string> = {
   1: 'bg-warning-soft text-warning-soft-fg',
@@ -182,6 +190,14 @@ export default function ResultadoCentros({
               <th className="border-b border-line p-2 text-left text-xs font-semibold text-muted">
                 Indicadores
               </th>
+              {/* Solo en pantalla, para el director (2026-11-09): el Excel del Máster no
+                  lleva el centro ni el profesor. */}
+              <th className="border-b border-line p-2 text-left text-xs font-semibold text-muted">
+                Centro de interés
+              </th>
+              <th className="border-b border-line p-2 text-left text-xs font-semibold text-muted">
+                Observaciones
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -229,10 +245,30 @@ export default function ResultadoCentros({
                     {f.duplicadas.length > 1 && (
                       <span className="mt-0.5 block text-xs text-warning-soft-fg">
                         {f.duplicadas
-                          .map((d) => `${d.grupoId}: ${d.nivel} (${d.codigos.join(', ')})`)
+                          .map((d) => `${d.centro ?? d.grupoId}: ${d.nivel} (${d.codigos.join(', ')})`)
                           .join(' — ')}
                       </span>
                     )}
+                  </td>
+
+                  <td className="max-w-[14rem] border-b border-line p-1.5 text-xs">
+                    {v?.centro ? (
+                      <>
+                        <span className="block font-semibold text-strong">{v.centro}</span>
+                        {v.lider && <span className="block text-muted">{nombrePorCorreo(v.lider)}</span>}
+                      </>
+                    ) : (
+                      // Valoraciones anteriores al 2026-11-09 no guardaban el centro.
+                      <span className="text-muted">—</span>
+                    )}
+                  </td>
+
+                  <td className="max-w-[18rem] border-b border-line p-1.5 text-xs">
+                    {motivoSinDigitar(f) && (
+                      <span className="block font-semibold text-warning-soft-fg">{motivoSinDigitar(f)}</span>
+                    )}
+                    {v?.observacion && <span className="block text-soft">{v.observacion}</span>}
+                    {!motivoSinDigitar(f) && !v?.observacion && <span className="text-muted">—</span>}
                   </td>
                 </tr>
               );

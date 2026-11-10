@@ -874,6 +874,19 @@ export interface ValoracionEstudiante {
   codigos: number[];
   /** Los textos de esos mismos codigos, en el mismo orden. */
   indicadores: string[];
+  /**
+   * Copias del centro al momento de valorar (2026-11-09), para que el director vea de
+   * que centro y de que profesor viene cada valoracion: el NO puede leer los centros.
+   * Opcionales: las valoraciones anteriores a esta fecha no los traen.
+   */
+  centro?: string;
+  /** Correo del lider del centro. El nombre se resuelve en pantalla. */
+  lider?: string;
+  /**
+   * Observacion del lider. Va a la columna «Observaciones» de la planilla del Master
+   * (Julian, 2026-11-09: «el Master permite una columna de observaciones»).
+   */
+  observacion?: string | null;
   valoradoPor: string;
   valoradoEn: number;
   modificadoPor: string | null;

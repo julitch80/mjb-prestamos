@@ -6,6 +6,7 @@
  * colegio— se pueda probar sin generar un binario.
  */
 
+import { motivoSinDigitar } from './valoracion';
 import { totalDeColumna } from './direccion-grupo';
 import { findMark, MARKS, type MarkCode } from './marks';
 // Un solo sitio compone el nombre: ver la nota en `./nombres`.
@@ -272,6 +273,8 @@ export const COLUMNAS_PLANILLA_MASTER = [
  *    director tiene que buscar a cada uno.
  *  - Lo que no se digita lleva 0, que es como la planilla trae la casilla vacia. El motivo
  *    va en «Observaciones» (plan de apoyo, pendiente, dos centros), nunca en silencio.
+ *  - En los que SI se digitan, «Observaciones» lleva la observacion del lider (2026-11-09):
+ *    es la columna del Master.
  *  - El plan de apoyo va con Val 0: en el Master el 1 es «Bajo» (Yuri y Janneth,
  *    2026-10-26), asi que jamas sale como 1.
  *  - «Ord» es la posicion en NUESTRA lista. Si no coincide con la del Master, la que manda
@@ -289,18 +292,15 @@ export function hojaResultadoCentros(
     matricula?: string;
     sinCentro: boolean;
     duplicadas: { grupoId: string; nivel: number; codigos: number[] }[];
-    valoracion: { nivel: number; codigos: number[] } | null;
+    valoracion: { nivel: number; codigos: number[]; observacion?: string | null } | null;
   }[],
 ): Hoja {
   const cuerpo = filas.map((f, i) => {
     const digitable = !!f.valoracion && f.valoracion.nivel !== 1 && f.duplicadas.length < 2;
     const codigos = digitable ? f.valoracion!.codigos : [];
-    const observacion =
-      f.duplicadas.length > 1 ? 'REVISAR: valorado en dos centros'
-      : f.valoracion?.nivel === 1 ? 'PLAN DE APOYO: no se digita'
-      : f.sinCentro ? 'SIN CENTRO DE INTERÉS'
-      : !f.valoracion ? 'PENDIENTE: su líder no ha valorado'
-      : '';
+    // «Observaciones» es la columna del Master: en los que SE DIGITAN lleva la observacion
+    // del lider (2026-11-09). En los que no se digitan, el motivo, que no va al Master.
+    const observacion = digitable ? (f.valoracion!.observacion ?? '') : motivoSinDigitar(f);
     return [
       '',
       f.matricula ?? '',
@@ -324,6 +324,7 @@ export function hojaResultadoCentros(
       'Los indicadores van en COD1 a COD3; los demás quedan en 0.',
       'Si el «Ord» no coincide con el del Máster, guíese por la Matrícula.',
       'F y FJ van vacías: las faltas del centro las tiene el líder, no esta planilla.',
+      'Observaciones: la del líder del centro, para digitar en el Máster. En los que no se digitan, el motivo.',
     ],
   };
 }

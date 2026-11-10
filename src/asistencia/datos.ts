@@ -3246,6 +3246,9 @@ export async function guardarValoracion(
       codigos: base.codigos,
       indicadores: base.indicadores,
       grado: base.grado,
+      observacion: base.observacion ?? null,
+      ...(base.centro ? { centro: base.centro } : {}),
+      ...(base.lider ? { lider: base.lider } : {}),
       // La autoria original no se toca: documenta quien valoro y cuando.
       modificadoPor: autor,
       modificadoEn: serverTimestamp(),

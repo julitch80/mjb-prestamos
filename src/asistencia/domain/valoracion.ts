@@ -204,8 +204,13 @@ export function nuevaValoracion(input: {
   sede: string;
   nivel: NivelValoracion;
   config: ConfigValoracion | null;
+  /** Nombre y lider del centro, copiados para el director (2026-11-09). */
+  centro?: string;
+  lider?: string;
+  observacion?: string | null;
 }): Omit<ValoracionEstudiante, 'valoradoPor' | 'valoradoEn' | 'modificadoPor' | 'modificadoEn'> {
   const codigos = codigosDelNivel(input.config, input.nivel);
+  const observacion = limpiarObservacion(input.observacion);
   return {
     valoracionId: valoracionId(input.programaId, input.grupoId, input.studentId),
     programaId: input.programaId,
@@ -216,7 +221,39 @@ export function nuevaValoracion(input: {
     nivel: input.nivel,
     codigos: codigos.map((c) => c.codigo),
     indicadores: codigos.map((c) => c.texto.trim()),
+    ...(input.centro ? { centro: input.centro } : {}),
+    ...(input.lider ? { lider: input.lider.toLowerCase() } : {}),
+    observacion,
   };
+}
+
+/**
+ * Largo maximo de la observacion. El Master no nos dijo su limite; 250 caracteres caben
+ * en cualquier casilla razonable y obligan a ser concreto. Si el Master corta antes, se
+ * baja aqui.
+ */
+export const MAX_OBSERVACION = 250;
+
+/** Una sola linea, sin espacios de sobra, cortada al maximo. Vacia = null. */
+export function limpiarObservacion(texto: string | null | undefined): string | null {
+  const limpio = (texto ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_OBSERVACION);
+  return limpio || null;
+}
+
+/**
+ * Por que un estudiante NO se digita, en palabras para el director. Vacio si se digita.
+ * Lo usan la pantalla del director y el Excel, para que digan exactamente lo mismo.
+ */
+export function motivoSinDigitar(f: {
+  sinCentro: boolean;
+  duplicadas: unknown[];
+  valoracion: { nivel: number } | null;
+}): string {
+  if (f.duplicadas.length > 1) return 'REVISAR: valorado en dos centros';
+  if (f.valoracion?.nivel === PLAN_DE_APOYO) return 'PLAN DE APOYO: no se digita';
+  if (f.sinCentro) return 'SIN CENTRO DE INTERÉS';
+  if (!f.valoracion) return 'PENDIENTE: su líder no ha valorado';
+  return '';
 }
 
 // ---------------------------------------------------------------------------

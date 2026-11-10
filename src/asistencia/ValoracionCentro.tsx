@@ -24,6 +24,7 @@ import {
   nivelesSinConfigurar,
   NIVELES,
   nuevaValoracion,
+  MAX_OBSERVACION,
   porNivelDesdeIndicadores,
   puedeValorar,
 } from './domain/valoracion';
@@ -152,7 +153,7 @@ export default function ValoracionCentro({
   const puedeEscribir = puedeRegistrar && permiso.puede;
   const yoAutorizo = Boolean(miCorreo && autorizan.includes(miCorreo.toLowerCase()));
 
-  async function poner(estudiante: Student, nivel: NivelValoracion) {
+  async function poner(estudiante: Student, nivel: NivelValoracion, observacion: string) {
     setEligiendo(null);
     setError(null);
     try {
@@ -164,6 +165,9 @@ export default function ValoracionCentro({
         sede: programa.sede,
         nivel,
         config,
+        centro: grupo.nombre,
+        lider: grupo.lider,
+        observacion,
       });
       await guardarValoracion(base, porEstudiante.get(estudiante.studentId) ?? null);
       await cargar();
@@ -308,6 +312,7 @@ export default function ValoracionCentro({
                     {nombresDePila(e.apellidos, e.nombres)} · {e.gradoActual}
                   </span>
                   <FaltasDe f={faltas.get(e.studentId)} sesiones={sesiones.length} />
+                  {v?.observacion && <span className="block truncate italic text-muted">«{v.observacion}»</span>}
                 </span>
               </button>
 
@@ -355,8 +360,9 @@ export default function ValoracionCentro({
         <SelectorNivel
           estudiante={eligiendo}
           actual={porEstudiante.get(eligiendo.studentId)?.nivel ?? null}
+          observacion={porEstudiante.get(eligiendo.studentId)?.observacion ?? ''}
           config={config}
-          onElegir={(n) => void poner(eligiendo, n)}
+          onElegir={(n, obs) => void poner(eligiendo, n, obs)}
           onCerrar={() => setEligiendo(null)}
         />
       )}
@@ -448,16 +454,20 @@ function Hoja({ titulo, children }: { titulo: string; children: React.ReactNode 
 function SelectorNivel({
   estudiante,
   actual,
+  observacion,
   config,
   onElegir,
   onCerrar,
 }: {
   estudiante: Student;
   actual: NivelValoracion | null;
+  /** La que ya tenia, para corregirla sin reescribirla. */
+  observacion: string;
   config: ConfigValoracion | null;
-  onElegir: (nivel: NivelValoracion) => void;
+  onElegir: (nivel: NivelValoracion, observacion: string) => void;
   onCerrar: () => void;
 }) {
+  const [obs, setObs] = useState(observacion);
   return (
     <div
       className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
@@ -475,13 +485,28 @@ function SelectorNivel({
           </span>
         </div>
 
-        <div className="mt-3 space-y-2">
+        {/* La observacion va ANTES de los niveles: tocar el nivel es lo que guarda. Va a la
+            columna «Observaciones» de la planilla del Máster (2026-11-09). */}
+        <label className="mt-3 block text-xs text-muted">
+          Observación para el Máster (opcional)
+          <textarea
+            value={obs}
+            onChange={(ev) => setObs(ev.target.value.slice(0, MAX_OBSERVACION))}
+            rows={2}
+            placeholder="Ej.: Se destacó en el trabajo con Micro:bit."
+            className="mt-0.5 block w-full rounded-lg border border-line bg-elevated p-2 text-sm text-strong"
+          />
+          <span className="block text-right">{obs.length}/{MAX_OBSERVACION}</span>
+        </label>
+        <p className="text-xs text-muted">Toque el nivel para guardar.</p>
+
+        <div className="mt-2 space-y-2">
           {NIVELES.map((n) => {
             const codigos = codigosDelNivel(config, n.nivel);
             return (
               <button
                 key={n.nivel}
-                onClick={() => onElegir(n.nivel)}
+                onClick={() => onElegir(n.nivel, obs)}
                 className={[
                   'flex w-full items-start gap-2 rounded-lg border p-2 text-left',
                   actual === n.nivel ? 'border-line-strong' : 'border-line',
