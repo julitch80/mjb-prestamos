@@ -1043,16 +1043,16 @@ function FormularioPrograma({
         estar agregado en cada uno. Usted queda siempre dentro de la lista.
       </p>
       {/*
-        Aviso deliberado. La coordinación del programa SÍ puede leer las planillas de sus
-        centros, y eso es correcto para quien lo administra. Pero el superusuario es una
-        cuenta de administración con clave transferible: en el resto del módulo no lee
-        ninguna planilla, a propósito. Si crea el programa y se queda dentro, se abre una
-        excepción a esa regla sin que nadie lo haya decidido.
+        DECISION DE JULIAN (2026-11-09): el superusuario puede quedarse PERMANENTE en la
+        coordinacion para inscribir y retirar estudiantes, sabiendo que asi tambien lee las
+        planillas de los centros. Antes este aviso le pedia quitar su correo al terminar la
+        carga. Lo que queda es informar: esa cuenta tiene clave compartida, y lo que se haga
+        desde ella no queda a nombre de una persona.
       */}
-      <p className="mt-1 text-xs text-warning-soft-fg">
-        Si está creando esto desde la cuenta de administración: cuando termine de cargar
-        las listas, edite el programa y quite su correo, dejando el de quien lidera. La
-        coordinación puede leer las planillas de sus centros, y esa cuenta no debería.
+      <p className="mt-1 text-xs text-muted">
+        La cuenta de administración puede quedarse en esta lista para inscribir o retirar
+        estudiantes. Tenga en cuenta que así también ve las planillas de los centros, y que
+        lo que se haga desde ella no queda a nombre de una persona.
       </p>
 
       <label className="mt-3 flex items-start gap-2 text-sm text-strong">
