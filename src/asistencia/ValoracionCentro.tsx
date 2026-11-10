@@ -28,6 +28,8 @@ import {
   puedeValorar,
 } from './domain/valoracion';
 import { INDICADORES_CI } from './domain/indicadores-ci';
+import { buscarIndicadores, temasDeBusqueda } from './domain/buscar-indicadores';
+import { TEMAS } from './domain/temas-ci';
 import type {
   ConfigValoracion,
   EstadoValoracion,
@@ -544,13 +546,34 @@ function EditorIndicadores({
     (c) => !INDICADORES_CI.some((i) => i.codigo === c.codigo),
   );
 
-  const q = buscar.trim().toLocaleLowerCase('es');
-  const visibles = q
-    ? INDICADORES_CI.filter(
-        (i) => String(i.codigo).includes(q) || i.texto.toLocaleLowerCase('es').includes(q),
-      )
-    : INDICADORES_CI;
+  // Busqueda por TEMA, no por la palabra literal (2026-11-09): «inteligencia artificial»
+  // encuentra los de tecnologia aunque ninguno diga esas palabras. Ver buscar-indicadores.ts.
+  const resultados = useMemo(() => buscarIndicadores(buscar), [buscar]);
+  const directos = resultados.filter((r) => r.tipo === 'directo').map((r) => r.indicador);
+  const cercanos = resultados.filter((r) => r.tipo === 'cercano').map((r) => r.indicador);
+  const temas = buscar.trim() ? temasDeBusqueda(buscar) : [];
   const lleno = elegidos.length >= MAX_CODIGOS;
+
+  const fila = (i: (typeof INDICADORES_CI)[number]) => {
+    const marcado = elegidos.includes(i.codigo);
+    return (
+      <li key={i.codigo}>
+        <button
+          onClick={() => alternar(i.codigo)}
+          disabled={!marcado && lleno}
+          aria-pressed={marcado}
+          className={[
+            'flex min-h-[44px] w-full items-start gap-2 rounded-lg border p-2 text-left text-xs disabled:opacity-50',
+            marcado ? 'border-accent bg-accent-soft' : 'border-line',
+          ].join(' ')}
+        >
+          <b className="w-8 shrink-0 text-strong">{i.codigo}</b>
+          <span className="min-w-0 grow text-soft">{i.texto}</span>
+          {i.periodo && <span className="shrink-0 text-muted">P{i.periodo}</span>}
+        </button>
+      </li>
+    );
+  };
 
   function alternar(codigo: number) {
     setElegidos((e) =>
@@ -604,33 +627,28 @@ function EditorIndicadores({
         <input
           value={buscar}
           onChange={(ev) => setBuscar(ev.target.value)}
-          placeholder="Buscar por número o palabra (ajedrez, danza, huerta…)"
-          aria-label="Buscar indicador"
+          placeholder="Busque por tema: inteligencia artificial, baile, huerta, liderazgo…"
+          aria-label="Buscar indicador por tema, palabra o número"
           className="mt-3 w-full rounded-lg border border-line bg-elevated p-2 text-sm text-strong"
         />
+        {/* Que se vea por qué salen esos: el tema que entendió la búsqueda. */}
+        {temas.length > 0 && (
+          <p className="mt-1 text-xs text-muted">
+            Tema: {temas.map((t) => TEMAS[t].nombre).join(' · ')}
+          </p>
+        )}
 
         <ul className="mt-2 min-h-0 grow space-y-1 overflow-y-auto">
-          {visibles.map((i) => {
-            const marcado = elegidos.includes(i.codigo);
-            return (
-              <li key={i.codigo}>
-                <button
-                  onClick={() => alternar(i.codigo)}
-                  disabled={!marcado && lleno}
-                  aria-pressed={marcado}
-                  className={[
-                    'flex min-h-[44px] w-full items-start gap-2 rounded-lg border p-2 text-left text-xs disabled:opacity-50',
-                    marcado ? 'border-accent bg-accent-soft' : 'border-line',
-                  ].join(' ')}
-                >
-                  <b className="w-8 shrink-0 text-strong">{i.codigo}</b>
-                  <span className="min-w-0 grow text-soft">{i.texto}</span>
-                  {i.periodo && <span className="shrink-0 text-muted">P{i.periodo}</span>}
-                </button>
-              </li>
-            );
-          })}
-          {visibles.length === 0 && <li className="text-xs text-muted">Ningún indicador tiene esas palabras.</li>}
+          {directos.map(fila)}
+          {cercanos.length > 0 && (
+            <li className="pt-2 text-xs font-semibold text-muted">También podrían servir</li>
+          )}
+          {cercanos.map(fila)}
+          {resultados.length === 0 && (
+            <li className="text-xs text-muted">
+              No hay indicadores sobre eso. Pruebe con otra palabra o con el número.
+            </li>
+          )}
         </ul>
 
         <div className="mt-3 flex gap-2">
