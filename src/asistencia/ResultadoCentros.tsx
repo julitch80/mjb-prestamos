@@ -6,8 +6,8 @@ import { jornadaDeGrado } from './domain/ids';
 import { hojaResultadoCentros } from './domain/exports';
 import {
   consolidarGrupo,
-  motivoSinDigitar,
   nivelDe,
+  nombreDesdeIdCentro,
   PLAN_DE_APOYO,
   resumirConsolidado,
 } from './domain/valoracion';
@@ -245,30 +245,35 @@ export default function ResultadoCentros({
                     {f.duplicadas.length > 1 && (
                       <span className="mt-0.5 block text-xs text-warning-soft-fg">
                         {f.duplicadas
-                          .map((d) => `${d.centro ?? d.grupoId}: ${d.nivel} (${d.codigos.join(', ')})`)
+                          .map((d) => `${d.centro ?? nombreDesdeIdCentro(d.grupoId)}: ${d.nivel} (${d.codigos.join(', ')})`)
                           .join(' — ')}
                       </span>
                     )}
                   </td>
 
                   <td className="max-w-[14rem] border-b border-line p-1.5 text-xs">
-                    {v?.centro ? (
+                    {!v ? (
+                      <span className="text-muted">—</span>
+                    ) : (
                       <>
-                        <span className="block font-semibold text-strong">{v.centro}</span>
+                        {/* Las valoraciones anteriores al 2026-11-09 no guardaban el nombre: se
+                            deduce del id hasta que el líder abra su pestaña y lo complete. */}
+                        <span className="block font-semibold text-strong">
+                          {v.centro ?? nombreDesdeIdCentro(v.grupoId)}
+                        </span>
                         {v.lider && <span className="block text-muted">{nombrePorCorreo(v.lider)}</span>}
                       </>
-                    ) : (
-                      // Valoraciones anteriores al 2026-11-09 no guardaban el centro.
-                      <span className="text-muted">—</span>
                     )}
                   </td>
 
                   <td className="max-w-[18rem] border-b border-line p-1.5 text-xs">
-                    {motivoSinDigitar(f) && (
-                      <span className="block font-semibold text-warning-soft-fg">{motivoSinDigitar(f)}</span>
+                    {/* SOLO la del líder (Julián, 2026-11-09): los motivos del sistema ya se
+                        ven en «Valoración» e «Indicadores». */}
+                    {v?.observacion ? (
+                      <span className="block text-soft">{v.observacion}</span>
+                    ) : (
+                      <span className="text-muted">—</span>
                     )}
-                    {v?.observacion && <span className="block text-soft">{v.observacion}</span>}
-                    {!motivoSinDigitar(f) && !v?.observacion && <span className="text-muted">—</span>}
                   </td>
                 </tr>
               );

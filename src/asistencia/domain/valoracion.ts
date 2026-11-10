@@ -234,6 +234,18 @@ export function nuevaValoracion(input: {
  */
 export const MAX_OBSERVACION = 250;
 
+/**
+ * El nombre de un centro deducido de su id ('elite-digital-siglo-xxi' -> 'Elite digital
+ * siglo XXI'). Solo para valoraciones viejas que no guardaron el nombre: el director no
+ * puede leer el centro, y algo legible es mejor que una casilla vacia.
+ */
+export function nombreDesdeIdCentro(grupoId: string): string {
+  const palabras = grupoId.split(/[-_]+/).filter(Boolean)
+    .map((w) => (/^[ivxlc]+$/.test(w) ? w.toUpperCase() : w));
+  const texto = palabras.join(' ');
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
 /** Una sola linea, sin espacios de sobra, cortada al maximo. Vacia = null. */
 export function limpiarObservacion(texto: string | null | undefined): string | null {
   const limpio = (texto ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_OBSERVACION);

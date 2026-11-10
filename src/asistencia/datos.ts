@@ -3264,6 +3264,48 @@ export async function guardarValoracion(
   });
 }
 
+/**
+ * Solo la observacion del lider, sin tocar el nivel (2026-11-09): se escribe en la columna
+ * de la lista, no en la hoja del nivel. La regla de update de la valoracion exige el sello
+ * de quien corrige, asi que va con `modificadoPor`/`modificadoEn`.
+ */
+export async function guardarObservacionValoracion(
+  valoracionId: string,
+  observacion: string | null,
+): Promise<void> {
+  const autor = await exigirAutor();
+  await updateDoc(doc(baseDatos(), 'asistenciaValoraciones', valoracionId), {
+    observacion,
+    modificadoPor: autor,
+    modificadoEn: serverTimestamp(),
+  });
+}
+
+/**
+ * Completa centro y lider en valoraciones guardadas antes del 2026-11-09, que no los
+ * traian, para que el director vea de que centro viene cada una. Lo hace el lider al
+ * abrir su pestaña de valoracion; si el centro ya se entrego la regla lo rechaza y la
+ * pantalla del director se queda con el nombre deducido del id del centro.
+ */
+export async function completarCentroDeValoraciones(
+  valoracionIds: string[],
+  centro: string,
+  lider: string,
+): Promise<void> {
+  if (valoracionIds.length === 0) return;
+  const autor = await exigirAutor();
+  const lote = writeBatch(baseDatos());
+  for (const id of valoracionIds) {
+    lote.update(doc(baseDatos(), 'asistenciaValoraciones', id), {
+      centro,
+      lider: lider.toLowerCase(),
+      modificadoPor: autor,
+      modificadoEn: serverTimestamp(),
+    });
+  }
+  await lote.commit();
+}
+
 // ---------- Correos institucionales desde Workspace ----------
 //
 // Ver `domain/correos-workspace.ts`. Lo que llega aqui ya paso por el plan: solo

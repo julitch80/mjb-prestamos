@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Avatar from './Avatar';
 import Ayuda from './Ayuda';
 import {
+  completarCentroDeValoraciones,
   entregarValoracion,
   guardarConfigValoracion,
+  guardarObservacionValoracion,
   guardarValoracion,
   leerAutorizanCorreccion,
   leerConfigValoracion,
@@ -24,6 +26,7 @@ import {
   nivelesSinConfigurar,
   NIVELES,
   nuevaValoracion,
+  limpiarObservacion,
   MAX_OBSERVACION,
   porNivelDesdeIndicadores,
   puedeValorar,
@@ -127,12 +130,19 @@ export default function ValoracionCentro({
       setEstado(e);
       setValoraciones(v);
       setAutorizan(a);
+      // Las valoraciones de antes del 2026-11-09 no traen centro ni lider: se completan
+      // al abrir, en silencio, si el centro todavia admite cambios. Si falla no pasa nada:
+      // el director ve el nombre deducido del id.
+      const viejas = v.filter((x) => !x.centro || !x.lider).map((x) => x.valoracionId);
+      if (puedeRegistrar && viejas.length > 0 && puedeValorar(e, Date.now()).puede) {
+        void completarCentroDeValoraciones(viejas, grupo.nombre, grupo.lider).catch(() => undefined);
+      }
     } catch (err) {
       setError(`No fue posible cargar la valoración: ${(err as Error).message}`);
     } finally {
       setCargando(false);
     }
-  }, [programa.programaId, grupo.grupoId]);
+  }, [programa.programaId, grupo.grupoId, grupo.nombre, grupo.lider, puedeRegistrar]);
 
   useEffect(() => {
     void cargar();
@@ -299,7 +309,7 @@ export default function ValoracionCentro({
         {miembros.map((e) => {
           const v = porEstudiante.get(e.studentId);
           return (
-            <li key={e.studentId} className="flex items-center gap-2 p-2">
+            <li key={e.studentId} className="flex flex-wrap items-center gap-2 p-2 sm:flex-nowrap">
               <button aria-label={`Abrir la ficha de ${nombreCompleto(e)}`}
                 onClick={() => onAbrirFicha(e.studentId)}
                 title={`Abrir la ficha de ${nombreCompleto(e)}`}
@@ -312,7 +322,6 @@ export default function ValoracionCentro({
                     {nombresDePila(e.apellidos, e.nombres)} · {e.gradoActual}
                   </span>
                   <FaltasDe f={faltas.get(e.studentId)} sesiones={sesiones.length} />
-                  {v?.observacion && <span className="block truncate italic text-muted">«{v.observacion}»</span>}
                 </span>
               </button>
 
@@ -332,6 +341,19 @@ export default function ValoracionCentro({
                   'Sin valorar'
                 )}
               </button>
+
+              {/* COLUMNA DE OBSERVACIONES (2026-11-09): a la vista, junto al nivel, porque va
+                  a la casilla «Observaciones» del Máster. En el celular baja a su propia línea. */}
+              <CampoObservacion
+                key={`${e.studentId}-${v?.observacion ?? ''}`}
+                valor={v?.observacion ?? ''}
+                habilitado={puedeEscribir && !!v}
+                onGuardar={async (texto) => {
+                  if (!v) return;
+                  await guardarObservacionValoracion(v.valoracionId, limpiarObservacion(texto));
+                  await cargar();
+                }}
+              />
             </li>
           );
         })}
@@ -360,9 +382,8 @@ export default function ValoracionCentro({
         <SelectorNivel
           estudiante={eligiendo}
           actual={porEstudiante.get(eligiendo.studentId)?.nivel ?? null}
-          observacion={porEstudiante.get(eligiendo.studentId)?.observacion ?? ''}
           config={config}
-          onElegir={(n, obs) => void poner(eligiendo, n, obs)}
+          onElegir={(n) => void poner(eligiendo, n, porEstudiante.get(eligiendo.studentId)?.observacion ?? '')}
           onCerrar={() => setEligiendo(null)}
         />
       )}
@@ -439,6 +460,62 @@ export default function ValoracionCentro({
   );
 }
 
+/**
+ * La observacion de un estudiante, escrita en la misma lista (2026-11-09). Se guarda al
+ * salir del campo o con Enter, y solo si cambio. Deshabilitada mientras no tenga nivel:
+ * la observacion vive dentro de la valoracion, y sin nivel no hay valoracion.
+ */
+function CampoObservacion({
+  valor,
+  habilitado,
+  onGuardar,
+}: {
+  valor: string;
+  habilitado: boolean;
+  onGuardar: (texto: string) => Promise<void>;
+}) {
+  const [texto, setTexto] = useState(valor);
+  const [estado, setEstado] = useState<'quieto' | 'guardando' | 'guardado' | 'error'>('quieto');
+
+  async function guardar() {
+    if (texto.trim() === valor.trim()) return;
+    setEstado('guardando');
+    try {
+      await onGuardar(texto);
+      setEstado('guardado');
+    } catch {
+      setEstado('error');
+    }
+  }
+
+  return (
+    <label className="w-full sm:w-72 sm:shrink-0">
+      <span className="sr-only">Observación para el Máster</span>
+      <input
+        value={texto}
+        onChange={(ev) => {
+          setTexto(ev.target.value.slice(0, MAX_OBSERVACION));
+          setEstado('quieto');
+        }}
+        onBlur={() => void guardar()}
+        onKeyDown={(ev) => {
+          if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur();
+        }}
+        disabled={!habilitado}
+        placeholder={habilitado ? 'Observación (opcional)' : 'Valore primero para observar'}
+        className="min-h-[44px] w-full rounded-lg border border-line bg-elevated px-2 text-sm text-strong disabled:opacity-60"
+      />
+      {estado !== 'quieto' && (
+        <span
+          className={`block text-xs ${estado === 'error' ? 'text-danger-soft-fg' : 'text-muted'}`}
+        >
+          {estado === 'guardando' ? 'Guardando…' : estado === 'guardado' ? 'Guardada' : 'No se pudo guardar. Intente de nuevo.'}
+        </span>
+      )}
+    </label>
+  );
+}
+
 /** Hoja modal, mismo patrón que el resto del módulo. */
 function Hoja({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
@@ -454,20 +531,16 @@ function Hoja({ titulo, children }: { titulo: string; children: React.ReactNode 
 function SelectorNivel({
   estudiante,
   actual,
-  observacion,
   config,
   onElegir,
   onCerrar,
 }: {
   estudiante: Student;
   actual: NivelValoracion | null;
-  /** La que ya tenia, para corregirla sin reescribirla. */
-  observacion: string;
   config: ConfigValoracion | null;
-  onElegir: (nivel: NivelValoracion, observacion: string) => void;
+  onElegir: (nivel: NivelValoracion) => void;
   onCerrar: () => void;
 }) {
-  const [obs, setObs] = useState(observacion);
   return (
     <div
       className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4"
@@ -485,28 +558,14 @@ function SelectorNivel({
           </span>
         </div>
 
-        {/* La observacion va ANTES de los niveles: tocar el nivel es lo que guarda. Va a la
-            columna «Observaciones» de la planilla del Máster (2026-11-09). */}
-        <label className="mt-3 block text-xs text-muted">
-          Observación para el Máster (opcional)
-          <textarea
-            value={obs}
-            onChange={(ev) => setObs(ev.target.value.slice(0, MAX_OBSERVACION))}
-            rows={2}
-            placeholder="Ej.: Se destacó en el trabajo con Micro:bit."
-            className="mt-0.5 block w-full rounded-lg border border-line bg-elevated p-2 text-sm text-strong"
-          />
-          <span className="block text-right">{obs.length}/{MAX_OBSERVACION}</span>
-        </label>
-        <p className="text-xs text-muted">Toque el nivel para guardar.</p>
 
-        <div className="mt-2 space-y-2">
+        <div className="mt-3 space-y-2">
           {NIVELES.map((n) => {
             const codigos = codigosDelNivel(config, n.nivel);
             return (
               <button
                 key={n.nivel}
-                onClick={() => onElegir(n.nivel, obs)}
+                onClick={() => onElegir(n.nivel)}
                 className={[
                   'flex w-full items-start gap-2 rounded-lg border p-2 text-left',
                   actual === n.nivel ? 'border-line-strong' : 'border-line',
