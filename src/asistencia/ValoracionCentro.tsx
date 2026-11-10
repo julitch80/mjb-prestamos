@@ -15,19 +15,20 @@ import { correoAutorAsync } from './identidad';
 import { nombreCompleto, nombresDePila } from './domain/nombres';
 import {
   avanceDelCentro,
-  avisoDeCodigo,
+  codigoDeNivel,
   faltasEnCentro,
   codigosDelNivel,
+  indicadoresDeConfig,
   MAX_CODIGOS,
   nivelDe,
   nivelesSinConfigurar,
   NIVELES,
   nuevaValoracion,
+  porNivelDesdeIndicadores,
   puedeValorar,
-  validarCodigosDeNivel,
 } from './domain/valoracion';
+import { INDICADORES_CI } from './domain/indicadores-ci';
 import type {
-  CodigoIndicador,
   ConfigValoracion,
   EstadoValoracion,
   GrupoPrograma,
@@ -517,11 +518,11 @@ function SelectorNivel({
 }
 
 /**
- * Los indicadores de cada nivel.
+ * Escoger los indicadores del centro (Julian, 2026-11-09).
  *
- * Se escriben a mano mientras no exista el documento con los indicadores de los 21 centros.
- * Cuando ese documento llegue, la carga masiva escribe exactamente este mismo `porNivel` y
- * esta pantalla sigue sirviendo para revisarlo y corregirlo.
+ * Antes se escribian a mano, nivel por nivel. Ahora el lider escoge hasta tres del listado
+ * del Master, UNA vez, y la aplicacion pone el codigo de cada nivel: 6xx en Basico, 7xx en
+ * Alto, 8xx en Superior. El texto es el mismo en los tres.
  */
 function EditorIndicadores({
   config,
@@ -532,55 +533,113 @@ function EditorIndicadores({
   onGuardar: (porNivel: ConfigValoracion['porNivel']) => void;
   onCerrar: () => void;
 }) {
-  const [porNivel, setPorNivel] = useState<ConfigValoracion['porNivel']>(() => ({
-    '2': config?.porNivel?.['2'] ?? [],
-    '3': config?.porNivel?.['3'] ?? [],
-    '4': config?.porNivel?.['4'] ?? [],
-  }));
-  const [fallo, setFallo] = useState<string | null>(null);
+  const [elegidos, setElegidos] = useState<number[]>(() =>
+    indicadoresDeConfig(config)
+      .map((c) => c.codigo)
+      .filter((c) => INDICADORES_CI.some((i) => i.codigo === c)),
+  );
+  const [buscar, setBuscar] = useState('');
+  // Configurado a mano antes del catalogo con codigos que no estan en el listado.
+  const habiaAMano = (config?.porNivel?.['2'] ?? []).some(
+    (c) => !INDICADORES_CI.some((i) => i.codigo === c.codigo),
+  );
 
-  function cambiar(nivel: '2' | '3' | '4', lista: CodigoIndicador[]) {
-    setPorNivel((p) => ({ ...p, [nivel]: lista }));
-    setFallo(null);
+  const q = buscar.trim().toLocaleLowerCase('es');
+  const visibles = q
+    ? INDICADORES_CI.filter(
+        (i) => String(i.codigo).includes(q) || i.texto.toLocaleLowerCase('es').includes(q),
+      )
+    : INDICADORES_CI;
+  const lleno = elegidos.length >= MAX_CODIGOS;
+
+  function alternar(codigo: number) {
+    setElegidos((e) =>
+      e.includes(codigo) ? e.filter((c) => c !== codigo) : e.length >= MAX_CODIGOS ? e : [...e, codigo],
+    );
   }
 
   function guardar() {
-    for (const n of ['2', '3', '4'] as const) {
-      const problema = validarCodigosDeNivel(porNivel[n]);
-      if (problema) {
-        setFallo(`${nivelDe(Number(n) as NivelValoracion)?.label}: ${problema}`);
-        return;
-      }
-    }
-    onGuardar(porNivel);
+    const lista = elegidos
+      .map((c) => INDICADORES_CI.find((i) => i.codigo === c))
+      .filter((i): i is (typeof INDICADORES_CI)[number] => !!i)
+      .map((i) => ({ codigo: i.codigo, texto: i.texto }));
+    onGuardar(porNivelDesdeIndicadores(lista));
   }
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4">
-      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl">
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl">
         <p className="text-sm font-semibold text-strong">Indicadores de este centro</p>
         <p className="mt-0.5 text-xs text-muted">
-          Los códigos que le corresponden a su centro en el Máster, con su texto. Van de uno
-          a {MAX_CODIGOS} por nivel: son las columnas C1 a C{MAX_CODIGOS}.
+          Escoja de uno a {MAX_CODIGOS} del listado del Máster. El código de cada nivel se pone
+          solo: 6xx en Básico, 7xx en Alto y 8xx en Superior.
         </p>
+        {habiaAMano && (
+          <p className="mt-2 rounded-lg bg-warning-soft p-2 text-xs text-warning-soft-fg">
+            Antes había indicadores escritos a mano que no están en el listado. Escójalos de
+            nuevo aquí.
+          </p>
+        )}
 
-        {(['2', '3', '4'] as const).map((n) => (
-          <NivelEditor
-            key={n}
-            nivel={Number(n) as NivelValoracion}
-            codigos={porNivel[n]}
-            onCambiar={(lista) => cambiar(n, lista)}
-          />
-        ))}
+        {/* Lo escogido, con los tres códigos que va a llevar. */}
+        <div className="mt-2 space-y-1">
+          {elegidos.length === 0 && <p className="text-xs text-muted">Todavía no ha escogido ninguno.</p>}
+          {elegidos.map((c) => (
+            <div key={c} className="flex items-center gap-2 rounded-lg border border-line-strong p-1.5 text-xs">
+              <span className="shrink-0 font-semibold text-strong">
+                <span className={`rounded px-1 ${CLASE_NIVEL[2]}`}>{codigoDeNivel(c, 2)}</span>{' '}
+                <span className={`rounded px-1 ${CLASE_NIVEL[3]}`}>{codigoDeNivel(c, 3)}</span>{' '}
+                <span className={`rounded px-1 ${CLASE_NIVEL[4]}`}>{codigoDeNivel(c, 4)}</span>
+              </span>
+              <span className="min-w-0 grow truncate text-soft">
+                {INDICADORES_CI.find((i) => i.codigo === c)?.texto}
+              </span>
+              <button onClick={() => alternar(c)} className="min-h-[32px] shrink-0 px-1 text-muted underline">
+                quitar
+              </button>
+            </div>
+          ))}
+        </div>
 
-        {fallo && <p className="mt-2 text-xs text-danger-soft-fg">{fallo}</p>}
+        <input
+          value={buscar}
+          onChange={(ev) => setBuscar(ev.target.value)}
+          placeholder="Buscar por número o palabra (ajedrez, danza, huerta…)"
+          aria-label="Buscar indicador"
+          className="mt-3 w-full rounded-lg border border-line bg-elevated p-2 text-sm text-strong"
+        />
+
+        <ul className="mt-2 min-h-0 grow space-y-1 overflow-y-auto">
+          {visibles.map((i) => {
+            const marcado = elegidos.includes(i.codigo);
+            return (
+              <li key={i.codigo}>
+                <button
+                  onClick={() => alternar(i.codigo)}
+                  disabled={!marcado && lleno}
+                  aria-pressed={marcado}
+                  className={[
+                    'flex min-h-[44px] w-full items-start gap-2 rounded-lg border p-2 text-left text-xs disabled:opacity-50',
+                    marcado ? 'border-accent bg-accent-soft' : 'border-line',
+                  ].join(' ')}
+                >
+                  <b className="w-8 shrink-0 text-strong">{i.codigo}</b>
+                  <span className="min-w-0 grow text-soft">{i.texto}</span>
+                  {i.periodo && <span className="shrink-0 text-muted">P{i.periodo}</span>}
+                </button>
+              </li>
+            );
+          })}
+          {visibles.length === 0 && <li className="text-xs text-muted">Ningún indicador tiene esas palabras.</li>}
+        </ul>
 
         <div className="mt-3 flex gap-2">
           <button
             onClick={guardar}
-            className="min-h-[44px] flex-1 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-fg"
+            disabled={elegidos.length === 0}
+            className="min-h-[44px] flex-1 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-fg disabled:opacity-50"
           >
-            Guardar
+            Guardar {elegidos.length > 0 && `(${elegidos.length})`}
           </button>
           <button
             onClick={onCerrar}
@@ -590,78 +649,6 @@ function EditorIndicadores({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function NivelEditor({
-  nivel,
-  codigos,
-  onCambiar,
-}: {
-  nivel: NivelValoracion;
-  codigos: CodigoIndicador[];
-  onCambiar: (lista: CodigoIndicador[]) => void;
-}) {
-  const [numero, setNumero] = useState('');
-  const [texto, setTexto] = useState('');
-  const aviso = numero.trim() ? avisoDeCodigo(Number(numero)) : null;
-
-  return (
-    <div className="mt-3 rounded-lg border border-line p-2">
-      <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${CLASE_NIVEL[nivel]}`}>
-        {nivel} {nivelDe(nivel)?.label}
-      </span>
-
-      <ul className="mt-1.5 space-y-1">
-        {codigos.map((c) => (
-          <li key={c.codigo} className="flex items-start gap-2 text-xs">
-            <b className="shrink-0 text-strong">{c.codigo}</b>
-            <span className="min-w-0 grow text-soft">{c.texto}</span>
-            <button
-              onClick={() => onCambiar(codigos.filter((x) => x.codigo !== c.codigo))}
-              className="shrink-0 text-muted underline"
-            >
-              quitar
-            </button>
-          </li>
-        ))}
-        {codigos.length === 0 && (
-          <li className="text-xs text-muted">Todavía sin indicadores.</li>
-        )}
-      </ul>
-
-      {codigos.length < MAX_CODIGOS && (
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          <input
-            value={numero}
-            onChange={(ev) => setNumero(ev.target.value.replace(/\D/g, '').slice(0, 3))}
-            inputMode="numeric"
-            placeholder="610"
-            className="w-16 rounded-lg border border-line bg-elevated p-1.5 text-sm text-strong"
-          />
-          <input
-            value={texto}
-            onChange={(ev) => setTexto(ev.target.value)}
-            placeholder="Texto del indicador, como está en el Máster"
-            className="min-w-[10rem] grow rounded-lg border border-line bg-elevated p-1.5 text-sm text-strong"
-          />
-          <button
-            onClick={() => {
-              const n = Number(numero);
-              if (!numero.trim() || !texto.trim()) return;
-              onCambiar([...codigos, { codigo: n, texto: texto.trim() }]);
-              setNumero('');
-              setTexto('');
-            }}
-            className="min-h-[34px] rounded-lg border border-line px-3 text-sm text-strong"
-          >
-            Añadir
-          </button>
-        </div>
-      )}
-      {/* AVISA Y NO BLOQUEA: el rango no está confirmado (Julián, 2026-09-11). */}
-      {aviso && <p className="mt-1 text-xs text-warning-soft-fg">{aviso}</p>}
     </div>
   );
 }

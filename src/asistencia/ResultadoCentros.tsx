@@ -92,7 +92,10 @@ export default function ResultadoCentros({
   async function descargar() {
     setDescargando(true);
     try {
-      const hoja = hojaResultadoCentros(grado, filas);
+      const hoja = hojaResultadoCentros(
+        grado,
+        filas.map((f) => ({ ...f, matricula: porId.get(f.studentId)?.matricula })),
+      );
       const { default: ExcelJS } = await import('exceljs');
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet(hoja.nombre.slice(0, 31));
@@ -240,7 +243,7 @@ export default function ResultadoCentros({
 
       <p className="text-xs text-muted">
         La columna «Valoración» es el número que se digita en el Máster: 2 Básico, 3 Alto, 4
-        Superior. Los indicadores van en C1 a C4.
+        Superior. Los indicadores van en COD1 a COD3, como en la planilla del Máster.
       </p>
     </div>
   );

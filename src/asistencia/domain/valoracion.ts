@@ -88,11 +88,50 @@ export const MAX_CODIGOS = 3;
  */
 export const RANGO_INDICADORES = { desde: 601, hasta: 692 };
 
+/**
+ * EL CODIGO CAMBIA CON EL NIVEL (Julian, 2026-11-09): el listado del Master trae cada
+ * indicador con su codigo de Basico (6xx); para Alto se cambia el primer digito por 7 y
+ * para Superior por 8. 612 -> 612 / 712 / 812. El lider escoge el indicador UNA vez y la
+ * aplicacion pone el codigo que toca segun la valoracion; nadie lo escribe a mano.
+ */
+const CENTENA_DE_NIVEL: Partial<Record<NivelValoracion, number>> = { 2: 600, 3: 700, 4: 800 };
+
+/** El codigo que se digita para ese indicador en ese nivel. `null` en plan de apoyo. */
+export function codigoDeNivel(base: number, nivel: NivelValoracion): number | null {
+  const centena = CENTENA_DE_NIVEL[nivel];
+  return centena === undefined ? null : centena + (base % 100);
+}
+
+/**
+ * Los indicadores escogidos -> los codigos de cada nivel, con el MISMO texto en los tres.
+ *
+ * Se guarda en el `porNivel` de siempre, ya calculado, y no solo la lista de escogidos:
+ * asi las reglas del servidor, el director y las valoraciones ya hechas no cambian en nada.
+ */
+export function porNivelDesdeIndicadores(elegidos: CodigoIndicador[]): ConfigValoracion['porNivel'] {
+  const de = (nivel: NivelValoracion) =>
+    elegidos.map((c) => ({ codigo: codigoDeNivel(c.codigo, nivel)!, texto: c.texto }));
+  return { '2': de(2), '3': de(3), '4': de(4) };
+}
+
+/**
+ * Los indicadores que el lider tiene escogidos, leidos de vuelta de su configuracion: son
+ * los de Basico (6xx). Los que se escribieron a mano antes del catalogo y no son 6xx se
+ * descartan aqui, y la pantalla avisa para que los vuelva a escoger.
+ */
+export function indicadoresDeConfig(config: ConfigValoracion | null): CodigoIndicador[] {
+  return (config?.porNivel?.['2'] ?? []).filter(
+    (c) => c.codigo >= RANGO_INDICADORES.desde && c.codigo <= RANGO_INDICADORES.hasta,
+  );
+}
+
 /** Aviso —no error— si el codigo se sale de lo esperado. `null` si esta bien. */
 export function avisoDeCodigo(codigo: number): string | null {
   if (!Number.isInteger(codigo)) return 'El código debe ser un número entero.';
   if (codigo < 100 || codigo > 999) return 'Los indicadores del Máster son de tres dígitos.';
-  if (codigo < RANGO_INDICADORES.desde || codigo > RANGO_INDICADORES.hasta) {
+  // El mismo indicador en Alto (7xx) o Superior (8xx) tambien es legitimo.
+  const base = 600 + (codigo % 100);
+  if (codigo < 600 || codigo >= 900 || base < RANGO_INDICADORES.desde || base > RANGO_INDICADORES.hasta) {
     return `Fuera del rango habitual (${RANGO_INDICADORES.desde}–${RANGO_INDICADORES.hasta}). Verifíquelo en el Máster antes de seguir.`;
   }
   return null;
