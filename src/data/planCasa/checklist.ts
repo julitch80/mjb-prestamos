@@ -72,7 +72,7 @@ export function construirChequeo(d: DatosChequeo): ItemChequeo[] {
     const g = guiaDe(a.asignaturaId);
     const lider = !!g && minus(g.responsableCorreo) === yo;
     if (g && (g.propuesta || g.aprobada) && !lider) {
-      items.push({ id: `vb-${a.asignaturaId}`, seccion: `g-${g.id}`, texto: `${n}: visto bueno a la guía`, hecho: !!g.vistosBuenos?.[yo] || !!g.aprobada });
+      items.push({ id: `vb-${a.asignaturaId}`, seccion: `g-${g.id}`, texto: `${n}: acuerdo con la propuesta de guía`, hecho: !!g.vistosBuenos?.[yo] || !!g.aprobada });
     }
   }
 

@@ -403,7 +403,7 @@ function VistosBuenos({ g, asigs }: { g: GuiaPlan; asigs: AsignaturaPlan[] }) {
   if (g.docentesCorreos.length <= 1) return null;
   return (
     <div className="flex flex-wrap gap-1.5 items-center">
-      <span className="text-xs text-soft">Vistos buenos:</span>
+      <span className="text-xs text-soft">De acuerdo con la propuesta:</span>
       {g.docentesCorreos.map(c => <Marca key={c} ok={!!g.vistosBuenos?.[c]} etiqueta={nombreDocente(c, asigs)} />)}
     </div>
   );
@@ -666,7 +666,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
         </div>
       )}
       <CriteriosListos propias={propias} nombre={nombre} />
-      <VistosBuenos g={g} asigs={asigs} />
+      {!g.aprobada && <VistosBuenos g={g} asigs={asigs} />}
 
       {!cerrada && (!r.guia || editando) && (
         <div className="space-y-3">
@@ -759,7 +759,7 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
             <button onClick={aprobar} disabled={aprobando} className={CLASE_BOTON}><Check size={15} />{aprobando ? 'Aprobando…' : 'Aprobar y publicar'}</button>
             <BotonFormatoUAI plan={plan} guias={[{ ...g, propuesta: borrador }]} asigs={asigs} nombres={nombres} />
           </div>
-          <p className="text-[11px] text-muted">Nada llega al estudiante hasta que usted apruebe.{g.docentesCorreos.length > 1 ? ' Los vistos buenos de los demás docentes se muestran pero no bloquean.' : ''}</p>
+          <p className="text-[11px] text-muted">Nada llega al estudiante hasta que usted apruebe.{g.docentesCorreos.length > 1 ? ' El acuerdo de los demás docentes se muestra pero no bloquea.' : ''}</p>
         </div>
       )}
 
@@ -823,16 +823,18 @@ function GuiaParticipante({ plan, g, asigs, nombres, gestor }: { plan: PlanConDo
       </div>
       <BarraEstadoGuia g={g} edicion={edicion} />
       {!edicion.abierta && <PedirAutorizacion plan={plan} g={g} />}
-      <VistosBuenos g={g} asigs={asigs} />
+      {!g.aprobada && <VistosBuenos g={g} asigs={asigs} />}
       {guia ? (
         <>
           {!g.aprobada && <p className="text-xs text-soft">Propuesta aún sin aprobar.</p>}
           <GuiaLectura guia={guia} nombre={nombre} />
           {g.aprobada?.integrada && <PasosParticipante plan={plan} g={g} asigs={asigs} nombre={nombre} yo={yo} />}
           <div className="flex flex-wrap gap-2">
-            <button onClick={alternar} className={dado ? CLASE_BOTON_SEC : CLASE_BOTON}><Check size={15} />{dado ? 'Quitar mi visto bueno' : 'Dar mi visto bueno'}</button>
+            {/* El acuerdo solo tiene sentido mientras la guía se prepara; aprobada, ya no hay nada que aprobar. */}
+            {!g.aprobada && <button onClick={alternar} className={dado ? CLASE_BOTON_SEC : CLASE_BOTON}><Check size={15} />{dado ? 'Retirar mi acuerdo' : 'Estoy de acuerdo con la propuesta'}</button>}
             <BotonFormatoUAI plan={plan} guias={[g]} asigs={asigs} nombres={nombres} />
           </div>
+          {!g.aprobada && <p className="text-[11px] text-muted">Le avisa al responsable que usted revisó la guía. No la publica; eso lo hace el responsable.</p>}
         </>
       ) : <p className="text-sm text-soft">El responsable aún no ha preparado la guía.</p>}
       {error && <CajaError>{error}</CajaError>}
