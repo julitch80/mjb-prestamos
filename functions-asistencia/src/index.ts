@@ -37,6 +37,8 @@ import { censoDiaId, construirCensoDeSesion } from '../../src/asistencia/domain/
 import { confirmacionEliminarValida, rolPuedeEliminarSesion } from '../../src/asistencia/domain/columna';
 import type { DocType, Jornada, PlanillaAlerta, Sede, Session, Student } from '../../src/asistencia/domain/types';
 import { cambiosPorEscrituraDeCentro, construirIndicePorGrado, type CabeceraCentro } from '../../src/asistencia/domain/inscripcion-por-grado';
+import { traspasarCentrosInteres } from './reemplazo-centros';
+import { direccionDelTraspaso } from '../../src/asistencia/domain/reemplazo-centros';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import {
   avisoVencido,
@@ -987,6 +989,26 @@ export const reconstruirInscripcionPorGrado = onCall({ region: REGION, cors: tru
   await lote.commit();
   return { grados: indice.size, estudiantes: [...indice.values()].reduce((s, g) => s + Object.keys(g).length, 0) };
 });
+
+/**
+ * REEMPLAZO TEMPORAL -> CENTROS DE INTERES (Julian, 2026-11-13).
+ *
+ * El reemplazo lo maneja MJB (`reemplazoTemporal` y `finalizarReemplazosVencidos`, codebase
+ * default) y pasa el PUESTO; los centros guardan al lider por CORREO y no pasaban. En vez de
+ * tocar esas funciones, se escucha el documento del reemplazo:
+ *  - mientras esta ACTIVO (al iniciarlo, y en cada cambio, como extender la fecha): los
+ *    centros del titular pasan al reemplazante. Idempotente: si ya pasaron, no hace nada.
+ *  - cuando deja de estar activo (fin manual o vencido): vuelven al titular.
+ */
+export const onReemplazoTemporalEscrito = onDocumentWritten(
+  { region: REGION, document: 'reemplazosTemporales/{reemplazoId}' },
+  async (event) => {
+    const dir = direccionDelTraspaso(event.data?.before?.data() ?? null, event.data?.after?.data() ?? null);
+    if (!dir) return;
+    const r = await traspasarCentrosInteres(db, dir.de, dir.a);
+    if (r.centros > 0) console.log('reemplazo temporal -> centros de interes', event.params.reemplazoId, r.centros);
+  },
+);
 
 function archivador(coleccion: string) {
   return onDocumentUpdated(
