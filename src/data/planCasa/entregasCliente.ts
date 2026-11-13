@@ -42,7 +42,9 @@ export async function prepararArchivo(f: File): Promise<{ blob: Blob; nombre: st
     const c = document.createElement('canvas');
     c.width = Math.round(bmp.width * esc); c.height = Math.round(bmp.height * esc);
     c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close(); // libera la foto completa antes de comprimir: importa en celulares con poca memoria
     const blob = await new Promise<Blob | null>(r => c.toBlob(r, 'image/jpeg', 0.82));
+    c.width = 0; c.height = 0;
     if (!blob) throw new Error('sin blob');
     return { blob, nombre: f.name.replace(/\.[^.]*$/, '') + '.jpg', contentType: 'image/jpeg' };
   } catch {

@@ -511,6 +511,8 @@ const fechaHora = (ms: number) => {
 type FaseEntrega = 'quieto' | 'elegido' | 'enviando' | 'ok';
 
 /** Botón «Entregar»: foto (cámara), audio o PDF; o un enlace para los videos. */
+const MARCA_CAMARA = 'mjb-agenda-camara';
+
 function Entregar({ p, token, soloLectura, onEntregado }: { p: Paso; token: string; soloLectura?: boolean; onEntregado?: (ms: number) => void }) {
   const [entregadoEn, setEntregadoEn] = useState<number | undefined>(p.entregadoEn);
   const [fase, setFase] = useState<FaseEntrega>('quieto');
@@ -524,6 +526,26 @@ function Entregar({ p, token, soloLectura, onEntregado }: { p: Paso; token: stri
 
   useEffect(() => { setEntregadoEn(p.entregadoEn); }, [p.entregadoEn]);
   useEffect(() => () => { if (vista) URL.revokeObjectURL(vista); }, [vista]);
+  // Celulares con poca memoria cierran la agenda al abrir la cámara y la recargan al volver:
+  // la foto se pierde. Se marca antes de abrir la cámara; si al montar la marca sigue, hubo recarga.
+  const [recargoCamara, setRecargoCamara] = useState(false);
+  useEffect(() => {
+    try {
+      const m = sessionStorage.getItem(MARCA_CAMARA);
+      if (!m) return;
+      const [id, t] = m.split('|');
+      if (id === p.id && Date.now() - Number(t) < 15 * 60_000) {
+        setRecargoCamara(true);
+        registrarRechazo(token, { name: 'camara.jpg', type: 'image/jpeg', size: 0 }, 'la agenda se recargó al abrir la cámara (memoria del celular)');
+      }
+      if (id === p.id) sessionStorage.removeItem(MARCA_CAMARA);
+    } catch { /* sin almacenamiento: no pasa nada */ }
+  }, [p.id, token]);
+  function abrirCamara() {
+    try { sessionStorage.setItem(MARCA_CAMARA, `${p.id}|${Date.now()}`); } catch { /* nada */ }
+    camara.current?.click();
+  }
+  function limpiarMarca() { try { sessionStorage.removeItem(MARCA_CAMARA); } catch { /* nada */ } }
 
   function reiniciar() {
     setArchivo(null); setVista(''); setError(''); setEnlace(''); setModoEnlace(false); setFase('quieto');
@@ -531,7 +553,7 @@ function Entregar({ p, token, soloLectura, onEntregado }: { p: Paso; token: stri
     if (camara.current) camara.current.value = '';
   }
   function elegir(f: File | undefined) {
-    setError('');
+    setError(''); limpiarMarca(); setRecargoCamara(false);
     if (!f) return;
     // Las fotos se reducen antes de enviar: aquí solo se aplica el tope a audios y PDF.
     const v = validarArchivo(f.name, f.type, f.type.startsWith('image/') ? Math.min(f.size, 1) : f.size);
@@ -585,12 +607,18 @@ function Entregar({ p, token, soloLectura, onEntregado }: { p: Paso; token: stri
       {/* `capture` abre la cámara directamente; el otro input deja elegir audio o PDF. */}
       <input ref={camara} type="file" accept="image/*" capture="environment" className="hidden"
         onChange={e => elegir(e.target.files?.[0])} aria-label="Tomar foto para entregar" />
+      {recargoCamara && fase !== 'elegido' && (
+        <div className="rounded-xl bg-warning-soft text-warning-soft-fg p-3 text-base">
+          <p className="font-semibold">Tu celular cerró la agenda al abrir la cámara</p>
+          <p className="mt-1">Le faltó memoria y la foto se perdió. Toma la foto con la cámara normal del celular, cierra las demás aplicaciones y luego toca <b>«{entregadoEn ? 'Enviar otra versión' : 'Entregar'}»</b> para elegirla de la galería.</p>
+        </div>
+      )}
       {fase !== 'elegido' && fase !== 'enviando' && !modoEnlace && (
         <div className="flex flex-wrap gap-2">
           <button onClick={() => input.current?.click()} className={`${boton} bg-accent/20 border border-accent/60 text-strong`}>
             <Upload size={18} /> {entregadoEn ? 'Enviar otra versión' : 'Entregar'}
           </button>
-          <button onClick={() => camara.current?.click()} className={`${boton} border border-accent/50 text-accent`}>
+          <button onClick={abrirCamara} className={`${boton} border border-accent/50 text-accent`}>
             <Camera size={18} /> Tomar foto
           </button>
           <button onClick={() => { setModoEnlace(true); setError(''); }} className={`${boton} border border-line text-soft`}>
