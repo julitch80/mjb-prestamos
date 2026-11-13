@@ -6,7 +6,8 @@
 // TRAMPA DEL 403: invoker 'public' en las callables; la autenticación real se comprueba dentro.
 
 import { initializeApp } from 'firebase-admin/app';
-import { FieldPath, getFirestore } from 'firebase-admin/firestore';
+import { FieldPath, Timestamp, getFirestore } from 'firebase-admin/firestore';
+import { getMessaging } from 'firebase-admin/messaging';
 import { getStorage } from 'firebase-admin/storage';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -14,6 +15,8 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import * as logger from 'firebase-functions/logger';
+import { clasificarConsulta, RESPONDIDA_POR_AUTO } from '../../src/data/planCasa/respuestaAutomatica';
+import { debeEnviarse, esHorarioSilencioBogota } from '../../src/data/notificacionesPushLogica';
 import Anthropic from '@anthropic-ai/sdk';
 import { ASIGNATURAS } from '../../src/data/asignacionAcademica';
 import { USUARIOS } from '../../src/data/maestros';
@@ -505,6 +508,39 @@ async function planDeToken(token: string): Promise<{ planId?: string; primerNomb
   };
 }
 
+/** Push a los superusuarios: SIN nombre del estudiante ni texto, solo el aviso y el tipo. */
+async function alertarSuperusuario(tipo: string): Promise<void> {
+  const titulo = 'Plan Académico Especial';
+  const cuerpo = `Nueva consulta del Plan Académico Especial para usted (${tipo === 'tecnica' ? 'técnica' : 'pedagógica'}).`;
+  const supers = await db.collection('users').where('role', '==', 'superusuario').get();
+  for (const u of supers.docs) {
+    const correo = u.id.toLowerCase();
+    try {
+      const pref = await db.collection('notifPreferencias').doc(correo).get();
+      if (!debeEnviarse('coordinador', (pref.exists ? pref.data() : null) as Record<string, boolean> | null)) continue;
+      const opciones = { tipo: 'coordinador', titulo, cuerpo, url: '/', tag: 'plancasa-consulta' };
+      if (esHorarioSilencioBogota(new Date())) {
+        await db.collection('pushPendientes').add({ correo, ...opciones, creadoEn: Timestamp.now() });
+        continue;
+      }
+      const items = await db.collection('notifDispositivos').doc(correo).collection('items').get();
+      const tokens = items.docs.map(x => ({ ref: x.ref, token: String(x.data().token) }));
+      if (!tokens.length) continue;
+      const resp = await getMessaging().sendEachForMulticast({
+        tokens: tokens.map(t => t.token),
+        data: { title: titulo, body: cuerpo, url: '/', tag: opciones.tag, tipo: opciones.tipo },
+        webpush: { headers: { Urgency: 'high', TTL: '86400' } },
+      });
+      await Promise.all(resp.responses.map(async (r, i) => {
+        const code = r.error?.code ?? '';
+        if (!r.success && (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-argument')) await tokens[i].ref.delete().catch(() => {});
+      }));
+    } catch (err) {
+      logger.warn('planCasa: fallo al avisar al superusuario', { mensaje: err instanceof Error ? err.message : String(err) });
+    }
+  }
+}
+
 export const planCasaEnviarConsulta = onCall(opciones, async (request): Promise<SalidaEnviarConsulta> => {
   const e = (request.data ?? {}) as Partial<EntradaEnviarConsulta>;
   if (!tokenValido(e.token)) throw new HttpsError('invalid-argument', 'Enlace inválido.');
@@ -520,8 +556,22 @@ export const planCasaEnviarConsulta = onCall(opciones, async (request): Promise<
   const doc: Omit<ConsultaPlan, 'id'> = {
     token: e.token, ...origen, tipo: v.tipo, texto: v.texto, contacto: v.contacto, creada: ahora, estado: 'pendiente',
   };
-  await db.collection(COL_CONSULTAS).add(doc);
-  logger.info('planCasaEnviarConsulta', { planId: origen.planId ?? null, tipo: v.tipo });
+  const ref = await db.collection(COL_CONSULTAS).add(doc);
+  // Respuesta automática (solo palabras clave) o alerta al superusuario. Nunca rompe el envío.
+  let automatica = false;
+  try {
+    const c = clasificarConsulta(v.tipo, v.texto);
+    if (c.auto) {
+      await ref.update({ respuesta: c.respuesta, estado: 'respondida', respondidaPor: RESPONDIDA_POR_AUTO, respondidaEn: Date.now(), temaAuto: c.tema });
+      automatica = true;
+    } else {
+      await ref.update({ paraSuperusuario: true, motivoAlerta: c.motivo });
+      await alertarSuperusuario(v.tipo);
+    }
+  } catch (err) {
+    logger.warn('planCasaEnviarConsulta: fallo de respuesta automática o alerta', { mensaje: err instanceof Error ? err.message : String(err) });
+  }
+  logger.info('planCasaEnviarConsulta', { planId: origen.planId ?? null, tipo: v.tipo, automatica });
   return { ok: true };
 });
 

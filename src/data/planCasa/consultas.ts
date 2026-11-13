@@ -33,6 +33,11 @@ export interface ConsultaPlan {
   respuesta?: string;
   respondidaPor?: string;
   respondidaEn?: number;
+  /** Tema de la respuesta automática (si respondidaPor === 'respuesta-automatica'). */
+  temaAuto?: string;
+  /** Pendiente que requiere al superusuario (no se pudo responder sola). */
+  paraSuperusuario?: boolean;
+  motivoAlerta?: string;
 }
 
 /** Lo que ve la familia de cada consulta suya (sin token ni datos internos). */

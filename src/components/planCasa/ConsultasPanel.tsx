@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { ETIQUETA_CONSULTA, type ConsultaPlan } from '../../data/planCasa/consultas';
+import { RESPONDIDA_POR_AUTO } from '../../data/planCasa/respuestaAutomatica';
 import { listarConsultas, responderConsulta } from '../../data/planCasa/consultasCliente';
 import { CLASE_BOTON, CLASE_INPUT, CajaError, Cargando } from './comun';
 
@@ -31,7 +32,10 @@ function Tarjeta({ c, onRespondida }: { c: ConsultaPlan; onRespondida: () => voi
   }
   const info = ETIQUETA_CONSULTA[c.tipo];
   return (
-    <div className="rounded-2xl border border-line bg-card/60 p-3 space-y-2">
+    <div className={cn('rounded-2xl border bg-card/60 p-3 space-y-2', c.paraSuperusuario && c.estado === 'pendiente' ? 'border-amber-500/70 ring-1 ring-amber-500/40' : 'border-line')}>
+      {c.paraSuperusuario && c.estado === 'pendiente' && (
+        <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">⚠️ Requiere su atención{c.motivoAlerta ? ` · ${c.motivoAlerta}` : ''}</p>
+      )}
       <p className="text-xs text-muted">
         {info.icono} {info.titulo} · {fecha(c.creada)}{c.primerNombre ? ` · ${c.primerNombre}` : ''}{c.grupo ? ` · ${c.grupo}` : ''}
       </p>
@@ -40,7 +44,11 @@ function Tarjeta({ c, onRespondida }: { c: ConsultaPlan; onRespondida: () => voi
       {c.estado === 'respondida' && !editando && (
         <div className="rounded-xl bg-success-soft text-success-soft-fg p-2 text-sm">
           <p className="whitespace-pre-wrap">{c.respuesta}</p>
-          <p className="text-xs mt-1">{c.respondidaPor} · {c.respondidaEn ? fecha(c.respondidaEn) : ''}</p>
+          <p className="text-xs mt-1">
+            {c.respondidaPor === RESPONDIDA_POR_AUTO
+              ? <span className="inline-block rounded-full border border-current px-2 py-0.5 font-semibold">Respondida automáticamente</span>
+              : c.respondidaPor} · {c.respondidaEn ? fecha(c.respondidaEn) : ''}
+          </p>
           <button onClick={() => setEditando(true)} className="text-xs underline mt-1">Editar respuesta</button>
         </div>
       )}
