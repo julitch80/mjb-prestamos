@@ -246,6 +246,31 @@ export function nombreDesdeIdCentro(grupoId: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
+/**
+ * F y FJ A MANO — COYUNTURAL (Julian, 2026-11-10): «las columnas F y FJ de la optativa son
+ * la inasistencia del centro de interes, pero como no se llamo a traves de la aplicacion no
+ * se puede colocar automaticamente; debe llenarla cada profesor. Esto deberia desaparecer a
+ * futuro».
+ *
+ * Por eso las casillas tienen FECHA DE VENCIMIENTO y no un interruptor que alguien tenga
+ * que acordarse de apagar: despues de esta fecha dejan de mostrarse. Lo ya escrito sigue
+ * saliendo en el Excel y en la pantalla del director. Para quitarlo del todo: borrar esta
+ * constante y seguir los errores de compilacion.
+ */
+export const FALTAS_A_MANO_HASTA = '2026-12-31';
+
+export function faltasAManoVigentes(hoy: string): boolean {
+  return hoy <= FALTAS_A_MANO_HASTA;
+}
+
+/** Un numero de faltas valido (entero de 0 a 200), o null si la casilla quedo vacia. */
+export function limpiarFaltas(texto: string): number | null {
+  const s = texto.trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isInteger(n) && n >= 0 && n <= 200 ? n : null;
+}
+
 /** Una sola linea, sin espacios de sobra, cortada al maximo. Vacia = null. */
 export function limpiarObservacion(texto: string | null | undefined): string | null {
   const limpio = (texto ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_OBSERVACION);

@@ -205,6 +205,9 @@ export default function ResultadoCentros({
               <th className="border-b border-line p-2 text-left text-xs font-semibold text-muted">
                 Centro de interés
               </th>
+              <th className="border-b border-line p-2 text-center text-xs font-semibold text-muted">
+                F / FJ
+              </th>
               <th className="border-b border-line p-2 text-left text-xs font-semibold text-muted">
                 Observaciones
               </th>
@@ -279,6 +282,13 @@ export default function ResultadoCentros({
                         </>
                       );
                     })()}
+                  </td>
+
+                  {/* F y FJ del centro, escritas a mano por el líder (coyuntural, 2026-11-10). */}
+                  <td className="border-b border-line p-1.5 text-center text-xs text-soft">
+                    {v && (v.faltas != null || v.faltasJustificadas != null)
+                      ? `${v.faltas ?? '—'} / ${v.faltasJustificadas ?? '—'}`
+                      : <span className="text-muted">—</span>}
                   </td>
 
                   <td className="max-w-[18rem] border-b border-line p-1.5 text-xs">

@@ -3282,6 +3282,21 @@ export async function guardarObservacionValoracion(
   });
 }
 
+/** F y FJ escritas a mano por el lider (coyuntural, 2026-11-10). Ver `FALTAS_A_MANO_HASTA`. */
+export async function guardarFaltasValoracion(
+  valoracionId: string,
+  faltas: number | null,
+  faltasJustificadas: number | null,
+): Promise<void> {
+  const autor = await exigirAutor();
+  await updateDoc(doc(baseDatos(), 'asistenciaValoraciones', valoracionId), {
+    faltas,
+    faltasJustificadas,
+    modificadoPor: autor,
+    modificadoEn: serverTimestamp(),
+  });
+}
+
 /**
  * Completa centro y lider en valoraciones guardadas antes del 2026-11-09, que no los
  * traian, para que el director vea de que centro viene cada una. Lo hace el lider al

@@ -5,6 +5,7 @@ import {
   completarCentroDeValoraciones,
   entregarValoracion,
   guardarConfigValoracion,
+  guardarFaltasValoracion,
   guardarObservacionValoracion,
   guardarValoracion,
   leerAutorizanCorreccion,
@@ -26,6 +27,8 @@ import {
   nivelesSinConfigurar,
   NIVELES,
   nuevaValoracion,
+  faltasAManoVigentes,
+  limpiarFaltas,
   limpiarObservacion,
   MAX_OBSERVACION,
   porNivelDesdeIndicadores,
@@ -57,7 +60,8 @@ function FaltasDe({ f, sesiones }: { f?: { sinExcusa: number; conExcusa: number 
   return (
     <span className={`block truncate ${sin > 0 ? 'font-semibold text-soft' : 'text-muted'}`}>
       {sin === 0 ? 'Sin faltas' : `${sin} ${sin === 1 ? 'falta' : 'faltas'}`} de {sesiones}
-      {con > 0 && ` · ${con} con excusa`}
+      {/* Las justificadas no cuentan para el plan de apoyo (Yuri, 2026-11-10). */}
+      {con > 0 && ` · ${con} con excusa (no cuentan)`}
     </span>
   );
 }
@@ -158,6 +162,7 @@ export default function ValoracionCentro({
     [miembros, valoraciones],
   );
   const faltas = useMemo(() => faltasEnCentro(sesiones), [sesiones]);
+  const faltasAMano = faltasAManoVigentes(new Date().toISOString().slice(0, 10));
   const faltanNiveles = nivelesSinConfigurar(config);
   const permiso = puedeValorar(estado, Date.now());
   const puedeEscribir = puedeRegistrar && permiso.puede;
@@ -344,6 +349,20 @@ export default function ValoracionCentro({
 
               {/* COLUMNA DE OBSERVACIONES (2026-11-09): a la vista, junto al nivel, porque va
                   a la casilla «Observaciones» del Máster. En el celular baja a su propia línea. */}
+              {/* F y FJ A MANO, coyuntural: desaparecen solas tras FALTAS_A_MANO_HASTA. */}
+              {faltasAMano && (
+                <CamposFaltas
+                  key={`${e.studentId}-${v?.faltas ?? ''}-${v?.faltasJustificadas ?? ''}`}
+                  faltas={v?.faltas ?? null}
+                  justificadas={v?.faltasJustificadas ?? null}
+                  habilitado={puedeEscribir && !!v}
+                  onGuardar={async (f, fj) => {
+                    if (!v) return;
+                    await guardarFaltasValoracion(v.valoracionId, f, fj);
+                    await cargar();
+                  }}
+                />
+              )}
               <CampoObservacion
                 key={`${e.studentId}-${v?.observacion ?? ''}`}
                 valor={v?.observacion ?? ''}
@@ -455,6 +474,70 @@ export default function ValoracionCentro({
             }
           }}
         />
+      )}
+    </div>
+  );
+}
+
+/**
+ * F y FJ a mano (coyuntural, 2026-11-10): las faltas del centro para las columnas F y FJ
+ * del Master, porque este semestre la asistencia no se tomo en la aplicacion. Se guardan
+ * al salir de cualquiera de las dos casillas. Vacia = no se sabe (no es 0).
+ */
+function CamposFaltas({
+  faltas,
+  justificadas,
+  habilitado,
+  onGuardar,
+}: {
+  faltas: number | null;
+  justificadas: number | null;
+  habilitado: boolean;
+  onGuardar: (faltas: number | null, justificadas: number | null) => Promise<void>;
+}) {
+  const [f, setF] = useState(faltas === null ? '' : String(faltas));
+  const [fj, setFj] = useState(justificadas === null ? '' : String(justificadas));
+  const [estado, setEstado] = useState<'quieto' | 'guardando' | 'guardado' | 'error'>('quieto');
+
+  async function guardar() {
+    const nf = limpiarFaltas(f);
+    const nfj = limpiarFaltas(fj);
+    if (nf === faltas && nfj === justificadas) return;
+    setEstado('guardando');
+    try {
+      await onGuardar(nf, nfj);
+      setEstado('guardado');
+    } catch {
+      setEstado('error');
+    }
+  }
+
+  const caja = (valor: string, cambiar: (s: string) => void, etiqueta: string, ayuda: string) => (
+    <label className="flex flex-col items-center text-xs text-muted" title={ayuda}>
+      {etiqueta}
+      <input
+        value={valor}
+        onChange={(ev) => {
+          cambiar(ev.target.value.replace(/\D/g, '').slice(0, 3));
+          setEstado('quieto');
+        }}
+        onBlur={() => void guardar()}
+        inputMode="numeric"
+        disabled={!habilitado}
+        aria-label={ayuda}
+        className="min-h-[44px] w-12 rounded-lg border border-line bg-elevated px-1 text-center text-sm text-strong disabled:opacity-60"
+      />
+    </label>
+  );
+
+  return (
+    <div className="flex shrink-0 items-end gap-1">
+      {caja(f, setF, 'F', 'Faltas sin excusa en el centro')}
+      {caja(fj, setFj, 'FJ', 'Faltas justificadas en el centro')}
+      {estado !== 'quieto' && (
+        <span className={`pb-3 text-xs ${estado === 'error' ? 'text-danger-soft-fg' : 'text-muted'}`}>
+          {estado === 'guardando' ? '…' : estado === 'guardado' ? '✓' : '✗'}
+        </span>
       )}
     </div>
   );

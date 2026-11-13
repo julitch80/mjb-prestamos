@@ -887,6 +887,13 @@ export interface ValoracionEstudiante {
    * (Julian, 2026-11-09: «el Master permite una columna de observaciones»).
    */
   observacion?: string | null;
+  /**
+   * F y FJ de la planilla del Master, escritas A MANO por el lider (2026-11-10). Coyuntural:
+   * este semestre la asistencia de los centros no se tomo en la aplicacion. Ver
+   * `FALTAS_A_MANO_HASTA` en domain/valoracion.ts.
+   */
+  faltas?: number | null;
+  faltasJustificadas?: number | null;
   valoradoPor: string;
   valoradoEn: number;
   modificadoPor: string | null;

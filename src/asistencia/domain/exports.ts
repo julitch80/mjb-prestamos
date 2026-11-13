@@ -279,9 +279,9 @@ export const COLUMNAS_PLANILLA_MASTER = [
  *    2026-10-26), asi que jamas sale como 1.
  *  - «Ord» es la posicion en NUESTRA lista. Si no coincide con la del Master, la que manda
  *    es la «Matricula»: por eso va, y la nota lo dice.
- *  - F y FJ van VACIAS. Son las faltas de la optativa, pero el director no puede leer las
- *    sesiones de los centros —las reglas no se lo permiten, y no debe—; poner 0 diria que
- *    no falto nadie. Las ve el lider al valorar.
+ *  - F y FJ: las que el lider escribio A MANO al valorar (2026-11-10; este semestre la
+ *    asistencia de los centros no se tomo en la aplicacion). Vacias si no las escribio:
+ *    poner 0 diria que no falto.
  */
 export function hojaResultadoCentros(
   grado: string,
@@ -292,7 +292,13 @@ export function hojaResultadoCentros(
     matricula?: string;
     sinCentro: boolean;
     duplicadas: { grupoId: string; nivel: number; codigos: number[] }[];
-    valoracion: { nivel: number; codigos: number[]; observacion?: string | null } | null;
+    valoracion: {
+      nivel: number;
+      codigos: number[];
+      observacion?: string | null;
+      faltas?: number | null;
+      faltasJustificadas?: number | null;
+    } | null;
   }[],
 ): Hoja {
   const cuerpo = filas.map((f, i) => {
@@ -308,8 +314,10 @@ export function hojaResultadoCentros(
       i + 1,
       digitable ? f.valoracion!.nivel : 0,
       ...Array.from({ length: 10 }, (_, k) => codigos[k] ?? 0),
-      '',
-      '',
+      // F y FJ: las que escribio el lider a mano (2026-11-10). Vacias si no las escribio:
+      // un 0 diria que no falto.
+      digitable ? (f.valoracion!.faltas ?? '') : '',
+      digitable ? (f.valoracion!.faltasJustificadas ?? '') : '',
       observacion,
     ];
   });
@@ -323,7 +331,7 @@ export function hojaResultadoCentros(
       'Plan de apoyo: Val 0 (en el Máster el 1 es «Bajo»). Cuando cumpla, su líder lo pasa a 2.',
       'Los indicadores van en COD1 a COD3; los demás quedan en 0.',
       'Si el «Ord» no coincide con el del Máster, guíese por la Matrícula.',
-      'F y FJ van vacías: las faltas del centro las tiene el líder, no esta planilla.',
+      'F y FJ: las que escribió el líder del centro. Vacías si no las escribió.',
       'Observaciones: la del líder del centro, para digitar en el Máster. En los que no se digitan, el motivo.',
     ],
   };
