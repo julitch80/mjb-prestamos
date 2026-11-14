@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BadgeBeta from './BadgeBeta';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertTriangle, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, Link2, Gift, Image as ImageIcon, ListChecks, LayoutGrid, List, Paperclip, HandCoins, Loader2, QrCode, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, CopyPlus, Link2, Gift, Image as ImageIcon, ListChecks, LayoutGrid, List, Paperclip, Pencil, HandCoins, Loader2, QrCode, RefreshCw, Settings2, Trash2, X } from 'lucide-react';
 import SelectorVista, { useVistaRecordada, type OpcionVista } from './SelectorVista';
 import AgendaGrupo from './AgendaGrupo';
 import ModalReplicarTarea from './ModalReplicarTarea';
@@ -11,7 +11,7 @@ import VincularClassroom from './VincularClassroom';
 import { subirAdjuntoTarea } from '../data/tareas/adjuntos';
 import { useAppStore } from '../data/store';
 import {
-  getDatosTareas, crearTarea, cancelarTarea, crearCesion,
+  getDatosTareas, crearTarea, editarTarea, cancelarTarea, crearCesion,
   crearSolicitudCesion, responderSolicitudCesion, guardarCupos, guardarAnclasGrupo,
   crearNotificacionesLote,
 } from '../data/api';
@@ -23,6 +23,7 @@ import {
   avisoEvaluaciones, esRecordatorio, iconoRecordatorio, validarEnlaces,
 } from '../data/tareas/recordatorios';
 import { esUrlSegura } from '../data/tareas/textoEnlaces';
+import { validarEdicion, fechaAsignacionEdicion } from '../data/tareas/edicion';
 import {
   estadoHistorial, tareasPropias, gruposDelHistorial, filtrarHistorial, agruparPorMes, precargaDesde,
   type EstadoHistorial,
@@ -676,6 +677,8 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
     setCompletando(null);
     setTitulo(''); setDescripcion(''); setAdjunto(null); setFechaEntrega(null); setMomentos(1);
   }
+  // Tarea publicada que se está editando (null = formulario de creación normal).
+  const [editando, setEditando] = useState<Tarea | null>(null);
   const [mostrarCesion, setMostrarCesion] = useState(false);
   const [mostrarSolicitud, setMostrarSolicitud] = useState(false);
   const [agendaAbierta, setAgendaAbierta] = useState(false);
@@ -689,25 +692,29 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
   const [editandoAnclas, setEditandoAnclas] = useState(false);
   const soyDirector = !!grupo && esDirectorDeGrupo(userId, grupo);
 
-  const asignaturaActiva = grupoInfo?.asignaturaIds.includes(asignaturaId)
+  const asignaturaActiva = editando
+    ? editando.asignaturaId
+    : grupoInfo?.asignaturaIds.includes(asignaturaId)
     ? asignaturaId
     : grupoInfo?.asignaturaIds[0] ?? '';
+  // Al editar, el plazo mínimo y la ventana se cuentan desde la asignación original.
+  const fechaAsig = editando ? fechaAsignacionEdicion(editando, hoy) as FechaISO : hoy;
 
   const contexto = useMemo(() => ({
     hoy,
-    tareas: tareas.filter(t => t.grupo === grupo),
+    tareas: tareas.filter(t => t.grupo === grupo && t.id !== editando?.id),
     cesiones: cesiones.filter(c => c.grupo === grupo),
     diasClase: userId ? diasDeClase(userId, grupo) : [],
     cuposOverride,
-  }), [hoy, tareas, cesiones, grupo, userId, cuposOverride]);
+  }), [hoy, tareas, cesiones, grupo, userId, cuposOverride, editando]);
 
   const nivel = grupo ? nivelDeGrupo(grupo) : 'basica';
   const config = CONFIG_NIVEL[nivel];
 
   // Ventana de asignación: depende de HOY y del horario, no de la fecha de entrega
   const ventanaOk = useMemo(
-    () => ventanaValida(hoy, contexto.diasClase),
-    [hoy, contexto.diasClase],
+    () => !!editando || ventanaValida(hoy, contexto.diasClase),
+    [hoy, contexto.diasClase, editando],
   );
 
   // Por que esta cerrada la ventana, en palabras del docente. Sin esto el
@@ -736,10 +743,10 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
 
   const tareaPrevia = useCallback((fecha: FechaISO): Tarea => ({
     id: '_previa', grupo, asignaturaId: asignaturaActiva, docenteId: userId ?? '',
-    titulo: titulo || '·', momentos: esRec ? 0 : momentos, fechaAsignacion: hoy, fechaEntrega: fecha, estado: 'activa',
+    titulo: titulo || '·', momentos: esRec ? 0 : momentos, fechaAsignacion: fechaAsig, fechaEntrega: fecha, estado: 'activa',
     ...(esRec ? { tipo: 'recordatorio' as const, tipoRecordatorio: tipoRec } : {}),
     enlaces: enlaces.filter(e => e.url.trim() || (e.nombre ?? '').trim()),
-  }), [grupo, asignaturaActiva, userId, titulo, momentos, hoy, esRec, tipoRec, enlaces]);
+  }), [grupo, asignaturaActiva, userId, titulo, momentos, fechaAsig, esRec, tipoRec, enlaces]);
 
   // Estado de un día para el calendario-semáforo
   type EstadoDia = 'ok' | 'parcial' | 'lleno' | 'off';
@@ -749,12 +756,12 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
       if (!grupo || !userId || fecha <= hoy || !esDiaHabil(fecha)) return 'off';
       return validarTarea(tareaPrevia(fecha), contexto).ok ? 'ok' : 'lleno';
     }
-    if (!grupo || !userId || !ventanaOk || fecha <= hoy || fecha < primeraEntregaPermitida(hoy) || !esDiaHabil(fecha)) return 'off';
+    if (!grupo || !userId || !ventanaOk || fecha <= hoy || fecha < primeraEntregaPermitida(fechaAsig) || !esDiaHabil(fecha)) return 'off';
     const r = validarTarea(tareaPrevia(fecha), contexto);
     if (r.ok) return 'ok';
     if (!r.ok && r.alternativas?.maxMomentosParaFecha) return 'parcial';
     return 'lleno';
-  }, [grupo, userId, ventanaOk, hoy, contexto, tareaPrevia, esRec]);
+  }, [grupo, userId, ventanaOk, hoy, fechaAsig, contexto, tareaPrevia, esRec]);
 
   // Mes visible en el calendario
   const [mesVisible, setMesVisible] = useState(() => {
@@ -790,8 +797,11 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
 
   const validacion = useMemo(() => {
     if (!grupo || !fechaEntrega || !userId) return null;
+    if (editando) {
+      return validarEdicion(editando, { ...tareaPrevia(fechaEntrega), id: editando.id, titulo }, contexto);
+    }
     return validarTarea(tareaPrevia(fechaEntrega), contexto);
-  }, [grupo, fechaEntrega, userId, contexto, tareaPrevia]);
+  }, [grupo, fechaEntrega, userId, contexto, tareaPrevia, editando, titulo]);
 
   // Aviso (no bloquea) cuando el grupo ya tiene 2 evaluaciones ese día.
   const avisoEval = useMemo(() => {
@@ -841,6 +851,35 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
 
   const puedeGuardar = !!(titulo.trim() && fechaEntrega && validacion?.ok && enlacesOk && !guardando);
 
+  function limpiarFormulario() {
+    setEditando(null);
+    setTitulo(''); setFechaEntrega(null); setMomentos(1);
+    setDescripcion(''); setAdjunto(null); setEnlaces([]);
+    setEvalConfirmando(null);
+  }
+
+  /** Carga una tarea publicada en el formulario para editarla (grupo, asignatura y tipo quedan fijos). */
+  function empezarEdicion(t: Tarea) {
+    setCompletando(null);
+    setEditando(t);
+    setModo(esRecordatorio(t) ? 'recordatorio' : 'tarea');
+    if (t.tipoRecordatorio) setTipoRec(t.tipoRecordatorio);
+    setGrupo(t.grupo);
+    setAsignaturaId(t.asignaturaId);
+    setTitulo(t.titulo);
+    setDescripcion(t.descripcion ?? '');
+    setMomentos(t.momentos >= 1 ? t.momentos : 1);
+    setAdjunto(t.adjuntoUrl ? { url: t.adjuntoUrl, nombre: t.adjuntoNombre ?? 'Archivo adjunto' } : null);
+    setEnlaces(t.enlaces ?? []);
+    setFechaEntrega(t.fechaEntrega);
+    const d = parseFecha(t.fechaEntrega);
+    setMesVisible({ year: d.getFullYear(), month: d.getMonth() });
+    setEvalConfirmando(null);
+    setAviso(null);
+    setVistaDoc('publicar');
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   async function guardar(confirmadoEval = false) {
     if (!puedeGuardar || !userId || !fechaEntrega) return;
     // Aviso de evaluaciones: confirmación dentro de la página (sin window.confirm).
@@ -849,6 +888,28 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
     setGuardando(true);
     setAviso(null);
     const enlacesLimpios = validarEnlaces(enlaces);
+    if (editando) {
+      const re = await editarTarea(editando.id, userId, {
+        titulo: titulo.trim(), momentos: esRec ? 0 : momentos, fechaEntrega,
+        descripcion: descripcion.trim() || undefined,
+        adjuntoUrl: adjunto?.url, adjuntoNombre: adjunto?.nombre,
+        ...(esRec ? { tipo: 'recordatorio' as const, tipoRecordatorio: tipoRec } : {}),
+        ...(enlacesLimpios.ok && enlacesLimpios.enlaces.length ? { enlaces: enlacesLimpios.enlaces } : {}),
+      });
+      setGuardando(false);
+      if (!re.ok) {
+        setAviso({ tipo: 'error', texto: re.error ?? 'No se pudieron guardar los cambios.' });
+        return;
+      }
+      // Aún no hay forma de actualizar Classroom desde aquí (no existe esa Cloud Function).
+      const enClassroom = !!enlacesCr[editando.id];
+      limpiarFormulario();
+      setAviso(enClassroom
+        ? { tipo: 'error', texto: 'La tarea quedó corregida en MJB; en Classroom sigue la versión anterior, corríjala allá.' }
+        : { tipo: 'ok', texto: 'Cambios guardados. La agenda del grupo ya se actualizó.' });
+      qc.invalidateQueries({ queryKey: ['datosTareas'] });
+      return;
+    }
     const r = await crearTarea({
       grupo, asignaturaId: asignaturaActiva, docenteId: userId,
       titulo: titulo.trim(), momentos: esRec ? 0 : momentos, fechaAsignacion: hoy, fechaEntrega,
@@ -902,8 +963,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
         ? { tipo: 'error', texto: `La tarea quedó en MJB, pero no se pudo publicar en Classroom: ${textoCr}` }
         : { tipo: 'ok', texto: completando ? textoPend.trim() : (esRec ? 'Recordatorio publicado. La agenda del grupo ya se actualizó.' : 'Tarea publicada. La agenda del grupo ya se actualizó.') + textoCr });
       setCompletando(null);
-      setTitulo(''); setFechaEntrega(null); setMomentos(1);
-      setDescripcion(''); setAdjunto(null); setEnlaces([]);
+      limpiarFormulario();
       qc.invalidateQueries({ queryKey: ['datosTareas'] });
     } else {
       setAviso({ tipo: 'error', texto: r.error ?? 'No se pudo guardar la tarea.' });
@@ -922,6 +982,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
     if (!userId) return;
     const r = await cancelarTarea(id, userId);
     if (!r.ok) return;
+    if (editando?.id === id) limpiarFormulario();
     qc.invalidateQueries({ queryKey: ['datosTareas'] });
     // Si la tarea estaba en Classroom, también se borra allá (sin cambios si nunca se publicó).
     if (!firebaseConfigurado || !functions) return;
@@ -1023,6 +1084,19 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
 
       {/* ── Formulario ─────────────────────────────────────── */}
       <section className="rounded-2xl border border-line bg-card p-4 space-y-4">
+        {editando && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-info-soft text-info-soft-fg px-3 py-2 text-xs">
+            <span className="font-semibold">
+              Editando {esRec ? 'el recordatorio' : 'la tarea'} de {editando.grupo} · {getAsignatura(editando.asignaturaId)?.nombre ?? editando.asignaturaId}. El grupo y la asignatura no se pueden cambiar.
+            </span>
+            {enlacesCr[editando.id] && (
+              <span>Está publicada en Classroom: allá habrá que corregirla a mano.</span>
+            )}
+            <button onClick={limpiarFormulario} className="ml-auto px-3 py-1 rounded-full border border-line text-soft hover:bg-elevated">
+              Cancelar edición
+            </button>
+          </div>
+        )}
         {completando && (
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-info-soft text-info-soft-fg px-3 py-2 text-xs">
             <span className="font-semibold">Completando tarea de Classroom: {completando.titulo}</span>
@@ -1069,7 +1143,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
         )}
         <div className="flex items-center gap-2">
           <ClipboardList size={18} className="text-soft" />
-          <h2 className="font-bold text-strong">{esRec ? 'Nuevo recordatorio' : 'Asignar tarea'}{esRec && <BadgeBeta />}</h2>
+          <h2 className="font-bold text-strong">{editando ? (esRec ? 'Editar recordatorio' : 'Editar tarea') : (esRec ? 'Nuevo recordatorio' : 'Asignar tarea')}{esRec && <BadgeBeta />}</h2>
           {grupo && (
             <div className="ml-auto flex gap-2">
               <VincularClassroom />
@@ -1092,11 +1166,13 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
         </div>
 
         {/* Nueva tarea | Nuevo recordatorio */}
+        {!editando && (
         <PestanasSubrayadas
           opciones={[{ id: 'tarea', label: 'Nueva tarea' }, { id: 'recordatorio', label: 'Nuevo recordatorio (beta)' }]}
           activa={modo}
           onCambio={m => { setModo(m); setFechaEntrega(null); setEvalConfirmando(null); }}
         />
+        )}
 
         <div className="flex flex-wrap gap-3">
           <div>
@@ -1106,9 +1182,11 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
                 <button
                   key={g.grupo}
                   onClick={() => { setGrupo(g.grupo); setFechaEntrega(null); }}
+                  disabled={!!editando && g.grupo !== grupo}
                   className={cn(
                     'px-3 py-1.5 rounded-full text-xs font-bold border transition-all',
-                    grupo === g.grupo ? 'bg-hover border-line-strong' : 'border-line text-muted hover:bg-elevated'
+                    grupo === g.grupo ? 'bg-hover border-line-strong' : 'border-line text-muted hover:bg-elevated',
+                    !!editando && g.grupo !== grupo && 'opacity-40 cursor-not-allowed'
                   )}
                   style={grupo === g.grupo ? { color: colorGrado(g.grupo) } : undefined}
                 >
@@ -1125,9 +1203,11 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
                   <button
                     key={id}
                     onClick={() => setAsignaturaId(id)}
+                    disabled={!!editando && id !== asignaturaActiva}
                     className={cn(
                       'px-3 py-1.5 rounded-full text-xs border transition-all',
-                      asignaturaActiva === id ? 'bg-hover text-strong border-line-strong' : 'border-line text-muted hover:bg-elevated'
+                      asignaturaActiva === id ? 'bg-hover text-strong border-line-strong' : 'border-line text-muted hover:bg-elevated',
+                      !!editando && id !== asignaturaActiva && 'opacity-40 cursor-not-allowed'
                     )}
                   >
                     {getAsignatura(id)?.nombre ?? id}
@@ -1199,7 +1279,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
             )}
           />
           <EnlacesTarea enlaces={enlaces} onCambiar={setEnlaces} sinBoton={!adjunto} />
-          {!esRec && hayVinculoCr && !completando && (
+          {!esRec && hayVinculoCr && !completando && !editando && (
             <label className="flex items-center gap-2 text-xs text-soft cursor-pointer">
               <input type="checkbox" checked={publicarCr} onChange={e => setPublicarCr(e.target.checked)} />
               Publicar también en Classroom{vinculoCr?.nombre ? ` (${vinculoCr.nombre})` : ''}
@@ -1312,7 +1392,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
                   key={fecha}
                   onClick={() => estado !== 'off' && setFechaEntrega(fecha)}
                   disabled={estado === 'off'}
-                  title={!esRec && fecha > hoy && fecha < primeraEntregaPermitida(hoy) && esDiaHabil(fecha) ? mensajePlazoMinimo(hoy) : undefined}
+                  title={!esRec && fecha > hoy && fecha < primeraEntregaPermitida(fechaAsig) && esDiaHabil(fecha) ? mensajePlazoMinimo(fechaAsig) : undefined}
                   className={cn(
                     'h-9 rounded-lg border text-sm font-bold transition-all',
                     activa ? 'border-line-strong ring-1 ring-[var(--color-line-strong)]' : 'border-transparent',
@@ -1393,7 +1473,7 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
                 : 'border-line text-muted opacity-50 cursor-not-allowed'
             )}
           >
-            {guardando ? <Loader2 size={14} className="animate-spin inline" /> : (esRec ? 'Publicar recordatorio' : 'Publicar tarea')}
+            {guardando ? <Loader2 size={14} className="animate-spin inline" /> : (editando ? 'Guardar cambios' : esRec ? 'Publicar recordatorio' : 'Publicar tarea')}
           </button>
           <button
             onClick={() => { setMostrarCesion(v => !v); setMostrarSolicitud(false); }}
@@ -1518,6 +1598,14 @@ function PanelDocente({ tareas, cesiones, solicitudes, cuposOverride, anclasPorG
               className="p-1.5 rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
             >
               <CopyPlus size={14} />
+            </button>
+            <button
+              onClick={() => empezarEdicion(t)}
+              title={esRecordatorio(t) ? 'Editar recordatorio' : 'Editar tarea'}
+              aria-label={esRecordatorio(t) ? 'Editar recordatorio' : 'Editar tarea'}
+              className="p-1.5 rounded-lg text-muted hover:text-strong hover:bg-elevated transition"
+            >
+              <Pencil size={14} />
             </button>
             {confirmandoId === t.id ? (
               <div role="alertdialog" aria-label="Confirmar cancelación" className="flex flex-col items-end gap-1.5 max-w-[14rem]">

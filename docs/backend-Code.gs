@@ -244,7 +244,7 @@ function slotDeCorreo_(correo) {
 const ACCIONES_ESCRITURA = [
   'guardarInformeContencion', 'guardarRemisionSeguro', 'guardarSeguimiento',
   'guardarAnclasGrupo', 'actualizarReserva', 'actualizarSugerencia',
-  'borrarSyncEditor', 'cancelarTarea', 'crearCesion', 'crearNotificacionesLote',
+  'borrarSyncEditor', 'cancelarTarea', 'editarTarea', 'crearCesion', 'crearNotificacionesLote',
   'crearReserva', 'crearSolicitudCesion', 'crearSugerencia', 'crearTarea',
   'enviarCorreo', 'enviarCorreoMasivo', 'guardarCupos', 'guardarSyncEditor',
   'marcarLeida', 'marcarTodasLeidas', 'publicarAviso',
@@ -257,7 +257,7 @@ function suplantaSlotAjeno_(accion, p) {
   const perfil = PERFIL_ACTUAL_;
   if (!perfil || !perfil.slotId || perfil.role !== 'docente') return false;
   var declarado = null;
-  if (accion === 'crearTarea' || accion === 'cancelarTarea') declarado = p.docenteId;
+  if (accion === 'crearTarea' || accion === 'cancelarTarea' || accion === 'editarTarea') declarado = p.docenteId;
   else if (accion === 'crearReserva') declarado = p.solicitante;
   if (!declarado) return false;
   return String(declarado) !== perfil.slotId;
@@ -288,7 +288,7 @@ const ACCIONES_PROTEGIDAS = [
   // sin identificarse. Todas exigen ahora idToken (ver el switch de abajo,
   // que ya les pasa `correoAutenticado` aunque varias no lo usen todavía).
   'actualizarReserva', 'actualizarSugerencia', 'borrarSyncEditor',
-  'cancelarTarea', 'crearCesion', 'crearNotificacionesLote', 'crearReserva',
+  'cancelarTarea', 'editarTarea', 'crearCesion', 'crearNotificacionesLote', 'crearReserva',
   'crearSolicitudCesion', 'crearSugerencia', 'crearTarea', 'enviarCorreo',
   'enviarCorreoMasivo', 'getNotificaciones', 'getReservas', 'getSugerencias',
   'getSyncEditor', 'guardarCupos', 'guardarSyncEditor', 'marcarLeida',
@@ -359,6 +359,7 @@ function manejar(e) {
       case 'getDatosTareas':     resultado = getDatosTareas(p);     break;
       case 'crearTarea':         resultado = crearTarea(p);         break;
       case 'cancelarTarea':      resultado = cancelarTarea(p);      break;
+      case 'editarTarea':        resultado = editarTarea(p);        break;
       case 'crearCesion':        resultado = crearCesion(p);        break;
       case 'crearSolicitudCesion':   resultado = crearSolicitudCesion(p);   break;
       case 'responderSolicitudCesion': resultado = responderSolicitudCesion(p); break;
@@ -1417,6 +1418,72 @@ function cancelarTarea(p) {
   actualizarFila(sheet, 'id', p.id, { estado: 'cancelada' });
   invalidarCacheTareas();
   return { ok: true };
+}
+
+// Edita una tarea o recordatorio ya publicado. NO cambian: grupo, asignatura, docente ni tipo.
+// El cupo por semana de ejecución lo valida el cliente (motor.ts), igual que en crearTarea:
+// aquí se repiten las reglas que crearTarea sí aplica en el servidor (enlaces, fecha y tipo de
+// recordatorio, máximo de recordatorios por día) excluyendo la propia tarea del conteo.
+function editarTarea(p) {
+  if (!p.id) return { ok: false, error: 'Falta el id de la tarea' };
+  const sheet = getSheet('Tareas', TAREAS_HEADERS);
+  asegurarEncabezados_(sheet, TAREAS_HEADERS);
+  const candado = LockService.getScriptLock();
+  try { candado.waitLock(10000); } catch (e) { return { ok: false, error: 'El sistema está ocupado, intenta de nuevo' }; }
+  try {
+    const tarea = hojaAObjetos(sheet).find(function(t) { return String(t.id) === String(p.id); });
+    if (!tarea) return { ok: false, error: 'Tarea no encontrada' };
+    if (String(tarea.estado) === 'cancelada') return { ok: false, error: 'Una tarea cancelada no se puede editar' };
+    // Mismo permiso que cancelarTarea: el docente dueño o un directivo.
+    if (p.esDirectivo !== '1' && (!p.docenteId || String(tarea.docenteId) !== String(p.docenteId))) {
+      return { ok: false, error: 'Solo el docente que asignó la tarea puede editarla' };
+    }
+    const esRec = String(tarea.tipo) === 'recordatorio';
+    const titulo = String(p.titulo || '').trim();
+    if (!titulo || !p.fechaEntrega) return { ok: false, error: 'Faltan datos de la tarea' };
+    const enlaces = validarEnlacesTarea_(p.enlaces);
+    if (!enlaces.ok) return { ok: false, error: enlaces.error };
+    const fechaNueva = String(p.fechaEntrega);
+    const cambioFecha = fechaNueva !== normalizarFecha(tarea.fechaEntrega);
+    const updates = {
+      titulo: titulo, descripcion: p.descripcion || '',
+      adjuntoUrl: p.adjuntoUrl || '', adjuntoNombre: p.adjuntoNombre || '',
+      enlaces: enlaces.json,
+    };
+    if (cambioFecha) updates.fechaEntrega = fechaNueva;
+    if (esRec) {
+      if (TIPOS_RECORDATORIO.indexOf(String(p.tipoRecordatorio)) === -1) {
+        return { ok: false, error: 'Elige el tipo de recordatorio' };
+      }
+      updates.tipoRecordatorio = String(p.tipoRecordatorio);
+      if (cambioFecha) {
+        const hoy = Utilities.formatDate(new Date(), 'America/Bogota', 'yyyy-MM-dd');
+        if (fechaNueva <= hoy) return { ok: false, error: 'La fecha del recordatorio debe ser posterior a hoy' };
+        const dow = Utilities.formatDate(new Date(fechaNueva + 'T12:00:00-05:00'), 'America/Bogota', 'u');
+        if (dow === '6' || dow === '7') return { ok: false, error: 'La fecha debe caer en un día hábil' };
+        const yaHay = hojaAObjetos(sheet).filter(function(t) {
+          return String(t.id) !== String(p.id) && String(t.tipo) === 'recordatorio' && String(t.estado) === 'activa' &&
+            String(t.grupo) === String(tarea.grupo) && normalizarFecha(t.fechaEntrega) === fechaNueva;
+        }).length;
+        if (yaHay >= MAX_RECORDATORIOS_POR_DIA) {
+          return { ok: false, error: 'Este grupo ya tiene ' + MAX_RECORDATORIOS_POR_DIA + ' recordatorios ese día' };
+        }
+      }
+    } else {
+      const momentos = Number(p.momentos);
+      if (!(momentos >= 1 && momentos <= 4)) return { ok: false, error: 'La tarea debe tener entre 1 y 4 momentos' };
+      updates.momentos = momentos;
+      if (cambioFecha) {
+        const hoy = Utilities.formatDate(new Date(), 'America/Bogota', 'yyyy-MM-dd');
+        if (fechaNueva <= hoy) return { ok: false, error: 'La fecha de entrega debe ser posterior a hoy' };
+      }
+    }
+    actualizarFila(sheet, 'id', p.id, updates);
+    invalidarCacheTareas();
+    return { ok: true, id: String(p.id) };
+  } finally {
+    try { candado.releaseLock(); } catch (e) {}
+  }
 }
 
 function crearCesion(p) {

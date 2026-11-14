@@ -404,6 +404,29 @@ export async function cancelarTarea(
   return callApi(await conIdToken({ action: 'cancelarTarea', id, docenteId, esDirectivo: esDirectivo ? '1' : '0' }));
 }
 
+/** Edita una tarea o recordatorio publicado. Grupo, asignatura, docente y tipo no cambian. */
+export async function editarTarea(
+  id: string,
+  docenteId: string,
+  t: Pick<Tarea, 'titulo' | 'momentos' | 'fechaEntrega' | 'descripcion' | 'adjuntoUrl' | 'adjuntoNombre' | 'tipo' | 'tipoRecordatorio' | 'enlaces'>,
+  esDirectivo = false,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  return callApi(await conIdToken({
+    action: 'editarTarea',
+    id,
+    docenteId,
+    esDirectivo: esDirectivo ? '1' : '0',
+    titulo: t.titulo,
+    momentos: String(t.tipo === 'recordatorio' ? 0 : t.momentos),
+    fechaEntrega: t.fechaEntrega,
+    descripcion: t.descripcion ?? '',
+    adjuntoUrl: t.adjuntoUrl ?? '',
+    adjuntoNombre: t.adjuntoNombre ?? '',
+    tipoRecordatorio: t.tipo === 'recordatorio' ? (t.tipoRecordatorio ?? '') : '',
+    enlaces: t.enlaces?.length ? JSON.stringify(t.enlaces) : '',
+  }));
+}
+
 export async function crearCesion(
   c: Omit<Cesion, 'id'>
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
