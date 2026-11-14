@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "MJB a Master 2000 - Centros de interes",
+  "version": "0.1.0",
+  "description": "Lleva las valoraciones de centros de interes exportadas de MJB a la hoja optativa de la planilla del Master 2000, con vista previa.",
+  "host_permissions": ["https://*.master2000.net/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://*.master2000.net/academicodocente/panel.php*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

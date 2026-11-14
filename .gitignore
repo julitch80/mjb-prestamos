@@ -36,3 +36,7 @@ functions-notificaciones/lib
 functions-simulacros/node_modules
 functions-simulacros/lib
 functions-plancasa/lib
+
+# Extension Master 2000: datos reales de estudiantes y artefacto de build
+extension-master2000/fixtures/
+extension-master2000/dist/
