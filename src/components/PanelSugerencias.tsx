@@ -324,6 +324,9 @@ function TarjetaSugerencia({
         />
         {autorConocido && (
           <button
+            // Evita que el clic quite el foco del campo: ese blur guardaba la nota, deshabilitaba
+            // el botón y el clic se perdía (había que pulsar dos veces). avisarAutor ya guarda la nota.
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => onAvisar(nota)}
             disabled={guardando || !nota.trim()}
             title={nota.trim() ? '' : 'Escribe primero la respuesta'}
