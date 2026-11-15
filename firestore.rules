@@ -686,6 +686,65 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    //  EVALUACION DE LOS CENTROS DE INTERES (encuesta anonima, sin login)
+    //
+    //  evaluacionCI/{auto}: CREATE publico (sin sesion) SOLO si la forma es exacta y
+    //  evaluacionCIConfig/estado.abierta == true. Sin update/delete. Lectura: roles
+    //  coordinador/rectora/superusuario y quien este en evaluacionCIConfig/lectores
+    //  (campo `correos`; lo escribe el superusuario: asi se autoriza a Yuri).
+    //  evaluacionCIConfig/estado: lectura publica (la pagina necesita saber si esta abierta),
+    //  escritura solo superusuario. lectores: lectura de usuarios activos, escritura superusuario.
+    // =========================================================================
+    function evalCiAbierta() {
+      return exists(/databases/$(database)/documents/evaluacionCIConfig/estado)
+        && get(/databases/$(database)/documents/evaluacionCIConfig/estado).data.get('abierta', false) == true;
+    }
+    function evalCiLector() {
+      return isActiveUser() && (callerDoc().role in ['coordinador', 'rectora', 'superusuario']
+        || (exists(/databases/$(database)/documents/evaluacionCIConfig/lectores)
+            && callerEmail() in get(/databases/$(database)/documents/evaluacionCIConfig/lectores).data.get('correos', [])));
+    }
+    function evalCiFormaValida(d) {
+      return d.keys().hasAll(['instrumento', 'grado', 'sede', 'respuestas', 'creado'])
+        && d.keys().hasOnly(['instrumento', 'grado', 'sede', 'respuestas', 'creado', 'comentario'])
+        && d.creado == request.time
+        && (d.sede == null || (d.sede is string && d.sede in ['principal', 'gustavo_rodas', 'alterna', 'no_sabe']))
+        && (!('comentario' in d.keys()) || (d.instrumento == 'A' && d.comentario is string && d.comentario.size() <= 100))
+        && d.respuestas is map
+        && (
+          (d.instrumento == 'A' && d.grado in ['preescolar', '1', '2']
+            && d.respuestas.keys().hasOnly(['p1', 'p2', 'p3', 'p4'])
+            && d.respuestas.keys().hasAll(['p1', 'p2', 'p3', 'p4'])
+            && d.respuestas.p1 in ['feliz', 'neutral', 'triste']
+            && d.respuestas.p2 in ['feliz', 'neutral', 'triste']
+            && d.respuestas.p3 in ['feliz', 'neutral', 'triste']
+            && d.respuestas.p4 in ['feliz', 'neutral', 'triste'])
+          ||
+          (d.instrumento == 'B' && d.grado in ['3', '4', '5', '6', '7', '8', '9', '10', '11']
+            && d.respuestas.keys().hasOnly(['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10'])
+            && d.respuestas.keys().hasAll(['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10'])
+            && d.respuestas.p1 in ['si', 'no'] && d.respuestas.p2 in ['si', 'no']
+            && d.respuestas.p3 in ['si', 'no'] && d.respuestas.p4 in ['si', 'no']
+            && d.respuestas.p5 in ['si', 'no'] && d.respuestas.p6 in ['si', 'no']
+            && d.respuestas.p7 in ['si', 'no'] && d.respuestas.p8 in ['si', 'no']
+            && d.respuestas.p9 in ['si', 'no'] && d.respuestas.p10 in ['si', 'no'])
+        );
+    }
+    match /evaluacionCI/{respId} {
+      allow create: if evalCiFormaValida(request.resource.data) && evalCiAbierta();
+      allow read: if evalCiLector();
+      allow update, delete: if false;
+    }
+    match /evaluacionCIConfig/estado {
+      allow read: if true;
+      allow write: if !esSuplantacion() && isSuper();
+    }
+    match /evaluacionCIConfig/lectores {
+      allow read: if isActiveUser();
+      allow write: if !esSuplantacion() && isSuper();
+    }
+
+    // =========================================================================
     //  BLOQUE DE REGLAS DEL MODULO DE ASISTENCIA
     //
     //  Integrado desde el repo de asistencia (rules/asistencia.rules). Se pega

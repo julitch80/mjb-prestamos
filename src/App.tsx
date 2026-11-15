@@ -6,7 +6,9 @@ import { Sun, Moon, LogOut, Bell, BellPlus, Home, BookOpen } from 'lucide-react'
 import { useAppStore } from './data/store';
 import { useTheme } from './hooks/useTheme';
 import { useNotificacionesSistema } from './hooks/useNotificacionesSistema';
-import { auth } from './lib/firebase';
+import { auth, db } from './lib/firebase';
+import { doc as fsDoc, getDoc as fsGetDoc } from 'firebase/firestore';
+import { COL_EVAL_CONFIG, DOC_LECTORES, puedeVerResultados } from './data/evaluacionCI/logica';
 import { salirDeSuplantacion, quienSuplanta } from './lib/auth';
 import BarraSuplantacion from './components/BarraSuplantacion';
 import BarraReemplazoTemporal from './components/BarraReemplazoTemporal';
@@ -76,6 +78,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'admin_users',    label: 'Usuarios',        descripcion: 'Alta, roles y activación',          roles: ['superusuario'] },
   { id: 'sugerencias',    label: 'Sugerencias',     descripcion: 'Lo que reportan los docentes',      roles: ['superusuario'] },
   { id: 'plan_casa',      label: 'Plan Académico Especial', descripcion: 'Guías con ajustes razonables',      roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  { id: 'evaluacion_ci',  label: 'Evaluación de centros', descripcion: 'Resultados de la encuesta de centros de interés', roles: ['coordinador', 'rectora', 'superusuario'] },
   { id: 'sede_datos',     label: 'Datos de la sede', descripcion: 'Confirme los datos de su sede',     roles: ['coordinador', 'superusuario'] },
   { id: 'notificaciones', label: 'Mis notificaciones', descripcion: 'Qué te avisa al celular',        roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
 ];
@@ -94,6 +97,8 @@ const BancoCalendario = import.meta.env.DEV ? lazy(() => import('./dev/BancoCale
 const BancoPlanPublico = import.meta.env.DEV ? lazy(() => import('./dev/BancoPlanPublico')) : null;
 // Agenda pública del plan de trabajo en casa (QR del estudiante, sin login).
 const AgendaPlanPublica = lazy(() => import('./components/planCasa/AgendaPlanPublica'));
+const EvaluacionPublica = lazy(() => import('./components/evaluacionCI/EvaluacionPublica'));
+const ResultadosEvaluacionCI = lazy(() => import('./components/evaluacionCI/ResultadosEvaluacionCI'));
 const AgendaDemo = lazy(() => import('./components/planCasa/AgendaDemo'));
 const AgendaPresentacion = lazy(() => import('./components/planCasa/AgendaDemo').then(m => ({ default: m.AgendaPresentacion })));
 
@@ -230,6 +235,20 @@ export default function App() {
     window.history.replaceState({}, '', url.pathname + url.hash);
   }, [userId, setVistaActual]);
 
+  // Evaluación de centros de interés: además de los roles directivos, ve los resultados
+  // la usuaria `yuri` y quien esté en evaluacionCIConfig/lectores (lo escribe el superusuario).
+  const [lectoresEval, setLectoresEval] = useState<string[]>([]);
+  useEffect(() => {
+    if (!userId || !db) return;
+    let vivo = true;
+    fsGetDoc(fsDoc(db, COL_EVAL_CONFIG, DOC_LECTORES))
+      .then(s => { if (vivo) setLectoresEval((s.data()?.correos as string[] | undefined) ?? []); })
+      .catch(() => { /* sin permiso o sin red: solo ven los roles directivos */ });
+    return () => { vivo = false; };
+  }, [userId]);
+  const correoActual = auth?.currentUser?.email ?? null;
+  const veEvaluacionCI = puedeVerResultados(rol, userId, correoActual, lectoresEval);
+
   // ── Ruta de desarrollo: banco de acompañamientos ──────────
   // Va aqui, despues de TODOS los hooks, igual que la ruta de la agenda: un return
   // antes de un hook cambia cuantos hooks corren segun el hash, y React lo rechaza
@@ -271,6 +290,13 @@ export default function App() {
       </Suspense>
     );
   }
+  if (/^#\/evaluacion-ci\/?$/.test(hash)) {
+    return (
+      <Suspense fallback={null}>
+        <EvaluacionPublica />
+      </Suspense>
+    );
+  }
   const planMatch = hash.match(/^#\/plan\/(.+)$/);
   if (planMatch) {
     return (
@@ -288,7 +314,7 @@ export default function App() {
   if (!userId) return <LoginScreen />;
 
   const navItems = NAV_ITEMS
-    .filter(item => item.roles.includes(rol ?? ''))
+    .filter(item => item.roles.includes(rol ?? '') || (item.id === 'evaluacion_ci' && veEvaluacionCI))
     // El chat solo tiene sentido en modo google (Firebase). En modo pin se oculta.
     .filter(item => item.id !== 'chat' || AUTH_MODE === 'google');
   const usuario  = USUARIOS.find(u => u.id === userId);
@@ -476,7 +502,7 @@ export default function App() {
             */}
             {(() => {
               const sede = SEDES.find(s => s.id === sedeActual);
-              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes' || vistaActual === 'sugerencias' || vistaActual === 'notificaciones' || vistaActual === 'sede_datos' || vistaActual === 'plan_casa';
+              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes' || vistaActual === 'sugerencias' || vistaActual === 'notificaciones' || vistaActual === 'sede_datos' || vistaActual === 'plan_casa' || vistaActual === 'evaluacion_ci';
               if (sede && !sede.configurada && !vistaTransversal) {
                 return <FichaSede sede={sede} />;
               }
@@ -501,6 +527,7 @@ export default function App() {
                   {vistaActual === 'notificaciones' && <MisNotificaciones />}
                   {vistaActual === 'sede_datos'     && (rol === 'coordinador' || rol === 'superusuario') && <SedeDatos />}
                   {vistaActual === 'plan_casa'      && <VistaPlanCasa />}
+                  {vistaActual === 'evaluacion_ci'  && veEvaluacionCI && <ResultadosEvaluacionCI />}
                 </>
               );
             })()}

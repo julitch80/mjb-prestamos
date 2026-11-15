@@ -232,7 +232,7 @@ const CLAVE_USO = 'mjb_uso_menu';
 const FRECUENTES_INICIALES = ['inicio', 'asistencia', 'horario', 'agenda', 'tareas', 'chat'];
 const CONSULTA = ['inicio', 'agenda', 'horario', 'asignacion', 'asistentes', 'notificaciones', 'historial'];
 const REPORTE = ['asistencia', 'tareas', 'riesgo', 'plan_casa', 'disponibilidad', 'chat'];
-const ADMINISTRACION = ['admin', 'rectora', 'generar_horario', 'admin_users', 'sugerencias', 'sede_datos'];
+const ADMINISTRACION = ['admin', 'rectora', 'generar_horario', 'admin_users', 'sugerencias', 'sede_datos', 'evaluacion_ci'];
 
 /** Veces que este navegador abrió cada sección desde el menú. Solo local: es una comodidad. */
 function leerUso(): Record<string, number> {
