@@ -180,6 +180,15 @@ export const IconoSugerencias = (p: Props) => (
   </Svg>
 );
 
+/** Evaluación de centros — portapapeles de encuesta con barras de resultados. */
+export const IconoEvaluacionCI = (p: Props) => (
+  <Svg {...p}>
+    <rect x="5" y="4.5" width="14" height="16.5" rx="2.5" />
+    <path d="M9 4.5V3.5h6v1" />
+    <path d="M9 17v-3M12 17v-6M15 17v-4.5" />
+  </Svg>
+);
+
 /** Asistencia — planilla con casillas marcadas. */
 export const IconoAsistencia = (p: Props) => (
   <Svg {...p}>
@@ -388,6 +397,7 @@ export const NEON_NAV: Record<
   generar_horario: { Icono: IconoGenerarHorario, color: NEON.indigo }, // índigo
   notificaciones: { Icono: IconoNotificaciones, color: NEON.fucsia }, // fucsia
   sede_datos:     { Icono: IconoSedeDatos,  color: NEON.durazno }, // durazno
+  evaluacion_ci:  { Icono: IconoEvaluacionCI, color: NEON.dorado }, // dorado: el color de los centros de interés
 };
 
 export function neonDe(id: string, oscuro = true) {
