@@ -70,6 +70,12 @@ export default function EvaluacionPublica() {
     } finally { setEnviando(false); }
   }
 
+  // 6.° a 11.° solo estudian en la sede principal: no se pregunta la sede (Julián, 2026-11-16).
+  function elegirGrado(g: string) {
+    setGrado(g as typeof grado);
+    if (Number(g) >= 6) { setSede('principal'); setSedeVista(true); }
+  }
+
   function siguiente() { // modo aula: conserva grado y sede
     setResp({}); setComentario(''); setEnviado(false); setError(''); bloqueo.current = false;
     window.scrollTo({ top: 0 });
@@ -91,9 +97,15 @@ export default function EvaluacionPublica() {
           <p className="text-5xl" aria-hidden>🎉</p>
           <p className="text-xl font-bold text-strong">¡Gracias!</p>
           <p className="text-soft">Tu respuesta quedó guardada.</p>
-          <button type="button" onClick={siguiente} className={`${grande} ${on} w-full`}>Siguiente niño</button>
-          <button type="button" onClick={() => { setGrado(null); setSedeVista(false); setSede(null); siguiente(); }}
-            className="text-sm text-muted underline">Cambiar grado</button>
+          {/* Modo aula (un dispositivo que pasa de niño en niño): SOLO para Preescolar–2.°.
+              Desde 3.° cada estudiante responde por sí mismo: no se ofrece repetir (Julián, 2026-11-16). */}
+          {instrumento === 'A' && (
+            <>
+              <button type="button" onClick={siguiente} className={`${grande} ${on} w-full`}>Siguiente niño</button>
+              <button type="button" onClick={() => { setGrado(null); setSedeVista(false); setSede(null); siguiente(); }}
+                className="text-sm text-muted underline">Cambiar grado</button>
+            </>
+          )}
         </div>
       </Marco>
     );
@@ -106,7 +118,7 @@ export default function EvaluacionPublica() {
           <h2 className="text-lg font-semibold text-strong">¿En qué grado estás?</h2>
           <div className="grid grid-cols-3 gap-2">
             {GRADOS.map(g => (
-              <button key={g} type="button" onClick={() => setGrado(g)} className={`${grande} ${off} text-sm`}>
+              <button key={g} type="button" onClick={() => elegirGrado(g)} className={`${grande} ${off} text-sm`}>
                 {etiquetaGrado(g)}
               </button>
             ))}
