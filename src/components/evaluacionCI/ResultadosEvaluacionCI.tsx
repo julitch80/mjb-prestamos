@@ -19,23 +19,107 @@ function urlPublica() {
   return `${window.location.origin}${window.location.pathname}${RUTA_PUBLICA}`;
 }
 
-function Barras({ titulo, c }: { titulo: string; c: ConteoPregunta }) {
+// Títulos cortos para la matriz (la pregunta completa se ve al desplegar).
+const CORTOS_A = ['Cómo se sintió', 'Actividades y materiales', 'Comprensión', 'Volver al taller'];
+const CORTOS_B = ['Ideas y proyectos', 'Problemas reales', 'Útil para la vida', 'Expresión y emociones', 'Respeto y escucha',
+  'Habilidades personales', 'Trabajo en equipo', 'Aporte a la comunidad', 'Motivación al colegio', 'Espacio adecuado'];
+const EMOJI: Record<string, string> = { feliz: '😊', neutral: '😐', triste: '☹️', si: 'Sí', no: 'No' };
+
+/** % del valor «positivo» (Sí / feliz): da el color del índice y de la tarjeta. */
+const positivo = (c: ConteoPregunta) => porcentaje(c.valores.si ?? c.valores.feliz ?? 0, c.total);
+const tono = (p: number, total: number) =>
+  total === 0 ? '#9ca3af' : p >= 75 ? '#16a34a' : p >= 50 ? '#ca8a04' : '#dc2626';
+
+/** Diagrama de barras verticales de una pregunta. */
+function Grafico({ c, alto = 96 }: { c: ConteoPregunta; alto?: number }) {
   return (
-    <div className="rounded-xl border border-line bg-card p-3 space-y-2">
-      <p className="text-sm font-medium text-strong">{titulo}</p>
+    <div className="flex items-end justify-center gap-4" style={{ height: alto + 40 }}>
       {Object.entries(c.valores).map(([v, n]) => {
         const p = porcentaje(n, c.total);
         return (
-          <div key={v} className="flex items-center gap-2 text-xs">
-            <span className="w-14 text-soft">{etiquetaValor(v)}</span>
-            <div className="flex-1 h-4 rounded bg-elevated overflow-hidden">
-              <div className="h-full" style={{ width: `${p}%`, background: COLORES[v] }} />
+          <div key={v} className="flex flex-col items-center gap-1 w-12">
+            <span className="text-xs font-semibold text-strong tabular-nums">{p}%</span>
+            <div className="w-full rounded-t bg-elevated flex items-end" style={{ height: alto }}>
+              <div className="w-full rounded-t" style={{ height: `${p}%`, background: COLORES[v], minHeight: n ? 2 : 0 }} />
             </div>
-            <span className="w-24 text-right text-strong tabular-nums">{p}% · {n}</span>
+            <span className="text-sm text-soft">{EMOJI[v] ?? v}</span>
           </div>
         );
       })}
     </div>
+  );
+}
+
+/** Desglose por grado de una pregunta (para el detalle desplegable). */
+function porGrado(rs: RespuestaCI[], instrumento: 'A' | 'B', idx: number) {
+  const k = `p${idx + 1}`;
+  const m = new Map<string, { pos: number; total: number }>();
+  for (const r of rs) {
+    if (r.instrumento !== instrumento) continue;
+    const v = r.respuestas?.[k];
+    if (!v) continue;
+    const e = m.get(r.grado) ?? { pos: 0, total: 0 };
+    e.total++;
+    if (v === 'si' || v === 'feliz') e.pos++;
+    m.set(r.grado, e);
+  }
+  return GRADOS.filter(g => m.has(g)).map(g => ({ grado: g, ...m.get(g)! }));
+}
+
+function Tarjeta({ n, corto, completa, c, abierta, onToggle, rs, instrumento, idx }: {
+  n: number; corto: string; completa: string; c: ConteoPregunta; abierta: boolean; onToggle: () => void;
+  rs: RespuestaCI[]; instrumento: 'A' | 'B'; idx: number;
+}) {
+  const p = positivo(c);
+  const grados = abierta ? porGrado(rs, instrumento, idx) : [];
+  return (
+    <article id={`preg-${instrumento}-${n}`}
+      className={`rounded-xl border bg-card p-3 flex flex-col scroll-mt-28 ${abierta ? 'border-accent sm:col-span-2' : 'border-line'}`}>
+      <header className="flex items-start gap-2">
+        <span className="shrink-0 w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center text-white"
+          style={{ background: tono(p, c.total) }}>{n}</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-strong leading-tight">{corto}</p>
+          <p className="text-xs text-muted">{c.total} respuestas · {p}% {instrumento === 'A' ? '😊' : 'Sí'}</p>
+        </div>
+        <button type="button" onClick={onToggle} aria-expanded={abierta} aria-label={abierta ? 'Ocultar detalle' : 'Ver detalle'}
+          className="shrink-0 w-9 h-9 rounded-lg border border-line text-soft hover:bg-elevated hover:text-strong">
+          <span className={`inline-block transition-transform ${abierta ? 'rotate-180' : ''}`}>▾</span>
+        </button>
+      </header>
+      <div className="mt-2"><Grafico c={c} /></div>
+      {abierta && (
+        <div className="mt-3 pt-3 border-t border-line space-y-3 text-sm">
+          <p className="text-soft">{completa}</p>
+          <table className="w-full text-xs tabular-nums">
+            <thead><tr className="text-muted text-left"><th className="py-1">Respuesta</th><th>Cantidad</th><th>Porcentaje</th></tr></thead>
+            <tbody>
+              {Object.entries(c.valores).map(([v, k]) => (
+                <tr key={v} className="border-t border-line">
+                  <td className="py-1 text-strong">{EMOJI[v]} {v === 'si' || v === 'no' ? '' : etiquetaValor(v)}</td>
+                  <td>{k}</td><td>{porcentaje(k, c.total)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {grados.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-strong mb-1">Por grado ({instrumento === 'A' ? '% 😊' : '% Sí'})</p>
+              <div className="flex flex-wrap gap-1.5">
+                {grados.map(g => {
+                  const pg = porcentaje(g.pos, g.total);
+                  return (
+                    <span key={g.grado} className="px-2 py-1 rounded-md text-xs text-white" style={{ background: tono(pg, g.total) }}>
+                      {etiquetaGrado(g.grado)}: {pg}% <span className="opacity-80">({g.total})</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -71,6 +155,12 @@ export default function ResultadosEvaluacionCI() {
   const [sede, setSede] = useState('');
   const [aviso, setAviso] = useState('');
   const [lectoresTxt, setLectoresTxt] = useState('');
+  const [inst, setInst] = useState<'A' | 'B'>('B');
+  const [abiertaN, setAbiertaN] = useState<number | null>(null);
+  function irA(n: number) {
+    setAbiertaN(n);
+    requestAnimationFrame(() => document.getElementById(`preg-${inst}-${n}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
 
   const cargar = useCallback(async () => {
     if (!db) { setEstado('error'); return; }
@@ -123,8 +213,13 @@ export default function ResultadosEvaluacionCI() {
 
   const sel = 'min-h-[44px] rounded-lg border border-line bg-card px-3 text-sm text-strong';
   return (
-    <div className="max-w-4xl mx-auto space-y-4 p-4">
+    <div className="max-w-6xl mx-auto space-y-4 p-4">
       <h1 className="text-xl font-bold text-strong">Evaluación de centros de interés</h1>
+      <details className="rounded-xl border border-line bg-card p-3">
+        <summary className="text-sm font-medium text-strong cursor-pointer">
+          Administrar encuesta · <span className="text-soft">{abierta === null ? '…' : abierta ? 'abierta' : 'cerrada'}</span> · enlace y QR
+        </summary>
+        <div className="mt-3 space-y-3">
       <TarjetaEnlace />
 
       <div className="rounded-xl border border-line bg-card p-3 flex flex-wrap items-center gap-3">
@@ -152,6 +247,9 @@ export default function ResultadosEvaluacionCI() {
         </details>
       )}
 
+        </div>
+      </details>
+
       {estado === 'cargando' && <p className="text-soft">Cargando…</p>}
       {estado === 'error' && <p className="rounded-lg bg-danger-soft text-danger-soft-fg p-3 text-sm">No se pudieron leer las respuestas (permisos o conexión).</p>}
 
@@ -172,26 +270,63 @@ export default function ResultadosEvaluacionCI() {
             </span>
           </div>
 
-          {r.totalA > 0 && (
-            <section className="space-y-2">
-              <h2 className="font-semibold text-strong">Instrumento A — Preescolar a 2.°</h2>
-              {PREGUNTAS_A.map((q, i) => <Barras key={i} titulo={`${i + 1}. ${q}`} c={r.A[i]} />)}
-              <div className="rounded-xl border border-line bg-card p-3">
-                <p className="text-sm font-medium text-strong mb-2">Lo que más les gustó ({r.comentarios.length})</p>
-                {r.comentarios.length === 0 ? <p className="text-xs text-muted">Sin comentarios.</p> : (
-                  <ul className="space-y-1 text-sm text-soft max-h-64 overflow-auto">
-                    {r.comentarios.map((c, i) => <li key={i}>«{c.texto}» <span className="text-xs text-muted">· {etiquetaGrado(c.grado)}</span></li>)}
-                  </ul>
-                )}
-              </div>
-            </section>
-          )}
-          {r.totalB > 0 && (
-            <section className="space-y-2">
-              <h2 className="font-semibold text-strong">Instrumento B — 3.° a 11.°</h2>
-              {PREGUNTAS_B.map((q, i) => <Barras key={i} titulo={`${i + 1}. ${q}`} c={r.B[i]} />)}
-            </section>
-          )}
+          <div className="inline-flex rounded-xl border border-line overflow-hidden">
+            {(['B', 'A'] as const).map(i => (
+              <button key={i} type="button" onClick={() => { setInst(i); setAbiertaN(null); }}
+                className={`min-h-[44px] px-4 text-sm font-medium ${inst === i ? 'bg-accent text-accent-fg' : 'bg-card text-soft hover:bg-elevated'}`}>
+                {i === 'B' ? `3.° a 11.° (${r.totalB})` : `Preescolar a 2.° (${r.totalA})`}
+              </button>
+            ))}
+          </div>
+
+          {(() => {
+            const conteos = inst === 'A' ? r.A : r.B;
+            const cortos = inst === 'A' ? CORTOS_A : CORTOS_B;
+            const completas = inst === 'A' ? PREGUNTAS_A : PREGUNTAS_B;
+            const totalInst = inst === 'A' ? r.totalA : r.totalB;
+            if (totalInst === 0) return <p className="text-soft">Todavía no hay respuestas de estos grados con los filtros elegidos.</p>;
+            return (
+              <>
+                {/* Índice: salto directo a cualquier pregunta; el color resume el resultado */}
+                <nav className="sticky top-0 z-10 py-2 bg-app flex flex-wrap gap-1.5" aria-label="Ir a la pregunta">
+                  {conteos.map((c, i) => {
+                    const p = positivo(c);
+                    return (
+                      <button key={i} type="button" onClick={() => irA(i + 1)} title={`${i + 1}. ${cortos[i]}: ${p}%`}
+                        className={`min-w-[48px] h-12 px-2 rounded-lg text-xs font-bold text-white tabular-nums leading-tight ${abiertaN === i + 1 ? 'ring-2 ring-offset-2 ring-accent' : ''}`}
+                        style={{ background: tono(p, c.total) }}>
+                        P{i + 1}<span className="block text-[10px] font-medium opacity-90">{p}%</span>
+                      </button>
+                    );
+                  })}
+                  {abiertaN !== null && (
+                    <button type="button" onClick={() => setAbiertaN(null)}
+                      className="h-12 px-3 rounded-lg border border-line text-xs text-soft hover:bg-elevated">Cerrar detalle</button>
+                  )}
+                </nav>
+                <p className="text-xs text-muted">
+                  Verde: 75 % o más {inst === 'A' ? '😊' : 'Sí'} · Amarillo: 50–74 % · Rojo: menos de 50 %. Toque ▾ para ver el detalle.
+                </p>
+
+                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {conteos.map((c, i) => (
+                    <Tarjeta key={i} n={i + 1} corto={cortos[i]} completa={completas[i]} c={c} rs={filtrados} instrumento={inst} idx={i}
+                      abierta={abiertaN === i + 1} onToggle={() => setAbiertaN(abiertaN === i + 1 ? null : i + 1)} />
+                  ))}
+                  {inst === 'A' && (
+                    <article className="rounded-xl border border-line bg-card p-3">
+                      <p className="text-sm font-semibold text-strong mb-2">Lo que más les gustó ({r.comentarios.length})</p>
+                      {r.comentarios.length === 0 ? <p className="text-xs text-muted">Sin comentarios.</p> : (
+                        <ul className="space-y-1 text-sm text-soft max-h-48 overflow-auto">
+                          {r.comentarios.map((c, i) => <li key={i}>«{c.texto}» <span className="text-xs text-muted">· {etiquetaGrado(c.grado)}</span></li>)}
+                        </ul>
+                      )}
+                    </article>
+                  )}
+                </div>
+              </>
+            );
+          })()}
           {r.total === 0 && <p className="text-soft">Todavía no hay respuestas con estos filtros.</p>}
         </>
       )}
