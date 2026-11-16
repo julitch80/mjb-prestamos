@@ -123,7 +123,7 @@ function Tarjeta({ n, corto, completa, c, abierta, onToggle, rs, instrumento, id
   );
 }
 
-function TarjetaEnlace() {
+export function TarjetaEnlace() {
   const [qr, setQr] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
   const url = urlPublica();

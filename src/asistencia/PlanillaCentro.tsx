@@ -38,6 +38,8 @@ const DireccionGrupo = lazy(() => import('./DireccionGrupo'));
 
 /** La valoracion del cierre: se usa una vez al semestre, no viaja en el paquete diario. */
 const ValoracionCentro = lazy(() => import('./ValoracionCentro'));
+/** Pastilla «Evaluación CI» (2026-11-16): QR y enlace de la encuesta general de los centros. */
+const EvaluacionCIDocente = lazy(() => import('../components/evaluacionCI/EvaluacionCIDocente'));
 import { estadisticaEvento, resumenSesionEvento } from './domain/eventos';
 import { detectarDuplicados } from './domain/programas';
 import { conDenominador } from './domain/stats';
@@ -243,7 +245,7 @@ export default function PlanillaCentro({
    * Las dos mitades de un centro de interes (Julian, 2026-09-09): pasar lista y GESTIONAR.
    * La segunda es el mismo cuaderno del director de grupo, con el centro como dueño.
    */
-  const [seccion, setSeccion] = useState<'asistencia' | 'gestion' | 'valoracion'>('asistencia');
+  const [seccion, setSeccion] = useState<Seccion>('asistencia');
   useNivelAtras(seccion !== 'asistencia', () => setSeccion('asistencia'));
 
   const [censos, setCensos] = useState<Record<string, CensoDia | null>>({});
@@ -634,6 +636,26 @@ export default function PlanillaCentro({
    * Lo unico que cambia es de quien es el cuaderno —`fuente`— y su columna automatica:
    * en un centro son SUS inasistencias, no las del grado (ver `DireccionGrupo`).
    */
+  // Evaluación CI (Julián, 2026-11-16): la encuesta general de los centros. La ven todos los
+  // que ven el centro; no necesita ningún dato.
+  if (seccion === 'evaluacion') {
+    return (
+      <div className="space-y-3">
+        <Cabecera
+          programa={programa}
+          grupo={grupo}
+          inscritos={idsVivos.length}
+          deBaja={inscritosDeBaja}
+          onVolver={onVolver}
+        />
+        <Pestanas seccion={seccion} onCambiar={setSeccion} />
+        <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando la evaluación…</p>}>
+          <EvaluacionCIDocente />
+        </Suspense>
+      </div>
+    );
+  }
+
   if (seccion === 'valoracion') {
     return (
       <div className="space-y-3">
@@ -1844,7 +1866,7 @@ function Inscripcion({
   );
 }
 
-type Seccion = 'asistencia' | 'gestion' | 'valoracion';
+type Seccion = 'asistencia' | 'gestion' | 'valoracion' | 'evaluacion';
 
 /** La misma cabecera en las tres secciones: quien es el centro y a cuantos cubre. */
 function Cabecera({
@@ -1898,19 +1920,20 @@ function Pestanas({
   onCambiar: (s: Seccion) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
       {(
         [
           ['asistencia', 'Asistencia'],
           ['gestion', 'Gestión CI'],
           ['valoracion', 'Valoración'],
+          ['evaluacion', 'Evaluación CI'],
         ] as const
       ).map(([clave, nombre]) => (
         <button
           key={clave}
           onClick={() => onCambiar(clave)}
           className={[
-            'min-h-[34px] rounded-full border px-3 py-1 text-sm',
+            'min-h-[34px] shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-sm',
             seccion === clave
               ? 'border-accent bg-accent-soft font-semibold text-accent-soft-fg'
               : 'border-line text-soft',
