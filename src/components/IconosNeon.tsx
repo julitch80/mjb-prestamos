@@ -67,6 +67,15 @@ export const IconoHorario = (p: Props) => (
   </Svg>
 );
 
+/** Horario especial — calendario con una estrella. */
+export const IconoHorarioEspecial = (p: Props) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="17" rx="2.5" />
+    <path d="M3 9h18M8 2.5v3M16 2.5v3" />
+    <path d="M12 11.5l1.3 2.7 2.9.4-2.1 2 .5 2.9-2.6-1.4-2.6 1.4.5-2.9-2.1-2 2.9-.4z" />
+  </Svg>
+);
+
 /** Asignación académica — libros. */
 export const IconoAsignacion = (p: Props) => (
   <Svg {...p}>
@@ -397,6 +406,7 @@ export const NEON_NAV: Record<
   generar_horario: { Icono: IconoGenerarHorario, color: NEON.indigo }, // índigo
   notificaciones: { Icono: IconoNotificaciones, color: NEON.fucsia }, // fucsia
   sede_datos:     { Icono: IconoSedeDatos,  color: NEON.durazno }, // durazno
+  horario_especial: { Icono: IconoHorarioEspecial, color: NEON.amarillo }, // amarillo: semana especial, distinta del cian del horario
   evaluacion_ci:  { Icono: IconoEvaluacionCI, color: NEON.dorado }, // dorado: el color de los centros de interés
 };
 

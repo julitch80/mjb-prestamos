@@ -45,6 +45,8 @@ import { cargarSyncEditor } from './data/syncEditor';
 import { limpiarBadge, refrescarUltimoUso } from './data/notificacionesPush';
 import { USUARIOS, SEDES, esDirectivo, sedeDeUsuario } from './data/maestros';
 import { AUTH_MODE } from './data/authStore';
+import { entradaMenuVisible, hoyBogota } from './data/horarioEspecial/logica';
+import HorarioEspecialPlanApoyo from './components/horarioEspecial/HorarioEspecialPlanApoyo';
 import { useChatStore } from './data/chatStore';
 import { cn } from './lib/utils';
 import { SelectorSedeMenu, SelectorSedePastilla, sedeYaElegidaEnSesion } from './components/SelectorSede';
@@ -66,6 +68,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'admin',          label: 'Panel',           descripcion: 'Pendientes, hoy y configuración',   roles: ['coordinador'] },
   { id: 'rectora',        label: 'Asignación',      descripcion: 'Asigna espacios directamente',      roles: ['rectora'] },
   { id: 'agenda',         label: 'Agenda',          descripcion: 'Agenda semanal institucional',      roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
+  // Solo entre el 24-nov y el 1-dic-2026 (o con ?horarioEspecial=1): ver más abajo, `horarioEspecialVisible`.
+  { id: 'horario_especial', label: 'Horario especial · plan de apoyo', descripcion: 'Semana de plan de apoyo, 24-nov al 1-dic', roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'horario',        label: 'Horario',         descripcion: 'Por aulas, docente o grupo',        roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
   { id: 'generar_horario', label: 'Generar horario',  descripcion: 'Construir el horario del proximo ano',  roles: ['coordinador', 'superusuario'] },
   { id: 'asistencia',     label: 'Asistencia',      descripcion: 'Registro de clase',                 roles: ['docente', 'coordinador', 'rectora', 'superusuario'] },
@@ -248,6 +252,16 @@ export default function App() {
   }, [userId]);
   const correoActual = auth?.currentUser?.email ?? null;
   const veEvaluacionCI = puedeVerResultados(rol, userId, correoActual, lectoresEval);
+  // «Horario especial · plan de apoyo»: solo del 24-nov al 1-dic-2026 (fecha de Bogotá).
+  // Para verlo antes: abrir la app con `?horarioEspecial=1` (se recuerda en la sesión de la pestaña).
+  const [horarioEspecialVisible] = useState(() => {
+    let forzado = '';
+    try {
+      if (new URLSearchParams(window.location.search).get('horarioEspecial') === '1') sessionStorage.setItem('mjb_horario_especial', '1');
+      forzado = sessionStorage.getItem('mjb_horario_especial') === '1' ? '?horarioEspecial=1' : '';
+    } catch { /* sin almacenamiento: solo vale la URL */ forzado = window.location.search; }
+    return entradaMenuVisible(hoyBogota(), forzado);
+  });
 
   // ── Ruta de desarrollo: banco de acompañamientos ──────────
   // Va aqui, despues de TODOS los hooks, igual que la ruta de la agenda: un return
@@ -315,6 +329,7 @@ export default function App() {
 
   const navItems = NAV_ITEMS
     .filter(item => item.roles.includes(rol ?? '') || (item.id === 'evaluacion_ci' && veEvaluacionCI))
+    .filter(item => item.id !== 'horario_especial' || horarioEspecialVisible)
     // El chat solo tiene sentido en modo google (Firebase). En modo pin se oculta.
     .filter(item => item.id !== 'chat' || AUTH_MODE === 'google');
   const usuario  = USUARIOS.find(u => u.id === userId);
@@ -502,7 +517,7 @@ export default function App() {
             */}
             {(() => {
               const sede = SEDES.find(s => s.id === sedeActual);
-              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes' || vistaActual === 'sugerencias' || vistaActual === 'notificaciones' || vistaActual === 'sede_datos' || vistaActual === 'plan_casa' || vistaActual === 'evaluacion_ci';
+              const vistaTransversal = vistaActual === 'inicio' || vistaActual === 'chat' || vistaActual === 'admin_users' || vistaActual === 'agenda' || vistaActual === 'riesgo' || vistaActual === 'asistentes' || vistaActual === 'sugerencias' || vistaActual === 'notificaciones' || vistaActual === 'sede_datos' || vistaActual === 'plan_casa' || vistaActual === 'evaluacion_ci' || vistaActual === 'horario_especial';
               if (sede && !sede.configurada && !vistaTransversal) {
                 return <FichaSede sede={sede} />;
               }
@@ -513,6 +528,7 @@ export default function App() {
                   {vistaActual === 'historial'      && <MiHistorial />}
                   {vistaActual === 'admin'          && rol === 'coordinador' && <PanelAdmin />}
                   {vistaActual === 'rectora'        && rol === 'rectora'     && <PanelRectora />}
+                  {vistaActual === 'horario_especial' && horarioEspecialVisible && <HorarioEspecialPlanApoyo />}
                   {vistaActual === 'horario'        && <VistaHorario />}
                   {vistaActual === 'generar_horario' && (rol === 'coordinador' || rol === 'superusuario') && <PanelHorarios />}
                   {vistaActual === 'asignacion'     && <PanelAcademico />}
