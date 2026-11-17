@@ -529,7 +529,19 @@ export default function App() {
                   {vistaActual === 'admin'          && rol === 'coordinador' && <PanelAdmin />}
                   {vistaActual === 'rectora'        && rol === 'rectora'     && <PanelRectora />}
                   {vistaActual === 'horario_especial' && horarioEspecialVisible && <HorarioEspecialPlanApoyo />}
-                  {vistaActual === 'horario'        && <VistaHorario />}
+                  {/* Semana de plan de apoyo: el horario habitual sigue en el menú pero no se consulta
+                      (Julián, 2026-11-16); se remite al horario especial. */}
+                  {vistaActual === 'horario' && horarioEspecialVisible && (
+                    <div className="max-w-xl mx-auto mt-6 rounded-2xl border border-line bg-card p-6 text-center space-y-3">
+                      <p className="text-lg font-semibold text-strong">Esta semana no rige el horario habitual</p>
+                      <p className="text-sm text-soft">Del 24 de noviembre al 1 de diciembre se trabaja con el horario especial de la semana de plan de apoyo.</p>
+                      <button type="button" onClick={() => setVistaActual('horario_especial' as typeof vistaActual)}
+                        className="min-h-[44px] px-5 rounded-lg bg-accent text-accent-fg text-sm font-semibold">
+                        Ver el horario especial
+                      </button>
+                    </div>
+                  )}
+                  {vistaActual === 'horario' && !horarioEspecialVisible && <VistaHorario />}
                   {vistaActual === 'generar_horario' && (rol === 'coordinador' || rol === 'superusuario') && <PanelHorarios />}
                   {vistaActual === 'asignacion'     && <PanelAcademico />}
                   {vistaActual === 'tareas'         && <VistaTareas />}
