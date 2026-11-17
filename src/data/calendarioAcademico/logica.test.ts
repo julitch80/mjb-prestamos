@@ -119,3 +119,45 @@ describe('cambios y textos', () => {
     expect(textoFecha({ desde: '2026-10-12', porDefinir: true })).toBe('Por definir');
   });
 });
+
+import { SEMILLA_V2 } from './semilla2026';
+import { ACTUALIZACION_FIN_ANIO, aplicarActualizacion, planActualizacion } from './actualizacionFinAnio';
+
+describe('actualización de fin de año (Coordinación 11-nov)', () => {
+  const por = (id: string) => E.find(e => e.id === id)!;
+  it('la semilla vigente refleja la fuente nueva', () => {
+    expect(por('g11_consolidados').desde).toBe('2026-11-26');
+    expect(por('g11_comisiones').desde).toBe('2026-11-27');
+    expect(por('g11_reunion_padres').desde).toBe('2026-12-01');
+    expect(por('acto_excelencia').desde).toBe('2026-12-09');
+    expect(por('entrega_productos').desde).toBe('2026-12-03');
+    expect(por('p3_planes_apoyo_1').hasta).toBe('2026-11-24');
+    expect(por('p3_planes_apoyo_2').desde).toBe('2026-11-25');
+    expect(por('p3_comisiones')).toMatchObject({ desde: '2026-12-02', hasta: '2026-12-03' });
+    expect(por('precomisiones').hasta).toBe('2026-11-30');
+  });
+  it('guarda las fechas anteriores en `cambio` y no borra eventos', () => {
+    expect(por('acto_excelencia').cambio?.antes.desde).toBe('2026-12-07');
+    expect(por('p3_autoeval').cambio).toBeUndefined();
+    for (const e of SEMILLA_V2) expect(E.some(x => x.id === e.id)).toBe(true);
+    expect(E.length).toBe(SEMILLA_V2.length + ACTUALIZACION_FIN_ANIO.filter(u => !SEMILLA_V2.some(b => b.id === u.id)).length);
+  });
+  it('ids únicos, fechas válidas, hasta >= desde y es idempotente', () => {
+    expect(new Set(ACTUALIZACION_FIN_ANIO.map(e => e.id)).size).toBe(ACTUALIZACION_FIN_ANIO.length);
+    for (const e of ACTUALIZACION_FIN_ANIO) {
+      expect(e.desde).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      if (e.hasta) expect(e.hasta >= e.desde).toBe(true);
+    }
+    expect(planActualizacion(E)).toHaveLength(0);
+  });
+  it('merge sobre un doc existente: cambia solo lo tocado, conserva ediciones ajenas', () => {
+    const doc = SEMILLA_V2.map(e => e.id === 'corpresarte' ? { ...e, desde: '2026-11-20' } : e);
+    const plan = planActualizacion(doc);
+    expect(plan.every(c => ACTUALIZACION_FIN_ANIO.some(u => u.id === c.id))).toBe(true);
+    expect(plan.find(c => c.id === 'g11_consolidados')).toMatchObject({ tipo: 'cambiado' });
+    expect(plan.find(c => c.id === 'precomisiones')).toMatchObject({ tipo: 'nuevo', antes: null });
+    const res = aplicarActualizacion(doc);
+    expect(res.find(e => e.id === 'corpresarte')?.desde).toBe('2026-11-20');
+    expect(res.find(e => e.id === 'g11_comisiones')?.desde).toBe('2026-11-27');
+  });
+});

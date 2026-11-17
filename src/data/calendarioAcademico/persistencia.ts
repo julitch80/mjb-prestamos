@@ -34,32 +34,38 @@ export function useCalendario() {
   const eventos = eventosFs ?? SEMILLA_2026;
   const puedeEditar = conFirebase && (rol === 'coordinador' || rol === 'rectora' || rol === 'superusuario');
 
-  const guardar = useCallback(async (antes: EventoCal | null, despues: EventoCal | null, motivo: string) => {
+  const guardarLote = useCallback(async (cambios: { antes: EventoCal | null; despues: EventoCal | null }[], motivo: string) => {
     if (!db || !puedeEditar) throw new Error('No tienes permiso para editar el calendario.');
     const mapa: Record<string, EventoCal> = {};
     for (const e of eventos) mapa[e.id] = e;
     const ahora = new Date().toISOString();
-    if (despues) {
-      const cambio = antes && (antes.desde !== despues.desde || antes.hasta !== despues.hasta
-        || !!antes.porDefinir !== !!despues.porDefinir || !!antes.noSeRealiza !== !!despues.noSeRealiza)
-        ? { antes: { desde: antes.desde, hasta: antes.hasta, porDefinir: antes.porDefinir, noSeRealiza: antes.noSeRealiza }, cuando: ahora }
-        : antes?.cambio;
-      mapa[despues.id] = { ...despues, cambio };
-    } else if (antes) {
-      delete mapa[antes.id];
+    const registros: Record<string, unknown>[] = [];
+    for (const { antes, despues } of cambios) {
+      if (despues) {
+        const cambio = antes && (antes.desde !== despues.desde || antes.hasta !== despues.hasta
+          || !!antes.porDefinir !== !!despues.porDefinir || !!antes.noSeRealiza !== !!despues.noSeRealiza)
+          ? { antes: { desde: antes.desde, hasta: antes.hasta, porDefinir: antes.porDefinir, noSeRealiza: antes.noSeRealiza }, cuando: ahora }
+          : antes?.cambio;
+        mapa[despues.id] = { ...despues, cambio };
+      } else if (antes) {
+        delete mapa[antes.id];
+      }
+      const id = (despues ?? antes)!.id;
+      registros.push({ por: miCorreo(), cuando: ahora, eventoId: id, antes: antes ? limpio(antes) : null,
+        despues: despues ? limpio(mapa[id]) : null, motivo });
     }
-    const id = (despues ?? antes)!.id;
+    // Un lote admite 500 operaciones: 1 del documento + 1 por registro de cambio.
     const lote = writeBatch(db);
     lote.set(doc(db, 'calendarioAcademico', ANIO), { eventos: limpio(mapa), actualizado: ahora, porCorreo: miCorreo() });
-    lote.set(doc(collection(db, 'calendarioAcademico', ANIO, 'cambios')), {
-      por: miCorreo(), cuando: ahora, eventoId: id, antes: antes ? limpio(antes) : null,
-      despues: despues ? limpio(mapa[id]) : null, motivo,
-    });
+    for (const r of registros) lote.set(doc(collection(db, 'calendarioAcademico', ANIO, 'cambios')), r);
     await lote.commit();
   }, [eventos, puedeEditar]);
 
-  return useMemo(() => ({ eventos, desdeFirestore: eventosFs !== null, puedeEditar, guardar }),
-    [eventos, eventosFs, puedeEditar, guardar]);
+  const guardar = useCallback((antes: EventoCal | null, despues: EventoCal | null, motivo: string) =>
+    guardarLote([{ antes, despues }], motivo), [guardarLote]);
+
+  return useMemo(() => ({ eventos, desdeFirestore: eventosFs !== null, puedeEditar, guardar, guardarLote }),
+    [eventos, eventosFs, puedeEditar, guardar, guardarLote]);
 }
 
 export async function cargarCambios(): Promise<RegistroCambio[]> {

@@ -2,6 +2,7 @@
 // docs/calendario-academico/fuente-v2-1.txt). Es el respaldo: si Firestore no tiene
 // calendarioAcademico/2026, se muestra esto. Interpretaciones: docs/calendario-academico/PRD.md
 import type { CategoriaCal, EventoCal } from './tipos';
+import { aplicarActualizacion } from './actualizacionFinAnio';
 
 type Extra = Partial<Pick<EventoCal, 'hasta' | 'porDefinir' | 'noSeRealiza' | 'aplicaA' | 'alertaDocente' | 'nota'>>;
 const ev = (id: string, titulo: string, desde: string, categoria: CategoriaCal, x: Extra = {}): EventoCal =>
@@ -35,7 +36,8 @@ function filaEventos(f: Fila): EventoCal[] {
   return out;
 }
 
-export const SEMILLA_2026: EventoCal[] = [
+/** Versión 2 del documento oficial, tal cual. Sobre ella se aplica la actualización de Coordinación (11-nov-2026). */
+export const SEMILLA_V2: EventoCal[] = [
   // Periodos
   ev('periodo_1', 'Primer periodo académico', '2026-01-26', 'periodo', { hasta: '2026-05-01', nota: '13 semanas lectivas.' }),
   ev('periodo_2', 'Segundo periodo académico', '2026-05-04', 'periodo', { hasta: '2026-08-21', nota: '13 semanas lectivas.' }),
@@ -92,3 +94,6 @@ export const SEMILLA_2026: EventoCal[] = [
   ...filaEventos({ k: 'g11', nombre: '3.er periodo', g: 'grado11', cierre: '2026-11-23', autoeval: ['2026-11-10', '2026-11-13'],
     planes: [['2026-11-17', '2026-11-23'], ['2026-11-24', '2026-11-26']], informe: '2026-11-27', consol: '2026-11-27', comisiones: '2026-11-28', padres: '2026-12-02', diario: '2026-12-07' }),
 ];
+
+/** Semilla vigente: v2 + «Fechas de finalización de año 2026» (Coordinación, 11-nov-2026). */
+export const SEMILLA_2026: EventoCal[] = aplicarActualizacion(SEMILLA_V2);

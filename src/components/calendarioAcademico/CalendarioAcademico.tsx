@@ -11,6 +11,7 @@ import {
 import { CATEGORIAS, colorCategoria, simboloCategoria, type CategoriaCal, type EventoCal } from '../../data/calendarioAcademico/tipos';
 import { cn } from '@/lib/utils';
 import SelectorVista, { useVistaRecordada, type OpcionVista } from '../SelectorVista';
+import { MOTIVO_FIN_ANIO, planActualizacion } from '../../data/calendarioAcademico/actualizacionFinAnio';
 import ModalEvento from './ModalEvento';
 import RegistroCambios from './RegistroCambios';
 
@@ -59,7 +60,11 @@ function FilaEvento({ e, hoy, extra, onEditar }: { e: EventoCal; hoy: string; ex
 export default function CalendarioAcademico() {
   const userId = useAppStore(s => s.userId);
   const rol = useAppStore(s => s.rol);
-  const { eventos, desdeFirestore, puedeEditar, guardar } = useCalendario();
+  const { eventos, desdeFirestore, puedeEditar, guardar, guardarLote } = useCalendario();
+  const [verActualizacion, setVerActualizacion] = useState(false);
+  const [aplicando, setAplicando] = useState(false);
+  const [errorAct, setErrorAct] = useState('');
+  const planFin = useMemo(() => planActualizacion(eventos), [eventos]);
   const hoy = hoyISO();
   // «Ver: mes / lista» (se recuerda). Dentro de la lista, «Próximo» y «Lo que falta» son un filtro.
   const [formaVer, setFormaVer] = useVistaRecordada<'mes' | 'lista'>('calendario-academico', 'lista', ['mes', 'lista']);
@@ -138,6 +143,34 @@ export default function CalendarioAcademico() {
             className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg bg-elevated text-strong hover:bg-line"><Plus size={14} /> Agregar evento</button>
           <button onClick={() => setVerRegistro(true)}
             className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg bg-elevated text-soft hover:text-strong"><History size={14} /> Ver registro de cambios</button>
+        </div>
+      )}
+
+      {puedeEditar && desdeFirestore && planFin.length > 0 && (
+        <button onClick={() => setVerActualizacion(true)}
+          className="text-xs px-3 py-2 rounded-lg bg-warning-soft text-warning-soft-fg border border-line font-semibold">
+          Aplicar actualización de fin de año (Coordinación 11-nov) · {planFin.length} cambios
+        </button>
+      )}
+      {verActualizacion && (
+        <div className="rounded-xl bg-card border border-line p-4 space-y-2">
+          <p className="text-sm font-semibold text-strong">Se van a cambiar {planFin.length} eventos (no se borra nada)</p>
+          <ul className="text-xs text-soft space-y-1 max-h-64 overflow-y-auto">
+            {planFin.map(c => (
+              <li key={c.id}><span className="font-semibold text-strong">{c.tipo === 'nuevo' ? 'Nuevo' : 'Cambia'}:</span> {c.despues.titulo} ·{' '}
+                {c.antes && <s>{textoFecha(c.antes)}</s>} {textoFecha(c.despues)}</li>
+            ))}
+          </ul>
+          {errorAct && <p className="text-xs text-danger-soft-fg">{errorAct}</p>}
+          <div className="flex gap-2">
+            <button disabled={aplicando} onClick={async () => {
+              setAplicando(true); setErrorAct('');
+              try { await guardarLote(planFin.map(c => ({ antes: c.antes, despues: c.despues })), MOTIVO_FIN_ANIO); setVerActualizacion(false); }
+              catch (e) { setErrorAct(e instanceof Error ? e.message : 'No se pudo aplicar.'); }
+              finally { setAplicando(false); }
+            }} className="text-xs px-3 py-2 rounded-lg bg-accent text-white font-semibold disabled:opacity-50">{aplicando ? 'Aplicando…' : 'Aplicar'}</button>
+            <button onClick={() => setVerActualizacion(false)} className="text-xs px-3 py-2 rounded-lg bg-elevated text-soft">Cancelar</button>
+          </div>
         </div>
       )}
 
