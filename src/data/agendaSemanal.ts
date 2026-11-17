@@ -2903,6 +2903,168 @@ export const AGENDAS: AgendaSemanal[] = [
       },
     ],
   },
+  {
+    semana: 12,
+    periodo: 3,
+    desde: '2026-11-16',
+    hasta: '2026-11-20',
+    publicadaPor: 'Equipo Técnico Institucional',
+    notaFinal: 'La agenda de profesionales (orientación escolar y programa Escuela Entorno Protector, PTA y UAI) viene dentro del mismo documento, aparte de la agenda institucional.',
+    dias: [
+      {
+        fecha: '2026-11-16',
+        dia: 'lunes',
+        festivo: 'Independencia de Cartagena',
+        notas: [
+          'Continúa autoevaluación de los estudiantes de 1° a 11°.',
+          'Inicia el plan de apoyo de 3er periodo para estudiantes de grado 1° a 11°.',
+          'INICIA EVALUACIÓN DE DOCENTES 1278',
+        ],
+        actividades: [
+        ],
+      },
+      {
+        fecha: '2026-11-17',
+        dia: 'martes',
+        actividades: [
+          {
+            actividad: 'Entrega final a coordinación de actas de Recuperación del primer y segundo periodo año 2026',
+          },
+          {
+            hora: '8am a 10am o 2pm a 4pm',
+            actividad: 'Capacitación a tutoras PTA',
+            asisten: 'Tutoras PTA',
+            lugar: 'Link virtual',
+            responsables: 'SED',
+          },
+          {
+            hora: '11am',
+            actividad: 'Reunión de equipo directivo y psicólogos',
+            asisten: 'Psicólogos y coordinadores',
+            lugar: 'Rectoría',
+            responsables: 'Rectora',
+          },
+          {
+            hora: '1.10 pm',
+            actividad: 'Acción educativa competencias emocionales',
+            asisten: 'Grado 6-3',
+            lugar: 'Principal',
+            responsables: 'Natalia Rivas Lopera PEEP',
+          },
+          {
+            hora: '2:10 pm',
+            actividad: 'Acción educativa competencias emocionales',
+            asisten: 'Grado 6-1',
+            lugar: 'Principal',
+            responsables: 'Natalia Rivas Lopera PEEP',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-18',
+        dia: 'miércoles',
+        actividades: [
+          {
+            hora: '6am',
+            actividad: 'Inducción a familia de estudiantes nuevos admitidos para el año 2027',
+            asisten: 'Acudientes citados',
+            lugar: 'Auditorio',
+            responsables: 'Rectora y auxiliar administrativa',
+          },
+          {
+            hora: '8am',
+            actividad: 'Reunión comité de permanencia escolar',
+            asisten: 'Profesionales, coordinadora, rectora y auxiliar administrativa',
+            lugar: 'Sala de Innovación',
+            responsables: 'Guardián de la permanencia',
+          },
+          {
+            hora: '9:30 am',
+            actividad: 'Reunión seguimiento obras de infraestructura',
+            asisten: 'Rectora',
+            lugar: 'CDS',
+            responsables: 'Mesa de seguimiento comuna 80',
+          },
+          {
+            hora: '8am - 5pm',
+            actividad: 'Congreso de prevención de violencias',
+            asisten: 'Natalia Rivas _ PEEP',
+            lugar: 'Plaza Mayor',
+            responsables: 'Alcaldía de Medellín - Tejiendo hogares',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-19',
+        dia: 'jueves',
+        notas: ['PARO NACIONAL DE DOCENTES: Ver novedades en el horario de la página WEB'],
+        actividades: [
+          {
+            hora: '8 a 12m',
+            actividad: 'Encuentro de docentes orientadores',
+            asisten: 'Alexander Sánchez',
+            lugar: 'Fundación María Cano',
+            responsables: 'SED',
+          },
+          {
+            hora: '8am - 5pm',
+            actividad: 'Congreso de prevención de violencias',
+            asisten: 'Natalia Rivas _ PEEP',
+            lugar: 'Plaza Mayor',
+            responsables: 'Alcaldía de Medellín - Tejiendo hogares',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-20',
+        dia: 'viernes',
+        actividades: [
+          {
+            hora: 'Por definir',
+            actividad: 'Entrega de premiación de los juegos interclases en la sede principal jornada Am y sede Gustavo Rodas',
+            asisten: 'Asisten estudiantes y docentes',
+            lugar: 'Patio Central',
+            responsables: 'Macro proyecto Arte y Movimiento',
+          },
+          {
+            hora: 'Media jornada',
+            actividad: 'Compartir de despedida de estudiantes de básica primaria ambas sedes',
+            asisten: 'Estudiantes de básica primaria',
+            lugar: 'Aulas',
+            responsables: 'Directores de Grupo y familias',
+          },
+          {
+            hora: 'Media jornada',
+            actividad: 'Jornada de aseo y limpieza de los estudiantes de grado 11° (paz y salvo)',
+            asisten: 'Estudiantes de 11°',
+            lugar: 'Aulas y patio',
+            responsables: 'Directores de grupo',
+          },
+          {
+            hora: 'Última hora de clases',
+            actividad: 'Acto de clausura de jornada tarde sede principal y premiación de juegos interclases',
+            asisten: 'Docentes y estudiantes',
+            lugar: 'Patio Central',
+            responsables: 'Directores grado 7°, Juan Pablo Bettin y Edgar Pérez',
+          },
+          {
+            hora: '11am',
+            actividad: 'Reunión de PTS',
+            asisten: 'Líderes estudiantiles del PTS y docente Juan Carlos',
+            lugar: 'Biblioteca',
+            responsables: 'Natalia Rivas-PEEP',
+          },
+          {
+            hora: 'Durante la jornada',
+            actividad: 'Entrega de informe de coordinación para evaluación de desempeño',
+            asisten: 'Coordinadores',
+            lugar: 'Virtual',
+            responsables: 'Juan Diego y Janneth',
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 
