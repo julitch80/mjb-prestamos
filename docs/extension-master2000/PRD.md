@@ -73,3 +73,49 @@ Máster 2000 (p. ej. `Planilla_110200_100-opt_3`). Es lento y propenso a errores
 - En «no se digita», el texto de Observaciones de MJB (p. ej. «SIN CENTRO DE INTERÉS») es un motivo
   interno y **no** se escribe en el Máster.
 - ¿El Máster limita la longitud de «Observaciones»?
+
+---
+
+# Versión 2 (aprobada en principio por Julián 2026-11-14; este apartado espera su visto bueno)
+
+## V2.1 Sin Excel intermedio: «Cargar» trae los datos de la app
+- El director abre el Máster y pulsa **«Cargar»**. La extensión trae de la app MJB la valoración de
+  centros de interés de **su grupo de dirección**. Al mismo tiempo descarga la planilla del Máster y
+  muestra la vista previa. Luego viene **«Subir al Máster»**. No hay archivos que elegir.
+- **Identidad:** la cuenta institucional con la que está abierto Chrome. No se pide contraseña.
+  Con la instalación forzada desde el Workspace, no hay ventana de permiso.
+- **La app entrega a cada usuario solo lo que le corresponde:**
+  - al director, su grupo;
+  - a la coordinación o al superusuario, el grupo que elijan, según las reglas actuales del módulo.
+- Los mismos datos que hoy trae el Excel, con los códigos ya en la serie 600.
+- Si no hay grupo de dirección, o el centro de interés aún no tiene valoraciones, la extensión lo
+  dice en lenguaje claro y no sube nada.
+- Se conserva como respaldo la opción «elegir un Excel» de la V1.
+
+## V2.2 Cambios después de subir
+- Al subir, la extensión le informa a la app **qué se subió a cada estudiante y cuándo**.
+- Al volver a pulsar «Cargar», cada estudiante se clasifica así:
+  - **Actualizado en la app:** el Máster tiene exactamente lo que se subió la vez anterior, y en la
+    app cambió. Se sube automáticamente con el resto.
+  - **Distinto:** el Máster tiene algo diferente de lo que se subió, porque alguien lo cambió
+    directamente allá. Por defecto se conserva el Máster, y el director decide.
+  - Igual, nuevo y no se digita se manejan como en la V1.
+- **Aviso en la app al director:**
+  - «Hay N valoraciones de su grupo que cambiaron después de subirlas al Máster».
+  - Incluye la lista de estudiantes y un recordatorio de pulsar «Cargar» y «Subir» en el Máster.
+  - El aviso desaparece cuando se vuelve a subir.
+
+## Criterios de aceptación V2
+1. Con Chrome abierto con la cuenta institucional de Julián, «Cargar» muestra la vista previa de 11.2
+   sin elegir ningún archivo. Los 15 estudiantes ya subidos aparecen como «igual».
+2. Un líder cambia la valoración de un estudiante de 11.2 (prueba con un caso acordado):
+   - la app muestra el aviso al director;
+   - «Cargar» marca a ese estudiante como «actualizado en la app»;
+   - tras subir, el Máster tiene el valor nuevo y el aviso desaparece.
+3. Si alguien cambia a mano en el Máster la nota de un estudiante, «Cargar» lo marca «distinto» y no
+   lo pisa sin el visto bueno del director.
+4. Un docente que no es director, o es director de otro grupo, no recibe los datos de 11.2.
+
+## Trabajo de consola de Julián
+- Crear en Google Cloud (proyecto de Firebase) un cliente OAuth de tipo «Extensión de Chrome» con el
+  ID fijo de la extensión. Claude da los pasos exactos.

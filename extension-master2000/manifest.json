@@ -1,14 +1,26 @@
 {
   "manifest_version": 3,
-  "name": "MJB a Master 2000 - Centros de interes",
-  "version": "0.1.0",
-  "description": "Lleva las valoraciones de centros de interes exportadas de MJB a la hoja optativa de la planilla del Master 2000, con vista previa.",
-  "host_permissions": ["https://*.master2000.net/*"],
+  "name": "MJB → Máster 2000 · Centros de interés",
+  "version": "1.0.0",
+  "description": "Lleva las valoraciones de centros de interés exportadas de MJB a la hoja optativa de la planilla del Máster 2000, con vista previa.",
+  "host_permissions": [
+    "https://*.master2000.net/*"
+  ],
   "content_scripts": [
     {
-      "matches": ["https://*.master2000.net/academicodocente/panel.php*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://*.master2000.net/academicodocente/panel.php*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
 }

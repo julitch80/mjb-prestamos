@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:reglas": "firebase emulators:exec --only firestore --project demo-mjb \"npx vitest run --config vitest.rules.config.ts\"",
-    "build:extension": "node extension-master2000/build.mjs"
+    "build:extension": "node extension-master2000/build.mjs",
+    "pack:extension": "node extension-master2000/pack.mjs"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.2",
