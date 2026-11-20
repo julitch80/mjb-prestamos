@@ -871,6 +871,7 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
     <a href="#a-permanencia">Casos de permanencia</a>
     <a href="#a-ficha">La ficha del estudiante</a>
     <a href="#a-centros">Centros de interés</a>
+    <a href="#a-master">Subir CI al Máster</a>
     <a href="#a-restaurante">Restaurante</a>
   </nav>
 
@@ -1157,6 +1158,32 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
       <div class="si"><span class="quien">Cobertura y asistencia</span><h3>Estudiantes sin centro</h3><p>La lista de <b>«Los que no están en ningún centro»</b>, con <span class="bt">Asignar centro</span> al lado de cada uno. Se descarga en Excel.</p></div>
       <div class="si"><span class="quien">Valoración</span><h3>Reabrir una entrega</h3><p>Cada líder valora su centro y lo <b>entrega</b>; después ya no puede cambiarlo. Para que corrija, <span class="bt">Reabrir para corregir</span> le abre la valoración hasta la fecha y hora que pongas. Ese botón solo lo ven las personas autorizadas en la configuración de la valoración; si no lo ves, pídelo a quien administra la aplicación.</p></div>
       <div class="si"><span class="quien">Consejo</span><h3>En dos centros a la vez</h3><p>Mientras no resuelvas un duplicado, el estudiante aparece en los dos centros <b>a propósito</b>, para que ningún líder se quede sin poder llamarlo a lista. No es un error.</p></div>
+    </div>
+  </div>
+
+  <div class="bloque solo" id="a-master">
+    <h3 class="sub">Subir las valoraciones al Máster con la extensión</h3>
+    <p style="color:var(--ink-2);max-width:64ch">La extensión <b>MJB → Máster 2000</b> escribe en la planilla del Máster las valoraciones que ya hiciste en la aplicación, para no digitarlas a mano. Funciona en <b>Google Chrome en computador</b> (no en celular). Se instala una sola vez y tarda unos 3 minutos.</p>
+    <ol class="pasos" style="margin-top:14px">
+      <li><div><span class="t">Descarga el archivo <b>mjb-master2000-1.0.0.zip</b></span><p>Desde <a href="https://drive.google.com/file/d/11lSXq5G3VuerA_nEmsPaOGY6SUBxODHi/view?usp=sharing" target="_blank" rel="noopener">este enlace de Drive</a>, con tu cuenta del colegio.</p></div></li>
+      <li><div><span class="t">Descomprímelo</span><p>En Descargas, clic derecho sobre el archivo → <b>Extraer todo…</b> → <b>Extraer</b>. Queda una carpeta con el mismo nombre.</p></div></li>
+      <li><div><span class="t">Abre Chrome y escribe <b>chrome://extensions</b> en la barra de direcciones</span><p>Presiona Enter.</p></div></li>
+      <li><div><span class="t">Activa <b>Modo de desarrollador</b></span><p>Es el interruptor de arriba a la derecha.</p></div></li>
+      <li><div><span class="t">Toca <span class="bt">Cargar descomprimida</span> y elige la carpeta del paso 2</span><p>Ábrela y toca <b>Seleccionar carpeta</b>. Dentro debe estar el archivo manifest.json.</p></div></li>
+      <li><div><span class="t">Listo</span><p>Aparece la tarjeta «MJB → Máster 2000 · Centros de interés».</p></div></li>
+    </ol>
+    <h3 class="sub" style="margin-top:22px">Cómo se usa</h3>
+    <ol class="pasos">
+      <li><div><span class="t">Entra al Máster con tu usuario y abre la planilla de Centros de Interés</span><p>Como siempre.</p></div></li>
+      <li><div><span class="t">Abre el botón azul de abajo a la derecha</span><p>Muestra qué notas se van a escribir, cuáles ya son iguales y cuáles son distintas. Por defecto se conserva lo que ya tenga el Máster.</p></div></li>
+      <li><div><span class="t">Revisa, confirma y guarda en el Máster</span><p>Como de costumbre.</p></div></li>
+    </ol>
+    <div class="grid-si">
+      <div class="si"><span class="quien">Aviso de Chrome</span><h3>«Extensiones en modo desarrollador»</h3><p>Es normal; ciérralo. No afecta nada.</p></div>
+      <div class="si"><span class="quien">Bloqueado</span><h3>No deja activar el modo de desarrollador</h3><p>Tu Chrome lo tiene bloqueado. Que avise a Julián y haga la subida desde otro computador que ya la tenga, entrando con tu propio usuario del Máster.</p></div>
+      <div class="si"><span class="quien">Seguridad</span><h3>No guarda tu contraseña</h3><p>No guarda contraseñas ni datos de sesión: solo actúa dentro del Máster mientras estás ahí.</p></div>
+      <div class="si"><span class="quien">Filas en rojo</span><h3>«Código no válido»</h3><p>No se suben porque el Máster solo acepta códigos 600. Avisa a Julián.</p></div>
+      <div class="si"><span class="quien">Más adelante</span><h3>Versión oficial</h3><p>Cuando Google apruebe la versión de la tienda, se instalará sola. Entonces vuelve a chrome://extensions y toca <b>Quitar</b> en esta copia.</p></div>
     </div>
   </div>
 
