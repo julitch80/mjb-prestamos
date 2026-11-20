@@ -304,7 +304,7 @@ export default function App() {
       </Suspense>
     );
   }
-  if (/^#\/evaluacion-ci\/?$/.test(hash)) {
+  if (/^#\/evaluacion-ci\/?$/.test(hash) || new URLSearchParams(window.location.search).get('encuesta') === 'ci') {
     return (
       <Suspense fallback={null}>
         <EvaluacionPublica />

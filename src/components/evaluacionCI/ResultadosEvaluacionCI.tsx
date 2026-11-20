@@ -16,7 +16,9 @@ const COLORES: Record<string, string> = {
 };
 
 function urlPublica() {
-  return `${window.location.origin}${window.location.pathname}${RUTA_PUBLICA}`;
+  // `?encuesta=ci` además del hash: algunos lectores de QR del iPhone descartan el `#…`
+  // y abrían el ingreso de docentes.
+  return `${window.location.origin}${window.location.pathname}?encuesta=ci${RUTA_PUBLICA}`;
 }
 
 // Títulos cortos para la matriz (la pregunta completa se ve al desplegar).
