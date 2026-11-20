@@ -68,7 +68,7 @@ export const PLAN_APOYO_MANANA: JornadaEspecial = {
       entradas: [
         [e('Inglés', '11°', 'Johana'), e('Artística', '11°', 'Doris')],
         [e('Física', '11°', 'Julián Medina'), e('Castellano', '11°', 'Margarita')],
-        [e('Matemáticas', '11°', 'Claudia'), e('Tecnología', '11°', 'Juan Carlos Blandón')],
+        [e('Matemáticas', '11°', 'Sin docente (Claudia no estará)'), e('Tecnología', '11°', 'Juan Carlos Blandón')],
       ],
     },
     {
@@ -85,11 +85,11 @@ export const PLAN_APOYO_MANANA: JornadaEspecial = {
         [e('C. Naturales', '9°', 'Mónica Córdoba'), CASTELLANO_10, e('Inglés', '11°', 'Johana', '(1H)'), e('Ed. Física', '11°', 'Adolfo', '(1H)')],
         [
           e('Sociales', '9°', 'Gloria Álvarez'),
-          e('Matemáticas', '10°', 'Uriel 10°1- 10°2; Claudia 10°2, 10°3 y 10°4'),
+          e('Matemáticas', '10°', 'Uriel (cubre también a Claudia)'),
           e('Biología', '11°', 'Carlos Cárdenas', '(1H)'),
           e('Castellano', '11°', 'Margarita', '(1H)'),
         ],
-        [e('Inglés', '9° y 10°1', 'Camilo'), e('Química', '10°', 'Carlos Cárdenas'), e('Matemáticas', '11°', 'Claudia'), e('Sociales', '11°', 'Gloria Álvarez', '(1H)')],
+        [e('Inglés', '9° y 10°1', 'Camilo'), e('Química', '10°', 'Carlos Cárdenas'), e('Matemáticas', '11°', 'Sin docente (Claudia no estará)'), e('Sociales', '11°', 'Gloria Álvarez', '(1H)')],
       ],
     },
     {
@@ -103,7 +103,7 @@ export const PLAN_APOYO_MANANA: JornadaEspecial = {
     {
       fecha: '2026-11-30', etiqueta: 'Lunes 30 nov',
       entradas: [
-        [e('Inglés', '9° y 10°1', 'Camilo'), e('Matemáticas', '10°', 'Claudia')],
+        [e('Inglés', '9° y 10°1', 'Camilo'), e('Matemáticas', '10°', 'Uriel (cubre a Claudia)')],
         [e('Artística', '9°', 'Doris'), CASTELLANO_10],
         [e('Ed. Física', '9°', 'Adolfo'), e('Física', '10°', 'Julián Medina')],
       ],

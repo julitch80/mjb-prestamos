@@ -10,7 +10,50 @@ import {
   GRADOS_FILTRO, type GradoFiltro, hoyBogota, diaInicial, pasaFiltros, contarCoincidencias, type FiltrosEspecial,
 } from '../../data/horarioEspecial/logica';
 
+import { SESIONES_PAE_MANANA } from '../../data/horarioEspecial/sustentacionesPAE';
+
 type Jor = 'manana' | 'tarde';
+
+function SustentacionesPAE({ nombreCorto }: { nombreCorto: string }) {
+  const n = nombreCorto.toLowerCase().split(' ')[0];
+  const dias = [...new Set(SESIONES_PAE_MANANA.map(x => x.fecha))].sort();
+  return (
+    <section className="rounded-2xl border border-line bg-card p-4 space-y-3">
+      <div>
+        <h3 className="text-lg font-bold text-strong">Plan Académico Especial · 10.° y 11.°</h3>
+        <p className="text-sm text-soft">
+          Jornada de la mañana. Cada docente da una hora de <b>orientación</b> y, otro día, una hora de <b>sustentación</b>.
+          Ninguna hora se cruza con otra el mismo día. Claudia no estará: a sus estudiantes de 10.° los atiende Uriel.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {dias.map(fe => {
+          const del = SESIONES_PAE_MANANA.filter(x => x.fecha === fe).sort((a, b) => a.hora.localeCompare(b.hora, 'es', { numeric: true }));
+          return (
+            <div key={fe} className="rounded-xl border border-line p-3">
+              <p className="mb-2 text-sm font-semibold text-strong">{del[0].dia}</p>
+              <ul className="space-y-1">
+                {del.map(x => {
+                  const mio = !!n && x.docente.toLowerCase().startsWith(n);
+                  return (
+                    <li key={x.docente + x.tipo} className={cn('rounded-lg px-2 py-1 text-sm',
+                      mio ? 'bg-accent-soft text-accent-soft-fg font-semibold' : 'text-soft')}>
+                      <div className="flex justify-between gap-2">
+                        <span><span className="tabular-nums">{x.hora}</span> · {x.docente}</span>
+                        <span className="text-xs uppercase tracking-wide">{x.tipo === 'orientacion' ? 'Orientación' : 'Sustentación'}</span>
+                      </div>
+                      {x.nota && <p className="text-xs text-muted">{x.nota}</p>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 function Chip({ en, f }: { en: EntradaEspecial; f: FiltrosEspecial }) {
   const filtrando = f.grado !== null || f.soloMias;
@@ -182,6 +225,8 @@ export default function HorarioEspecialPlanApoyo() {
 
       <div className="hidden sm:block"><Matriz j={j} f={f} /></div>
       <div className="sm:hidden"><VistaDia key={jornada} j={j} f={f} /></div>
+
+      {jornada === 'manana' && <SustentacionesPAE nombreCorto={nombreCorto} />}
 
       <p className="text-xs text-muted">{PLAN_APOYO_FUENTE}</p>
     </div>
