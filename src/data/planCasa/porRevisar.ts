@@ -3,19 +3,21 @@
 // más dos condiciones: la entrega debe tener fecha (entregadoEn) y el resultado va de la más
 // antigua a la más reciente.
 //
-// Criterio exacto: un paso cuenta como «por revisar» cuando su seguimiento está en estado
-// 'entregado' (no 'pendiente' ni 'revisado'), tiene `entregadoEn`, y
-//  - guía integrada: al menos una de las partes (componentes) es de una asignatura mía y aún no la marqué;
-//  - paso «ent-<asignatura>»: la asignatura es mía;
-//  - otro paso: soy el responsable de la guía.
+// Criterio exacto: un paso cuenta como «por revisar» cuando no está 'revisado' y su seguimiento
+// está en 'entregado' (o hay entregas reales aunque siga 'pendiente'), y puedoRevisarPaso: soy
+// CUALQUIER docente de la guía (responsable, en docentesCorreos o docente de una asignatura de
+// la guía). En guía integrada, con parte propia, deja de contar cuando marco mi parte.
 // El equipo y coordinación (gestor) ven todas las entregas en ese estado.
+// Fecha mostrada: entregadoEn, o la entrega real más reciente, o la última actualización.
 import type { AsignaturaPlan, GuiaPlan, PlanCasa } from './tipos';
-import { entregasPorRevisar } from './checklist';
+import { entregasPorRevisar, llavePaso } from './checklist';
 
 export interface DatosPlanRevisar {
   plan: Pick<PlanCasa, 'desde' | 'modalidad' | 'nombres' | 'apellidos' | 'grupo'> & { id: string };
   asigs: AsignaturaPlan[];
   guias: GuiaPlan[];
+  /** Pasos con entregas reales (llavePaso(guiaId, pasoId) → ms de la más reciente), si se conocen. */
+  conEntregas?: Record<string, number>;
 }
 
 export interface EntregaRecibida {
@@ -42,20 +44,21 @@ export function entregasRecibidasPorRevisar(
   const yo = minus(o.correo);
   const salida: EntregaRecibida[] = [];
   for (const d of planes) {
-    const pendientes = entregasPorRevisar({ plan: d.plan, asigs: d.asigs, guias: d.guias, correo: o.correo, gestor: o.gestor, hoy: o.hoy, nombre: id => o.nombre(d.plan.id, id) });
+    const pendientes = entregasPorRevisar({ plan: d.plan, asigs: d.asigs, guias: d.guias, correo: o.correo, gestor: o.gestor, hoy: o.hoy, conEntregas: d.conEntregas, nombre: id => o.nombre(d.plan.id, id) });
     for (const e of pendientes) {
       const g = d.guias.find(x => x.id === e.guiaId);
       const seg = g?.seguimiento?.[e.pasoId];
       const pasos = g?.aprobada?.pasos ?? [];
       const paso = pasos.find(p => p.id === e.pasoId);
-      if (!g || !paso || typeof seg?.entregadoEn !== 'number') continue;
+      const cuando = seg?.entregadoEn ?? d.conEntregas?.[llavePaso(e.guiaId, e.pasoId)] ?? seg?.actualizadoEn ?? 0;
+      if (!g || !paso) continue;
       const partes = (paso.componentes ?? [])
-        .filter(c => !seg.porAsignatura?.[c.asignaturaId]?.revisado
+        .filter(c => !seg?.porAsignatura?.[c.asignaturaId]?.revisado
           && (o.gestor || minus(d.asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo) === yo))
         .map(c => o.nombre(d.plan.id, c.asignaturaId));
       salida.push({
         planId: d.plan.id, estudiante: (d.plan.nombres ?? '').trim().split(/\s+/)[0] ?? '', grupo: d.plan.grupo,
-        guiaId: e.guiaId, pasoId: e.pasoId, titulo: e.titulo, pasoNum: pasos.indexOf(paso) + 1, entregadoEn: seg.entregadoEn, partes,
+        guiaId: e.guiaId, pasoId: e.pasoId, titulo: e.titulo, pasoNum: pasos.indexOf(paso) + 1, entregadoEn: cuando, partes,
       });
     }
   }

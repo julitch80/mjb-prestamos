@@ -31,26 +31,35 @@ describe('entregasRecibidasPorRevisar', () => {
     })],
   };
 
-  it('solo lo mío, no revisado, ordenado del más antiguo al más reciente', () => {
+  it('lo de mi guía (también ent-<otra asignatura>), no revisado, ordenado del más antiguo al más reciente', () => {
     const r = entregasRecibidasPorRevisar([d1, d2], o);
-    expect(r.map(x => `${x.estudiante}:${x.pasoId}`)).toEqual(['Ana:ent-len', 'Samuel:p1']);
-    expect(r[1].partes).toEqual(['LEN']);
-    expect(r[1].pasoNum).toBe(1);
+    expect(r.map(x => `${x.estudiante}:${x.pasoId}`)).toEqual(['Ana:ent-mat', 'Ana:ent-len', 'Samuel:p1']);
+    expect(r[2].partes).toEqual(['LEN']);
+    expect(r[2].pasoNum).toBe(1);
   });
   it('si ya marqué mi parte deja de aparecer', () => {
     const d = { ...d1, guias: [g('g1', { ...d1.guias[0], seguimiento: { p1: { estado: 'entregado', entregadoEn: 2000, porAsignatura: { len: { revisado: true } } } } })] };
     expect(entregasRecibidasPorRevisar([d], o)).toEqual([]);
   });
-  it('sin entregadoEn o sin entregar no cuenta; el gestor ve todo lo entregado', () => {
-    const sinFecha = { ...d2, guias: [g('g2', { ...d2.guias[0], seguimiento: { 'ent-len': { estado: 'entregado' } } })] };
-    expect(entregasRecibidasPorRevisar([sinFecha], o)).toEqual([]);
+  it('sin entregar no cuenta; sin entregadoEn usa la entrega real o la última actualización; el gestor ve todo lo entregado', () => {
+    const sinFecha = { ...d2, guias: [g('g2', { ...d2.guias[0], seguimiento: { 'ent-len': { estado: 'entregado', actualizadoEn: 700 } } })] };
+    expect(entregasRecibidasPorRevisar([sinFecha], o).map(x => x.entregadoEn)).toEqual([700]);
+    expect(entregasRecibidasPorRevisar([{ ...sinFecha, conEntregas: { 'g2/ent-len': 800 } }], o).map(x => x.entregadoEn)).toEqual([800]);
+    const pendiente = { ...d2, guias: [g('g2', { ...d2.guias[0], seguimiento: { 'ent-len': { estado: 'pendiente' } } })] };
+    expect(entregasRecibidasPorRevisar([pendiente], o)).toEqual([]);
+    expect(entregasRecibidasPorRevisar([{ ...pendiente, conEntregas: { 'g2/ent-len': 800 } }], o)).toHaveLength(1);
     const todo = entregasRecibidasPorRevisar([d2], { ...o, correo: 'coord@x.co', gestor: true });
     expect(todo.map(x => x.pasoId)).toEqual(['ent-mat', 'ent-len']);
+  });
+  it('docente en docentesCorreos sin asignatura ni responsabilidad ve el paso; uno ajeno no', () => {
+    const d = { ...d2, guias: [g('g2', { ...d2.guias[0], docentesCorreos: ['a@x.co', 'b@x.co', 'c@x.co'] })] };
+    expect(entregasRecibidasPorRevisar([d], { ...o, correo: 'c@x.co' }).map(x => x.pasoId)).toEqual(['ent-mat', 'ent-len']);
+    expect(entregasRecibidasPorRevisar([d], { ...o, correo: 'z@x.co' })).toEqual([]);
   });
   it('antes de que empiece el plan no hay nada', () => {
     expect(entregasRecibidasPorRevisar([d2], { ...o, hoy: '2026-10-30' })).toEqual([]);
   });
   it('cuenta por guía', () => {
-    expect(contarPorGuia(entregasRecibidasPorRevisar([d1, d2], o))).toEqual({ g1: 1, g2: 1 });
+    expect(contarPorGuia(entregasRecibidasPorRevisar([d1, d2], o))).toEqual({ g1: 1, g2: 2 });
   });
 });

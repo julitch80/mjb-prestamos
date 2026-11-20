@@ -1,18 +1,37 @@
 // Entregas que llegaron desde la agenda pública: lista por paso (más reciente arriba) y botón
 // «Abrir» (la función verifica el rol y devuelve el archivo; nunca una URL permanente).
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FileText, Image as Imagen, Link2, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { EntregaPlan, GuiaPlan, PasoGuia } from '../../data/planCasa/tipos';
 import { abrirEntrega, cargarEntrega, escucharEntregas } from '../../data/planCasa/entregasCliente';
 import { cajaGirada, girar, rotacionValida } from '../../data/planCasa/rotacion';
 import { formatoTamano } from '../../data/planCasa/entregas';
+import { llavePaso } from '../../data/planCasa/checklist';
 
 export function useEntregas(planId: string, guiaId: string): { entregas: EntregaPlan[]; error: string } {
   const [entregas, setEntregas] = useState<EntregaPlan[]>([]);
   const [error, setError] = useState('');
   useEffect(() => escucharEntregas(planId, guiaId, e => { setEntregas(e); setError(''); }, e => setError(e.message)), [planId, guiaId]);
   return { entregas, error };
+}
+
+/**
+ * Pasos con entregas reales en las guías dadas: llavePaso(guiaId, pasoId) → ms de la más reciente.
+ * Sirve para contar como «por revisar» un paso con entregas aunque su estado siga en «pendiente».
+ */
+export function useConEntregas(planId: string, guiaIds: string[]): Record<string, number> {
+  const [porGuia, setPorGuia] = useState<Record<string, Record<string, number>>>({});
+  const clave = guiaIds.join('|');
+  useEffect(() => {
+    const bajas = clave.split('|').filter(Boolean).map(gid => escucharEntregas(planId, gid, es => {
+      const m: Record<string, number> = {};
+      for (const e of es) m[llavePaso(gid, e.pasoId)] = Math.max(m[llavePaso(gid, e.pasoId)] ?? 0, e.creadoEn);
+      setPorGuia(prev => ({ ...prev, [gid]: m }));
+    }));
+    return () => bajas.forEach(b => b());
+  }, [planId, clave]);
+  return useMemo(() => Object.assign({}, ...Object.values(porGuia)) as Record<string, number>, [porGuia]);
 }
 
 const fecha = (ms: number) => new Date(ms).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
@@ -122,15 +141,18 @@ export function ListaEntregas({ planId, entregas }: { planId: string; entregas: 
  * abre. Con las props opcionales (pestaña «Entregas» del docente) cada paso indica quién lo
  * revisa o trae el botón «Revisar», que lleva al bloque de seguimiento de ese paso.
  */
-export function EntregasGuiaResumen({ planId, g, abiertoInicial = false, puedeRevisar, quienRevisa, onRevisar }: {
+export function EntregasGuiaResumen({ planId, g, abiertoInicial = false, puedeRevisar, quienRevisa, onRevisar, renderPaso }: {
   planId: string; g: GuiaPlan; abiertoInicial?: boolean;
   puedeRevisar?: (p: PasoGuia) => boolean; quienRevisa?: (p: PasoGuia) => string; onRevisar?: (pasoId: string) => void;
+  /** Si devuelve un nodo, ese paso se dibuja con él (controles de revisión en línea, con sus entregas); si null, el bloque por defecto. */
+  renderPaso?: (p: PasoGuia, n: number, entregas: EntregaPlan[]) => ReactNode | null;
 }) {
   const { entregas, error } = useEntregas(planId, g.id);
   const [abierto, setAbierto] = useState(abiertoInicial);
   if (error) return <p className="text-[11px] text-red-500">Entregas: {error}</p>;
-  if (!entregas.length) return null;
   const pasos = g.aprobada?.pasos ?? [];
+  const visibles = pasos.filter(p => entregas.some(e => e.pasoId === p.id) || g.seguimiento?.[p.id]?.estado === 'entregado');
+  if (!visibles.length) return null;
   return (
     <div className="mt-1">
       <button onClick={() => setAbierto(a => !a)} className="text-[11px] text-accent underline">
@@ -138,7 +160,11 @@ export function EntregasGuiaResumen({ planId, g, abiertoInicial = false, puedeRe
       </button>
       {abierto && (
         <div className="mt-1 space-y-2">
-          {pasos.filter(p => entregas.some(e => e.pasoId === p.id)).map(p => (
+          {visibles.map(p => {
+            const propias = entregas.filter(e => e.pasoId === p.id);
+            const dibujo = renderPaso?.(p, pasos.indexOf(p) + 1, propias);
+            if (dibujo) return <div key={p.id}>{dibujo}</div>;
+            return (
             <div key={p.id}>
               <div className="flex items-center gap-2">
                 <p className="flex-1 min-w-0 text-[11px] text-soft">{p.titulo} · {g.seguimiento?.[p.id]?.estado ?? 'pendiente'}
@@ -148,9 +174,9 @@ export function EntregasGuiaResumen({ planId, g, abiertoInicial = false, puedeRe
                   <button type="button" onClick={() => onRevisar(p.id)} className="min-h-[40px] px-4 rounded-full bg-accent text-strong text-sm font-medium flex-shrink-0">Revisar</button>
                 )}
               </div>
-              <ListaEntregas planId={planId} entregas={entregas.filter(e => e.pasoId === p.id)} />
-            </div>
-          ))}
+              <ListaEntregas planId={planId} entregas={propias} />
+            </div>);
+          })}
         </div>
       )}
     </div>

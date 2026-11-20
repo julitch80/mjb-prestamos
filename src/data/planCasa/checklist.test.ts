@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { construirChequeo, entregasPorRevisar, indiceColor, puedoRevisarPaso, resumenChequeo } from './checklist';
+import { construirChequeo, entregasPorRevisar, indiceColor, llavePaso, puedoRevisarPaso, resumenChequeo, revisaSinPermisoEnGuia } from './checklist';
 import type { AsignaturaPlan, Guia, GuiaPlan } from './tipos';
 
 const asig = (id: string, correo: string, extra: Partial<AsignaturaPlan> = {}): AsignaturaPlan =>
@@ -51,28 +51,62 @@ describe('puedoRevisarPaso', () => {
   const asigs = [asig('mat', 'a@x.co'), asig('len', 'b@x.co')];
   const guia = g();
   const paso = (id: string, componentes?: unknown) => ({ id, titulo: id, ...(componentes ? { componentes } : {}) }) as never;
-  it('paso ent-<asignatura>: solo el docente de esa asignatura (no el responsable)', () => {
-    expect(puedoRevisarPaso(paso('ent-len'), guia, asigs, 'b@x.co', false)).toBe(true);
-    expect(puedoRevisarPaso(paso('ent-len'), guia, asigs, 'a@x.co', false)).toBe(false);
+  it('cualquier docente de la guía (docentesCorreos) puede revisar, aunque no sea responsable ni de la asignatura del paso', () => {
+    const gg = g({ docentesCorreos: ['a@x.co', 'b@x.co', 'c@x.co'] });
+    expect(puedoRevisarPaso(paso('ent-len'), gg, asigs, 'C@x.co', false)).toBe(true);
+    expect(puedoRevisarPaso(paso('p1'), gg, asigs, 'b@x.co', false)).toBe(true);
   });
-  it('otro paso: solo el responsable de la guía', () => {
-    expect(puedoRevisarPaso(paso('p1'), guia, asigs, 'A@x.co', false)).toBe(true);
-    expect(puedoRevisarPaso(paso('p1'), guia, asigs, 'b@x.co', false)).toBe(false);
+  it('docente de una asignatura de la guía pero fuera de docentesCorreos: puede, y se detecta el caso', () => {
+    const gg = g({ docentesCorreos: ['a@x.co'] });
+    expect(puedoRevisarPaso(paso('p1'), gg, asigs, 'b@x.co', false)).toBe(true);
+    expect(revisaSinPermisoEnGuia(gg, asigs, 'b@x.co', false)).toBe(true);
+    expect(revisaSinPermisoEnGuia(g(), asigs, 'b@x.co', false)).toBe(false);
+    expect(revisaSinPermisoEnGuia(gg, asigs, 'b@x.co', true)).toBe(false);
   });
-  it('guía integrada: quien tiene una parte', () => {
+  it('docente ajeno a la guía no revisa', () => {
+    expect(puedoRevisarPaso(paso('p1'), g(), asigs, 'z@x.co', false)).toBe(false);
+    expect(puedoRevisarPaso(paso('ent-len'), g(), asigs, 'z@x.co', false)).toBe(false);
+  });
+  it('guía integrada: quien tiene una parte, y también otro docente de la guía', () => {
     const p = paso('p1', [{ asignaturaId: 'len' }]);
     expect(puedoRevisarPaso(p, guia, asigs, 'b@x.co', false)).toBe(true);
-    expect(puedoRevisarPaso(p, guia, asigs, 'a@x.co', false)).toBe(false);
+    expect(puedoRevisarPaso(p, guia, asigs, 'a@x.co', false)).toBe(true);
   });
   it('gestor: todo', () => {
     expect(puedoRevisarPaso(paso('ent-len'), guia, asigs, 'z@x.co', true)).toBe(true);
   });
-  it('entregasPorRevisar coincide: ent-<asig> entregado le aparece solo al docente de esa asignatura', () => {
+  it('entregasPorRevisar: ent-<asig> entregado le aparece a todo docente de la guía, no a un ajeno', () => {
     const aprobada = guiaBase({ pasos: [paso('ent-len')] });
     const gg = g({ aprobada, seguimiento: { 'ent-len': { estado: 'entregado' } } });
     const d = { ...base, hoy: '2026-11-03', asigs, guias: [gg] };
     expect(entregasPorRevisar({ ...d, correo: 'b@x.co' })).toHaveLength(1);
-    expect(entregasPorRevisar({ ...d, correo: 'a@x.co' })).toHaveLength(0);
+    expect(entregasPorRevisar({ ...d, correo: 'a@x.co' })).toHaveLength(1);
+    expect(entregasPorRevisar({ ...d, correo: 'z@x.co' })).toHaveLength(0);
+  });
+  it('docente en docentesCorreos, ni responsable ni de la asignatura del paso: lo ve por revisar', () => {
+    const aprobada = guiaBase({ pasos: [paso('ent-len')] });
+    const gg = g({ aprobada, docentesCorreos: ['a@x.co', 'c@x.co'], seguimiento: { 'ent-len': { estado: 'entregado' } } });
+    expect(entregasPorRevisar({ ...base, hoy: '2026-11-03', correo: 'c@x.co', asigs, guias: [gg] })).toHaveLength(1);
+  });
+  it('paso «pendiente» con entregas reales cuenta como por revisar; sin entregas no', () => {
+    const aprobada = guiaBase({ pasos: [paso('p1')] });
+    const gg = g({ aprobada, seguimiento: { p1: { estado: 'pendiente' } } });
+    const d = { ...base, hoy: '2026-11-03', correo: 'a@x.co', asigs, guias: [gg] };
+    expect(entregasPorRevisar(d)).toHaveLength(0);
+    expect(entregasPorRevisar({ ...d, conEntregas: { [llavePaso('g1', 'p1')]: 5 } })).toHaveLength(1);
+  });
+  it('paso revisado no aparece, ni con entregas reales', () => {
+    const aprobada = guiaBase({ pasos: [paso('p1')] });
+    const gg = g({ aprobada, seguimiento: { p1: { estado: 'revisado' } } });
+    expect(entregasPorRevisar({ ...base, hoy: '2026-11-03', correo: 'a@x.co', asigs, guias: [gg], conEntregas: { [llavePaso('g1', 'p1')]: 5 } })).toHaveLength(0);
+  });
+  it('guía integrada: con parte propia deja de aparecer al marcarla; sin parte propia aparece hasta «revisado»', () => {
+    const p = paso('p1', [{ asignaturaId: 'len' }]);
+    const aprobada = guiaBase({ pasos: [p] });
+    const gg = g({ aprobada, seguimiento: { p1: { estado: 'entregado', porAsignatura: { len: { revisado: true } } } } });
+    const d = { ...base, hoy: '2026-11-03', asigs, guias: [gg] };
+    expect(entregasPorRevisar({ ...d, correo: 'b@x.co' })).toHaveLength(0);
+    expect(entregasPorRevisar({ ...d, correo: 'a@x.co' })).toHaveLength(1);
   });
 });
 

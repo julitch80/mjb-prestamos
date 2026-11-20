@@ -26,26 +26,56 @@ export interface DatosChequeo {
   nombre: (asignaturaId: string) => string;
   /** Hoy en 'YYYY-MM-DD'. */
   hoy: string;
+  /** Pasos con entregas reales en la colección de entregas: llavePaso(guiaId, pasoId) → ms de la más reciente. */
+  conEntregas?: Record<string, number>;
 }
 
 const minus = (s: string | undefined) => (s ?? '').trim().toLowerCase();
 
+type GuiaRevisable = Pick<GuiaPlan, 'responsableCorreo'> & Partial<Pick<GuiaPlan, 'docentesCorreos' | 'asignaturaIds'>>;
+
+/** ¿Figura el correo en `docentesCorreos` de la guía? (es lo que mira firestore.rules para dejar escribir el seguimiento). */
+export function estaEnDocentesCorreos(guia: GuiaRevisable, correo: string): boolean {
+  const yo = minus(correo);
+  return !!yo && (guia.docentesCorreos ?? []).some(c => minus(c) === yo);
+}
+
 /**
  * ¿Le toca a este usuario revisar este paso? (sin mirar el estado del paso). Es LA regla única:
  * la usan «Por revisar», la lista de chequeo y los controles de la pantalla.
- *  - gestor (equipo/coordinación): todo.
- *  - guía integrada (el paso tiene componentes): si alguna parte es de una asignatura suya.
- *  - paso «ent-<asignatura>»: el docente de esa asignatura.
- *  - cualquier otro paso: el responsable de la guía.
+ * Puede revisar CUALQUIER docente de la guía:
+ *  - gestor (equipo/coordinación);
+ *  - el responsable de la guía;
+ *  - quien figura en `docentesCorreos` (lo mismo que permite firestore.rules);
+ *  - el docente de alguna asignatura de la guía (o, si el paso la nombra, de su parte/«ent-<asignatura>»).
+ * (La revisión «de mi parte» en guías integradas sigue siendo por asignatura; ver entregasPorRevisar.)
  */
-export function puedoRevisarPaso(paso: PasoGuia, guia: Pick<GuiaPlan, 'responsableCorreo'>, asigs: AsignaturaPlan[], correo: string, gestor: boolean): boolean {
+export function puedoRevisarPaso(paso: PasoGuia, guia: GuiaRevisable, asigs: AsignaturaPlan[], correo: string, gestor: boolean): boolean {
   if (gestor) return true;
   const yo = minus(correo);
+  if (!yo) return false;
+  if (minus(guia.responsableCorreo) === yo || estaEnDocentesCorreos(guia, yo)) return true;
   const esMia = (asignaturaId: string) => minus(asigs.find(a => a.asignaturaId === asignaturaId)?.docenteCorreo) === yo;
-  if (paso.componentes?.length) return paso.componentes.some(c => esMia(c.asignaturaId));
-  if (paso.id.startsWith('ent-')) return esMia(paso.id.slice(4));
-  return minus(guia.responsableCorreo) === yo;
+  if (paso.componentes?.some(c => esMia(c.asignaturaId))) return true;
+  if (paso.id.startsWith('ent-') && esMia(paso.id.slice(4))) return true;
+  return (guia.asignaturaIds ?? []).some(esMia);
 }
+
+/**
+ * Caso a avisar: puede revisar por ser docente de una asignatura de la guía, pero la guía no lo
+ * tiene en `docentesCorreos`, así que la base de datos rechazará el guardado.
+ */
+export function revisaSinPermisoEnGuia(guia: GuiaRevisable, _asigs: AsignaturaPlan[], correo: string, gestor: boolean): boolean {
+  if (gestor) return false;
+  const yo = minus(correo);
+  if (!yo || minus(guia.responsableCorreo) === yo || estaEnDocentesCorreos(guia, yo)) return false;
+  return true;
+}
+
+export const MENSAJE_SIN_PERMISO_GUIA = 'La base de datos no la tiene registrada como docente de esta guía; pídale a coordinación que la agregue.';
+
+/** Llave para los mapas de entregas reales: `${guiaId}/${pasoId}`. */
+export const llavePaso = (guiaId: string, pasoId: string) => `${guiaId}/${pasoId}`;
 
 /** Entregas ya enviadas por el estudiante que este usuario debe revisar (solo desde que empieza el plan). */
 export function entregasPorRevisar(d: DatosChequeo): EntregaPorRevisar[] {
@@ -57,13 +87,15 @@ export function entregasPorRevisar(d: DatosChequeo): EntregaPorRevisar[] {
     if (!guia) continue;
     for (const p of guia.pasos) {
       const seg = g.seguimiento?.[p.id];
-      if (seg?.estado !== 'entregado') continue;
+      const estado = seg?.estado ?? 'pendiente';
+      if (estado === 'revisado') continue;
+      // Por revisar: marcado «entregado», o con entregas reales aunque el estado siga en «pendiente».
+      if (estado !== 'entregado' && !d.conEntregas?.[llavePaso(g.id, p.id)]) continue;
       if (!puedoRevisarPaso(p, g, d.asigs, d.correo, d.gestor)) continue;
-      // Guía integrada: a un docente (no gestor) le toca mientras no haya revisado su parte.
+      // Guía integrada: a un docente con parte propia le toca mientras no haya revisado SU parte.
       if (p.componentes?.length && !d.gestor) {
-        const pendiente = p.componentes.some(c => minus(d.asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo) === yo
-          && !seg.porAsignatura?.[c.asignaturaId]?.revisado);
-        if (!pendiente) continue;
+        const mias = p.componentes.filter(c => minus(d.asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo) === yo);
+        if (mias.length && mias.every(c => seg?.porAsignatura?.[c.asignaturaId]?.revisado)) continue;
       }
       salida.push({ guiaId: g.id, pasoId: p.id, titulo: p.titulo });
     }

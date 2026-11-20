@@ -11,7 +11,7 @@ import type {
 } from '../../data/planCasa/tipos';
 import { MODALIDADES_SUSTENTACION, MOTIVOS_SOLICITUD } from '../../data/planCasa/tipos';
 import { asignaturasCambiadas, diasEntre, estadoEdicion, horaLocal, } from '../../data/planCasa/logica';
-import { construirChequeo, indiceColor, puedoRevisarPaso, resumenChequeo } from '../../data/planCasa/checklist';
+import { construirChequeo, indiceColor, MENSAJE_SIN_PERMISO_GUIA, puedoRevisarPaso, resumenChequeo, revisaSinPermisoEnGuia } from '../../data/planCasa/checklist';
 import { contarPorGuia, entregasRecibidasPorRevisar } from '../../data/planCasa/porRevisar';
 import { criteriosListos } from '../../data/planCasa/avanceDocentes';
 import { capacidadPorSemana, esGuiaIntegrable, estadoTrasRevision, faltanPorRevisar, revisionCompleta } from '../../data/planCasa/integrada';
@@ -24,7 +24,7 @@ import { aprobarBorrador, integrarYGuardarPropuesta, pedirYGuardarPropuesta } fr
 import { errorDeBorrador } from '../../data/planCasa/completarPlan';
 import { asignaturasConNombre, gradoDeGrupo } from './nombres';
 import EditorGuia from './EditorGuia';
-import { EntregasGuiaResumen, ListaEntregas, useEntregas } from './EntregasPaso';
+import { EntregasGuiaResumen, ListaEntregas, useConEntregas, useEntregas } from './EntregasPaso';
 import {
   BarraEstadoGuia, BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, ComponentesEntrega, edicionDe, Etiqueta, EtiquetaCoordinacion, fechaCorta, fechaLarga, hoyLocal, Marca,
   resumenGuia, SugerirPreguntas, hastaTexto, cerradaDesdeTexto,
@@ -37,6 +37,14 @@ type EstadoProg = 'espera' | 'curso' | 'ok' | 'fallo';
 interface Progreso { texto: string; estado: EstadoProg }
 
 // ── Seguimiento (de una guía) ─────────────────────────────────────────────
+
+/** Mensaje de un guardado fallido del seguimiento; si la base rechazó el permiso y la persona no figura en la guía, lo dice claro. */
+function mensajeGuardado(e: unknown, g: GuiaPlan, asigs: AsignaturaPlan[], gestor: boolean): string {
+  const x = e as { code?: string; message?: string };
+  const denegado = x?.code === 'permission-denied' || /permission|insufficient|permiso/i.test(x?.message ?? '');
+  if (denegado && revisaSinPermisoEnGuia(g, asigs, correoActual(), gestor)) return MENSAJE_SIN_PERMISO_GUIA;
+  return x?.message || 'No se pudo guardar.';
+}
 
 /**
  * (Guías integradas) Por cada asignatura de la entrega: qué le corresponde a su docente y el botón
@@ -66,7 +74,7 @@ function RevisionPartes({ plan, g, p, asigs, nombre, gestor, soloMias = false }:
       await guardarRevisionParte(plan.id, g.id, p.id, c.asignaturaId, nueva, estadoTrasRevision(seg, completo));
       // «Revisó» y el comentario de cada asignatura llegan a la agenda del estudiante.
       publicarPlan(plan.id).catch(() => { /* se verá al próximo publicar */ });
-    } catch (e) { setError((e as Error).message || 'No se pudo guardar.'); }
+    } catch (e) { setError(mensajeGuardado(e, g, asigs, gestor)); }
     finally { setGuardando(''); }
   }
 
@@ -120,7 +128,7 @@ function PasoSeguimiento({ plan, g, p, n, asigs, nombre, gestor, entregas }: {
       await guardarPasoSeguimiento(plan.id, g.id, p.id, c);
       // «Revisado» y el comentario llegan a la agenda del estudiante.
       publicarPlan(plan.id).catch(() => { /* se verá al próximo publicar */ });
-    } catch (e) { setError((e as Error).message || 'No se pudo guardar.'); }
+    } catch (e) { setError(mensajeGuardado(e, g, asigs, gestor)); }
   }
 
   return (
@@ -814,37 +822,19 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
 
 // ── Guía donde participo ──────────────────────────────────────────────────
 
-/** (Docente participante) Sus pasos de una guía integrada: revisar su parte y ver las entregas del estudiante. */
-function PasosParticipante({ plan, g, asigs, nombre, yo }: { plan: PlanConDocentes; g: GuiaPlan; asigs: AsignaturaPlan[]; nombre: (id: string) => string; yo: string }) {
-  const { entregas } = useEntregas(plan.id, g.id);
-  const mios = (g.aprobada?.pasos ?? []).filter(p => p.componentes?.some(c => asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo.toLowerCase() === yo));
-  return (
-    <>
-      {mios.map(p => (
-        <div key={p.id} id={`paso-${g.id}-${p.id}`} className="rounded-xl border border-line p-3 space-y-2 scroll-mt-40">
-          <p className="text-sm text-strong">{p.titulo} <span className="text-xs text-muted">· {fechaCorta(p.fecha)}</span></p>
-          <RevisionPartes plan={plan} g={g} p={p} asigs={asigs} nombre={nombre} gestor={false} soloMias />
-          <ListaEntregas planId={plan.id} entregas={entregas.filter(e => e.pasoId === p.id)} />
-        </div>
-      ))}
-    </>
-  );
-}
-
 /**
- * (Docente participante, guía NO integrada) Los pasos aprobados que le toca revisar (por ejemplo
- * «ent-<su asignatura>»): mismo bloque de seguimiento que ve el responsable.
+ * (Docente de la guía, no responsable) Seguimiento de TODOS los pasos aprobados: estado, comentario,
+ * revisión de «mi parte» (guías integradas) y entregas. Mismo bloque que ve el responsable.
  */
-function PasosRevisablesParticipante({ plan, g, asigs, nombre, gestor }: { plan: PlanConDocentes; g: GuiaPlan; asigs: AsignaturaPlan[]; nombre: (id: string) => string; gestor: boolean }) {
+function SeguimientoParticipante({ plan, g, asigs, nombre, gestor }: { plan: PlanConDocentes; g: GuiaPlan; asigs: AsignaturaPlan[]; nombre: (id: string) => string; gestor: boolean }) {
   const { entregas, error } = useEntregas(plan.id, g.id);
   const pasos = g.aprobada?.pasos ?? [];
-  const mios = pasos.map((p, i) => ({ p, n: i + 1 })).filter(x => puedoRevisarPaso(x.p, g, asigs, correoActual(), gestor));
-  if (!mios.length) return null;
+  if (!pasos.length) return null;
   return (
     <div className="space-y-3">
-      <h4 className="text-sm font-semibold text-strong">Mis pasos por revisar</h4>
+      <h4 className="text-sm font-semibold text-strong">Seguimiento</h4>
       {error && <CajaError>Entregas: {error}</CajaError>}
-      {mios.map(x => <PasoSeguimiento key={x.p.id} plan={plan} g={g} p={x.p} n={x.n} asigs={asigs} nombre={nombre} gestor={gestor} entregas={entregas} />)}
+      {pasos.map((p, i) => <PasoSeguimiento key={p.id} plan={plan} g={g} p={p} n={i + 1} asigs={asigs} nombre={nombre} gestor={gestor} entregas={entregas} />)}
     </div>
   );
 }
@@ -875,9 +865,7 @@ function GuiaParticipante({ plan, g, asigs, nombres, gestor }: { plan: PlanConDo
         <>
           {!g.aprobada && <p className="text-xs text-soft">Propuesta aún sin aprobar.</p>}
           <GuiaLectura guia={guia} nombre={nombre} />
-          {g.aprobada?.integrada
-            ? <PasosParticipante plan={plan} g={g} asigs={asigs} nombre={nombre} yo={yo} />
-            : g.aprobada && <PasosRevisablesParticipante plan={plan} g={g} asigs={asigs} nombre={nombre} gestor={gestor} />}
+          {g.aprobada && <SeguimientoParticipante plan={plan} g={g} asigs={asigs} nombre={nombre} gestor={gestor} />}
           <div className="flex flex-wrap gap-2">
             {/* El acuerdo solo tiene sentido mientras la guía se prepara; aprobada, ya no hay nada que aprobar. */}
             {!g.aprobada && <button onClick={alternar} className={dado ? CLASE_BOTON_SEC : CLASE_BOTON}><Check size={15} />{dado ? 'Retirar mi acuerdo' : 'Estoy de acuerdo con la propuesta'}</button>}
@@ -953,9 +941,10 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
   const ordenar = (ids: string[]) => [...ids].sort((x, y) => nombre(x).localeCompare(nombre(y), 'es'));
   const [sel, setSel] = useState<{ tab: string; sub: string }>({ tab: 'r', sub: 'guia' });
   const guiaSel = verGuias.find(g => g.id === sel.tab);
+  const conEntregas = useConEntregas(plan.id, (guias ?? []).filter(g => g.aprobada).map(g => g.id));
   const porRevisar = useMemo(() => asigs && guias
-    ? entregasRecibidasPorRevisar([{ plan, asigs, guias }], { correo: yo, gestor, nombre: (_p, id) => nombres[id]?.asignatura ?? id, hoy: hoyLocal() })
-    : [], [plan, asigs, guias, yo, gestor, nombres]);
+    ? entregasRecibidasPorRevisar([{ plan, asigs, guias, conEntregas }], { correo: yo, gestor, nombre: (_p, id) => nombres[id]?.asignatura ?? id, hoy: hoyLocal() })
+    : [], [plan, asigs, guias, conEntregas, yo, gestor, nombres]);
   const pendientesGuia = useMemo(() => contarPorGuia(porRevisar), [porRevisar]);
 
   /** Lleva a la sección de un ítem de la lista de chequeo ('mis', 'otras' o 'g-<guiaId>'). */
@@ -1100,7 +1089,10 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
             return (
               <div key={g.id} className={cn('rounded-xl border p-2', t.fondo, t.borde)}>
                 <p className="text-xs"><span className={cn('font-semibold', t.texto)}>{g.asignaturaIds.length === 1 ? nombre(g.asignaturaIds[0]) : `Guía ${numGuia(g.id)}`}</span> · {n ? `${n} por revisar` : 'al día'}</p>
-                <EntregasGuiaResumen planId={plan.id} g={g} abiertoInicial puedeRevisar={p => puedoRevisarPaso(p, g, asigs, yo, gestor)} quienRevisa={p => quienRevisa(p, g, asigs, nombres)} onRevisar={pasoId => revisarPaso(g.id, pasoId)} />
+                <EntregasGuiaResumen planId={plan.id} g={g} abiertoInicial puedeRevisar={p => puedoRevisarPaso(p, g, asigs, yo, gestor)} quienRevisa={p => quienRevisa(p, g, asigs, nombres)} onRevisar={pasoId => revisarPaso(g.id, pasoId)}
+                  renderPaso={(p, n, es) => puedoRevisarPaso(p, g, asigs, yo, gestor)
+                    ? <PasoSeguimiento plan={plan} g={g} p={p} n={n} asigs={asigs} nombre={nombre} gestor={gestor} entregas={es} />
+                    : null} />
               </div>);
           })}
         </div>
