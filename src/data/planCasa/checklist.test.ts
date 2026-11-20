@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { construirChequeo, entregasPorRevisar, indiceColor, resumenChequeo } from './checklist';
+import { construirChequeo, entregasPorRevisar, indiceColor, puedoRevisarPaso, resumenChequeo } from './checklist';
 import type { AsignaturaPlan, Guia, GuiaPlan } from './tipos';
 
 const asig = (id: string, correo: string, extra: Partial<AsignaturaPlan> = {}): AsignaturaPlan =>
@@ -44,6 +44,35 @@ describe('entregasPorRevisar', () => {
   it('el líder revisa pasos entregados', () => {
     const r = entregasPorRevisar({ ...base, hoy: '2026-11-03', correo: 'a@x.co', asigs: [], guias: [g({ aprobada, seguimiento: { p1: { estado: 'entregado' } } })] });
     expect(r).toHaveLength(1);
+  });
+});
+
+describe('puedoRevisarPaso', () => {
+  const asigs = [asig('mat', 'a@x.co'), asig('len', 'b@x.co')];
+  const guia = g();
+  const paso = (id: string, componentes?: unknown) => ({ id, titulo: id, ...(componentes ? { componentes } : {}) }) as never;
+  it('paso ent-<asignatura>: solo el docente de esa asignatura (no el responsable)', () => {
+    expect(puedoRevisarPaso(paso('ent-len'), guia, asigs, 'b@x.co', false)).toBe(true);
+    expect(puedoRevisarPaso(paso('ent-len'), guia, asigs, 'a@x.co', false)).toBe(false);
+  });
+  it('otro paso: solo el responsable de la guía', () => {
+    expect(puedoRevisarPaso(paso('p1'), guia, asigs, 'A@x.co', false)).toBe(true);
+    expect(puedoRevisarPaso(paso('p1'), guia, asigs, 'b@x.co', false)).toBe(false);
+  });
+  it('guía integrada: quien tiene una parte', () => {
+    const p = paso('p1', [{ asignaturaId: 'len' }]);
+    expect(puedoRevisarPaso(p, guia, asigs, 'b@x.co', false)).toBe(true);
+    expect(puedoRevisarPaso(p, guia, asigs, 'a@x.co', false)).toBe(false);
+  });
+  it('gestor: todo', () => {
+    expect(puedoRevisarPaso(paso('ent-len'), guia, asigs, 'z@x.co', true)).toBe(true);
+  });
+  it('entregasPorRevisar coincide: ent-<asig> entregado le aparece solo al docente de esa asignatura', () => {
+    const aprobada = guiaBase({ pasos: [paso('ent-len')] });
+    const gg = g({ aprobada, seguimiento: { 'ent-len': { estado: 'entregado' } } });
+    const d = { ...base, hoy: '2026-11-03', asigs, guias: [gg] };
+    expect(entregasPorRevisar({ ...d, correo: 'b@x.co' })).toHaveLength(1);
+    expect(entregasPorRevisar({ ...d, correo: 'a@x.co' })).toHaveLength(0);
   });
 });
 

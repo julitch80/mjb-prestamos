@@ -1,7 +1,7 @@
 // Lista de chequeo automática del docente en un Plan Académico Especial.
 // Lógica pura (sin Firebase): se calcula con lo que ya está cargado (asignaturas y guías).
 // Solo presentación: no escribe nada ni cambia el modelo de datos.
-import type { AsignaturaPlan, GuiaPlan, PlanCasa } from './tipos';
+import type { AsignaturaPlan, GuiaPlan, PasoGuia, PlanCasa } from './tipos';
 import { criteriosListos } from './avanceDocentes';
 import { esGuiaIntegrable } from './integrada';
 
@@ -30,6 +30,23 @@ export interface DatosChequeo {
 
 const minus = (s: string | undefined) => (s ?? '').trim().toLowerCase();
 
+/**
+ * ¿Le toca a este usuario revisar este paso? (sin mirar el estado del paso). Es LA regla única:
+ * la usan «Por revisar», la lista de chequeo y los controles de la pantalla.
+ *  - gestor (equipo/coordinación): todo.
+ *  - guía integrada (el paso tiene componentes): si alguna parte es de una asignatura suya.
+ *  - paso «ent-<asignatura>»: el docente de esa asignatura.
+ *  - cualquier otro paso: el responsable de la guía.
+ */
+export function puedoRevisarPaso(paso: PasoGuia, guia: Pick<GuiaPlan, 'responsableCorreo'>, asigs: AsignaturaPlan[], correo: string, gestor: boolean): boolean {
+  if (gestor) return true;
+  const yo = minus(correo);
+  const esMia = (asignaturaId: string) => minus(asigs.find(a => a.asignaturaId === asignaturaId)?.docenteCorreo) === yo;
+  if (paso.componentes?.length) return paso.componentes.some(c => esMia(c.asignaturaId));
+  if (paso.id.startsWith('ent-')) return esMia(paso.id.slice(4));
+  return minus(guia.responsableCorreo) === yo;
+}
+
 /** Entregas ya enviadas por el estudiante que este usuario debe revisar (solo desde que empieza el plan). */
 export function entregasPorRevisar(d: DatosChequeo): EntregaPorRevisar[] {
   if (d.hoy < d.plan.desde) return [];
@@ -38,21 +55,17 @@ export function entregasPorRevisar(d: DatosChequeo): EntregaPorRevisar[] {
   for (const g of d.guias) {
     const guia = g.aprobada;
     if (!guia) continue;
-    const lider = minus(g.responsableCorreo) === yo;
     for (const p of guia.pasos) {
       const seg = g.seguimiento?.[p.id];
       if (seg?.estado !== 'entregado') continue;
-      let mio = false;
-      if (p.componentes?.length) {
-        // Guía integrada: me toca si alguna parte es de mi asignatura y aún no la revisé.
-        mio = p.componentes.some(c => minus(d.asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo) === yo
+      if (!puedoRevisarPaso(p, g, d.asigs, d.correo, d.gestor)) continue;
+      // Guía integrada: a un docente (no gestor) le toca mientras no haya revisado su parte.
+      if (p.componentes?.length && !d.gestor) {
+        const pendiente = p.componentes.some(c => minus(d.asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo) === yo
           && !seg.porAsignatura?.[c.asignaturaId]?.revisado);
-      } else if (p.id.startsWith('ent-')) {
-        mio = minus(d.asigs.find(a => a.asignaturaId === p.id.slice(4))?.docenteCorreo) === yo;
-      } else {
-        mio = lider;
+        if (!pendiente) continue;
       }
-      if (mio || d.gestor) salida.push({ guiaId: g.id, pasoId: p.id, titulo: p.titulo });
+      salida.push({ guiaId: g.id, pasoId: p.id, titulo: p.titulo });
     }
   }
   return salida;

@@ -7,17 +7,17 @@ import { Check, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../data/store';
 import type {
-  AsignaturaPlan, ComponenteEntrega, EstadoPaso, EstadoSustentacion, Guia, GuiaPlan, PasoGuia, PedidoGuia, RevisionAsignatura, SolicitudAutorizacion,
+  AsignaturaPlan, ComponenteEntrega, EntregaPlan, EstadoPaso, EstadoSustentacion, Guia, GuiaPlan, PasoGuia, PedidoGuia, RevisionAsignatura, SolicitudAutorizacion,
 } from '../../data/planCasa/tipos';
 import { MODALIDADES_SUSTENTACION, MOTIVOS_SOLICITUD } from '../../data/planCasa/tipos';
 import { asignaturasCambiadas, diasEntre, estadoEdicion, horaLocal, } from '../../data/planCasa/logica';
-import { construirChequeo, indiceColor, resumenChequeo } from '../../data/planCasa/checklist';
+import { construirChequeo, indiceColor, puedoRevisarPaso, resumenChequeo } from '../../data/planCasa/checklist';
 import { contarPorGuia, entregasRecibidasPorRevisar } from '../../data/planCasa/porRevisar';
 import { criteriosListos } from '../../data/planCasa/avanceDocentes';
 import { capacidadPorSemana, esGuiaIntegrable, estadoTrasRevision, faltanPorRevisar, revisionCompleta } from '../../data/planCasa/integrada';
 import {
   correoActual, darVistoBueno, leerEquipo, escucharAsignaturas, escucharGuias, escucharPlanes, guardarAsignatura,
-  escucharSolicitudes, guardarGuia, guardarRevisionParte, pedirAutorizacion, publicarPlan, sugerirCampos, type PlanConDocentes,
+  escucharSolicitudes, guardarGuia, guardarPasoSeguimiento, guardarRevisionParte, pedirAutorizacion, publicarPlan, sugerirCampos, type PlanConDocentes,
 } from '../../data/planCasa/persistencia';
 import { USUARIOS } from '../../data/maestros';
 import { aprobarBorrador, integrarYGuardarPropuesta, pedirYGuardarPropuesta } from '../../data/planCasa/completarConIA';
@@ -100,6 +100,51 @@ function RevisionPartes({ plan, g, p, asigs, nombre, gestor, soloMias = false }:
   );
 }
 
+/**
+ * Un paso del seguimiento: estado (Pendiente/Entregado/Revisado), comentario para el estudiante,
+ * partes por asignatura (guías integradas) y entregas. Lo usan el responsable (todos los pasos)
+ * y el docente de asignatura (solo los pasos que le toca revisar). El id permite que el botón
+ * «Revisar» de «Por revisar» lleve hasta aquí.
+ */
+function PasoSeguimiento({ plan, g, p, n, asigs, nombre, gestor, entregas }: {
+  plan: PlanConDocentes; g: GuiaPlan; p: PasoGuia; n: number; asigs: AsignaturaPlan[]; nombre: (id: string) => string; gestor: boolean; entregas: EntregaPlan[];
+}) {
+  const [error, setError] = useState('');
+  const [texto, setTexto] = useState<string | null>(null);
+  const seg = g.seguimiento?.[p.id];
+  const obs = texto ?? seg?.observacion ?? '';
+
+  async function cambiar(c: { estado?: EstadoPaso; observacion?: string }) {
+    setError('');
+    try {
+      await guardarPasoSeguimiento(plan.id, g.id, p.id, c);
+      // «Revisado» y el comentario llegan a la agenda del estudiante.
+      publicarPlan(plan.id).catch(() => { /* se verá al próximo publicar */ });
+    } catch (e) { setError((e as Error).message || 'No se pudo guardar.'); }
+  }
+
+  return (
+    <div id={`paso-${g.id}-${p.id}`} className="rounded-xl border border-line p-3 space-y-2 scroll-mt-40">
+      <p className="text-sm text-strong">{n}. {p.titulo} <span className="text-xs text-muted">· {fechaCorta(p.fecha)} · {p.momentos} mom.</span></p>
+      <div className="flex flex-wrap gap-1.5">
+        {(Object.keys(EST_PASO) as EstadoPaso[]).map(st => (
+          <button key={st} onClick={() => cambiar({ estado: st })} aria-pressed={(seg?.estado ?? 'pendiente') === st}
+            className={cn('text-xs px-3 py-1.5 rounded-full transition', (seg?.estado ?? 'pendiente') === st ? 'bg-accent text-strong' : 'bg-elevated text-soft hover:text-strong')}>
+            {EST_PASO[st]}
+          </button>
+        ))}
+      </div>
+      <input value={obs} onChange={e => setTexto(e.target.value)}
+        onBlur={() => { if (texto !== null && texto !== (seg?.observacion ?? '')) cambiar({ observacion: texto }); }}
+        placeholder="Comentario para el estudiante (lo ve en su agenda al marcar Revisado)" className={CLASE_INPUT} />
+      <ComponentesEntrega componentes={p.componentes} nombre={nombre} />
+      <RevisionPartes plan={plan} g={g} p={p} asigs={asigs} nombre={nombre} gestor={gestor} />
+      <ListaEntregas planId={plan.id} entregas={entregas.filter(e => e.pasoId === p.id)} />
+      {error && <CajaError>{error}</CajaError>}
+    </div>
+  );
+}
+
 function Seguimiento({ plan, g, asigs, nombre, gestor }: { plan: PlanConDocentes; g: GuiaPlan; asigs: AsignaturaPlan[]; nombre: (id: string) => string; gestor: boolean }) {
   const [error, setError] = useState('');
   const [borrador, setBorrador] = useState<Record<string, string>>({});
@@ -108,16 +153,8 @@ function Seguimiento({ plan, g, asigs, nombre, gestor }: { plan: PlanConDocentes
 
   async function guardar(cambios: Partial<GuiaPlan>) {
     setError('');
-    try {
-      await guardarGuia(plan.id, g.id, cambios);
-      // «Revisado» y el comentario llegan a la agenda del estudiante.
-      if (cambios.seguimiento) publicarPlan(plan.id).catch(() => { /* se verá al próximo publicar */ });
-    }
+    try { await guardarGuia(plan.id, g.id, cambios); }
     catch (e) { setError((e as Error).message || 'No se pudo guardar.'); }
-  }
-  async function cambiarPaso(id: string, c: Partial<GuiaPlan['seguimiento'][string]>) {
-    const previo = g.seguimiento?.[id] ?? { estado: 'pendiente' as EstadoPaso };
-    await guardar({ seguimiento: { ...g.seguimiento, [id]: { ...previo, ...c, actualizadoEn: Date.now() } } });
   }
 
   return (
@@ -125,29 +162,9 @@ function Seguimiento({ plan, g, asigs, nombre, gestor }: { plan: PlanConDocentes
       <h4 className="text-sm font-semibold text-strong">Seguimiento</h4>
       {error && <CajaError>{error}</CajaError>}
       {errorEntregas && <CajaError>Entregas: {errorEntregas}</CajaError>}
-      {guia.pasos.map((p, i) => {
-        const seg = g.seguimiento?.[p.id];
-        const obs = borrador[p.id] ?? seg?.observacion ?? '';
-        return (
-          <div key={p.id} id={`paso-${g.id}-${p.id}`} className="rounded-xl border border-line p-3 space-y-2 scroll-mt-40">
-            <p className="text-sm text-strong">{i + 1}. {p.titulo} <span className="text-xs text-muted">· {fechaCorta(p.fecha)} · {p.momentos} mom.</span></p>
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.keys(EST_PASO) as EstadoPaso[]).map(st => (
-                <button key={st} onClick={() => cambiarPaso(p.id, { estado: st })} aria-pressed={(seg?.estado ?? 'pendiente') === st}
-                  className={cn('text-xs px-3 py-1.5 rounded-full transition', (seg?.estado ?? 'pendiente') === st ? 'bg-accent text-strong' : 'bg-elevated text-soft hover:text-strong')}>
-                  {EST_PASO[st]}
-                </button>
-              ))}
-            </div>
-            <input value={obs} onChange={e => setBorrador(b => ({ ...b, [p.id]: e.target.value }))}
-              onBlur={() => { if (p.id in borrador && borrador[p.id] !== (seg?.observacion ?? '')) cambiarPaso(p.id, { observacion: borrador[p.id] }); }}
-              placeholder="Comentario para el estudiante (lo ve en su agenda al marcar Revisado)" className={CLASE_INPUT} />
-            <ComponentesEntrega componentes={p.componentes} nombre={nombre} />
-            <RevisionPartes plan={plan} g={g} p={p} asigs={asigs} nombre={nombre} gestor={gestor} />
-            <ListaEntregas planId={plan.id} entregas={entregas.filter(e => e.pasoId === p.id)} />
-          </div>
-        );
-      })}
+      {guia.pasos.map((p, i) => (
+        <PasoSeguimiento key={p.id} plan={plan} g={g} p={p} n={i + 1} asigs={asigs} nombre={nombre} gestor={gestor} entregas={entregas} />
+      ))}
       <div className="rounded-xl border border-line p-3 space-y-2">
         <p className="text-sm text-strong">Sustentación
           <span className="text-xs text-muted"> · {fechaCorta(guia.sustentacion.fecha)}{guia.sustentacion.hora ? ` ${guia.sustentacion.hora}` : ''}</span></p>
@@ -379,6 +396,13 @@ function nombreDocente(correo: string, asigs: AsignaturaPlan[]): string {
   const c = correo.toLowerCase();
   const id = asigs.find(a => a.docenteCorreo.toLowerCase() === c)?.docenteId;
   return USUARIOS.find(u => u.id === id)?.nombreCorto ?? USUARIOS.find(u => u.correo && u.correo.toLowerCase() === c)?.nombreCorto ?? c.split('@')[0];
+}
+
+/** Quién revisa un paso (misma regla que puedoRevisarPaso), para decirlo en pantalla. */
+function quienRevisa(p: PasoGuia, g: GuiaPlan, asigs: AsignaturaPlan[], nombres: Nombres): string {
+  if (p.componentes?.length) return p.componentes.map(c => `${nombres[c.asignaturaId]?.asignatura ?? c.asignaturaId} (${nombreDocente(asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo ?? '', asigs)})`).join(', ');
+  if (p.id.startsWith('ent-')) { const a = asigs.find(x => x.asignaturaId === p.id.slice(4)); if (a) return nombreDocente(a.docenteCorreo, asigs); }
+  return nombreDocente(g.responsableCorreo, asigs);
 }
 
 /** Para el líder: qué docentes ya guardaron criterios (lo que la IA necesita) y su entregable con fecha. */
@@ -773,6 +797,11 @@ function GuiaResponsable({ plan, g, todas, asigs, nombres, gestor }: {
             {!cerrada && <button onClick={() => { setBorrador(g.aprobada!); setEditando(true); }} className={CLASE_BOTON_SEC}>Reabrir para corregir</button>}
             <BotonFormatoUAI plan={plan} guias={[g]} asigs={asigs} nombres={nombres} />
           </div>
+        </div>
+      )}
+      {/* El seguimiento usa la guía APROBADA (que no cambia mientras se edita el borrador): sigue visible al editar. */}
+      {r.guia && (
+        <div className="space-y-4 border-t border-line pt-4">
           <Seguimiento plan={plan} g={g} asigs={asigs} nombre={nombre} gestor={gestor} />
         </div>
       )}
@@ -802,6 +831,24 @@ function PasosParticipante({ plan, g, asigs, nombre, yo }: { plan: PlanConDocent
   );
 }
 
+/**
+ * (Docente participante, guía NO integrada) Los pasos aprobados que le toca revisar (por ejemplo
+ * «ent-<su asignatura>»): mismo bloque de seguimiento que ve el responsable.
+ */
+function PasosRevisablesParticipante({ plan, g, asigs, nombre, gestor }: { plan: PlanConDocentes; g: GuiaPlan; asigs: AsignaturaPlan[]; nombre: (id: string) => string; gestor: boolean }) {
+  const { entregas, error } = useEntregas(plan.id, g.id);
+  const pasos = g.aprobada?.pasos ?? [];
+  const mios = pasos.map((p, i) => ({ p, n: i + 1 })).filter(x => puedoRevisarPaso(x.p, g, asigs, correoActual(), gestor));
+  if (!mios.length) return null;
+  return (
+    <div className="space-y-3">
+      <h4 className="text-sm font-semibold text-strong">Mis pasos por revisar</h4>
+      {error && <CajaError>Entregas: {error}</CajaError>}
+      {mios.map(x => <PasoSeguimiento key={x.p.id} plan={plan} g={g} p={x.p} n={x.n} asigs={asigs} nombre={nombre} gestor={gestor} entregas={entregas} />)}
+    </div>
+  );
+}
+
 function GuiaParticipante({ plan, g, asigs, nombres, gestor }: { plan: PlanConDocentes; g: GuiaPlan; asigs: AsignaturaPlan[]; nombres: Nombres; gestor: boolean }) {
   const yo = correoActual();
   const edicion = edicionDe(plan, g, gestor);
@@ -828,7 +875,9 @@ function GuiaParticipante({ plan, g, asigs, nombres, gestor }: { plan: PlanConDo
         <>
           {!g.aprobada && <p className="text-xs text-soft">Propuesta aún sin aprobar.</p>}
           <GuiaLectura guia={guia} nombre={nombre} />
-          {g.aprobada?.integrada && <PasosParticipante plan={plan} g={g} asigs={asigs} nombre={nombre} yo={yo} />}
+          {g.aprobada?.integrada
+            ? <PasosParticipante plan={plan} g={g} asigs={asigs} nombre={nombre} yo={yo} />
+            : g.aprobada && <PasosRevisablesParticipante plan={plan} g={g} asigs={asigs} nombre={nombre} gestor={gestor} />}
           <div className="flex flex-wrap gap-2">
             {/* El acuerdo solo tiene sentido mientras la guía se prepara; aprobada, ya no hay nada que aprobar. */}
             {!g.aprobada && <button onClick={alternar} className={dado ? CLASE_BOTON_SEC : CLASE_BOTON}><Check size={15} />{dado ? 'Retirar mi acuerdo' : 'Estoy de acuerdo con la propuesta'}</button>}
@@ -915,6 +964,12 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
     const pend = propiasMias.find(a => !criteriosListos(a) || !a.entregable?.trim() || !a.fechaEntrega) ?? propiasMias[0];
     const g = pend && guiaDe(pend.asignaturaId);
     if (g && pend) setSel({ tab: g.id, sub: pend.asignaturaId });
+  }
+  /** Lleva a la guía y desplaza hasta el paso (igual que el botón «Revisar» de «Por revisar»). */
+  function revisarPaso(guiaId: string, pasoId: string) {
+    setSel({ tab: guiaId, sub: 'guia' });
+    const id = `paso-${guiaId}-${pasoId}`;
+    for (const ms of [150, 600]) setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), ms);
   }
   useEffect(() => {
     if (!foco || !asigs || !guias) return;
@@ -1036,7 +1091,7 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
           </div>);
       })()}
 
-      {sel.tab === 'e' && guias && (
+      {sel.tab === 'e' && asigs && guias && (
         <div className={cn('rounded-2xl border p-3 space-y-3', TINTE_ENTREGAS.fondo, TINTE_ENTREGAS.borde)}>
           {porRevisar.length === 0 && <p className="text-sm text-soft">No hay entregas por revisar.</p>}
           {verGuias.filter(g => g.aprobada).map(g => {
@@ -1045,7 +1100,7 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
             return (
               <div key={g.id} className={cn('rounded-xl border p-2', t.fondo, t.borde)}>
                 <p className="text-xs"><span className={cn('font-semibold', t.texto)}>{g.asignaturaIds.length === 1 ? nombre(g.asignaturaIds[0]) : `Guía ${numGuia(g.id)}`}</span> · {n ? `${n} por revisar` : 'al día'}</p>
-                <EntregasGuiaResumen planId={plan.id} g={g} />
+                <EntregasGuiaResumen planId={plan.id} g={g} abiertoInicial puedeRevisar={p => puedoRevisarPaso(p, g, asigs, yo, gestor)} quienRevisa={p => quienRevisa(p, g, asigs, nombres)} onRevisar={pasoId => revisarPaso(g.id, pasoId)} />
               </div>);
           })}
         </div>

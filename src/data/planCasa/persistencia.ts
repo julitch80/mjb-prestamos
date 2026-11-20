@@ -362,6 +362,23 @@ export async function guardarRevisionParte(
     new FieldPath('actualizadoEn'), ahora);
 }
 
+/**
+ * Estado y/o comentario de UN paso del seguimiento. Escribe solo esos campos (FieldPath), sin
+ * reemplazar el resto del seguimiento: así un docente de asignatura no pisa lo que otros marcaron.
+ * Pasa por la misma regla de Firestore que guardarGuia (afecta solo `seguimiento` y `actualizadoEn`).
+ */
+export async function guardarPasoSeguimiento(
+  planId: string, guiaId: string, pasoId: string, cambios: { estado?: EstadoPaso; observacion?: string },
+) {
+  const ahora = Date.now();
+  const campos: unknown[] = [];
+  if (cambios.estado !== undefined) campos.push(new FieldPath('seguimiento', pasoId, 'estado'), cambios.estado);
+  if (cambios.observacion !== undefined) campos.push(new FieldPath('seguimiento', pasoId, 'observacion'), cambios.observacion);
+  campos.push(new FieldPath('seguimiento', pasoId, 'actualizadoEn'), ahora, new FieldPath('actualizadoEn'), ahora);
+  const [primero, valor, ...resto] = campos as [FieldPath, unknown, ...unknown[]];
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId, SUB_GUIAS, guiaId), primero, valor, ...resto);
+}
+
 export interface PreguntaSugerida { pregunta: string; porQue: string; aportes: { asignatura: string; aporte: string }[]; producto: string }
 
 export async function sugerirPreguntas(entrada: { tematica: string; asignaturas: string[]; grado: string; ajustes?: string[] }): Promise<PreguntaSugerida[]> {

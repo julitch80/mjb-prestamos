@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FileText, Image as Imagen, Link2, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { EntregaPlan, GuiaPlan } from '../../data/planCasa/tipos';
+import type { EntregaPlan, GuiaPlan, PasoGuia } from '../../data/planCasa/tipos';
 import { abrirEntrega, cargarEntrega, escucharEntregas } from '../../data/planCasa/entregasCliente';
 import { cajaGirada, girar, rotacionValida } from '../../data/planCasa/rotacion';
 import { formatoTamano } from '../../data/planCasa/entregas';
@@ -117,10 +117,17 @@ export function ListaEntregas({ planId, entregas }: { planId: string; entregas: 
   );
 }
 
-/** Resumen para el tablero del equipo: entregas de la guía agrupadas por paso. */
-export function EntregasGuiaResumen({ planId, g }: { planId: string; g: GuiaPlan }) {
+/**
+ * Resumen de las entregas de la guía agrupadas por paso. En el tablero del equipo solo se ve y se
+ * abre. Con las props opcionales (pestaña «Entregas» del docente) cada paso indica quién lo
+ * revisa o trae el botón «Revisar», que lleva al bloque de seguimiento de ese paso.
+ */
+export function EntregasGuiaResumen({ planId, g, abiertoInicial = false, puedeRevisar, quienRevisa, onRevisar }: {
+  planId: string; g: GuiaPlan; abiertoInicial?: boolean;
+  puedeRevisar?: (p: PasoGuia) => boolean; quienRevisa?: (p: PasoGuia) => string; onRevisar?: (pasoId: string) => void;
+}) {
   const { entregas, error } = useEntregas(planId, g.id);
-  const [abierto, setAbierto] = useState(false);
+  const [abierto, setAbierto] = useState(abiertoInicial);
   if (error) return <p className="text-[11px] text-red-500">Entregas: {error}</p>;
   if (!entregas.length) return null;
   const pasos = g.aprobada?.pasos ?? [];
@@ -133,8 +140,14 @@ export function EntregasGuiaResumen({ planId, g }: { planId: string; g: GuiaPlan
         <div className="mt-1 space-y-2">
           {pasos.filter(p => entregas.some(e => e.pasoId === p.id)).map(p => (
             <div key={p.id}>
-              <p className="text-[11px] text-soft">{p.titulo} · {g.seguimiento?.[p.id]?.estado ?? 'pendiente'}
-                {g.seguimiento?.[p.id]?.observacion ? ` · «${g.seguimiento[p.id].observacion}»` : ''}</p>
+              <div className="flex items-center gap-2">
+                <p className="flex-1 min-w-0 text-[11px] text-soft">{p.titulo} · {g.seguimiento?.[p.id]?.estado ?? 'pendiente'}
+                  {g.seguimiento?.[p.id]?.observacion ? ` · «${g.seguimiento[p.id].observacion}»` : ''}
+                  {puedeRevisar && onRevisar && !puedeRevisar(p) && quienRevisa ? ` · Lo revisa ${quienRevisa(p)}` : ''}</p>
+                {puedeRevisar && onRevisar && puedeRevisar(p) && (
+                  <button type="button" onClick={() => onRevisar(p.id)} className="min-h-[40px] px-4 rounded-full bg-accent text-strong text-sm font-medium flex-shrink-0">Revisar</button>
+                )}
+              </div>
               <ListaEntregas planId={planId} entregas={entregas.filter(e => e.pasoId === p.id)} />
             </div>
           ))}
