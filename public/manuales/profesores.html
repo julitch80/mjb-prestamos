@@ -818,6 +818,7 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
     <a href="#c-ubicar">Estudiantes sin ubicar</a>
     <a href="#c-gestion">Gestión CI</a>
     <a href="#c-valoracion">Valorar a tus estudiantes</a>
+    <a href="#c-master">Subir al Máster con la extensión</a>
     <a href="#c-limites">Lo que hace la coordinación</a>
   </nav>
 
@@ -925,11 +926,37 @@ table.t td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
     <h3 class="sub">Valorar a tus estudiantes</h3>
     <p style="color:var(--ink-2);max-width:64ch">Al final del semestre, el líder valora a cada inscrito en la pestaña <b>Valoración</b> de su centro. Reemplaza el Drive que se llenaba estudiante por estudiante: el director de grupo ve el resultado solo, sin consolidar a mano.</p>
     <ol class="pasos" style="margin-top:14px">
-      <li><div><span class="t">Primero, <span class="bt">Definir los indicadores</span></span><p>Los códigos de tu centro en el Máster, con su texto, para cada nivel. Va primero porque cada valoración copia esos indicadores: si valoras antes, habría que rehacerlas.</p></div></li>
+      <li><div><span class="t">Primero, <span class="bt">Definir los indicadores</span></span><p>Los códigos de tu centro en el Máster, con su texto. El Máster solo acepta la <b>serie 600</b>: el mismo código sirve para Básico, Alto y Superior; el nivel va aparte. Va primero porque cada valoración copia esos indicadores: si valoras antes, habría que rehacerlas.</p></div></li>
       <li><div><span class="t">Valora con un toque por estudiante</span><p>Los niveles llevan el número que se digita en el Máster: <b>2 Básico</b>, <b>3 Alto</b>, <b>4 Superior</b>. <b>Plan de apoyo</b> por ahora no se digita en el Máster y no lleva indicadores.</p></div></li>
       <li><div><span class="t">Toca <span class="bt">Entregar</span></span><p>Después de entregar ya no puedes cambiar valoraciones ni indicadores. Si hay que corregir, pídelo a coordinación: te reabre con un plazo, y la pantalla dice «Reabierto para corregir. Tiene plazo hasta…».</p></div></li>
     </ol>
     <p class="sabias" style="margin-top:16px"><b>Si eres director de grupo:</b> en Asistencia tienes la pestaña <b>Resultado CI</b>, con la valoración de tus estudiantes en el centro al que vaya cada uno.</p>
+  </div>
+
+  <div class="bloque solo" id="c-master">
+    <h3 class="sub">Subir las valoraciones al Máster con la extensión</h3>
+    <p style="color:var(--ink-2);max-width:64ch">La extensión <b>MJB → Máster 2000</b> escribe en la planilla del Máster las valoraciones que ya hiciste en la aplicación, para no digitarlas a mano. Funciona en <b>Google Chrome en computador</b> (no en celular). Se instala una sola vez y tarda unos 3 minutos.</p>
+    <ol class="pasos" style="margin-top:14px">
+      <li><div><span class="t">Descarga el archivo <b>mjb-master2000-1.0.0.zip</b></span><p>Desde <a href="https://drive.google.com/file/d/11lSXq5G3VuerA_nEmsPaOGY6SUBxODHi/view?usp=sharing" target="_blank" rel="noopener">este enlace de Drive</a>, con tu cuenta del colegio.</p></div></li>
+      <li><div><span class="t">Descomprímelo</span><p>En Descargas, clic derecho sobre el archivo → <b>Extraer todo…</b> → <b>Extraer</b>. Queda una carpeta con el mismo nombre.</p></div></li>
+      <li><div><span class="t">Abre Chrome y escribe <b>chrome://extensions</b> en la barra de direcciones</span><p>Presiona Enter.</p></div></li>
+      <li><div><span class="t">Activa <b>Modo de desarrollador</b></span><p>Es el interruptor de arriba a la derecha.</p></div></li>
+      <li><div><span class="t">Toca <span class="bt">Cargar descomprimida</span> y elige la carpeta del paso 2</span><p>Ábrela y toca <b>Seleccionar carpeta</b>. Dentro debe estar el archivo manifest.json.</p></div></li>
+      <li><div><span class="t">Listo</span><p>Aparece la tarjeta «MJB → Máster 2000 · Centros de interés».</p></div></li>
+    </ol>
+    <h3 class="sub" style="margin-top:22px">Cómo se usa</h3>
+    <ol class="pasos">
+      <li><div><span class="t">Entra al Máster con tu usuario y abre la planilla de Centros de Interés</span><p>Como siempre.</p></div></li>
+      <li><div><span class="t">Abre el botón azul de abajo a la derecha</span><p>Muestra qué notas se van a escribir, cuáles ya son iguales y cuáles son distintas. Por defecto se conserva lo que ya tenga el Máster.</p></div></li>
+      <li><div><span class="t">Revisa, confirma y guarda en el Máster</span><p>Como de costumbre.</p></div></li>
+    </ol>
+    <div class="grid-si">
+      <div class="si"><span class="quien">Aviso de Chrome</span><h3>«Extensiones en modo desarrollador»</h3><p>Es normal; ciérralo. No afecta nada.</p></div>
+      <div class="si"><span class="quien">Bloqueado</span><h3>No deja activar el modo de desarrollador</h3><p>Tu Chrome lo tiene bloqueado. Avisa a Julián y haz la subida desde otro computador que ya la tenga, entrando con tu propio usuario del Máster.</p></div>
+      <div class="si"><span class="quien">Seguridad</span><h3>No guarda tu contraseña</h3><p>No guarda contraseñas ni datos de sesión: solo actúa dentro del Máster mientras estás ahí.</p></div>
+      <div class="si"><span class="quien">Filas en rojo</span><h3>«Código no válido»</h3><p>No se suben porque el Máster solo acepta códigos 600. Avisa a Julián.</p></div>
+      <div class="si"><span class="quien">Más adelante</span><h3>Versión oficial</h3><p>Cuando Google apruebe la versión de la tienda, se instalará sola. Entonces vuelve a chrome://extensions y toca <b>Quitar</b> en esta copia.</p></div>
+    </div>
   </div>
 
   <div class="bloque solo" id="c-limites">
