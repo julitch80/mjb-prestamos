@@ -6,7 +6,7 @@
  * colegio— se pueda probar sin generar un binario.
  */
 
-import { motivoSinDigitar } from './valoracion';
+import { codigoParaMaster, motivoSinDigitar } from './valoracion';
 import { totalDeColumna } from './direccion-grupo';
 import { findMark, MARKS, type MarkCode } from './marks';
 // Un solo sitio compone el nombre: ver la nota en `./nombres`.
@@ -303,7 +303,8 @@ export function hojaResultadoCentros(
 ): Hoja {
   const cuerpo = filas.map((f, i) => {
     const digitable = !!f.valoracion && f.valoracion.nivel !== 1 && f.duplicadas.length < 2;
-    const codigos = digitable ? f.valoracion!.codigos : [];
+    // Siempre 6xx: el Master no acepta 7xx ni 8xx (2026-11-19). Lo guardado no cambia.
+    const codigos = digitable ? f.valoracion!.codigos.map(codigoParaMaster) : [];
     // «Observaciones» es la columna del Master: en los que SE DIGITAN lleva la observacion
     // del lider (2026-11-09). En los que no se digitan, el motivo, que no va al Master.
     const observacion = digitable ? (f.valoracion!.observacion ?? '') : motivoSinDigitar(f);

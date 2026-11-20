@@ -19,6 +19,7 @@ import { nombreCompleto, nombresDePila } from './domain/nombres';
 import {
   avanceDelCentro,
   codigoDeNivel,
+  codigoParaMaster,
   faltasEnCentro,
   codigosDelNivel,
   indicadoresDeConfig,
@@ -389,7 +390,7 @@ export default function ValoracionCentro({
                   {n.nivel} {n.label}
                 </span>{' '}
                 {codigosDelNivel(config, n.nivel)
-                  .map((c) => `${c.codigo}`)
+                  .map((c) => `${codigoParaMaster(c.codigo)}`)
                   .join(' · ') || '—'}
               </li>
             ))}
@@ -665,7 +666,7 @@ function SelectorNivel({
                   <span className="block text-xs text-muted">
                     {n.llevaCodigos
                       ? codigos.length > 0
-                        ? codigos.map((c) => `${c.codigo} ${c.texto}`).join(' · ')
+                        ? codigos.map((c) => `${codigoParaMaster(c.codigo)} ${c.texto}`).join(' · ')
                         : 'Sin indicadores definidos'
                       : 'No se digita en el Máster y no lleva indicadores.'}
                   </span>
@@ -771,15 +772,13 @@ function EditorIndicadores({
           </p>
         )}
 
-        {/* Lo escogido, con los tres códigos que va a llevar. */}
+        {/* Lo escogido, con su código: el mismo en los tres niveles (2026-11-19). */}
         <div className="mt-2 space-y-1">
           {elegidos.length === 0 && <p className="text-xs text-muted">Todavía no ha escogido ninguno.</p>}
           {elegidos.map((c) => (
             <div key={c} className="flex items-center gap-2 rounded-lg border border-line-strong p-1.5 text-xs">
               <span className="shrink-0 font-semibold text-strong">
-                <span className={`rounded px-1 ${CLASE_NIVEL[2]}`}>{codigoDeNivel(c, 2)}</span>{' '}
-                <span className={`rounded px-1 ${CLASE_NIVEL[3]}`}>{codigoDeNivel(c, 3)}</span>{' '}
-                <span className={`rounded px-1 ${CLASE_NIVEL[4]}`}>{codigoDeNivel(c, 4)}</span>
+                <span className="rounded px-1">{codigoDeNivel(c, 2)}</span>
               </span>
               <span className="min-w-0 grow truncate text-soft">
                 {INDICADORES_CI.find((i) => i.codigo === c)?.texto}

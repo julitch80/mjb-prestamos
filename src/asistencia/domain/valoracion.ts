@@ -89,17 +89,27 @@ export const MAX_CODIGOS = 3;
 export const RANGO_INDICADORES = { desde: 601, hasta: 692 };
 
 /**
- * EL CODIGO CAMBIA CON EL NIVEL (Julian, 2026-11-09): el listado del Master trae cada
- * indicador con su codigo de Basico (6xx); para Alto se cambia el primer digito por 7 y
- * para Superior por 8. 612 -> 612 / 712 / 812. El lider escoge el indicador UNA vez y la
- * aplicacion pone el codigo que toca segun la valoracion; nadie lo escribe a mano.
+ * EN EL MASTER SOLO ENTRAN CODIGOS 6xx (Julian, 2026-11-19). Del 2026-11-09 al 19 la
+ * aplicacion ponia 7xx en Alto y 8xx en Superior; al digitar se encontro que el Master
+ * no los acepta. El nivel va SOLO en la columna «Val»; el codigo es el mismo en los tres.
+ *
+ * Las valoraciones ya guardadas con 7xx/8xx NO se reescriben (son el registro de lo que
+ * valoro el profe): se pasan a 6xx al mostrarlas y al exportar, con `codigoParaMaster`.
  */
-const CENTENA_DE_NIVEL: Partial<Record<NivelValoracion, number>> = { 2: 600, 3: 700, 4: 800 };
+const CENTENA_DE_NIVEL: Partial<Record<NivelValoracion, number>> = { 2: 600, 3: 600, 4: 600 };
 
 /** El codigo que se digita para ese indicador en ese nivel. `null` en plan de apoyo. */
 export function codigoDeNivel(base: number, nivel: NivelValoracion): number | null {
   const centena = CENTENA_DE_NIVEL[nivel];
   return centena === undefined ? null : centena + (base % 100);
+}
+
+/**
+ * Un codigo guardado, como se digita en el Master: 712 y 812 -> 612. Los que no son de
+ * la serie 600-899 (escritos a mano antes del catalogo) se dejan como estan.
+ */
+export function codigoParaMaster(codigo: number): number {
+  return codigo >= 600 && codigo < 900 ? 600 + (codigo % 100) : codigo;
 }
 
 /**

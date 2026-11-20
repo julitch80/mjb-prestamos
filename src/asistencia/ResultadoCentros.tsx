@@ -6,6 +6,7 @@ import { nombresDePila } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
 import { hojaResultadoCentros } from './domain/exports';
 import {
+  codigoParaMaster,
   consolidarGrupo,
   nivelDe,
   nombreDesdeIdCentro,
@@ -252,13 +253,13 @@ export default function ResultadoCentros({
                     {v?.nivel === PLAN_DE_APOYO ? (
                       <span className="text-muted">No se digita en el Máster.</span>
                     ) : (
-                      (v?.codigos ?? []).join(' · ') || <span className="text-muted">—</span>
+                      (v?.codigos ?? []).map(codigoParaMaster).join(' · ') || <span className="text-muted">—</span>
                     )}
                     {/* Las dos, sin escoger: quien decide es el director, no la aplicación. */}
                     {f.duplicadas.length > 1 && (
                       <span className="mt-0.5 block text-xs text-warning-soft-fg">
                         {f.duplicadas
-                          .map((d) => `${d.centro ?? nombreDesdeIdCentro(d.grupoId)}: ${d.nivel} (${d.codigos.join(', ')})`)
+                          .map((d) => `${d.centro ?? nombreDesdeIdCentro(d.grupoId)}: ${d.nivel} (${d.codigos.map(codigoParaMaster).join(', ')})`)
                           .join(' — ')}
                       </span>
                     )}

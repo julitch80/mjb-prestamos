@@ -6,8 +6,8 @@
  * Transcrito a mano: el PDF no trae texto, solo trazos. El resto del PDF (codigos 0 y
  * 101-371) son los «textos genericos» del colegio y NO van aqui.
  *
- * El codigo de aqui es el de BASICO (6xx). Para Alto se cambia el primer digito por 7 y
- * para Superior por 8 (Julian, 2026-11-09): ver `codigoDeNivel` en domain/valoracion.ts.
+ * El codigo de aqui es el que se digita en el Master en los tres niveles: el Master solo
+ * acepta 6xx (Julian, 2026-11-19). Ver `codigoDeNivel` en domain/valoracion.ts.
  *
  * `periodo` es la columna «Periodo» del listado; vacia en el original = null.
  *
