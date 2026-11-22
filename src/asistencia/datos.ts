@@ -19,6 +19,7 @@
  * El autor de toda escritura sale de `exigirAutor()`, nunca del store (modo "Ver como").
  */
 
+import type { PendienteDeSubir } from './domain/ci-master';
 import type { IndiceGrado } from './domain/inscripcion-por-grado';
 import {
   arrayRemove,
@@ -3961,6 +3962,26 @@ export async function reconstruirInscripcionPorGrado(programaId: string): Promis
   await esperarAuth();
   const r = await httpsCallable(functions, 'reconstruirInscripcionPorGrado')({ programaId });
   return r.data as { grados: number; estudiantes: number };
+}
+
+/**
+ * Lo que cambio en la app despues de subir este grupo al Master con la extension
+ * (2026-11-20). Es la misma callable que usa la extension (`ciParaMaster`); aqui solo
+ * interesa la lista de pendientes. `null` si no se pudo saber (sin red, funcion aun no
+ * desplegada): la pantalla no muestra aviso en vez de inventarlo.
+ */
+export async function leerPendientesDeSubirAlMaster(
+  grado: string,
+): Promise<{ pendientes: PendienteDeSubir[]; ultimaSubidaEn: number | null } | null> {
+  if (!functions) return null;
+  try {
+    await esperarAuth();
+    const r = await httpsCallable(functions, 'ciParaMaster')({ grupo: grado });
+    const d = r.data as { pendientes?: PendienteDeSubir[]; ultimaSubida?: { en: number } | null };
+    return { pendientes: d.pendientes ?? [], ultimaSubidaEn: d.ultimaSubida?.en ?? null };
+  } catch {
+    return null;
+  }
 }
 
 /** Rehace el resumen de un periodo (sede + jornada): para los periodos marcados antes de que existiera. */

@@ -38,6 +38,7 @@ import { confirmacionEliminarValida, rolPuedeEliminarSesion } from '../../src/as
 import type { DocType, Jornada, PlanillaAlerta, Sede, Session, Student } from '../../src/asistencia/domain/types';
 import { cambiosPorEscrituraDeCentro, construirIndicePorGrado, type CabeceraCentro } from '../../src/asistencia/domain/inscripcion-por-grado';
 import { traspasarCentrosInteres } from './reemplazo-centros';
+import { datosCiParaMaster, registrarSubidaCi } from './ci-master';
 import { direccionDelTraspaso } from '../../src/asistencia/domain/reemplazo-centros';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import {
@@ -1008,6 +1009,22 @@ export const onReemplazoTemporalEscrito = onDocumentWritten(
     const r = await traspasarCentrosInteres(db, dir.de, dir.a);
     if (r.centros > 0) console.log('reemplazo temporal -> centros de interes', event.params.reemplazoId, r.centros);
   },
+);
+
+/**
+ * EXTENSION «MJB -> MASTER 2000», V2 (Julian, 2026-11-20). La extension de Chrome entra
+ * con la cuenta institucional (`signInWithCredential` con el token de `chrome.identity`) y
+ * pide aqui la valoracion de centros de interes del grupo de direccion, ya en la forma de
+ * la planilla del Master (solo codigos 6xx). Al subir, registra que quedo en el Master, y
+ * desde ahi la app detecta lo que cambio despues. Ver functions/src/ci-master.ts.
+ * La app tambien llama `ciParaMaster` para el aviso al director.
+ */
+export const ciParaMaster = onCall({ region: REGION, cors: true, invoker: 'public' }, (request) =>
+  datosCiParaMaster(db, request.auth?.token?.email, request.data),
+);
+
+export const ciRegistrarSubida = onCall({ region: REGION, cors: true, invoker: 'public' }, (request) =>
+  registrarSubidaCi(db, request.auth?.token?.email, request.data),
 );
 
 function archivador(coleccion: string) {

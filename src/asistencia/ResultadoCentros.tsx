@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Avatar from './Avatar';
-import { leerInscripcionDeGrado, leerProgramasVisibles, leerValoracionesDeGrado } from './datos';
+import { leerInscripcionDeGrado, leerPendientesDeSubirAlMaster, leerProgramasVisibles, leerValoracionesDeGrado } from './datos';
+import type { PendienteDeSubir } from './domain/ci-master';
 import { centroDeEstudiante, type IndiceGrado } from './domain/inscripcion-por-grado';
 import { nombresDePila } from './domain/nombres';
 import { jornadaDeGrado } from './domain/ids';
@@ -43,6 +44,37 @@ const CLASE_NIVEL: Record<NivelValoracion, string> = {
  * Los indicadores vienen COPIADOS dentro de cada valoracion, asi que esta pantalla no
  * necesita leer la configuracion de esos centros —que no podria— para mostrar los codigos.
  */
+const TIPO_PENDIENTE: Record<PendienteDeSubir['tipo'], string> = {
+  cambio: 'cambió',
+  nuevo: 'nueva, sin subir',
+  ya_no_se_digita: 'ya no se digita: corríjalo a mano en el Máster',
+};
+
+/**
+ * El aviso de la V2.2 del PRD de la extension (2026-11-20): valoraciones del grupo que
+ * cambiaron despues de subirlas al Master. Desaparece cuando se vuelve a subir.
+ */
+function AvisoPendientesMaster({ pendientes }: { pendientes: PendienteDeSubir[] }) {
+  const n = pendientes.length;
+  return (
+    <div className="rounded-xl border border-warning-soft bg-warning-soft p-3 text-sm text-warning-soft-fg">
+      <p className="font-semibold">
+        {n === 1
+          ? 'Hay 1 valoración de su grupo que cambió después de subirla al Máster.'
+          : `Hay ${n} valoraciones de su grupo que cambiaron después de subirlas al Máster.`}
+      </p>
+      <ul className="mt-1 space-y-0.5 text-xs">
+        {pendientes.map((p) => (
+          <li key={p.studentId}>
+            {p.nombre} · {TIPO_PENDIENTE[p.tipo]}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1 text-xs">En el Máster, pulse «Cargar» y luego «Subir» en la extensión para actualizarlas.</p>
+    </div>
+  );
+}
+
 export default function ResultadoCentros({
   grado,
   estudiantes,
@@ -60,6 +92,8 @@ export default function ResultadoCentros({
    * con lo que traen las valoraciones.
    */
   const [indice, setIndice] = useState<IndiceGrado | null>(null);
+  /** Lo que cambio despues de subir al Master con la extension. `null` = no se sabe. */
+  const [pendientesMaster, setPendientesMaster] = useState<PendienteDeSubir[] | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [descargando, setDescargando] = useState(false);
@@ -85,6 +119,10 @@ export default function ResultadoCentros({
         setValoraciones(await leerValoracionesDeGrado(grado, activo.programaId));
         const ind = await leerInscripcionDeGrado(activo.programaId, grado);
         if (vivo) setIndice(ind);
+        // Aparte y sin esperar: si falla, la pantalla sigue igual, solo sin el aviso.
+        void leerPendientesDeSubirAlMaster(grado).then((r) => {
+          if (vivo) setPendientesMaster(r?.pendientes ?? null);
+        });
       } catch (e) {
         if (vivo) setError(`No fue posible cargar las valoraciones: ${(e as Error).message}`);
       } finally {
@@ -156,6 +194,10 @@ export default function ResultadoCentros({
         <div className="rounded-xl border border-danger-soft bg-danger-soft p-3 text-sm text-danger-soft-fg">
           {error}
         </div>
+      )}
+
+      {pendientesMaster && pendientesMaster.length > 0 && (
+        <AvisoPendientesMaster pendientes={pendientesMaster} />
       )}
 
       {/* EL AVANCE PRIMERO. El dolor del director no es el resultado: es la espera. Aqui
