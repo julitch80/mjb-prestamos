@@ -47,3 +47,13 @@ Fecha: 2026-11-14 · PRD, PLAN y tareas madre aprobados por Julián.
 - 2.2 pendiente: `descargarPlanilla()` es un TODO; por ahora el usuario entrega la planilla (plan B).
 - 1.2/2.2/6.1 (2026-11-14, con Julián): botón visible en el panel; descarga automática del periodo 3; subida real «Almacenados… 110200 materia 100 periodo 3». Captura del Máster 10:10: 15 estudiantes con Val y códigos 6xx (7xx/8xx convertidos: 702→602, 880→680, 888→688), coincidentes con MJB.
 - Hallazgo: el Máster solo acepta códigos 600 en la optativa → la extensión convierte 7xx/8xx a 6xx; pedido a Asistencia en docs/pedidos-asistencia/codigos-ci-solo-600.md.
+
+## V2 — «Cargar» sin Excel (2026-11-20; construcción, sin desplegar ni probar contra el Máster real)
+- [x] V2.1 Service worker `background.ts`: `chrome.identity.getAuthToken` -> idToken de Firebase (REST `signInWithIdp`) -> llamada HTTP a la callable; reintento una vez quitando el token revocado de la caché (`src/nube.ts`, 4 pruebas).
+- [x] V2.2 Manifest 1.1.0: permiso `identity`, `background`, `oauth2` (client_id = marcador `PENDIENTE_CLIENT_ID…`), host de funciones e Identity Toolkit. `build.mjs` empaqueta el worker e inyecta `key` si existe `extension-master2000/clave-publica.txt`.
+- [x] V2.3 Botón «Cargar»: `ciParaMaster` + `descargarPlanilla` + vista previa; selector de grupo/sede si la app lo pide; sin valoraciones = mensaje claro y no sube. Opción V1 «elegir un Excel» plegada como respaldo.
+- [x] V2.4 Mapeo callable -> modelo de `leerExcelMJB` (`core/v2.ts`, `filasComoModelo`) con pruebas.
+- [x] V2.5 Estado nuevo «actualizado en la app» y «distinto» (M frente a lo subido) con pruebas; subida de otro periodo se ignora.
+- [x] V2.6 Tras «guardado ✓» del Máster se llama `ciRegistrarSubida` solo con lo que quedó en el Máster (subidas e «igual»; nunca «distinto» conservado) con pruebas.
+- [ ] V2.7 (Julián) Pasos de consola: ver `V2-PASOS-JULIAN.md` (clave pública, client_id OAuth, restricción de la API key, consentimiento OAuth).
+- [ ] V2.8 (Julián + Claude) Prueba real: criterios de aceptación V2 del PRD (11.2: 15 «igual»; cambio en la app -> «actualizado»; cambio a mano en el Máster -> «distinto»; docente ajeno no recibe datos). Pendiente también reponer `client_id` en `manifest.json` y volver a empaquetar (`npm run pack:extension`).

@@ -117,7 +117,8 @@ export function elegirHojaPorMatriculas(hojas: HojaOptativa[], mjb: FilaPlanilla
 // ---------------------------------------------------------------- cruce
 
 export type AccionCelda = 'escribir' | 'igual' | 'conflicto' | 'nada'
-export type EstadoEstudiante = 'nuevo' | 'igual' | 'conflicto' | 'sin-dato' | 'no-se-digita' | 'codigo-invalido'
+/** `actualizado-app` (V2): el Máster tiene lo que se subió antes y la app cambió después. */
+export type EstadoEstudiante = 'nuevo' | 'igual' | 'conflicto' | 'sin-dato' | 'no-se-digita' | 'codigo-invalido' | 'actualizado-app'
 
 /** El Máster solo acepta en la optativa códigos de la serie 600 (Julián, 2026-11-14). 0 = vacío. */
 /**
@@ -152,8 +153,28 @@ export interface ResultadoCruce {
   soloMJB: { matricula: string; nombre: string }[]
   /** Matriculas que solo coinciden quitando ceros a la izquierda, o repetidas: no se escriben. */
   ambiguas: { matricula: string; nombre: string; motivo: string }[]
-  resumen: { aEscribir: number; sinCentro: number; iguales: number; conflictos: number; sinDato: number; codigoInvalido: number; celdasAEscribir: number }
+  resumen: Resumen
 }
+
+export interface Resumen {
+  aEscribir: number; sinCentro: number; iguales: number; conflictos: number; sinDato: number
+  codigoInvalido: number; celdasAEscribir: number; actualizadosApp: number
+}
+
+export function resumir(estudiantes: EstudianteCruce[]): Resumen {
+  return {
+    aEscribir: estudiantes.filter((e) => e.estado === 'nuevo' || e.estado === 'conflicto' || e.estado === 'actualizado-app').length,
+    sinCentro: estudiantes.filter((e) => e.estado === 'no-se-digita').length,
+    iguales: estudiantes.filter((e) => e.estado === 'igual').length,
+    conflictos: estudiantes.filter((e) => e.estado === 'conflicto').length,
+    sinDato: estudiantes.filter((e) => e.estado === 'sin-dato').length,
+    codigoInvalido: estudiantes.filter((e) => e.estado === 'codigo-invalido').length,
+    celdasAEscribir: estudiantes.reduce((n, e) => n + e.celdas.filter((c) => c.accion === 'escribir').length, 0),
+    actualizadosApp: estudiantes.filter((e) => e.estado === 'actualizado-app').length,
+  }
+}
+
+export const igualCelda = (a: number | string | null, b: number | string | null) => igualValor(a, b)
 
 const quitaCeros = (s: string) => s.replace(/^0+(?=\d)/, '')
 
@@ -237,15 +258,7 @@ export function calcularCambios(mjb: FilaPlanilla[], hoja: HojaOptativa): Result
     }
     soloMJB.push({ matricula: f.matricula, nombre: f.nombre })
   }
-  const resumen = {
-    aEscribir: estudiantes.filter((e) => e.estado === 'nuevo' || e.estado === 'conflicto').length,
-    sinCentro: estudiantes.filter((e) => e.estado === 'no-se-digita').length,
-    iguales: estudiantes.filter((e) => e.estado === 'igual').length,
-    conflictos: estudiantes.filter((e) => e.estado === 'conflicto').length,
-    sinDato: estudiantes.filter((e) => e.estado === 'sin-dato').length,
-    codigoInvalido: estudiantes.filter((e) => e.estado === 'codigo-invalido').length,
-    celdasAEscribir: estudiantes.reduce((n, e) => n + e.celdas.filter((c) => c.accion === 'escribir').length, 0),
-  }
+  const resumen = resumir(estudiantes)
   return { estudiantes, soloMaster, soloMJB, ambiguas, resumen }
 }
 
