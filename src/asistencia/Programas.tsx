@@ -3,7 +3,7 @@ import { PestanasSubrayadas } from '../components/Navegacion';
 import { FlechaNeon } from '../components/FlechaNeon';
 import PlanillaCentro from './PlanillaCentro';
 import PendientesPrograma from './PendientesPrograma';
-import PanelPrograma from './PanelPrograma';
+import PanelPrograma, { BuscadorDelPanel } from './PanelPrograma';
 /**
  * La carga desde Excel arrastra exceljs. Va con lazy() —como Importar y DireccionGrupo—
  * para que no pese en el arranque de los veinte lideres que solo entran a pasar lista y
@@ -739,6 +739,9 @@ function DetallePrograma({
           </p>
         </div>
       ) : (
+        <>
+        {/* El buscador, lo primero que ve la coordinacion (Julian, 2026-11-22). */}
+        {esCoordinador && <BuscadorDelPanel sede={programa.sede} grupos={grupos} />}
         <ul className="space-y-1.5">
           {grupos.map((g) => {
             const dobles = conflictoPorGrupo.get(g.grupoId) ?? 0;
@@ -793,6 +796,7 @@ function DetallePrograma({
             );
           })}
         </ul>
+        </>
       )}
 
       {creando && esCoordinador && (

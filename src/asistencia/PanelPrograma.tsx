@@ -695,7 +695,12 @@ function totalInscritos(seg: SeguimientoPrograma): number {
   return seg.centros.reduce((s, c) => s + c.inscritos, 0);
 }
 
-function BuscadorDelPanel({
+/**
+ * Tambien va ARRIBA de la pestaña «Centros» (Julian, 2026-11-22): al final de «Cobertura y
+ * asistencia» no lo encontraba nadie. Alli va sin la asistencia (no esta cargada en esa
+ * pestaña): solo el centro y el lider, que es lo que se pregunta.
+ */
+export function BuscadorDelPanel({
   sede,
   grupos,
   estadistica,
@@ -703,8 +708,9 @@ function BuscadorDelPanel({
 }: {
   sede: string;
   grupos: GrupoPrograma[];
-  estadistica: EstadisticaProgramaTotal;
-  sesionesPorGrupo: Record<string, SesionPrograma[]>;
+  /** Sin esto no se muestra la asistencia, solo el centro y el lider. */
+  estadistica?: EstadisticaProgramaTotal;
+  sesionesPorGrupo?: Record<string, SesionPrograma[]>;
 }) {
   const [texto, setTexto] = useState('');
   const [resultados, setResultados] = useState<Student[]>([]);
@@ -735,7 +741,8 @@ function BuscadorDelPanel({
     <section className="rounded-xl border border-line bg-card p-3">
       <h3 className="text-sm font-semibold text-strong">Buscar un estudiante</h3>
       <p className="text-xs text-muted">
-        Escriba un nombre y le digo en qué centro está, con quién, y cómo va de asistencia.
+        Escriba un nombre y le digo en qué centro está y con quién
+        {estadistica ? ', y cómo va de asistencia' : ''}.
       </p>
 
       <div className="mt-2 flex items-center gap-2 rounded-lg border border-line bg-elevated px-2">
@@ -772,14 +779,14 @@ function BuscadorDelPanel({
               ) : (
                 <ul className="mt-1 space-y-1">
                   {centros.map((g) => {
-                    const grupoStats = estadistica.grupos.find((x) => x.grupoId === g.grupoId);
+                    const grupoStats = estadistica?.grupos.find((x) => x.grupoId === g.grupoId);
                     const st = grupoStats?.porEstudiante[e.studentId];
-                    const sesiones = (sesionesPorGrupo[g.grupoId] ?? []).length;
+                    const sesiones = (sesionesPorGrupo?.[g.grupoId] ?? []).length;
                     return (
                       <li key={g.grupoId} className="rounded-lg bg-elevated p-2">
                         <p className="text-sm font-semibold text-strong">{g.nombre}</p>
                         <p className="text-xs text-muted">Con {g.lider}</p>
-                        {sesiones === 0 || !st ? (
+                        {!estadistica ? null : sesiones === 0 || !st ? (
                           <p className="mt-0.5 text-sm text-soft">
                             Sin sesiones registradas todavía en este centro.
                           </p>
