@@ -13,6 +13,7 @@ import { ACCEPT_ENTREGA, formatoTamano, validarArchivo, validarEnlace } from '..
 import { prepararArchivo, registrarRechazo, subirEntrega } from '../../data/planCasa/entregasCliente';
 import { BotonSugerencias, ComoMeFue, Manual, HoraDeEstudio, PildoraDelDia, Sugerencias, TemporizadorMomento, useHorarioEstudio } from './OrientacionFamilia';
 import { BotonesConsulta, ComoEnviar } from './ConsultasFamilia';
+import { HorarioPlanApoyoPAE } from './HorarioPlanApoyoPAE';
 import { db } from '../../lib/firebase';
 import { cn } from '@/lib/utils';
 import { SUGERENCIAS, guardarHechos, leerHechos, pildoraDelDia, progresoDia } from '../../data/planCasa/orientacionFamilia';
@@ -208,6 +209,7 @@ function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { pla
         </button>
       </header>
       <div className="flex flex-wrap gap-2"><BotonesConsulta token={token} /></div>
+      <HorarioPlanApoyoPAE plan={plan} hoy={hoy} />
       {verManual && <Manual onCerrar={() => setVerManual(false)} desde={plan.desde} hasta={plan.hasta} />}
 
       <div><BotonSugerencias onClick={() => setVerSugerencias(true)} /></div>
