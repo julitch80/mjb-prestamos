@@ -2,6 +2,14 @@
 // Solo para estudiantes de la jornada de la mañana (10.° y 11.°). Va arriba, grande y resaltado.
 import { SESIONES_PAE_MANANA, type SesionPAE } from '../../data/horarioEspecial/sustentacionesPAE';
 import type { PlanPublico } from '../../data/planCasa/tipos';
+import { asignacionDeGrupo } from '../../data/asignacionAcademica';
+
+/** Nombre en el horario de sustentaciones → id del docente en la asignación académica. */
+const ID_DOCENTE: Record<string, string> = {
+  'Juan Carlos Blandón': 'yoguis', Margarita: 'margara', Doris: 'doris', Jorge: 'jorge', 'Julián Medina': 'julian',
+  'Gloria Álvarez': 'gloria_a', Adolfo: 'adolfo', 'Carlos Cárdenas': 'carlos', Ledis: 'ledis', Johana: 'johana',
+  Uriel: 'uriel', Beatriz: 'beatriz',
+};
 
 const FIN = '2026-12-01';
 const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -35,7 +43,10 @@ export function HorarioPlanApoyoPAE({ plan, hoy }: { plan: PlanPublico; hoy: str
   // Docentes del plan (primer nombre) para mostrar solo SUS citas; Uriel atiende a los de Claudia.
   const mios = new Set([...plan.pasos.map(p => p.docente), ...plan.sustentaciones.map(s => s.docente)]
     .map(d => sinTildes(String(d ?? '')).split(/\s+/)[0]).filter(Boolean));
-  const esMia = (doc: string) => mios.has(sinTildes(doc).split(/\s+/)[0]) || (doc === 'Uriel' && mios.has('claudia'));
+  // La sustentación es con CADA profesor del grupo: se toman todos los docentes de su asignación académica.
+  const delGrupo = new Set(asignacionDeGrupo(plan.grupo.trim()).map(e => e.docenteId));
+  const esMia = (doc: string) => delGrupo.has(ID_DOCENTE[doc] ?? '') || mios.has(sinTildes(doc).split(/\s+/)[0])
+    || (doc === 'Uriel' && (mios.has('claudia') || delGrupo.has('claudia')));
   const mias = todas.filter(s => esMia(s.docente));
   const lista = mias.length ? mias : todas;
   if (!lista.length) return null;
