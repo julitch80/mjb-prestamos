@@ -21,8 +21,11 @@ export function estaVigente(fecha: string): boolean {
  * ¿Se muestra la entrada de menú? Vigente por fecha, o activada con `?horarioEspecial=1`
  * (prueba antes del 24-nov).
  */
+/** Desde cuándo se anuncia (antes de que rija): así se puede consultar la víspera. */
+export const PLAN_APOYO_AVISO_DESDE = '2026-11-21';
+
 export function entradaMenuVisible(fecha: string, busqueda: string): boolean {
-  if (estaVigente(fecha)) return true;
+  if (estaVigente(fecha) || (fecha >= PLAN_APOYO_AVISO_DESDE && fecha <= PLAN_APOYO_HASTA)) return true;
   try { return new URLSearchParams(busqueda).get('horarioEspecial') === '1'; } catch { return false; }
 }
 

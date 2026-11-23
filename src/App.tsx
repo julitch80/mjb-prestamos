@@ -45,7 +45,7 @@ import { cargarSyncEditor } from './data/syncEditor';
 import { limpiarBadge, refrescarUltimoUso } from './data/notificacionesPush';
 import { USUARIOS, SEDES, esDirectivo, sedeDeUsuario } from './data/maestros';
 import { AUTH_MODE } from './data/authStore';
-import { entradaMenuVisible, hoyBogota } from './data/horarioEspecial/logica';
+import { entradaMenuVisible, estaVigente, hoyBogota } from './data/horarioEspecial/logica';
 import HorarioEspecialPlanApoyo from './components/horarioEspecial/HorarioEspecialPlanApoyo';
 import { useChatStore } from './data/chatStore';
 import { cn } from './lib/utils';
@@ -262,6 +262,9 @@ export default function App() {
     } catch { /* sin almacenamiento: solo vale la URL */ forzado = window.location.search; }
     return entradaMenuVisible(hoyBogota(), forzado);
   });
+  // El horario habitual solo se bloquea cuando la semana especial ya rige; la víspera se
+  // anuncia arriba del horario habitual con un botón.
+  const [horarioEspecialRige] = useState(() => estaVigente(hoyBogota()));
 
   // ── Ruta de desarrollo: banco de acompañamientos ──────────
   // Va aqui, despues de TODOS los hooks, igual que la ruta de la agenda: un return
@@ -531,7 +534,7 @@ export default function App() {
                   {vistaActual === 'horario_especial' && horarioEspecialVisible && <HorarioEspecialPlanApoyo />}
                   {/* Semana de plan de apoyo: el horario habitual sigue en el menú pero no se consulta
                       (Julián, 2026-11-16); se remite al horario especial. */}
-                  {vistaActual === 'horario' && horarioEspecialVisible && (
+                  {vistaActual === 'horario' && horarioEspecialVisible && horarioEspecialRige && (
                     <div className="max-w-xl mx-auto mt-6 rounded-2xl border border-line bg-card p-6 text-center space-y-3">
                       <p className="text-lg font-semibold text-strong">Esta semana no rige el horario habitual</p>
                       <p className="text-sm text-soft">Del 24 de noviembre al 1 de diciembre se trabaja con el horario especial de la semana de plan de apoyo.</p>
@@ -541,7 +544,16 @@ export default function App() {
                       </button>
                     </div>
                   )}
-                  {vistaActual === 'horario' && !horarioEspecialVisible && <VistaHorario />}
+                  {vistaActual === 'horario' && horarioEspecialVisible && !horarioEspecialRige && (
+                    <div className="max-w-3xl mx-auto mt-4 mb-2 rounded-2xl border-2 border-accent bg-card p-4 flex flex-wrap items-center gap-3 justify-between">
+                      <p className="text-sm text-strong font-semibold">Desde el 24 de noviembre rige el horario especial de la semana de plan de apoyo.</p>
+                      <button type="button" onClick={() => setVistaActual('horario_especial' as typeof vistaActual)}
+                        className="min-h-[44px] px-5 rounded-lg bg-accent text-accent-fg text-sm font-semibold">
+                        Ver el horario especial
+                      </button>
+                    </div>
+                  )}
+                  {vistaActual === 'horario' && !(horarioEspecialVisible && horarioEspecialRige) && <VistaHorario />}
                   {vistaActual === 'generar_horario' && (rol === 'coordinador' || rol === 'superusuario') && <PanelHorarios />}
                   {vistaActual === 'asignacion'     && <PanelAcademico />}
                   {vistaActual === 'tareas'         && <VistaTareas />}
