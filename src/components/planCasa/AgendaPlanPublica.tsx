@@ -208,8 +208,8 @@ function Contenido({ plan, token, hoy, dia, setDia, pestana, setPestana }: { pla
           📖 Manual
         </button>
       </header>
-      <div className="flex flex-wrap gap-2"><BotonesConsulta token={token} /></div>
       <HorarioPlanApoyoPAE plan={plan} hoy={hoy} />
+      <div className="flex flex-wrap gap-2"><BotonesConsulta token={token} /></div>
       {verManual && <Manual onCerrar={() => setVerManual(false)} desde={plan.desde} hasta={plan.hasta} />}
 
       <div><BotonSugerencias onClick={() => setVerSugerencias(true)} /></div>
