@@ -3065,6 +3065,133 @@ export const AGENDAS: AgendaSemanal[] = [
       },
     ],
   },
+  {
+    semana: 13,
+    periodo: 3,
+    desde: '2026-11-23',
+    hasta: '2026-11-27',
+    publicadaPor: 'Equipo Técnico Institucional',
+    notaFinal: 'La agenda de profesionales (orientación escolar y programa Escuela Entorno Protector, PTA y UAI) viene dentro del mismo documento, aparte de la agenda institucional.',
+    dias: [
+      {
+        fecha: '2026-11-23',
+        dia: 'lunes',
+        notas: [
+          'Finaliza plan de apoyo 3er periodo para grado 11°, se ingresan notas en MASTER con indicadores.',
+          'Revisión de documentos para graduación 2026.',
+          'Aplicación de encuestas de ambientes escolares año 2026.',
+        ],
+        actividades: [
+          {
+            hora: '10:10 am a 12:00',
+            actividad: 'Jornada de aseo y limpieza del grado 11° (paz y salvo)',
+            asisten: 'Estudiantes del grado 11°',
+            lugar: 'Aulas (3, 6, 9)',
+            responsables: 'Estudiantes Grado 11°',
+          },
+          {
+            hora: '2pm',
+            actividad: 'Clausura de nivelatorio EAFIT',
+            asisten: 'Rectora',
+            lugar: 'EAFIT Auditorio Fundadores',
+            responsables: 'EAFIT',
+          },
+          {
+            hora: '1pm',
+            actividad: 'Intervención aula - Respeto a la diferencia',
+            asisten: 'Grado 3-3',
+            lugar: 'La Finquita',
+            responsables: 'PEEP-Natalia Rivas',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-24',
+        dia: 'martes',
+        notas: [
+          'Finaliza plan de apoyo 3er periodo para grados 1° a 10°, docentes ingresan notas en MASTER con indicadores.',
+          '24 al 26 de nov: plan de apoyo especial para grado 11°.',
+        ],
+        actividades: [
+          {
+            hora: '11am',
+            actividad: 'Socialización gestión 2026 y momento 3 PTA',
+            asisten: 'Tutoras PTA',
+            lugar: 'Biblioteca',
+            responsables: 'Coordinadores y rectora',
+          },
+          {
+            hora: '11:00 am a 12:00 pm',
+            actividad: 'Reunión macroproyecto: Leer bien para vivir mejor',
+            asisten: 'Integrantes del macroproyecto',
+            lugar: 'Aula de innovación',
+            responsables: 'Líder de macroproyecto',
+          },
+          {
+            hora: '10:00 am a 11:00 am JM · 12:30 pm a 1:10 pm JT',
+            actividad: 'Dirección de grupo: informe a estudiantes que deben asistir al plan de apoyo especial. Selección de estudiantes para jornada de aseo (10 estudiantes por grupo)',
+            asisten: 'Directores de grupo y estudiantes',
+            lugar: 'Aulas de clase',
+            responsables: 'Directores de grupo',
+          },
+          {
+            hora: '11:00 am a 12:00 pm JM · 5:00 pm a 6:10 pm JT',
+            actividad: 'Jornada de aseo y limpieza de los grados 6° a 10° en cada jornada',
+            asisten: 'Directores de grupo y estudiantes',
+            lugar: 'Aulas de clase',
+            responsables: 'Directores de grupo',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-25',
+        dia: 'miércoles',
+        notas: ['25 de noviembre al 01 de diciembre: plan de apoyo especial para grados 1° a 10°.'],
+        actividades: [
+          {
+            hora: '8am a 1pm',
+            actividad: 'Comité operativo de núcleo 937',
+            asisten: 'Rectores de núcleo 937',
+            lugar: 'Sede GRI',
+            responsables: 'IE Manuel J Betancur',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-26',
+        dia: 'jueves',
+        actividades: [
+          {
+            hora: '7:30am a 12 m',
+            actividad: 'Clausura de proyecto PREST MATH',
+            asisten: 'Leidy Zapata, Leonardo y Rectora',
+            lugar: 'ITM Fraternidad',
+            responsables: 'Fundación LUKER',
+          },
+          {
+            hora: '10am',
+            actividad: 'Reunión Plan de Convivencia',
+            asisten: 'Alexander Sánchez psic, Natalia Rivas',
+            lugar: 'Principal',
+            responsables: 'Equipo Psicosocial',
+          },
+        ],
+      },
+      {
+        fecha: '2026-11-27',
+        dia: 'viernes',
+        actividades: [
+          {
+            hora: '10am',
+            actividad: 'Reunión de comité Copasst: responder cuestionario',
+            asisten: 'Integrantes',
+            lugar: 'Biblioteca',
+            responsables: 'Rectora',
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 
