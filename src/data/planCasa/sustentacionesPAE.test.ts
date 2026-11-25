@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { docentesPAE, esPAEManana, resumenPlanPAE } from './sustentacionesPAE';
 
 describe('sustentaciones PAE', () => {
-  it('solo 10.° y 11.° de la mañana', () => {
+  it('9.°, 10.° y 11.° de la mañana', () => {
     expect(esPAEManana('10.1')).toBe(true);
     expect(esPAEManana('11.3')).toBe(true);
-    expect(esPAEManana('9.1')).toBe(false);
+    expect(esPAEManana('9.1')).toBe(true);
+    expect(esPAEManana('9.3')).toBe(true);
+    expect(esPAEManana('6º1')).toBe(false);
     expect(esPAEManana('8º1')).toBe(false);
   });
   it('Claudia se reemplaza por Uriel en 10.° y no aparece en 11.°', () => {

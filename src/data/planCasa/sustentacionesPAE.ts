@@ -1,4 +1,4 @@
-// Sustentaciones del Plan Académico Especial (jornada de la mañana, 10.° y 11.°).
+// Sustentaciones del Plan Académico Especial (jornada de la mañana: 9.°, 10.° y 11.°).
 // Cada docente marca, en el plan del estudiante, si el estudiante se presentó a la asesoría y a la
 // sustentación. Se guarda en planesCasa/{id}.sustentacionesPAE.{docenteId}.
 import { asignacionDeGrupo } from '../asignacionAcademica';
@@ -9,9 +9,10 @@ import type { MarcaSustentacionPAE } from './tipos';
 export type MarcaPAE = MarcaSustentacionPAE;
 export type Valoracion = 'aprobo' | 'no_aprobo' | null | undefined;
 
-/** Mañana = notación con punto (10.1, 11.2); la tarde usa «º». Solo 10.° y 11.°. */
+/** Mañana = notación con punto (9.1, 10.1, 11.2); la tarde usa «º». 9.°, 10.° y 11.°. */
 export function esPAEManana(grupo: string): boolean {
-  return !grupo.includes('º') && /^1[01]\b|^1[01]\./.test(grupo.trim());
+  // La tarde solo tiene 6.° a 8.°: el número de grado basta (vale 9.1, 10°1, 11.2...).
+  return /^(9|10|11)(\D|$)/.test(grupo.trim());
 }
 
 export const esOnce = (grupo: string) => grupo.trim().startsWith('11');

@@ -1,4 +1,4 @@
-// Plan Académico Especial (mañana, 10.° y 11.°): sustentaciones.
+// Plan Académico Especial (mañana, 9.°, 10.° y 11.°): sustentaciones.
 //  - BannerSustentacionDocente: sección «Sustentación» arriba del plan del estudiante; cada docente marca lo SUYO.
 //  - PanelSustentacionesPAE: coordinación ve el estado general, la matriz estudiantes × docentes y la propuesta.
 import { useEffect, useMemo, useState } from 'react';
@@ -206,7 +206,7 @@ const btnFiltro = (act: boolean) => cn('min-h-[44px] px-3 rounded-lg text-sm bor
 
 /** Coordinación: resumen, propuesta, matriz estudiantes × docentes y detalle. */
 export function PanelSustentacionesPAE({ planes }: { planes: PlanCasa[] }) {
-  const [grado, setGrado] = useState<'todos' | '10' | '11'>('todos');
+  const [grado, setGrado] = useState<'todos' | '9' | '10' | '11'>('todos');
   const [orden, setOrden] = useState<'pendientes' | 'grupo'>('pendientes');
   const [abierto, setAbierto] = useState<string | null>(null);
   const todas = useMemo(() => planes.filter(p => p.estado === 'activo' && esPAEManana(p.grupo)).map(p => ({ p, r: resumenPlanPAE(p.grupo, p.sustentacionesPAE, p.docentesCorreos) })), [planes]);
@@ -238,7 +238,7 @@ export function PanelSustentacionesPAE({ planes }: { planes: PlanCasa[] }) {
       <section className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-base font-bold text-strong flex-1">Estudiantes × docentes</h3>
-          {(['todos', '10', '11'] as const).map(g => <button key={g} type="button" aria-pressed={grado === g} onClick={() => setGrado(g)} className={btnFiltro(grado === g)}>{g === 'todos' ? '10.° y 11.°' : `${g}.°`}</button>)}
+          {(['todos', '9', '10', '11'] as const).map(g => <button key={g} type="button" aria-pressed={grado === g} onClick={() => setGrado(g)} className={btnFiltro(grado === g)}>{g === 'todos' ? 'Todos' : `${g}.°`}</button>)}
           <button type="button" onClick={() => setOrden(o => (o === 'pendientes' ? 'grupo' : 'pendientes'))} className={btnFiltro(false)}>
             Orden: {orden === 'pendientes' ? 'más pendientes primero' : 'por grupo'}
           </button>

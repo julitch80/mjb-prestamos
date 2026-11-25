@@ -1,5 +1,5 @@
 // Mensaje y avance del plan de apoyo (24-nov al 1-dic 2026) en la agenda pública del PAE.
-// Solo para estudiantes de la jornada de la mañana (10.° y 11.°). Va arriba y resaltado.
+// Solo para estudiantes de la jornada de la mañana (9.°, 10.° y 11.°). Va arriba y resaltado.
 // La lista es SOLO LECTURA: refleja lo que marcan los docentes (copia pública, sin observaciones).
 import type { PlanPublico } from '../../data/planCasa/tipos';
 import { docentesDelPlanPAE, esPAEManana, nombreDocente } from '../../data/planCasa/sustentacionesPAE';
