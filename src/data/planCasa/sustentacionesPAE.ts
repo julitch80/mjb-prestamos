@@ -15,6 +15,14 @@ export function esPAEManana(grupo: string): boolean {
   return /^(9|10|11)(\D|$)/.test(grupo.trim());
 }
 
+/** Tarde: 6.° a 8.° (solo seguimiento: sin horario ni propuesta). */
+export function esPAETarde(grupo: string): boolean {
+  return /^(6|7|8)(\D|$)/.test(grupo.trim());
+}
+
+/** Cualquier plan con seguimiento de sustentación (mañana o tarde). */
+export const esPAE = (grupo: string) => esPAEManana(grupo) || esPAETarde(grupo);
+
 export const esOnce = (grupo: string) => grupo.trim().startsWith('11');
 
 /**

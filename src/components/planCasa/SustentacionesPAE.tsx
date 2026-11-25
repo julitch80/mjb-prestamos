@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useAppStore } from '../../data/store';
 import type { PlanCasa } from '../../data/planCasa/tipos';
 import { guardarSustentacionPAE } from '../../data/planCasa/persistencia';
-import { participaEnPAE, esOnce, esPAEManana, nombreDocente, resumenPlanPAE, type FilaDocentePAE, type ResumenPAE, type Valoracion } from '../../data/planCasa/sustentacionesPAE';
+import { participaEnPAE, esOnce, esPAE, esPAEManana, esPAETarde, nombreDocente, resumenPlanPAE, type FilaDocentePAE, type ResumenPAE, type Valoracion } from '../../data/planCasa/sustentacionesPAE';
 import { PROPUESTA_PAE_MANANA } from '../../data/horarioEspecial/sustentacionesPAE';
 import { CajaError } from './comun';
 
@@ -34,7 +34,7 @@ export function BannerSustentacionDocente({ plan }: { plan: PlanCasa }) {
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => { setObs(mia?.observacion ?? ''); setGuardada(mia?.observacion ?? ''); }, [plan.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!esPAEManana(plan.grupo) || !yo || !puedeMarcar) return null;
+  if (!esPAE(plan.grupo) || !yo || !puedeMarcar) return null;
   const asesoria = local.asesoria ?? mia?.asesoria === true;
   const sustentacion = local.sustentacion ?? mia?.sustentacion === true;
   const valoracion: Valoracion = 'valoracion' in local ? local.valoracion : mia?.valoracion ?? null;
@@ -80,7 +80,7 @@ export function BannerSustentacionDocente({ plan }: { plan: PlanCasa }) {
 export function ResumenSustentacionDocente({ planes, onAbrir }: { planes: PlanCasa[]; onAbrir: (planId: string) => void }) {
   const yo = useAppStore(s => s.userId) ?? '';
   const rol = useAppStore(s => s.rol);
-  const mios = planes.filter(p => esPAEManana(p.grupo) && yo && (rol === 'docente' || participaEnPAE(p, yo)))
+  const mios = planes.filter(p => esPAE(p.grupo) && yo && (rol === 'docente' || participaEnPAE(p, yo)))
     .map(p => ({ p, m: p.sustentacionesPAE?.[yo] }))
     .sort((a, b) => Number(!!a.m?.asesoria && !!a.m?.sustentacion) - Number(!!b.m?.asesoria && !!b.m?.sustentacion)
       || a.p.grupo.localeCompare(b.p.grupo, 'es', { numeric: true }) || a.p.nombres.localeCompare(b.p.nombres, 'es'));
@@ -206,10 +206,14 @@ const btnFiltro = (act: boolean) => cn('min-h-[44px] px-3 rounded-lg text-sm bor
 
 /** Coordinación: resumen, propuesta, matriz estudiantes × docentes y detalle. */
 export function PanelSustentacionesPAE({ planes }: { planes: PlanCasa[] }) {
-  const [grado, setGrado] = useState<'todos' | '9' | '10' | '11'>('todos');
+  const miJornada = useAppStore(s => s.jornada);
+  const [jornada, setJornada] = useState<'manana' | 'tarde'>(miJornada === 'tarde' ? 'tarde' : 'manana');
+  const tarde = jornada === 'tarde';
+  const grados = tarde ? (['todos', '6', '7', '8'] as const) : (['todos', '9', '10', '11'] as const);
+  const [grado, setGrado] = useState<string>('todos');
   const [orden, setOrden] = useState<'pendientes' | 'grupo'>('pendientes');
   const [abierto, setAbierto] = useState<string | null>(null);
-  const todas = useMemo(() => planes.filter(p => p.estado === 'activo' && esPAEManana(p.grupo)).map(p => ({ p, r: resumenPlanPAE(p.grupo, p.sustentacionesPAE, p.docentesCorreos) })), [planes]);
+  const todas = useMemo(() => planes.filter(p => p.estado === 'activo' && (tarde ? esPAETarde(p.grupo) : esPAEManana(p.grupo))).map(p => ({ p, r: resumenPlanPAE(p.grupo, p.sustentacionesPAE, p.docentesCorreos) })), [planes, tarde]);
   const filas = useMemo(() => todas.filter(f => grado === 'todos' || f.p.grupo.startsWith(grado))
     .sort((a, b) => (orden === 'pendientes' ? b.r.pendientes - a.r.pendientes || Number(esOnce(b.p.grupo)) - Number(esOnce(a.p.grupo)) : 0)
       || a.p.grupo.localeCompare(b.p.grupo, 'es', { numeric: true }) || `${a.p.apellidos} ${a.p.nombres}`.localeCompare(`${b.p.apellidos} ${b.p.nombres}`, 'es')), [todas, grado, orden]);
@@ -219,32 +223,40 @@ export function PanelSustentacionesPAE({ planes }: { planes: PlanCasa[] }) {
   const sel = todas.find(f => f.p.id === abierto);
   return (
     <div className="space-y-4">
+      <div className="flex gap-2">
+        {(['manana', 'tarde'] as const).map(j => <button key={j} type="button" aria-pressed={jornada === j} onClick={() => { setJornada(j); setGrado('todos'); setAbierto(null); }} className={btnFiltro(jornada === j)}>{j === 'manana' ? 'Mañana' : 'Tarde'}</button>)}
+      </div>
       <section className="space-y-2">
         <h3 className="text-base font-bold text-strong">Estado general de las sustentaciones</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {tarde ? <>
+            <Cifra v={`${todas.filter(f => f.r.completo).length} / ${todas.length}`} t="estudiantes completos" tono={todas.some(f => !f.r.completo) ? 'text-danger' : 'text-success'} />
+            <Cifra v={String(todas.filter(f => !f.r.completo).length)} t="estudiantes con pendientes" />
+          </> : <>
           <Cifra v={`${once.filter(f => f.r.completo).length} / ${once.length}`} t="estudiantes de 11.° completos" tono={once.some(f => !f.r.completo) ? 'text-danger' : 'text-success'} />
           <Cifra v={String(once.filter(f => !f.r.completo).length)} t="de 11.° con pendientes (cierran el jueves 26)" />
+          </>}
           <Cifra v={`${suma(r => r.sustentacionesHechas)} / ${suma(r => r.filas.length)}`} t="sustentaciones hechas" />
           <Cifra v={`${suma(r => r.asesoriasHechas)} / ${suma(r => r.filas.length)}`} t="asesorías hechas" />
           <Cifra v={String(suma(r => r.pendientes))} t="marcas faltantes (asesoría + sustentación)" />
           <Cifra v={String(suma(r => r.aprobadas))} t="valoraciones: aprobó" tono="text-success" />
           <Cifra v={String(suma(r => r.noAprobadas))} t="valoraciones: no aprobó" tono="text-warning" />
-          <Cifra v={String(todas.length)} t="estudiantes PAE de la mañana" />
+          <Cifra v={String(todas.length)} t={tarde ? 'estudiantes PAE de la tarde' : 'estudiantes PAE de la mañana'} />
         </div>
       </section>
 
-      <Propuesta />
+      {!tarde && <Propuesta />}
 
       <section className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-base font-bold text-strong flex-1">Estudiantes × docentes</h3>
-          {(['todos', '9', '10', '11'] as const).map(g => <button key={g} type="button" aria-pressed={grado === g} onClick={() => setGrado(g)} className={btnFiltro(grado === g)}>{g === 'todos' ? 'Todos' : `${g}.°`}</button>)}
+          {grados.map(g => <button key={g} type="button" aria-pressed={grado === g} onClick={() => setGrado(g)} className={btnFiltro(grado === g)}>{g === 'todos' ? 'Todos' : `${g}.°`}</button>)}
           <button type="button" onClick={() => setOrden(o => (o === 'pendientes' ? 'grupo' : 'pendientes'))} className={btnFiltro(false)}>
             Orden: {orden === 'pendientes' ? 'más pendientes primero' : 'por grupo'}
           </button>
         </div>
-        <p className="text-xs text-soft">Cada celda: asesoría · sustentación · valoración (Ap = aprobó, NoAp = no aprobó). ✓ hecho, · pendiente. Toque un estudiante para ver el detalle. ★ = 11.° (prioridad).</p>
-        {filas.length === 0 && <p className="text-sm text-soft">No hay planes PAE de la mañana.</p>}
+        <p className="text-xs text-soft">Cada celda: asesoría · sustentación · valoración (Ap = aprobó, NoAp = no aprobó). ✓ hecho, · pendiente. Toque un estudiante para ver el detalle. {tarde ? '' : '★ = 11.° (prioridad).'}</p>
+        {filas.length === 0 && <p className="text-sm text-soft">No hay planes PAE de {tarde ? 'la tarde' : 'la mañana'}.</p>}
         {filas.length > 0 && (
           <div className="overflow-x-auto rounded-xl border border-line">
             <table className="w-full border-collapse text-xs">

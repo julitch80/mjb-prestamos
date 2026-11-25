@@ -35,3 +35,15 @@ describe('docentes fuera de la asignación (reemplazos)', () => {
     expect(participaEnPAE({ grupo: '10.1' }, 'camilo.x@iemanueljbetancur.edu.co')).toBe(false);
   });
 });
+
+import { esPAE, esPAETarde } from './sustentacionesPAE';
+describe('tarde', () => {
+  it('6.° a 8.° tienen seguimiento; no cuentan como mañana', () => {
+    expect(esPAETarde('6º1')).toBe(true);
+    expect(esPAETarde('8º4')).toBe(true);
+    expect(esPAEManana('7º2')).toBe(false);
+    expect(esPAE('7º2')).toBe(true);
+    expect(esPAETarde('10.1')).toBe(false);
+    expect(docentesPAE('6º1').length).toBeGreaterThan(3);
+  });
+});
