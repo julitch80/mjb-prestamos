@@ -46,3 +46,29 @@ export const SESIONES_PAE_MANANA: SesionPAE[] = [
   s('Beatriz', S, '2026-11-30', 7), s('Camilo', S, '2026-11-30', 8),
   s('Uriel', S, '2026-11-30', 10, 'Incluye los estudiantes de 10.° de Claudia'),
 ];
+
+// ── Propuesta de distribución v5 (2026-11-24, Julián) ─────────────────────
+// Para coordinación: miércoles 25 y jueves 26. Una hora = un solo docente (ningún estudiante
+// tiene dos citas a la vez); ningún docente queda citado mientras da plan de apoyo (horario v2).
+// Hasta las 12:00. El martes 24 se hicieron las asesorías, salvo Artística.
+export interface CitaPropuesta { hora: string; docente: string; asignatura: string; tipo: TipoPAE; nota?: string }
+export interface PropuestaDia { fecha: string; titulo: string; citas: CitaPropuesta[] }
+const c = (hora: string, docente: string, asignatura: string, tipo: TipoPAE = S, nota?: string): CitaPropuesta => ({ hora, docente, asignatura, tipo, nota });
+export const PROPUESTA_PAE_MANANA: PropuestaDia[] = [
+  { fecha: '2026-11-25', titulo: 'Propuesta de distribución para el miércoles 25', citas: [
+    c('6:00 – 7:00', 'Doris', 'Artística', O),
+    c('7:00 – 8:00', 'Ledis', 'Filosofía y Economía'),
+    c('8:00 – 9:00', 'Julián Medina', 'Física'),
+    c('9:00 – 10:00', 'Jorge', 'Ética y Religión'),
+    c('10:00 – 11:00', 'Margarita', 'Castellano'),
+    c('11:00 – 12:00', 'Johana', 'Inglés'),
+  ] },
+  { fecha: '2026-11-26', titulo: 'Propuesta de distribución para el jueves 26', citas: [
+    c('6:00 – 7:00', 'Gloria Álvarez', 'Sociales'),
+    c('7:00 – 8:00', 'Adolfo', 'Ed. Física'),
+    c('8:00 – 9:00', 'Doris', 'Artística'),
+    c('9:00 – 10:00', 'Juan Carlos Blandón', 'Tecnología'),
+    c('10:00 – 11:00', 'Carlos Cárdenas', 'Química y Biología'),
+    c('11:00 – 12:00', 'Camilo', 'Inglés', O, 'Solo estudiantes de 10.°'),
+  ] },
+];

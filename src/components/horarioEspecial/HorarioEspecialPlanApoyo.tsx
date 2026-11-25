@@ -10,9 +10,49 @@ import {
   GRADOS_FILTRO, type GradoFiltro, hoyBogota, diaInicial, pasaFiltros, contarCoincidencias, type FiltrosEspecial,
 } from '../../data/horarioEspecial/logica';
 
-import { SESIONES_PAE_MANANA } from '../../data/horarioEspecial/sustentacionesPAE';
+import { SESIONES_PAE_MANANA, PROPUESTA_PAE_MANANA } from '../../data/horarioEspecial/sustentacionesPAE';
 
 type Jor = 'manana' | 'tarde';
+
+/** Coordinación: propuesta de distribución del miércoles 25 y el jueves 26 (Plan Académico Especial). */
+function PropuestaPAECoordinacion() {
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const dia = PROPUESTA_PAE_MANANA.find(d => d.fecha === abierta);
+  return (
+    <section className="rounded-2xl border-2 border-accent bg-card p-4 space-y-3">
+      <div>
+        <h3 className="text-lg font-bold text-strong">Plan Académico Especial · sustentaciones</h3>
+        <p className="text-sm text-soft">
+          Con esta distribución se garantiza que los estudiantes de 11.° tengan sus dos espacios (asesoría y sustentación)
+          antes del jueves. Ningún estudiante tiene dos citas a la vez y ningún docente queda citado mientras da plan de apoyo.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {PROPUESTA_PAE_MANANA.map(d => (
+          <button key={d.fecha} type="button" onClick={() => setAbierta(abierta === d.fecha ? null : d.fecha)}
+            aria-pressed={abierta === d.fecha}
+            className={cn('min-h-[44px] px-4 rounded-lg text-sm font-semibold border',
+              abierta === d.fecha ? 'bg-accent text-accent-fg border-accent' : 'border-line text-strong')}>
+            {d.titulo}
+          </button>
+        ))}
+      </div>
+      {dia && (
+        <ul className="space-y-1">
+          {dia.citas.map(x => (
+            <li key={x.hora} className="rounded-lg border border-line px-3 py-2 text-sm">
+              <div className="flex flex-wrap justify-between gap-2">
+                <span><span className="tabular-nums font-semibold text-strong">{x.hora}</span> · {x.docente} · {x.asignatura}</span>
+                <span className="text-xs uppercase tracking-wide text-soft">{x.tipo === 'orientacion' ? 'Asesoría' : 'Sustentación'}</span>
+              </div>
+              {x.nota && <p className="text-xs text-muted">{x.nota}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 function SustentacionesPAE({ nombreCorto }: { nombreCorto: string }) {
   const n = nombreCorto.toLowerCase().split(' ')[0];
@@ -155,6 +195,8 @@ export default function HorarioEspecialPlanApoyo() {
   const sedeActual = useAppStore(s => s.sedeActual);
   const usuario = USUARIOS.find(u => u.id === userId);
   const nombreCorto = usuario?.nombreCorto ?? '';
+  const rol = useAppStore(s => s.rol);
+  const esDirectivo = rol === 'coordinador' || rol === 'rectora' || rol === 'superusuario';
 
   const [jornada, setJornada] = useState<Jor>(jornadaUsuario === 'tarde' ? 'tarde' : 'manana');
   const [grado, setGrado] = useState<GradoFiltro | null>(null);
@@ -226,6 +268,7 @@ export default function HorarioEspecialPlanApoyo() {
       <div className="hidden sm:block"><Matriz j={j} f={f} /></div>
       <div className="sm:hidden"><VistaDia key={jornada} j={j} f={f} /></div>
 
+      {jornada === 'manana' && esDirectivo && <PropuestaPAECoordinacion />}
       {jornada === 'manana' && <SustentacionesPAE nombreCorto={nombreCorto} />}
 
       <p className="text-xs text-muted">{PLAN_APOYO_FUENTE}</p>
