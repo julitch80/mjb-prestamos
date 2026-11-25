@@ -13,6 +13,7 @@ describe('sustentaciones PAE', () => {
     expect(docentesPAE('10.3')).not.toContain('claudia');
     expect(docentesPAE('11.1')).not.toContain('claudia');
     expect(docentesPAE('11.1')).not.toContain('uriel');
+    expect(docentesPAE('10.1')).not.toContain('marta');
   });
   it('cuenta pendientes, aprobadas y completo', () => {
     const r = resumenPlanPAE('11.1', { julian: { asesoria: true, sustentacion: true, valoracion: 'aprobo' } });

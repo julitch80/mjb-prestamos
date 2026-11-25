@@ -26,6 +26,8 @@ export function docentesPAE(grupo: string): string[] {
   for (const e of asignacionDeGrupo(g)) {
     if (e.asignaturaId.startsWith('mt_')) continue;
     if (e.docenteId === 'claudia') { if (!esOnce(g)) ids.add('uriel'); continue; }
+    // Marta ya no atiende la mañana: su inglés de 10.1 lo da Camilo (entra por docentesCorreos del plan).
+    if (e.docenteId === 'marta') continue;
     ids.add(e.docenteId);
   }
   return [...ids].sort((a, b) => nombreDocente(a).localeCompare(nombreDocente(b), 'es'));
@@ -53,7 +55,7 @@ export function docentesDelPlanPAE(plan: { grupo: string; docentesCorreos?: stri
   const ids = new Set(base);
   for (const c of plan.docentesCorreos ?? []) {
     const id = idDocentePorCorreo(c);
-    if (id === 'claudia') continue;
+    if (id === 'claudia' || id === 'marta') continue;
     ids.add(id);
   }
   for (const k of Object.keys(plan.sustentacionesPAE ?? {})) ids.add(k);
