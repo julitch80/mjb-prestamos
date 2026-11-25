@@ -74,7 +74,7 @@ describe('datos transcritos', () => {
     expect(contarCoincidencias(PLAN_APOYO_TARDE, f)).toBe(0);
     const yanet = { grado: null, soloMias: true, userId: 'yanet', nombreCorto: 'Yanet' };
     expect(contarCoincidencias(PLAN_APOYO_TARDE, yanet)).toBeGreaterThan(5);
-    expect(contarCoincidencias(PLAN_APOYO_MANANA, { ...yanet, userId: 'julian', nombreCorto: 'Julián' })).toBe(2); // Física 11° y 10° (docentes dictados por Julián)
+    expect(contarCoincidencias(PLAN_APOYO_MANANA, { ...yanet, userId: 'julian', nombreCorto: 'Julián' })).toBe(0); // v2 (docx 24-nov): sin Física
     expect(contarCoincidencias(PLAN_APOYO_MANANA, { ...yanet, userId: 'yoguis', nombreCorto: 'Yoguis' })).toBeGreaterThan(0);
     expect(pasaFiltros(PLAN_APOYO_MANANA.dias[0].entradas[0][0], { grado: null, soloMias: false, userId: '', nombreCorto: '' })).toBe(true);
   });

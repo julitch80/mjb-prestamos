@@ -1,5 +1,5 @@
 // Horario especial · semana de plan de apoyo (bachillerato, sede central).
-// Fuente: «HORARIO PLAN DE APOYO BAHILLERATO 2026.pdf» (Coordinación).
+// Fuente: mañana «HORARIO ESPECIAL PLAN DE APOYO FINAL» (docx, 2026-11-24); tarde «HORARIO PLAN DE APOYO BAHILLERATO 2026.pdf».
 // Transcripción fiel de las celdas del PDF; solo se normalizaron mayúsculas y tildes.
 //
 // NOTAS DE TRANSCRIPCIÓN
@@ -60,59 +60,54 @@ export const PLAN_APOYO_MANANA: JornadaEspecial = {
     { id: 'm2', etiqueta: '8:00 – 10:00', horas: '8:00–10:00' },
     { id: 'm3', etiqueta: '10:00 – 12:00', horas: '10:00–12:00' },
   ],
-  // Docentes de la mañana: los dictó Julián el 2026-11-16 (el PDF no los trae).
-  // «Leyes» del dictado = Ledis y «Carlos Arteaga» = Carlos Cárdenas (confirmado por Julián).
+  // v2 (2026-11-24): «HORARIO ESPECIAL PLAN DE APOYO FINAL» (Coordinación, docx). Reemplaza al PDF.
+  // El docx no trae docentes: se asignan con el dictado de Julián (2026-11-16) y la asignación académica.
   dias: [
     {
       fecha: '2026-11-24', etiqueta: 'Martes 24 nov',
       entradas: [
-        [e('Inglés', '11°', 'Johana'), e('Artística', '11°', 'Doris')],
-        [e('Física', '11°', 'Julián Medina'), e('Castellano', '11°', 'Margarita')],
-        [e('Matemáticas', '11°', 'Sin docente (Claudia no estará)'), e('Tecnología', '11°', 'Juan Carlos Blandón')],
+        [e('Inglés', '11°', 'Johana')],
+        [e('Castellano', '11°', 'Margarita'), e('Química y Biología', '11°', 'Carlos Cárdenas')],
+        [e('Matemáticas', '11°', 'Sin docente (Claudia no estará)'), e('Sociales', '11°', 'Gloria Álvarez')],
       ],
     },
     {
       fecha: '2026-11-25', etiqueta: 'Miércoles 25 nov',
       entradas: [
-        [e('Matemáticas', '9°', 'Uriel'), e('Filosofía y Economía', '10°', 'Ledis'), e('Ética y Religión', '11°', 'Jorge')],
-        [e('Castellano', '9°', 'Beatriz'), INGLES_10_2, INGLES_10_34, e('Química', '11°', 'Carlos Cárdenas')],
-        [e('Ética y Religión', '9°', 'Jorge'), e('Artística', '10°', 'Doris'), e('Filosofía y Economía', '11°', 'Ledis')],
+        [e('Castellano', '9°', 'Beatriz'), e('Inglés', '9° y 10°1', 'Camilo'), INGLES_10_2, INGLES_10_34, e('Ed. Física', '11°', 'Adolfo')],
+        [e('Sociales', '9°', 'Gloria Álvarez'), e('Filosofía y Economía', '10°', 'Ledis'), e('Artística', '11°', 'Doris')],
+        [e('Ética y Religión', '9°', 'Jorge'), e('Química', '10°', 'Carlos Cárdenas'), e('Filosofía y Economía', '11°', 'Ledis')],
       ],
     },
     {
       fecha: '2026-11-26', etiqueta: 'Jueves 26 nov',
       entradas: [
-        [e('C. Naturales', '9°', 'Mónica Córdoba'), CASTELLANO_10, e('Inglés', '11°', 'Johana', '(1H)'), e('Ed. Física', '11°', 'Adolfo', '(1H)')],
-        [
-          e('Sociales', '9°', 'Gloria Álvarez'),
-          e('Matemáticas', '10°', 'Uriel (cubre también a Claudia)'),
-          e('Biología', '11°', 'Carlos Cárdenas', '(1H)'),
-          e('Castellano', '11°', 'Margarita', '(1H)'),
-        ],
-        [e('Inglés', '9° y 10°1', 'Camilo'), e('Química', '10°', 'Carlos Cárdenas'), e('Matemáticas', '11°', 'Sin docente (Claudia no estará)'), e('Sociales', '11°', 'Gloria Álvarez', '(1H)')],
+        [e('Tecnología', '9°', 'Juan Carlos Blandón'), CASTELLANO_10, e('Inglés', '11°', 'Johana'), INGLES_10_2, INGLES_10_34],
+        [e('C. Naturales', '9°', 'Mónica Córdoba'), e('Matemáticas', '10°', 'Uriel (cubre también a Claudia)'), e('Biología', '11°', 'Carlos Cárdenas', '(1H)'), e('Castellano', '11°', 'Margarita')],
+        [e('Castellano', '9°', 'Beatriz'), e('Tecnología', '10°', 'Juan Carlos Blandón', '(1H)'), e('Ed. Física', '10°', 'Adolfo', '(1H)'), e('Matemáticas', '11°', 'Sin docente (Claudia no estará)'), e('Sociales', '11°', 'Gloria Álvarez')],
       ],
     },
     {
       fecha: '2026-11-27', etiqueta: 'Viernes 27 nov',
       entradas: [
-        [e('Castellano', '9°', 'Beatriz'), e('Tecnología', '10°', 'Juan Carlos Blandón')],
-        [e('Matemáticas', '9°', 'Uriel'), e('Biología', '10°', 'Carlos Cárdenas', '(1H)'), e('Sociales', '10°', 'Gloria Álvarez', '(1H)')],
-        [e('C. Naturales', '9°', 'Mónica Córdoba'), e('Ética y Valores', '10°', 'Jorge')],
+        [e('Matemáticas', '9°', 'Uriel'), e('Biología', '10°', 'Carlos Cárdenas')],
+        [e('Artística', '9°', 'Doris'), e('Matemáticas', '10°', 'Uriel (cubre a Claudia)')],
+        [e('Ética y Religión', '10°', 'Jorge'), e('Inglés', '9° y 10°1', 'Camilo')],
       ],
     },
     {
       fecha: '2026-11-30', etiqueta: 'Lunes 30 nov',
       entradas: [
-        [e('Inglés', '9° y 10°1', 'Camilo'), e('Matemáticas', '10°', 'Uriel (cubre a Claudia)')],
-        [e('Artística', '9°', 'Doris'), CASTELLANO_10],
-        [e('Ed. Física', '9°', 'Adolfo'), e('Física', '10°', 'Julián Medina')],
+        [e('Sociales', '9°', 'Gloria Álvarez')],
+        [e('Castellano', '9°', 'Beatriz'), e('Filosofía y Economía', '10°', 'Ledis')],
+        [e('Matemáticas', '9°', 'Uriel'), e('Artística', '10°', 'Doris'), e('Tecnología', '10°', 'Juan Carlos Blandón', '(1H)')],
       ],
     },
     {
       fecha: '2026-12-01', etiqueta: 'Martes 1 dic',
       entradas: [
-        [e('Sociales', '9°', 'Gloria Álvarez'), INGLES_10_2, INGLES_10_34],
-        [e('Tecnología', '9°', 'Juan Carlos Blandón'), e('Ed. Física', '10°', 'Adolfo')],
+        [e('Matemáticas', '9°', 'Uriel'), e('Ética', '10°', 'Jorge', '(1H)'), e('Sociales', '10°', 'Gloria Álvarez', '(1H)')],
+        [e('C. Naturales', '9°', 'Mónica Córdoba'), e('Química y Biología', '10°', 'Carlos Cárdenas')],
         [e('Optativa')],
       ],
     },
