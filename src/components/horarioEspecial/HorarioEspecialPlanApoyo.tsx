@@ -10,90 +10,7 @@ import {
   GRADOS_FILTRO, type GradoFiltro, hoyBogota, diaInicial, pasaFiltros, contarCoincidencias, type FiltrosEspecial,
 } from '../../data/horarioEspecial/logica';
 
-import { SESIONES_PAE_MANANA, PROPUESTA_PAE_MANANA } from '../../data/horarioEspecial/sustentacionesPAE';
-
 type Jor = 'manana' | 'tarde';
-
-/** Coordinación: propuesta de distribución del miércoles 25 y el jueves 26 (Plan Académico Especial). */
-function PropuestaPAECoordinacion() {
-  const [abierta, setAbierta] = useState<string | null>(null);
-  const dia = PROPUESTA_PAE_MANANA.find(d => d.fecha === abierta);
-  return (
-    <section className="rounded-2xl border-2 border-accent bg-card p-4 space-y-3">
-      <div>
-        <h3 className="text-lg font-bold text-strong">Plan Académico Especial · sustentaciones</h3>
-        <p className="text-sm text-soft">
-          Con esta distribución se garantiza que los estudiantes de 11.° tengan sus dos espacios (asesoría y sustentación)
-          antes del jueves. Ningún estudiante tiene dos citas a la vez y ningún docente queda citado mientras da plan de apoyo.
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {PROPUESTA_PAE_MANANA.map(d => (
-          <button key={d.fecha} type="button" onClick={() => setAbierta(abierta === d.fecha ? null : d.fecha)}
-            aria-pressed={abierta === d.fecha}
-            className={cn('min-h-[44px] px-4 rounded-lg text-sm font-semibold border',
-              abierta === d.fecha ? 'bg-accent text-accent-fg border-accent' : 'border-line text-strong')}>
-            {d.titulo}
-          </button>
-        ))}
-      </div>
-      {dia && (
-        <ul className="space-y-1">
-          {dia.citas.map(x => (
-            <li key={x.hora} className="rounded-lg border border-line px-3 py-2 text-sm">
-              <div className="flex flex-wrap justify-between gap-2">
-                <span><span className="tabular-nums font-semibold text-strong">{x.hora}</span> · {x.docente} · {x.asignatura}</span>
-                <span className="text-xs uppercase tracking-wide text-soft">{x.tipo === 'orientacion' ? 'Asesoría' : 'Sustentación'}</span>
-              </div>
-              {x.nota && <p className="text-xs text-muted">{x.nota}</p>}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function SustentacionesPAE({ nombreCorto }: { nombreCorto: string }) {
-  const n = nombreCorto.toLowerCase().split(' ')[0];
-  const dias = [...new Set(SESIONES_PAE_MANANA.map(x => x.fecha))].sort();
-  return (
-    <section className="rounded-2xl border border-line bg-card p-4 space-y-3">
-      <div>
-        <h3 className="text-lg font-bold text-strong">Plan Académico Especial · 10.° y 11.°</h3>
-        <p className="text-sm text-soft">
-          Jornada de la mañana. Cada docente da una hora de <b>orientación</b> y, otro día, una hora de <b>sustentación</b>.
-          Ninguna hora se cruza con otra el mismo día. Claudia no estará: a sus estudiantes de 10.° los atiende Uriel.
-        </p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {dias.map(fe => {
-          const del = SESIONES_PAE_MANANA.filter(x => x.fecha === fe).sort((a, b) => a.hora.localeCompare(b.hora, 'es', { numeric: true }));
-          return (
-            <div key={fe} className="rounded-xl border border-line p-3">
-              <p className="mb-2 text-sm font-semibold text-strong">{del[0].dia}</p>
-              <ul className="space-y-1">
-                {del.map(x => {
-                  const mio = !!n && x.docente.toLowerCase().startsWith(n);
-                  return (
-                    <li key={x.docente + x.tipo} className={cn('rounded-lg px-2 py-1 text-sm',
-                      mio ? 'bg-accent-soft text-accent-soft-fg font-semibold' : 'text-soft')}>
-                      <div className="flex justify-between gap-2">
-                        <span><span className="tabular-nums">{x.hora}</span> · {x.docente}</span>
-                        <span className="text-xs uppercase tracking-wide">{x.tipo === 'orientacion' ? 'Orientación' : 'Sustentación'}</span>
-                      </div>
-                      {x.nota && <p className="text-xs text-muted">{x.nota}</p>}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
 
 function Chip({ en, f }: { en: EntradaEspecial; f: FiltrosEspecial }) {
   const filtrando = f.grado !== null || f.soloMias;
@@ -195,8 +112,6 @@ export default function HorarioEspecialPlanApoyo() {
   const sedeActual = useAppStore(s => s.sedeActual);
   const usuario = USUARIOS.find(u => u.id === userId);
   const nombreCorto = usuario?.nombreCorto ?? '';
-  const rol = useAppStore(s => s.rol);
-  const esDirectivo = rol === 'coordinador' || rol === 'rectora' || rol === 'superusuario';
 
   const [jornada, setJornada] = useState<Jor>(jornadaUsuario === 'tarde' ? 'tarde' : 'manana');
   const [grado, setGrado] = useState<GradoFiltro | null>(null);
@@ -267,9 +182,6 @@ export default function HorarioEspecialPlanApoyo() {
 
       <div className="hidden sm:block"><Matriz j={j} f={f} /></div>
       <div className="sm:hidden"><VistaDia key={jornada} j={j} f={f} /></div>
-
-      {jornada === 'manana' && esDirectivo && <PropuestaPAECoordinacion />}
-      {jornada === 'manana' && <SustentacionesPAE nombreCorto={nombreCorto} />}
 
       <p className="text-xs text-muted">{PLAN_APOYO_FUENTE}</p>
     </div>

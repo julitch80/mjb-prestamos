@@ -10,7 +10,7 @@ import { USUARIOS } from '../maestros';
 import { getAsignatura } from '../asignacionAcademica';
 import {
   COL_PLANES, DOC_EQUIPO, DOC_MOTIVO, SUB_ASIGNATURAS, SUB_GUIAS, SUB_RESERVADO, SUB_SOLICITUDES, SUB_LLAMADAS, type LlamadaFamilia, type SolicitudAutorizacion,
-  type AsignaturaPlan, type GuiaPlan, type ModalidadGuias, type EntradaGuiaIA, type Guia, type MotivoReservado, type PlanCasa,
+  type AsignaturaPlan, type MarcaSustentacionPAE, type GuiaPlan, type ModalidadGuias, type EntradaGuiaIA, type Guia, type MotivoReservado, type PlanCasa,
   type RitmoPlan, type SalidaGuiaIA, type EntradaIntegrarGuia, type SalidaIntegrarGuia, type RevisionAsignatura, type EstadoPaso,
 } from './tipos';
 import { docentesDelGrupo, fechaCierre, nuevoToken } from './logica';
@@ -434,6 +434,18 @@ export async function guardarCierreEdicion(planId: string, fecha: string, hora =
   await updateDoc(doc(baseDatos(), COL_PLANES, planId), {
     cierreEdicion: fecha || deleteField(), cierreHora: (fecha && hora) || deleteField(), actualizadoEn: Date.now(),
   });
+}
+
+/**
+ * PAE mañana: el docente guarda lo SUYO sobre el estudiante (asesoría, sustentación, valoración, observación).
+ * Rutas punteadas: cada docente escribe solo su entrada y no pisa a los demás. No toca ningún otro campo
+ * del plan (la regla de Firestore lo exige).
+ */
+export async function guardarSustentacionPAE(planId: string, docenteId: string, cambios: Partial<Pick<MarcaSustentacionPAE, 'asesoria' | 'sustentacion' | 'valoracion' | 'observacion'>>) {
+  const base = `sustentacionesPAE.${docenteId}`;
+  const datos: Record<string, unknown> = { [`${base}.actualizadoPor`]: correoActual(), [`${base}.actualizadoEn`]: Date.now() };
+  for (const [k, v] of Object.entries(cambios)) if (v !== undefined) datos[`${base}.${k}`] = v;
+  await updateDoc(doc(baseDatos(), COL_PLANES, planId), datos);
 }
 
 /** Gestor: pone la marca «En espera — ingresó tarde» con el plazo de los docentes. */

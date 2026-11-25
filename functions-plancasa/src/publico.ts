@@ -51,6 +51,10 @@ export function construirPublico(
     hasta: plan.hasta,
     pasos,
     sustentaciones,
+    // PAE mañana: marcas de los docentes, SIN la observación (es interna).
+    ...(plan.sustentacionesPAE ? { sustentacionesPAE: Object.fromEntries(Object.entries(plan.sustentacionesPAE).map(([id, m]) => [id, {
+      asesoria: m.asesoria === true, sustentacion: m.sustentacion === true, valoracion: m.valoracion ?? null,
+    }])) } : {}),
     actualizadoEn: ahora,
   };
 }

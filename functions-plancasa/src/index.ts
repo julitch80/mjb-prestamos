@@ -326,6 +326,22 @@ export const planCasaRepublicarAlCambiarGuia = onDocumentWritten(
   },
 );
 
+// PAE mañana: cuando un docente marca asesoría/sustentación/valoración en el plan, la copia pública
+// (la agenda del estudiante) se actualiza. Solo escribe planesCasaPublico: no hay bucle.
+export const planCasaRepublicarAlCambiarSustentacion = onDocumentWritten(
+  { document: `${COL_PLANES}/{planId}`, region: 'us-central1' },
+  async (event) => {
+    const antes = event.data?.before.exists ? event.data.before.get('sustentacionesPAE') : undefined;
+    const despues = event.data?.after.exists ? event.data.after.get('sustentacionesPAE') : undefined;
+    if (!despues || event.data?.after.get('estado') === 'cerrado') return;
+    // Ignora cambios que solo tocan la observación o los sellos: lo público no cambia.
+    const proy = (m: Record<string, { asesoria?: boolean; sustentacion?: boolean; valoracion?: string | null }> | undefined) =>
+      JSON.stringify(Object.entries(m ?? {}).sort().map(([k, v]) => [k, v.asesoria === true, v.sustentacion === true, v.valoracion ?? null]));
+    if (proy(antes) === proy(despues)) return;
+    await republicar(event.params.planId);
+  },
+);
+
 // Fin del año lectivo: borra archivo y registro de las entregas con `borrarDespuesDe` vencido.
 export const planCasaLimpiarEntregas = onSchedule(
   { schedule: '0 3 * * *', timeZone: 'America/Bogota', region: 'us-central1' },

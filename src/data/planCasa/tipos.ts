@@ -58,6 +58,18 @@ export type EstadoPlan = 'activo' | 'cerrado';
  */
 export type ModalidadGuias = 'por_asignatura' | 'transversal';
 
+/** Marca de UN docente sobre un estudiante del PAE (planesCasa/{id}.sustentacionesPAE.{docenteId}). */
+export interface MarcaSustentacionPAE {
+  /** Se presentó a la asesoría. */
+  asesoria?: boolean;
+  /** Se presentó a la sustentación. */
+  sustentacion?: boolean;
+  valoracion?: 'aprobo' | 'no_aprobo' | null;
+  observacion?: string;
+  actualizadoPor?: string;
+  actualizadoEn?: number;
+}
+
 export interface PlanCasa {
   id: string;
   /** studentId de asistenciaStudents. */
@@ -90,6 +102,8 @@ export interface PlanCasa {
   enEspera?: EnEsperaPlan;
   /** Última alerta de inactividad (7+ días sin entregar) enviada por el servidor. Solo la escribe la función programada. */
   alertaInactividad?: { en: number; dias: number };
+  /** Plan Académico Especial (mañana, 10.°/11.°): asesoría y sustentación marcadas por cada docente (id de USUARIOS). */
+  sustentacionesPAE?: Record<string, MarcaSustentacionPAE>;
   /** Token largo e imposible de adivinar de la página pública (QR). */
   tokenPublico: string;
   creadoPor: string;   // correo
@@ -296,6 +310,8 @@ export interface PlanPublico {
   /** (Entregas, 28-oct-2026) `guiaId` y `entregadoEn` son opcionales: copias publicadas antes no los traen y la agenda oculta el botón «Entregar». */
   pasos: Array<PasoGuia & { asignatura: string; docente: string; guiaId?: string; entregadoEn?: number; revisado?: boolean; comentario?: string }>;
   sustentaciones: Array<Sustentacion & { asignatura: string; docente: string }>;
+  /** PAE mañana: copia de las marcas de los docentes, SIN observaciones. La escribe el servidor al cambiar el plan. */
+  sustentacionesPAE?: Record<string, Pick<MarcaSustentacionPAE, 'asesoria' | 'sustentacion' | 'valoracion'>>;
   actualizadoEn: number;
 }
 

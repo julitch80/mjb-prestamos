@@ -24,6 +24,7 @@ import { aprobarBorrador, integrarYGuardarPropuesta, pedirYGuardarPropuesta } fr
 import { errorDeBorrador } from '../../data/planCasa/completarPlan';
 import { asignaturasConNombre, gradoDeGrupo } from './nombres';
 import EditorGuia from './EditorGuia';
+import { BannerSustentacionDocente } from './SustentacionesPAE';
 import { EntregasGuiaResumen, ListaEntregas, useConEntregas, useEntregas } from './EntregasPaso';
 import {
   BarraEstadoGuia, BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, ComponentesEntrega, edicionDe, Etiqueta, EtiquetaCoordinacion, fechaCorta, fechaLarga, hoyLocal, Marca,
@@ -1001,6 +1002,7 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
         )}
       </div>
 
+      <BannerSustentacionDocente plan={plan} />
 
       {error && <CajaError>{error}</CajaError>}
       {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}

@@ -611,6 +611,9 @@ service cloud.firestore {
     match /planesCasa/{planId} {
       allow read: if pcLeeAmplio() || pcDocenteDe(resource.data);
       allow create, update: if !esSuplantacion() && (pcGestiona());
+      // PAE manana: cualquier docente/coordinador activo marca asesoria/sustentacion (solo ese campo).
+      allow update: if !esSuplantacion() && isActiveUser() && callerDoc().role in ['docente', 'coordinador']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sustentacionesPAE']);
       allow delete: if !esSuplantacion() && (pcEquipo() || isSuper());
       match /reservado/{docId} {
         allow read: if pcLeeAmplio();
