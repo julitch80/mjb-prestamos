@@ -11,7 +11,9 @@ const VAL: Record<string, string> = { aprobo: 'Aprobó', no_aprobo: 'No aprobó'
 
 export function HorarioPlanApoyoPAE({ plan, hoy }: { plan: PlanPublico; hoy: string }) {
   if (!esPAEManana(plan.grupo) || hoy > FIN) return null;
-  const docentes = docentesPAE(plan.grupo.trim());
+  // Primero los que ya hicieron o empezaron algo; después los pendientes.
+  const empezo = (d: string) => { const m = plan.sustentacionesPAE?.[d]; return !!(m?.asesoria || m?.sustentacion || m?.valoracion); };
+  const docentes = docentesPAE(plan.grupo.trim()).sort((a, b) => Number(empezo(b)) - Number(empezo(a)));
   return (
     <section className="rounded-2xl border-4 border-rose-500 bg-rose-500/10 p-4 shadow-lg space-y-3">
       <div>

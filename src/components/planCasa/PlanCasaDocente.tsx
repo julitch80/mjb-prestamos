@@ -3,7 +3,7 @@
 // guía, la pide con IA, la edita, la aprueba y le hace seguimiento; si solo participa, da su
 // visto bueno.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Sparkles } from 'lucide-react';
+import { Check, ChevronDown, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../data/store';
 import type {
@@ -24,7 +24,7 @@ import { aprobarBorrador, integrarYGuardarPropuesta, pedirYGuardarPropuesta } fr
 import { errorDeBorrador } from '../../data/planCasa/completarPlan';
 import { asignaturasConNombre, gradoDeGrupo } from './nombres';
 import EditorGuia from './EditorGuia';
-import { BannerSustentacionDocente } from './SustentacionesPAE';
+import { BannerSustentacionDocente, ResumenSustentacionDocente } from './SustentacionesPAE';
 import { EntregasGuiaResumen, ListaEntregas, useConEntregas, useEntregas } from './EntregasPaso';
 import {
   BarraEstadoGuia, BotonFormatoUAI, BotonCuadernillo, CajaError, Cargando, CLASE_BOTON, CLASE_BOTON_SEC, CLASE_INPUT, ComponentesEntrega, edicionDe, Etiqueta, EtiquetaCoordinacion, fechaCorta, fechaLarga, hoyLocal, Marca,
@@ -1004,6 +1004,20 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
 
       <BannerSustentacionDocente plan={plan} />
 
+      {porRevisar.length > 0 && (
+        <div className="rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 p-3 space-y-2">
+          <p className="text-sm font-semibold text-strong">Por revisar ({porRevisar.length})</p>
+          <ul className="space-y-1.5">
+            {porRevisar.map(e => (
+              <li key={`${e.guiaId}-${e.pasoId}`} className="flex items-center gap-2 rounded-xl bg-card border border-line px-3 py-2">
+                <span className="flex-1 min-w-0 text-xs text-soft">Paso {e.pasoNum}: {e.titulo}{e.partes.length ? ` · ${e.partes.join(', ')}` : ''} · entregó {fechaEntrega(e.entregadoEn)}</span>
+                <button type="button" onClick={() => revisarPaso(e.guiaId, e.pasoId)}
+                  className="min-h-[44px] px-4 rounded-full bg-accent text-strong text-sm font-medium flex-shrink-0">Revisar</button>
+              </li>))}
+          </ul>
+        </div>
+      )}
+
       {error && <CajaError>{error}</CajaError>}
       {(!asigs || !guias) && !error && <Cargando texto="Cargando…" />}
       {asigs && guias && mias.length === 0 && verGuias.length === 0 && !error && <p className="text-sm text-soft">No tiene asignaturas en este plan.</p>}
@@ -1133,10 +1147,11 @@ export default function PlanCasaDocente() {
     if (!planes || yaInicial.current) return;
     yaInicial.current = true;
     if (visibles.length === 1) setSel(visibles[0].id);
-    else { const g = leerLS(claveSel); if (g && visibles.some(p => p.id === g)) setSel(g); }
-  }, [planes, visibles, claveSel]);
+  }, [planes, visibles]);
 
   function escoger(id: string) { setSel(id); guardarLS(claveSel, id); }
+  // Al abrir (o cerrar) un estudiante se vuelve al inicio de la pantalla para que el cambio sea evidente.
+  useEffect(() => { window.scrollTo({ top: 0 }); }, [sel]);
 
   // Avance de cada estudiante con la misma lista de chequeo que ve el docente al abrirlo.
   const avances = useMemo(() => {
@@ -1169,6 +1184,9 @@ export default function PlanCasaDocente() {
     return entregasRecibidasPorRevisar(lista, { correo: correoActual(), gestor, hoy: hoyLocal(), nombre: (pid, id) => nombresDe[pid]?.[id]?.asignatura ?? id });
   }, [visibles, datos, gestor]);
 
+  const [verRevisar, setVerRevisar] = useState(false);
+  const enFicha = !!actual;
+
   return (
     <div className="space-y-5 max-w-2xl mx-auto">
       <h2 className="text-lg font-semibold text-strong">Plan Académico Especial</h2>
@@ -1177,12 +1195,17 @@ export default function PlanCasaDocente() {
       {planes && planes.length === 0 && !error && <p className="text-sm text-soft">No tiene estudiantes con Plan Académico Especial.</p>}
       {visibles.map(p => <EscuchaPlan key={p.id} planId={p.id} onDatos={onDatos} />)}
 
-      {visibles.length > 1 && (
+      {enFicha && visibles.length > 1 && (
+        <button type="button" onClick={() => { setSel(null); setFoco(undefined); }}
+          className="min-h-[44px] px-4 rounded-xl border border-line bg-card text-sm font-semibold text-strong">← Volver a mis estudiantes</button>
+      )}
+
+      {!enFicha && visibles.length > 1 && (
         <div className="space-y-2">
           <p className="text-xs font-medium text-soft">Mis estudiantes</p>
           {nota && (
             <div className="flex items-start gap-2 rounded-xl bg-accent-soft text-accent-soft-fg px-3 py-2 text-xs">
-              <span className="flex-1"><b>Nuevo:</b> escoja el estudiante aquí arriba.</span>
+              <span className="flex-1"><b>Nuevo:</b> escoja el estudiante aquí arriba; se abre su ficha sola.</span>
               <button type="button" aria-label="Cerrar aviso" onClick={() => { setNota(false); guardarLS(CLAVE_NOTA, '1'); }} className="font-bold px-1">×</button>
             </div>
           )}
@@ -1191,11 +1214,11 @@ export default function PlanCasaDocente() {
           )}
           <div className="flex flex-wrap gap-2">
             {filtrados.map(p => {
-              const t = tinteDe(p.id); const av = avances[p.id]; const on = p.id === sel;
+              const t = tinteDe(p.id); const av = avances[p.id];
               const pct = av && av.total ? Math.round((av.hechas / av.total) * 100) : 0;
               return (
-                <button key={p.id} type="button" onClick={() => escoger(p.id)} aria-pressed={on}
-                  className={cn('w-[calc(50%-0.25rem)] sm:w-[calc(33.333%-0.34rem)] text-left rounded-xl border px-3 py-2 transition', t.fondo, t.borde, on && 'ring-2 ring-accent')}>
+                <button key={p.id} type="button" onClick={() => escoger(p.id)}
+                  className={cn('w-[calc(50%-0.25rem)] sm:w-[calc(33.333%-0.34rem)] text-left rounded-xl border px-3 py-2 transition', t.fondo, t.borde)}>
                   <span className="block text-sm font-semibold text-strong truncate">{p.nombres.split(' ')[0]}</span>
                   <span className="block text-[11px] text-soft">{p.grupo}</span>
                   <span className="block text-[11px] text-soft mt-1">{av ? `${av.hechas} de ${av.total}` : '…'}</span>
@@ -1207,28 +1230,34 @@ export default function PlanCasaDocente() {
         </div>
       )}
 
-      {cargados && (porRevisar.length > 0 ? (
+      {!enFicha && <ResumenSustentacionDocente planes={visibles} onAbrir={escoger} />}
+
+      {!enFicha && cargados && (porRevisar.length > 0 ? (
         <div className="rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 p-3 space-y-2">
-          <p className="text-sm font-semibold text-strong">Por revisar ({porRevisar.length})</p>
-          <p className="text-xs text-soft">Entregas recibidas, de la más antigua a la más reciente.</p>
-          <ul className="space-y-1.5">
-            {porRevisar.map(e => (
-              <li key={`${e.planId}-${e.guiaId}-${e.pasoId}`} className="flex items-center gap-2 rounded-xl bg-card border border-line px-3 py-2">
-                <span className="flex-1 min-w-0 text-sm text-strong">
-                  <b>{e.estudiante}</b> · {e.grupo}
-                  <span className="block text-xs text-soft">Paso {e.pasoNum}: {e.titulo}{e.partes.length ? ` · ${e.partes.join(', ')}` : ''} · entregó {fechaEntrega(e.entregadoEn)}</span>
-                </span>
-                <button type="button"
-                  onClick={() => { escoger(e.planId); setFoco(f => ({ seccion: `g-${e.guiaId}`, pasoId: e.pasoId, n: (f?.n ?? 0) + 1 })); }}
-                  className="min-h-[40px] px-4 rounded-full bg-accent text-strong text-sm font-medium flex-shrink-0">Revisar</button>
-              </li>))}
-          </ul>
+          <button type="button" aria-expanded={verRevisar} onClick={() => setVerRevisar(v => !v)}
+            className="w-full min-h-[44px] flex items-center gap-2 text-left">
+            <span className="flex-1 text-sm font-semibold text-strong">Por revisar · {porRevisar.length} {porRevisar.length === 1 ? 'entrega' : 'entregas'}</span>
+            <ChevronDown size={18} className={cn('transition-transform', verRevisar && 'rotate-180')} aria-hidden />
+          </button>
+          {verRevisar && (<>
+            <p className="text-xs text-soft">Entregas recibidas, de la más antigua a la más reciente.</p>
+            <ul className="space-y-1.5">
+              {porRevisar.map(e => (
+                <li key={`${e.planId}-${e.guiaId}-${e.pasoId}`} className="flex items-center gap-2 rounded-xl bg-card border border-line px-3 py-2">
+                  <span className="flex-1 min-w-0 text-sm text-strong">
+                    <b>{e.estudiante}</b> · {e.grupo}
+                    <span className="block text-xs text-soft">Paso {e.pasoNum}: {e.titulo}{e.partes.length ? ` · ${e.partes.join(', ')}` : ''} · entregó {fechaEntrega(e.entregadoEn)}</span>
+                  </span>
+                  <button type="button"
+                    onClick={() => { escoger(e.planId); setFoco(f => ({ seccion: `g-${e.guiaId}`, pasoId: e.pasoId, n: (f?.n ?? 0) + 1 })); }}
+                    className="min-h-[44px] px-4 rounded-full bg-accent text-strong text-sm font-medium flex-shrink-0">Revisar</button>
+                </li>))}
+            </ul>
+          </>)}
         </div>
       ) : <p className="rounded-2xl border border-line bg-card p-3 text-sm text-success font-medium">Todo revisado ✓</p>)}
 
-      {actual
-        ? <PlanDocente key={actual.id} plan={actual} gestor={gestor} amplio={amplio} datos={datos[actual.id] ?? SIN_DATOS} foco={foco} />
-        : visibles.length > 1 && <p className="text-sm text-soft">Escoja un estudiante para ver su plan.</p>}
+      {actual && <PlanDocente key={actual.id} plan={actual} gestor={gestor} amplio={amplio} datos={datos[actual.id] ?? SIN_DATOS} foco={foco} />}
     </div>
   );
 }

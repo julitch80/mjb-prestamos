@@ -72,6 +72,37 @@ export function BannerSustentacionDocente({ plan }: { plan: PlanCasa }) {
   );
 }
 
+/** Pantalla de inicio del docente: sus estudiantes PAE de mañana con su propio estado; toque uno para abrirlo. */
+export function ResumenSustentacionDocente({ planes, onAbrir }: { planes: PlanCasa[]; onAbrir: (planId: string) => void }) {
+  const yo = useAppStore(s => s.userId) ?? '';
+  const mios = planes.filter(p => esPAEManana(p.grupo) && yo && docentesPAE(p.grupo).includes(yo))
+    .map(p => ({ p, m: p.sustentacionesPAE?.[yo] }))
+    .sort((a, b) => Number(!!a.m?.asesoria && !!a.m?.sustentacion) - Number(!!b.m?.asesoria && !!b.m?.sustentacion)
+      || a.p.grupo.localeCompare(b.p.grupo, 'es', { numeric: true }) || a.p.nombres.localeCompare(b.p.nombres, 'es'));
+  if (mios.length === 0) return null;
+  const faltan = mios.filter(x => !(x.m?.asesoria && x.m?.sustentacion)).length;
+  return (
+    <section className="rounded-2xl border-2 border-accent bg-card p-3 space-y-2">
+      <div>
+        <h3 className="text-base font-bold text-strong">Sustentación</h3>
+        <p className="text-xs text-soft">{faltan ? `${faltan} de ${mios.length} estudiantes con algo pendiente.` : 'Todo marcado.'} Toque un estudiante para marcar.</p>
+      </div>
+      <ul className="space-y-1">
+        {mios.map(({ p, m }) => (
+          <li key={p.id}>
+            <button type="button" onClick={() => onAbrir(p.id)} className="w-full min-h-[44px] flex flex-wrap items-center gap-x-3 rounded-xl border border-line px-3 py-1.5 text-left text-sm">
+              <span className="font-semibold text-strong flex-1 min-w-[8rem]">{p.nombres.split(' ')[0]} {p.apellidos.split(' ')[0]} <span className="font-normal text-soft">{p.grupo}</span></span>
+              <span className={m?.asesoria ? 'text-success' : 'text-muted'}>Asesoría {m?.asesoria ? '✓' : '·'}</span>
+              <span className={m?.sustentacion ? 'text-success' : 'text-muted'}>Sust. {m?.sustentacion ? '✓' : '·'}</span>
+              {m?.valoracion && <span className={m.valoracion === 'aprobo' ? 'text-success' : 'text-warning'}>{m.valoracion === 'aprobo' ? 'Aprobó' : 'No aprobó'}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Propuesta() {
   const [abierta, setAbierta] = useState<string | null>(null);
   const dia = PROPUESTA_PAE_MANANA.find(d => d.fecha === abierta);
