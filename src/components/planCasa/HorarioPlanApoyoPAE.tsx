@@ -2,7 +2,7 @@
 // Solo para estudiantes de la jornada de la mañana (10.° y 11.°). Va arriba y resaltado.
 // La lista es SOLO LECTURA: refleja lo que marcan los docentes (copia pública, sin observaciones).
 import type { PlanPublico } from '../../data/planCasa/tipos';
-import { docentesPAE, esPAEManana, nombreDocente } from '../../data/planCasa/sustentacionesPAE';
+import { docentesDelPlanPAE, esPAEManana, nombreDocente } from '../../data/planCasa/sustentacionesPAE';
 
 export { esPAEManana };
 
@@ -13,7 +13,7 @@ export function HorarioPlanApoyoPAE({ plan, hoy }: { plan: PlanPublico; hoy: str
   if (!esPAEManana(plan.grupo) || hoy > FIN) return null;
   // Primero los que ya hicieron o empezaron algo; después los pendientes.
   const empezo = (d: string) => { const m = plan.sustentacionesPAE?.[d]; return !!(m?.asesoria || m?.sustentacion || m?.valoracion); };
-  const docentes = docentesPAE(plan.grupo.trim()).sort((a, b) => Number(empezo(b)) - Number(empezo(a)));
+  const docentes = docentesDelPlanPAE({ grupo: plan.grupo.trim(), sustentacionesPAE: plan.sustentacionesPAE }).sort((a, b) => Number(empezo(b)) - Number(empezo(a)));
   return (
     <section className="rounded-2xl border-4 border-rose-500 bg-rose-500/10 p-4 shadow-lg space-y-3">
       <div>

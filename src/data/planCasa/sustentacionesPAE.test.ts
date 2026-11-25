@@ -23,3 +23,13 @@ describe('sustentaciones PAE', () => {
     expect(r.filas.find(f => f.docenteId === 'julian')?.faltan).toEqual([]);
   });
 });
+
+import { docentesDelPlanPAE, participaEnPAE } from './sustentacionesPAE';
+describe('docentes fuera de la asignación (reemplazos)', () => {
+  it('un docente del plan que no está en la asignación también participa', () => {
+    const plan = { grupo: '10.1', docentesCorreos: ['camilo.x@iemanueljbetancur.edu.co'] };
+    expect(docentesDelPlanPAE(plan)).toContain('camilo.x@iemanueljbetancur.edu.co');
+    expect(participaEnPAE(plan, 'camilo.x@iemanueljbetancur.edu.co')).toBe(true);
+    expect(participaEnPAE({ grupo: '10.1' }, 'camilo.x@iemanueljbetancur.edu.co')).toBe(false);
+  });
+});

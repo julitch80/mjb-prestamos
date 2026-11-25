@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useAppStore } from '../../data/store';
 import type { PlanCasa } from '../../data/planCasa/tipos';
 import { guardarSustentacionPAE } from '../../data/planCasa/persistencia';
-import { docentesPAE, esOnce, esPAEManana, nombreDocente, resumenPlanPAE, type FilaDocentePAE, type ResumenPAE, type Valoracion } from '../../data/planCasa/sustentacionesPAE';
+import { participaEnPAE, esOnce, esPAEManana, nombreDocente, resumenPlanPAE, type FilaDocentePAE, type ResumenPAE, type Valoracion } from '../../data/planCasa/sustentacionesPAE';
 import { PROPUESTA_PAE_MANANA } from '../../data/horarioEspecial/sustentacionesPAE';
 import { CajaError } from './comun';
 
@@ -30,7 +30,7 @@ export function BannerSustentacionDocente({ plan }: { plan: PlanCasa }) {
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => { setObs(mia?.observacion ?? ''); setGuardada(mia?.observacion ?? ''); }, [plan.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!esPAEManana(plan.grupo) || !yo || !docentesPAE(plan.grupo).includes(yo)) return null;
+  if (!esPAEManana(plan.grupo) || !yo || !participaEnPAE(plan, yo)) return null;
   const asesoria = local.asesoria ?? mia?.asesoria === true;
   const sustentacion = local.sustentacion ?? mia?.sustentacion === true;
   const valoracion: Valoracion = 'valoracion' in local ? local.valoracion : mia?.valoracion ?? null;
@@ -75,7 +75,7 @@ export function BannerSustentacionDocente({ plan }: { plan: PlanCasa }) {
 /** Pantalla de inicio del docente: sus estudiantes PAE de mañana con su propio estado; toque uno para abrirlo. */
 export function ResumenSustentacionDocente({ planes, onAbrir }: { planes: PlanCasa[]; onAbrir: (planId: string) => void }) {
   const yo = useAppStore(s => s.userId) ?? '';
-  const mios = planes.filter(p => esPAEManana(p.grupo) && yo && docentesPAE(p.grupo).includes(yo))
+  const mios = planes.filter(p => esPAEManana(p.grupo) && yo && participaEnPAE(p, yo))
     .map(p => ({ p, m: p.sustentacionesPAE?.[yo] }))
     .sort((a, b) => Number(!!a.m?.asesoria && !!a.m?.sustentacion) - Number(!!b.m?.asesoria && !!b.m?.sustentacion)
       || a.p.grupo.localeCompare(b.p.grupo, 'es', { numeric: true }) || a.p.nombres.localeCompare(b.p.nombres, 'es'));
@@ -204,7 +204,7 @@ export function PanelSustentacionesPAE({ planes }: { planes: PlanCasa[] }) {
   const [grado, setGrado] = useState<'todos' | '10' | '11'>('todos');
   const [orden, setOrden] = useState<'pendientes' | 'grupo'>('pendientes');
   const [abierto, setAbierto] = useState<string | null>(null);
-  const todas = useMemo(() => planes.filter(p => p.estado === 'activo' && esPAEManana(p.grupo)).map(p => ({ p, r: resumenPlanPAE(p.grupo, p.sustentacionesPAE) })), [planes]);
+  const todas = useMemo(() => planes.filter(p => p.estado === 'activo' && esPAEManana(p.grupo)).map(p => ({ p, r: resumenPlanPAE(p.grupo, p.sustentacionesPAE, p.docentesCorreos) })), [planes]);
   const filas = useMemo(() => todas.filter(f => grado === 'todos' || f.p.grupo.startsWith(grado))
     .sort((a, b) => (orden === 'pendientes' ? b.r.pendientes - a.r.pendientes || Number(esOnce(b.p.grupo)) - Number(esOnce(a.p.grupo)) : 0)
       || a.p.grupo.localeCompare(b.p.grupo, 'es', { numeric: true }) || `${a.p.apellidos} ${a.p.nombres}`.localeCompare(`${b.p.apellidos} ${b.p.nombres}`, 'es')), [todas, grado, orden]);
