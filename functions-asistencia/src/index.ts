@@ -39,6 +39,7 @@ import type { DocType, Jornada, PlanillaAlerta, Sede, Session, Student } from '.
 import { cambiosPorEscrituraDeCentro, construirIndicePorGrado, type CabeceraCentro } from '../../src/asistencia/domain/inscripcion-por-grado';
 import { traspasarCentrosInteres } from './reemplazo-centros';
 import { datosCiParaMaster, registrarSubidaCi } from './ci-master';
+import { administrarGrados, operarPuerta } from './grados';
 import { direccionDelTraspaso } from '../../src/asistencia/domain/reemplazo-centros';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import {
@@ -1025,6 +1026,25 @@ export const ciParaMaster = onCall({ region: REGION, cors: true, invoker: 'publi
 
 export const ciRegistrarSubida = onCall({ region: REGION, cors: true, invoker: 'public' }, (request) =>
   registrarSubidaCi(db, request.auth?.token?.email, request.data),
+);
+
+/**
+ * GRADOS 2026: invitaciones con QR y aforo (Julian, 2026-11-24). Ver functions/src/grados.ts.
+ *
+ * `GRADOS_SIEMPRE_ENCENDIDO`: el dia del evento la funcion de la puerta debe responder al
+ * instante (sin el «arranque en frio» de 2-5 s). Del 2 al 5 de diciembre se pone en `true`
+ * y se despliega `functions:asistencia`; despues se vuelve a `false` y se despliega otra vez.
+ * Cuesta del orden de 1-3 USD por esos dias. Solo afecta a `gradosPuerta`.
+ */
+const GRADOS_SIEMPRE_ENCENDIDO = false;
+
+export const gradosPuerta = onCall(
+  { region: REGION, cors: true, invoker: 'public', minInstances: GRADOS_SIEMPRE_ENCENDIDO ? 1 : 0 },
+  (request) => operarPuerta(db, request.auth?.token?.email, request.data),
+);
+
+export const gradosAdministrar = onCall({ region: REGION, cors: true, invoker: 'public', timeoutSeconds: 120 }, (request) =>
+  administrarGrados(db, request.auth?.token?.email, request.data),
 );
 
 function archivador(coleccion: string) {

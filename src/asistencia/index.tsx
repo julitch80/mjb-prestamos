@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlarmClock, CalendarDays, ClipboardList, Clock, DoorOpen, HeartHandshake, Shapes, TriangleAlert, UtensilsCrossed, type LucideIcon } from 'lucide-react';
+import { AlarmClock, CalendarDays, ClipboardList, Clock, DoorOpen, GraduationCap, HeartHandshake, Shapes, TriangleAlert, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import { Migas, SelectorSeccion } from '../components/Navegacion';
 import Planilla, { CLASE_MARCA, SiglaMarca } from './Planilla';
 import EscanerQr from './EscanerQr';
@@ -48,6 +48,41 @@ const ImportarInscritosRestaurante = lazy(() => import('./ImportarInscritosResta
 const ImportarCorreos = lazy(() => import('./ImportarCorreos'));
 import CargaFotos from './CargaFotos';
 import Restaurante from './Restaurante';
+import { leerEventosGrados } from './datos-grados';
+
+/**
+ * Grados 2026 (2026-11-24): la pantalla se carga aparte; y el boton solo se muestra a
+ * quien tiene algo que hacer alli (porteria del evento, coordinacion, superusuario o
+ * director de un grupo del evento). Se calcula una vez por sesion.
+ */
+const Grados = lazy(() => import('./Grados'));
+let verGradosCache: Promise<boolean> | null = null;
+function useVerGrados(rol: string | null): boolean {
+  const slotId = useAppStore((s) => s.userId);
+  const [ver, setVer] = useState(rol === 'superusuario' || rol === 'coordinador');
+  useEffect(() => {
+    if (rol === 'superusuario' || rol === 'coordinador') {
+      setVer(true);
+      return;
+    }
+    verGradosCache ??= (async () => {
+      try {
+        const [eventos, correo, directores] = await Promise.all([leerEventosGrados(), correoAutorAsync(), leerDirectores()]);
+        return eventos.some(
+          (e) => e.estado === 'abierto' && ((correo && e.porteria.includes(correo)) || e.grados.some((g) => slotId && directores[g] === slotId)),
+        );
+      } catch {
+        return false;
+      }
+    })();
+    let vivo = true;
+    void verGradosCache.then((v) => vivo && setVer(v));
+    return () => {
+      vivo = false;
+    };
+  }, [rol, slotId]);
+  return ver;
+}
 import DiagnosticoPermisos from './DiagnosticoPermisos';
 import Ficha from './Ficha';
 import PanelEstudiante from './PanelEstudiante';
@@ -126,7 +161,7 @@ import { useAppStore } from '../data/store';
 import { guardarColor, leerMapa, resolverColor, type MapaColores } from './domain/colores';
 import Ayuda from './Ayuda';
 import { ASIGNATURAS, getAsignatura } from '../data/asignacionAcademica';
-import { exigirAutor } from './identidad';
+import { correoAutorAsync, exigirAutor } from './identidad';
 import { planCambioColumna, rolPuedeEliminarSesion } from './domain/columna';
 import { asignaturaQueOcupaLaHora, companeraEnLista, parejaAlAbrir } from './domain/bloques-clase';
 import { asignaturasEnGrado, bloquesDeHoyEnGrado } from './horarioDelDia';
@@ -149,7 +184,8 @@ type VistaAsistencia =
   | 'restaurante'
   | 'evasiones'
   | 'permanencia'
-  | 'alerta';
+  | 'alerta'
+  | 'grados';
 
 /**
  * Componente raiz del modulo de asistencia. ESTE es el punto de pegado.
@@ -1130,6 +1166,17 @@ export default function Asistencia() {
 
   // Eventos es para cualquier docente, no solo coordinacion: por eso NO va detras de un
   // `rol === 'coordinador'` como las dos pestanas anteriores.
+  if (vista === 'grados') {
+    return (
+      <div className="space-y-3">
+        <Pestanas vista={vista} onCambiar={cambiarVista} rol={rol} />
+        <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando grados…</p>}>
+          <Grados rol={rol} slotId={slotId} directores={directores} />
+        </Suspense>
+      </div>
+    );
+  }
+
   if (vista === 'restaurante') {
     // Reporte y lista oficial: solo coordinacion, superusuario, rectoria y cargos de
     // apoyo. El docente de turno entra a registrar y nada mas — el reporte es de quien
@@ -2278,6 +2325,13 @@ const SECCIONES: {
     descripcion:
       'Vaso de leche y restaurante: registrar quién pasa por el servicio. No es asistencia y no restringe — se registra a cualquiera, esté o no en la lista oficial, para que no se pierda comida. La lista sirve solo para contrastar después.',
   },
+  {
+    vista: 'grados',
+    Icono: GraduationCap,
+    nombre: 'Grados',
+    descripcion:
+      'Ceremonia de grados de 11.°: leer las invitaciones con QR en la puerta, registrar la llegada de los graduandos y ver el aforo en vivo. Coordinación prepara el evento e imprime las hojas de QR.',
+  },
 ];
 
 function Pestanas({
@@ -2291,8 +2345,10 @@ function Pestanas({
    * de roles que llegan hasta aqui (docente) solo ven Planillas y Eventos. */
   rol: string | null;
 }) {
+  const verGrados = useVerGrados(rol);
   const visibles = SECCIONES.filter((s) => {
     if (s.vista === 'alerta' && !ALERTA_ACADEMICA_ACTIVA) return false;
+    if (s.vista === 'grados') return verGrados;
     if (s.coordinacionYRectoria) return rol === 'coordinador' || rol === 'rectora';
     return !s.soloCoordinador || rol === 'coordinador';
   });

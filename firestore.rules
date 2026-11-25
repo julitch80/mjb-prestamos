@@ -2593,6 +2593,66 @@ service cloud.firestore {
       allow delete: if !esSuplantacion() && (false);
     }
 
+    // ---------- Grados: invitaciones con QR y aforo (2026-11-24) ----------
+    //
+    // PRD: docs/grados/PRD.md. TODA escritura la hacen las funciones `gradosPuerta` y
+    // `gradosAdministrar` (Admin SDK, en transaccion): el cliente solo lee. Asi dos celulares
+    // en dos puertas no pueden gastar el mismo cupo, y nadie se salta el control.
+    //
+    // Quien lee:
+    //  - el evento: cualquier usuario activo (la app decide si muestra «Grados»);
+    //  - una invitacion: portería (mientras el evento este abierto) y coordinacion, y SOLO
+    //    UNA POR UNA, por su codigo. El LISTADO solo coordinacion: con el, cualquiera podria
+    //    imprimir invitaciones validas;
+    //  - graduandos: porteria y coordinacion; el director, solo los de SU grado (la consulta
+    //    debe filtrar por `grado`);
+    //  - aforo: porteria y coordinacion. El registro de ingresos: solo coordinacion.
+    //
+    // Coste en get(): users + evento + autoridadSede = 3 documentos.
+    function asisGradosEvento(eventoId) {
+      return get(/databases/$(database)/documents/asistenciaGrados/$(eventoId)).data;
+    }
+
+    function asisGradosCoordina(eventoId) {
+      return isSuper() || asisCoordinaSede(asisGradosEvento(eventoId).sede);
+    }
+
+    function asisGradosPorteria(eventoId) {
+      return isActiveUser()
+        && asisGradosEvento(eventoId).estado == 'abierto'
+        && callerEmail() in asisGradosEvento(eventoId).get('porteria', []);
+    }
+
+    function asisGradosPuerta(eventoId) {
+      return asisGradosCoordina(eventoId) || asisGradosPorteria(eventoId);
+    }
+
+    match /asistenciaGrados/{eventoId} {
+      allow read: if isActiveUser();
+      allow create, update, delete: if !esSuplantacion() && (false);
+
+      match /invitaciones/{token} {
+        allow get: if asisGradosPuerta(eventoId);
+        allow list: if asisGradosCoordina(eventoId);
+        allow create, update, delete: if !esSuplantacion() && (false);
+      }
+
+      match /graduandos/{studentId} {
+        allow read: if asisGradosPuerta(eventoId) || asisIsDirectorOf(resource.data.grado);
+        allow create, update, delete: if !esSuplantacion() && (false);
+      }
+
+      match /aforo/{docId} {
+        allow read: if asisGradosPuerta(eventoId);
+        allow create, update, delete: if !esSuplantacion() && (false);
+      }
+
+      match /ingresos/{ingresoId} {
+        allow read: if asisGradosCoordina(eventoId);
+        allow create, update, delete: if !esSuplantacion() && (false);
+      }
+    }
+
     // Reemplazo temporal: solo lo escriben las Cloud Functions (admin SDK).
     match /reemplazosTemporales/{id} {
       allow read: if isActiveUser() && (isSuper()
