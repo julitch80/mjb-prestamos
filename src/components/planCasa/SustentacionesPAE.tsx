@@ -23,6 +23,10 @@ function Casilla({ texto, marcada, onCambio, ocupado }: { texto: string; marcada
 /** Sección «Sustentación», PRIMERA al abrir el plan del estudiante: solo docentes del grupo, planes PAE de la mañana. */
 export function BannerSustentacionDocente({ plan }: { plan: PlanCasa }) {
   const yo = useAppStore(s => s.userId) ?? '';
+  const rol = useAppStore(s => s.rol);
+  // Cualquier docente que tenga abierto el plan marca lo suyo (la asignación oficial no refleja
+  // reemplazos como Camilo); los demás, solo si figuran en la asignación o en el plan.
+  const puedeMarcar = rol === 'docente' || participaEnPAE(plan, yo);
   const mia = plan.sustentacionesPAE?.[yo];
   const [local, setLocal] = useState<{ asesoria?: boolean; sustentacion?: boolean; valoracion?: Valoracion }>({});
   const [obs, setObs] = useState(mia?.observacion ?? '');
@@ -30,7 +34,7 @@ export function BannerSustentacionDocente({ plan }: { plan: PlanCasa }) {
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => { setObs(mia?.observacion ?? ''); setGuardada(mia?.observacion ?? ''); }, [plan.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!esPAEManana(plan.grupo) || !yo || !participaEnPAE(plan, yo)) return null;
+  if (!esPAEManana(plan.grupo) || !yo || !puedeMarcar) return null;
   const asesoria = local.asesoria ?? mia?.asesoria === true;
   const sustentacion = local.sustentacion ?? mia?.sustentacion === true;
   const valoracion: Valoracion = 'valoracion' in local ? local.valoracion : mia?.valoracion ?? null;
@@ -75,7 +79,8 @@ export function BannerSustentacionDocente({ plan }: { plan: PlanCasa }) {
 /** Pantalla de inicio del docente: sus estudiantes PAE de mañana con su propio estado; toque uno para abrirlo. */
 export function ResumenSustentacionDocente({ planes, onAbrir }: { planes: PlanCasa[]; onAbrir: (planId: string) => void }) {
   const yo = useAppStore(s => s.userId) ?? '';
-  const mios = planes.filter(p => esPAEManana(p.grupo) && yo && participaEnPAE(p, yo))
+  const rol = useAppStore(s => s.rol);
+  const mios = planes.filter(p => esPAEManana(p.grupo) && yo && (rol === 'docente' || participaEnPAE(p, yo)))
     .map(p => ({ p, m: p.sustentacionesPAE?.[yo] }))
     .sort((a, b) => Number(!!a.m?.asesoria && !!a.m?.sustentacion) - Number(!!b.m?.asesoria && !!b.m?.sustentacion)
       || a.p.grupo.localeCompare(b.p.grupo, 'es', { numeric: true }) || a.p.nombres.localeCompare(b.p.nombres, 'es'));
