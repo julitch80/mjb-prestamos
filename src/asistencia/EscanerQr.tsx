@@ -15,6 +15,8 @@ export default function EscanerQr({
   onLeer,
   onCerrar,
   pausado = false,
+  guia = 'centro',
+  encabezado,
 }: {
   onLeer: (texto: string) => void;
   onCerrar: () => void;
@@ -32,6 +34,17 @@ export default function EscanerQr({
    * pantalla sin que nadie lo note.
    */
   pausado?: boolean;
+  /**
+   * Donde va el recuadro guia. 'arriba' (tercio superior) lo usa Grados: alli la hoja del
+   * resultado sube desde abajo y tapaba el recuadro del centro (26-nov). Es solo visual:
+   * la lectura usa el cuadro completo de la camara.
+   */
+  guia?: 'centro' | 'arriba';
+  /**
+   * Reemplaza la barra de arriba (titulo + «Cerrar»). Recibe `cerrar`, que apaga la camara
+   * antes de llamar a onCerrar: usarlo para cualquier boton de salida.
+   */
+  encabezado?: (cerrar: () => void) => React.ReactNode;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const lienzo = useRef<HTMLCanvasElement>(null);
@@ -158,15 +171,19 @@ export default function EscanerQr({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
-      <div className="flex items-center justify-between p-3">
-        <span className="text-sm font-medium text-white">Escanear código QR</span>
-        <button
-          onClick={cerrar}
-          className="rounded-lg border border-line px-3 py-1.5 text-sm text-strong"
-        >
-          Cerrar
-        </button>
-      </div>
+      {encabezado ? (
+        encabezado(cerrar)
+      ) : (
+        <div className="flex items-center justify-between p-3">
+          <span className="text-sm font-medium text-white">Escanear código QR</span>
+          <button
+            onClick={cerrar}
+            className="rounded-lg border border-line px-3 py-1.5 text-sm text-strong"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
 
       <div className="relative flex grow items-center justify-center overflow-hidden">
         {error ? (
@@ -197,9 +214,15 @@ export default function EscanerQr({
         />
 
         {activo && (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <div className="h-56 w-56 rounded-2xl border-4 border-dashed border-white/80" />
-          </div>
+          guia === 'arriba' ? (
+            <div className="pointer-events-none absolute inset-x-0 top-0 grid h-[40%] place-items-center">
+              <div className="h-44 w-44 rounded-2xl border-4 border-dashed border-white/80" />
+            </div>
+          ) : (
+            <div className="pointer-events-none absolute inset-0 grid place-items-center">
+              <div className="h-56 w-56 rounded-2xl border-4 border-dashed border-white/80" />
+            </div>
+          )
         )}
       </div>
 

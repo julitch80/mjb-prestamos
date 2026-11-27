@@ -263,6 +263,25 @@ function RegistrosPrevios({ inv }: { inv: Pick<VistaInvitacion, 'registros'> }) 
   );
 }
 
+/** Aforo en vivo dentro del visor, para no salir de la camara a mirarlo (26-nov). */
+function PastillaAforo({ evento }: { evento: EventoGrados }) {
+  const [r, setR] = useState<ResumenAforo | null>(null);
+  useEffect(() => escucharAforo(evento.eventoId, setR, () => setR(null)), [evento.eventoId]);
+  if (!r) return null;
+  const total = totalAforo(r);
+  const nivel = nivelAforo(total, evento.capacidad);
+  const color = nivel === 'rojo' ? '#dc2626' : nivel === 'amarillo' ? '#d97706' : 'rgba(255,255,255,0.15)';
+  return (
+    <span
+      className="rounded-full border border-white/60 px-3 py-1.5 text-sm font-bold text-white"
+      style={{ backgroundColor: color }}
+      aria-live="polite"
+    >
+      Adentro: {total} / {evento.capacidad}
+    </span>
+  );
+}
+
 function Lector({ evento }: { evento: EventoGrados }) {
   const [res, setRes] = useState<Resultado | null>(null);
   const [trabajando, setTrabajando] = useState(false);
@@ -416,7 +435,24 @@ function Lector({ evento }: { evento: EventoGrados }) {
   return (
     <div className="space-y-3">
       {camara ? (
-        <EscanerQr onLeer={(t) => void leer(t)} onCerrar={() => setCamara(false)} pausado={res !== null || trabajando} />
+        <EscanerQr
+          onLeer={(t) => void leer(t)}
+          onCerrar={() => setCamara(false)}
+          pausado={res !== null || trabajando}
+          guia="arriba"
+          encabezado={(cerrar) => (
+            <div className="flex items-center justify-between gap-2 p-3">
+              <button
+                type="button"
+                onClick={cerrar}
+                className="min-h-[44px] rounded-lg border border-white/60 bg-white/10 px-3 text-sm font-semibold text-white"
+              >
+                ← Menú
+              </button>
+              <PastillaAforo evento={evento} />
+            </div>
+          )}
+        />
       ) : (
         <div className="flex flex-col items-center gap-1">
           <BotonEscanear
