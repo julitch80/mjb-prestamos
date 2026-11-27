@@ -919,6 +919,7 @@ const TINTE_NEUTRO = { fondo: 'bg-slate-400/10', borde: 'border-slate-400/40', t
 const TINTE_ENTREGAS = { fondo: 'bg-amber-500/10', borde: 'border-amber-500/40', texto: 'text-amber-500', anillo: 'ring-amber-500/60' };
 
 function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: PlanConDocentes; gestor: boolean; amplio?: boolean; datos: DatosPlan; foco?: { seccion: string; n: number; pasoId?: string } }) {
+  const rolRevisa = useAppStore(s => s.rol);
   const { asigs, guias, error } = datos;
   const nombres = useMemo(() => asignaturasConNombre(plan.grupo), [plan.grupo]);
   const yo = correoActual();
@@ -943,9 +944,11 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
   const [sel, setSel] = useState<{ tab: string; sub: string }>({ tab: 'r', sub: 'guia' });
   const guiaSel = verGuias.find(g => g.id === sel.tab);
   const conEntregas = useConEntregas(plan.id, (guias ?? []).filter(g => g.aprobada).map(g => g.id));
+  // El superusuario, cuando entra como docente, ve en «Por revisar» solo lo suyo (lo de todos está en coordinación).
+  const gestorRevisa = gestor && rolRevisa !== 'superusuario';
   const porRevisar = useMemo(() => asigs && guias
-    ? entregasRecibidasPorRevisar([{ plan, asigs, guias, conEntregas }], { correo: yo, gestor, nombre: (_p, id) => nombres[id]?.asignatura ?? id, hoy: hoyLocal() })
-    : [], [plan, asigs, guias, conEntregas, yo, gestor, nombres]);
+    ? entregasRecibidasPorRevisar([{ plan, asigs, guias, conEntregas }], { correo: yo, gestor: gestorRevisa, nombre: (_p, id) => nombres[id]?.asignatura ?? id, hoy: hoyLocal() })
+    : [], [plan, asigs, guias, conEntregas, yo, gestorRevisa, nombres]);
   const pendientesGuia = useMemo(() => contarPorGuia(porRevisar), [porRevisar]);
 
   /** Lleva a la sección de un ítem de la lista de chequeo ('mis', 'otras' o 'g-<guiaId>'). */
@@ -1165,7 +1168,7 @@ export default function PlanCasaDocente() {
       r[p.id] = { ...resumenChequeo(construirChequeo(dc)) };
     }
     return r;
-  }, [visibles, datos, gestor]);
+  }, [visibles, datos, gestor, rol]);
 
   const ordenados = useMemo(() => [...visibles].sort((a, b) =>
     (avances[b.id]?.pendientes ?? 0) - (avances[a.id]?.pendientes ?? 0) || a.nombres.localeCompare(b.nombres, 'es')), [visibles, avances]);
@@ -1181,8 +1184,8 @@ export default function PlanCasaDocente() {
       nombresDe[p.id] = asignaturasConNombre(p.grupo);
       return [{ plan: p, asigs: d.asigs, guias: d.guias }];
     });
-    return entregasRecibidasPorRevisar(lista, { correo: correoActual(), gestor, hoy: hoyLocal(), nombre: (pid, id) => nombresDe[pid]?.[id]?.asignatura ?? id });
-  }, [visibles, datos, gestor]);
+    return entregasRecibidasPorRevisar(lista, { correo: correoActual(), gestor: gestor && rol !== 'superusuario', hoy: hoyLocal(), nombre: (pid, id) => nombresDe[pid]?.[id]?.asignatura ?? id });
+  }, [visibles, datos, gestor, rol]);
 
   const [verRevisar, setVerRevisar] = useState(false);
   const enFicha = !!actual;

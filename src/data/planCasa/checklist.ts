@@ -92,6 +92,11 @@ export function entregasPorRevisar(d: DatosChequeo): EntregaPorRevisar[] {
       // Por revisar: marcado «entregado», o con entregas reales aunque el estado siga en «pendiente».
       if (estado !== 'entregado' && !d.conEntregas?.[llavePaso(g.id, p.id)]) continue;
       if (!puedoRevisarPaso(p, g, d.asigs, d.correo, d.gestor)) continue;
+      // Entregable de UNA asignatura («ent-quimica»): solo lo revisa su docente (si tiene).
+      if (!d.gestor && p.id.startsWith('ent-')) {
+        const dueño = minus(d.asigs.find(a => a.asignaturaId === p.id.slice(4))?.docenteCorreo);
+        if (dueño && dueño !== yo) continue;
+      }
       // Guía integrada: a un docente con parte propia le toca mientras no haya revisado SU parte.
       if (p.componentes?.length && !d.gestor) {
         const mias = p.componentes.filter(c => minus(d.asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo) === yo);

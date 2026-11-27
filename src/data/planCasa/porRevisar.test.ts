@@ -31,11 +31,11 @@ describe('entregasRecibidasPorRevisar', () => {
     })],
   };
 
-  it('lo de mi guía (también ent-<otra asignatura>), no revisado, ordenado del más antiguo al más reciente', () => {
+  it('lo mío (ent-<otra asignatura> no), no revisado, ordenado del más antiguo al más reciente', () => {
     const r = entregasRecibidasPorRevisar([d1, d2], o);
-    expect(r.map(x => `${x.estudiante}:${x.pasoId}`)).toEqual(['Ana:ent-mat', 'Ana:ent-len', 'Samuel:p1']);
-    expect(r[2].partes).toEqual(['LEN']);
-    expect(r[2].pasoNum).toBe(1);
+    expect(r.map(x => `${x.estudiante}:${x.pasoId}`)).toEqual(['Ana:ent-len', 'Samuel:p1']);
+    expect(r[1].partes).toEqual(['LEN']);
+    expect(r[1].pasoNum).toBe(1);
   });
   it('si ya marqué mi parte deja de aparecer', () => {
     const d = { ...d1, guias: [g('g1', { ...d1.guias[0], seguimiento: { p1: { estado: 'entregado', entregadoEn: 2000, porAsignatura: { len: { revisado: true } } } } })] };
@@ -51,15 +51,15 @@ describe('entregasRecibidasPorRevisar', () => {
     const todo = entregasRecibidasPorRevisar([d2], { ...o, correo: 'coord@x.co', gestor: true });
     expect(todo.map(x => x.pasoId)).toEqual(['ent-mat', 'ent-len']);
   });
-  it('docente en docentesCorreos sin asignatura ni responsabilidad ve el paso; uno ajeno no', () => {
+  it('docente en docentesCorreos sin asignatura ni responsabilidad no ve entregables de otras asignaturas', () => {
     const d = { ...d2, guias: [g('g2', { ...d2.guias[0], docentesCorreos: ['a@x.co', 'b@x.co', 'c@x.co'] })] };
-    expect(entregasRecibidasPorRevisar([d], { ...o, correo: 'c@x.co' }).map(x => x.pasoId)).toEqual(['ent-mat', 'ent-len']);
+    expect(entregasRecibidasPorRevisar([d], { ...o, correo: 'c@x.co' }).map(x => x.pasoId)).toEqual([]);
     expect(entregasRecibidasPorRevisar([d], { ...o, correo: 'z@x.co' })).toEqual([]);
   });
   it('antes de que empiece el plan no hay nada', () => {
     expect(entregasRecibidasPorRevisar([d2], { ...o, hoy: '2026-10-30' })).toEqual([]);
   });
   it('cuenta por guía', () => {
-    expect(contarPorGuia(entregasRecibidasPorRevisar([d1, d2], o))).toEqual({ g1: 1, g2: 2 });
+    expect(contarPorGuia(entregasRecibidasPorRevisar([d1, d2], o))).toEqual({ g1: 1, g2: 1 });
   });
 });

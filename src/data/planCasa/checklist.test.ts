@@ -75,18 +75,18 @@ describe('puedoRevisarPaso', () => {
   it('gestor: todo', () => {
     expect(puedoRevisarPaso(paso('ent-len'), guia, asigs, 'z@x.co', true)).toBe(true);
   });
-  it('entregasPorRevisar: ent-<asig> entregado le aparece a todo docente de la guía, no a un ajeno', () => {
+  it('entregasPorRevisar: ent-<asig> entregado solo le aparece al docente de esa asignatura', () => {
     const aprobada = guiaBase({ pasos: [paso('ent-len')] });
     const gg = g({ aprobada, seguimiento: { 'ent-len': { estado: 'entregado' } } });
     const d = { ...base, hoy: '2026-11-03', asigs, guias: [gg] };
     expect(entregasPorRevisar({ ...d, correo: 'b@x.co' })).toHaveLength(1);
-    expect(entregasPorRevisar({ ...d, correo: 'a@x.co' })).toHaveLength(1);
+    expect(entregasPorRevisar({ ...d, correo: 'a@x.co' })).toHaveLength(0);
     expect(entregasPorRevisar({ ...d, correo: 'z@x.co' })).toHaveLength(0);
   });
-  it('docente en docentesCorreos, ni responsable ni de la asignatura del paso: lo ve por revisar', () => {
+  it('docente en docentesCorreos, ni responsable ni de la asignatura del paso: no lo ve por revisar (es de otra asignatura)', () => {
     const aprobada = guiaBase({ pasos: [paso('ent-len')] });
     const gg = g({ aprobada, docentesCorreos: ['a@x.co', 'c@x.co'], seguimiento: { 'ent-len': { estado: 'entregado' } } });
-    expect(entregasPorRevisar({ ...base, hoy: '2026-11-03', correo: 'c@x.co', asigs, guias: [gg] })).toHaveLength(1);
+    expect(entregasPorRevisar({ ...base, hoy: '2026-11-03', correo: 'c@x.co', asigs, guias: [gg] })).toHaveLength(0);
   });
   it('paso «pendiente» con entregas reales cuenta como por revisar; sin entregas no', () => {
     const aprobada = guiaBase({ pasos: [paso('p1')] });
