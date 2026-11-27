@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { QrCode } from 'lucide-react';
+import { QrCode, UserRound } from 'lucide-react';
 import { PestanasSubrayadas } from '../components/Navegacion';
 import EscanerQr from './EscanerQr';
 import VerificacionFoto from './VerificacionFoto';
@@ -189,13 +189,30 @@ function nombreCorto(correo: string | null | undefined) {
   return correo ? correo.split('@')[0] : '—';
 }
 
-function TarjetaPrueba({ inv }: { inv: Pick<Invitacion, 'nombre'> }) {
+/**
+ * La invitacion del ensayo no tiene estudiante, asi que no hay foto. Se dibuja una silueta
+ * con el MISMO tamano (110 px), forma y posicion que VerificacionFoto en el evento real,
+ * para ver en el ensayo como queda la hoja (pedido de Julian, 26-nov).
+ */
+function TarjetaPrueba({ inv, acciones = null }: { inv: Pick<Invitacion, 'nombre' | 'grado'>; acciones?: React.ReactNode }) {
   return (
-    <div className="rounded-lg border-2 border-dashed border-line p-3 text-center">
-      <p className="text-lg font-bold text-strong">INVITACIÓN DE PRUEBA</p>
-      <p className="text-sm text-soft">Invitación de prueba · sin foto</p>
-      <p className="text-xs text-muted">{inv.nombre} · solo para el ensayo. En el evento real aquí sale la foto del estudiante.</p>
-    </div>
+    <ul>
+      <li className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-line-strong p-2">
+        <span
+          style={{ width: 110, height: 110 }}
+          className="grid shrink-0 place-items-center overflow-hidden rounded-full bg-elevated text-muted"
+          aria-hidden="true"
+        >
+          <UserRound style={{ width: 80, height: 80 }} strokeWidth={1.25} />
+        </span>
+        <span className="grow text-sm">
+          <b className="block text-strong">{inv.nombre}</b>
+          <span className="text-xs text-muted">{inv.grado}</span>
+          <span className="block text-xs text-muted">Invitación de prueba · en el evento real aquí va la foto</span>
+        </span>
+        {acciones}
+      </li>
+    </ul>
   );
 }
 
@@ -589,8 +606,7 @@ function ResultadoInvitacion({
       )}
       {inv.prueba ? (
         <>
-          <TarjetaPrueba inv={inv} />
-          {cantidades.length > 0 && botones}
+          <TarjetaPrueba inv={inv} acciones={cantidades.length > 0 ? botones : null} />
         </>
       ) : res.estudiante ? (
         <ul>
