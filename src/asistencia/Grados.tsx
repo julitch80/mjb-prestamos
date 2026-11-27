@@ -96,9 +96,19 @@ export default function Grados({ rol, slotId, directores }: { rol: string | null
   if (eventos === null) return <p className="p-3 text-sm text-muted">Cargando grados…</p>;
   if (error) return <Aviso tono="rojo">{error}</Aviso>;
 
+  // El ensayo y el evento real se crean por separado: si ya existe uno, se ofrece el otro
+  // (pedido 26-nov: creado primero el ensayo, desaparecia el boton del evento real).
+  const faltaReal = !eventos.some((e) => !e.ensayo);
+  const faltaEnsayo = !eventos.some((e) => e.ensayo);
+  const alCrear = (id: string) => {
+    setEventoId(id);
+    setPestana('preparar');
+    void cargarEventos();
+  };
+
   if (!evento) {
     return esCoord ? (
-      <CrearEventos onCreado={() => void cargarEventos()} />
+      <CrearEventos faltaReal={faltaReal} faltaEnsayo={faltaEnsayo} onCreado={alCrear} />
     ) : (
       <Aviso>Todavía no hay ningún evento de grados.</Aviso>
     );
@@ -134,7 +144,10 @@ export default function Grados({ rol, slotId, directores }: { rol: string | null
           {activa === 'lector' && <Lector evento={evento} />}
           {activa === 'graduandos' && <ListaGraduandos evento={evento} grados={puerta ? evento.grados : misGrados} />}
           {activa === 'aforo' && <Aforo evento={evento} esCoord={esCoord} />}
-          {activa === 'preparar' && <Preparar evento={evento} onCambio={() => void cargarEventos()} />}
+          {activa === 'preparar' && (faltaReal || faltaEnsayo) && (
+            <CrearEventos faltaReal={faltaReal} faltaEnsayo={faltaEnsayo} onCreado={alCrear} />
+          )}
+          {activa === 'preparar' && <Preparar key={evento.eventoId} evento={evento} onCambio={() => void cargarEventos()} />}
         </>
       )}
     </div>
@@ -687,7 +700,7 @@ function Aforo({ evento, esCoord }: { evento: EventoGrados; esCoord: boolean }) 
 //  Preparar (coordinacion)
 // ---------------------------------------------------------------------------
 
-function CrearEventos({ onCreado }: { onCreado: () => void }) {
+function CrearEventos({ faltaReal, faltaEnsayo, onCreado }: { faltaReal: boolean; faltaEnsayo: boolean; onCreado: (eventoId: string) => void }) {
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function crear(ensayo: boolean) {
@@ -706,7 +719,7 @@ function CrearEventos({ onCreado }: { onCreado: () => void }) {
         ensayo,
       });
       await administrarGrados(eventoId, { accion: 'generarInvitaciones' });
-      onCreado();
+      onCreado(eventoId);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -715,15 +728,26 @@ function CrearEventos({ onCreado }: { onCreado: () => void }) {
   }
   return (
     <div className="space-y-2">
-      <Aviso>Todavía no hay ningún evento de grados. Créelo; las invitaciones de 11.1, 11.2 y 11.3 se generan solas.</Aviso>
+      {faltaReal && faltaEnsayo ? (
+        <Aviso>Todavía no hay ningún evento de grados. Créelo; las invitaciones de 11.1, 11.2 y 11.3 se generan solas.</Aviso>
+      ) : faltaReal ? (
+        <Aviso>Ya está el ensayo. Falta crear el evento real; sus invitaciones de 11.1, 11.2 y 11.3 se generan solas.</Aviso>
+      ) : (
+        <Aviso>Ya está el evento real. Si quiere probar antes, cree el ensayo.</Aviso>
+      )}
       <div className="flex flex-wrap gap-2">
-        <button disabled={trabajando} onClick={() => void crear(false)} className={BOTON_PRIMARIO}>
-          Crear «Grados 2026» (4 dic, 11 a. m., 310)
-        </button>
-        <button disabled={trabajando} onClick={() => void crear(true)} className={BOTON_SEC}>
-          Crear el ensayo (3 invitaciones de prueba)
-        </button>
+        {faltaReal && (
+          <button disabled={trabajando} onClick={() => void crear(false)} className={BOTON_PRIMARIO}>
+            Crear «Grados 2026» (4 dic, 11 a. m., 310)
+          </button>
+        )}
+        {faltaEnsayo && (
+          <button disabled={trabajando} onClick={() => void crear(true)} className={BOTON_SEC}>
+            Crear el ensayo (3 invitaciones de prueba)
+          </button>
+        )}
       </div>
+      {trabajando && <p className="text-xs text-muted">Creando el evento y sus invitaciones…</p>}
       {error && <Aviso tono="rojo">{error}</Aviso>}
     </div>
   );

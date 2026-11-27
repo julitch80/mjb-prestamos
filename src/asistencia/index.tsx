@@ -281,6 +281,8 @@ export default function Asistencia() {
   }, [cruce]);
   /** Navegacion interna: por estado, nunca por URL (contrato, seccion 6). */
   const [fichaAbierta, setFichaAbierta] = useState<string | null>(null);
+  // Grados desde el panel del superusuario, que nunca llega a la barra de pestañas (26-nov).
+  const [gradosSuper, setGradosSuper] = useState(false);
   useNivelAtras(fichaAbierta !== null, () => setFichaAbierta(null));
   const [directores, setDirectores] = useState<Record<string, string>>({});
   /**
@@ -1021,8 +1023,36 @@ export default function Asistencia() {
         />
       );
     }
+    if (gradosSuper) {
+      return (
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setGradosSuper(false)}
+            className="min-h-[44px] rounded-lg border border-line bg-card px-3 text-sm text-strong"
+          >
+            ← Volver al panel
+          </button>
+          <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando grados…</p>}>
+            <Grados rol={rol} slotId={slotId} directores={directores} />
+          </Suspense>
+        </div>
+      );
+    }
     return (
       <div className="space-y-4">
+        {/*
+          GRADOS AQUI por la misma razon que Centros de interes (abajo): el superusuario no
+          llega a las pestañas. Arriba de todo porque es lo urgente hasta el 4 de diciembre.
+        */}
+        <button
+          type="button"
+          onClick={() => setGradosSuper(true)}
+          className="flex min-h-[48px] w-full items-center gap-2 rounded-xl border border-line bg-card px-3 text-left text-sm font-semibold text-strong"
+        >
+          <GraduationCap className="h-5 w-5" aria-hidden="true" />
+          Grados 2026 — lector, graduandos, aforo y preparar
+        </button>
         <Suspense fallback={<p className="p-3 text-sm text-muted">Cargando importación…</p>}>
           <Importar />
         </Suspense>
