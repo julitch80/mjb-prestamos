@@ -60,7 +60,8 @@ export default function Grados({ rol, slotId, directores }: { rol: string | null
   const [eventoId, setEventoId] = useState<string | null>(null);
   const [correo, setCorreo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pestana, setPestana] = useState<Pestana>('lector');
+  // Coordinacion entra a Preparar (lo suyo antes del evento); porteria, al Lector (26-nov).
+  const [pestana, setPestana] = useState<Pestana>(() => (rol === 'superusuario' || rol === 'coordinador' ? 'preparar' : 'lector'));
 
   async function cargarEventos() {
     try {
@@ -225,7 +226,8 @@ function RegistrosPrevios({ inv }: { inv: Pick<VistaInvitacion, 'registros'> }) 
 function Lector({ evento }: { evento: EventoGrados }) {
   const [res, setRes] = useState<Resultado | null>(null);
   const [trabajando, setTrabajando] = useState(false);
-  const [camara, setCamara] = useState(true);
+  // La camara no se pide al entrar: solo cuando se toca «Abrir la cámara» (26-nov).
+  const [camara, setCamara] = useState(false);
   const [busca, setBusca] = useState('');
   const [encontrados, setEncontrados] = useState<Student[]>([]);
   const cerrado = evento.estado === 'cerrado';
