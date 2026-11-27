@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { QrCode } from 'lucide-react';
 import { PestanasSubrayadas } from '../components/Navegacion';
 import EscanerQr from './EscanerQr';
 import VerificacionFoto from './VerificacionFoto';
@@ -40,6 +41,7 @@ import {
   type ResumenAforo,
 } from './domain/grados-evento';
 import { imprimirHojasQr } from './hojas-qr-grados';
+import { emitirSenal, guardarSonido, nivelDeLectura, prepararAudio, sonidoActivo, type NivelSenal } from './senales-grados';
 import { correoAutorAsync } from './identidad';
 import { compararEstudiantes } from './domain/nombres';
 import type { Student } from './domain/types';
@@ -180,7 +182,7 @@ function Rojo({ titulo, children }: { titulo: string; children?: React.ReactNode
 }
 
 const BOTON = 'min-h-[48px] rounded-lg px-4 text-base font-semibold disabled:opacity-50';
-const BOTON_PRIMARIO = `${BOTON} bg-accent text-on-accent`;
+const BOTON_PRIMARIO = `${BOTON} bg-accent text-accent-fg`;
 const BOTON_SEC = 'min-h-[44px] rounded-lg border border-line px-3 text-sm font-medium text-strong disabled:opacity-50';
 
 function nombreCorto(correo: string | null | undefined) {
@@ -191,7 +193,28 @@ function TarjetaPrueba({ inv }: { inv: Pick<Invitacion, 'nombre'> }) {
   return (
     <div className="rounded-lg border-2 border-dashed border-line p-3 text-center">
       <p className="text-lg font-bold text-strong">INVITACIÓN DE PRUEBA</p>
-      <p className="text-xs text-muted">{inv.nombre} · solo para el ensayo</p>
+      <p className="text-sm text-soft">Invitación de prueba · sin foto</p>
+      <p className="text-xs text-muted">{inv.nombre} · solo para el ensayo. En el evento real aquí sale la foto del estudiante.</p>
+    </div>
+  );
+}
+
+/**
+ * El boton de la puerta (pedido de Julian, 26-nov): redondo, grande (112 px) y con relieve,
+ * para que el pulgar lo encuentre sin mirar. Brillo arriba, sombra abajo, se hunde al
+ * presionar; el resplandor cian/magenta es el mismo de FlechaNeon.
+ */
+function BotonEscanear({ onClick }: { onClick: () => void }) {
+  return (
+    <div className="flex justify-center py-1">
+      <button
+        type="button"
+        onClick={onClick}
+        className="relative flex h-28 w-28 flex-col items-center justify-center gap-1 rounded-full bg-accent text-sm font-bold text-accent-fg transition-[transform,box-shadow] duration-75 [box-shadow:inset_0_3px_0_rgba(255,255,255,0.35),inset_0_-4px_0_rgba(0,0,0,0.25),0_6px_0_rgba(0,0,0,0.35),0_0_14px_rgba(34,211,238,0.55),0_0_28px_rgba(217,70,239,0.35)] active:translate-y-[5px] active:[box-shadow:inset_0_2px_0_rgba(255,255,255,0.25),inset_0_-2px_0_rgba(0,0,0,0.25),0_1px_0_rgba(0,0,0,0.35),0_0_10px_rgba(34,211,238,0.45),0_0_20px_rgba(217,70,239,0.25)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+      >
+        <QrCode className="h-9 w-9 [filter:drop-shadow(0_0_3px_rgba(34,211,238,0.8))]" aria-hidden="true" />
+        Escanear
+      </button>
     </div>
   );
 }
@@ -231,6 +254,30 @@ function Lector({ evento }: { evento: EventoGrados }) {
   const [busca, setBusca] = useState('');
   const [encontrados, setEncontrados] = useState<Student[]>([]);
   const cerrado = evento.estado === 'cerrado';
+
+  // Senales al leer (26-nov): color de la hoja, destello, sonido y vibracion. Solo suenan
+  // las LECTURAS (y un rechazo al registrar), no la confirmacion de «Entran 2»: por eso
+  // el nivel de la hoja se fija al leer y no se recalcula cuando el cupo baja a cero.
+  const [sonido, setSonido] = useState(sonidoActivo);
+  const [nivelHoja, setNivelHoja] = useState<NivelSenal | null>(null);
+  const [destello, setDestello] = useState<{ nivel: NivelSenal; n: number } | null>(null);
+  const senalPendiente = useRef(false);
+  useEffect(() => {
+    if (!res) {
+      setNivelHoja(null);
+      return;
+    }
+    if (!senalPendiente.current) return;
+    senalPendiente.current = false;
+    const nivel = nivelDeLectura(res);
+    setNivelHoja(nivel);
+    emitirSenal(nivel, sonido);
+    const n = Date.now();
+    setDestello({ nivel, n });
+    // Sin limpieza en el return: si `res` cambia antes del segundo (p. ej. «Entran 2»),
+    // el destello igual debe apagarse. El `n` evita apagar uno mas nuevo.
+    setTimeout(() => setDestello((d) => (d?.n === n ? null : d)), 1000);
+  }, [res, sonido]);
 
   useEffect(() => {
     if (busca.trim().length < 2) {
@@ -278,6 +325,7 @@ function Lector({ evento }: { evento: EventoGrados }) {
 
   async function leer(texto: string) {
     if (trabajando) return;
+    senalPendiente.current = true;
     setTrabajando(true);
     try {
       if (esCodigoInvitacion(texto)) {
@@ -295,6 +343,7 @@ function Lector({ evento }: { evento: EventoGrados }) {
   }
 
   async function elegirEstudiante(e: Student) {
+    senalPendiente.current = true;
     setBusca('');
     setEncontrados([]);
     setTrabajando(true);
@@ -312,6 +361,7 @@ function Lector({ evento }: { evento: EventoGrados }) {
 
   /** Para la busqueda por apellido: el graduando se registra desde aqui tambien. */
   async function elegirGraduando(e: Student) {
+    senalPendiente.current = true;
     setBusca('');
     setEncontrados([]);
     await mostrarGraduando(e);
@@ -328,6 +378,7 @@ function Lector({ evento }: { evento: EventoGrados }) {
         setRes({ tipo: 'graduando', g: r.graduando, estudiante: res.estudiante, aviso: r.graduando.llego ? 'Llegada registrada ✓' : 'Llegada deshecha' });
       }
     } catch (e) {
+      senalPendiente.current = true;
       const g = e as ErrorGrados;
       const est = res && 'estudiante' in res ? (res.estudiante ?? null) : null;
       if (g.motivo === 'agotada') {
@@ -350,10 +401,44 @@ function Lector({ evento }: { evento: EventoGrados }) {
       {camara ? (
         <EscanerQr onLeer={(t) => void leer(t)} onCerrar={() => setCamara(false)} pausado={res !== null || trabajando} />
       ) : (
-        <button onClick={() => setCamara(true)} className={BOTON_PRIMARIO}>
-          Abrir la cámara
-        </button>
+        <div className="flex flex-col items-center gap-1">
+          <BotonEscanear
+            onClick={() => {
+              prepararAudio();
+              setCamara(true);
+            }}
+          />
+          <label className="flex min-h-[44px] items-center gap-2 text-sm text-strong">
+            <input
+              type="checkbox"
+              checked={sonido}
+              onChange={(e) => {
+                const v = e.target.checked;
+                if (v) prepararAudio();
+                guardarSonido(v);
+                setSonido(v);
+              }}
+              className="h-5 w-5"
+            />
+            Sonido
+          </label>
+        </div>
       )}
+
+      {destello && (
+        <div
+          key={destello.n}
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 z-[60]"
+          // Colores fijos de semaforo, no los tokens del tema: en modo claro --color-warning
+          // es cafe y no se distingue del rojo de un vistazo, que es todo el proposito.
+          style={{
+            backgroundColor: destello.nivel === 'verde' ? '#16a34a' : destello.nivel === 'naranja' ? '#f97316' : '#dc2626',
+            animation: 'destelloGrados 1s ease-out forwards',
+          }}
+        />
+      )}
+      <style>{'@keyframes destelloGrados { 0% { opacity: 0.85 } 100% { opacity: 0 } }'}</style>
 
       {/* El resultado se arma una vez y se pinta en dos sitios. Con la camara abierta
           (EscanerQr es `fixed inset-0 z-50`) va en una hoja ENCIMA del escaner, como en
@@ -405,18 +490,30 @@ function Lector({ evento }: { evento: EventoGrados }) {
             </div>
           )}
 
-          <button onClick={() => setRes(null)} className={`${BOTON_SEC} w-full`}>
-            {camara ? 'Seguir leyendo' : 'Siguiente'}
-          </button>
+          {camara ? (
+            <BotonEscanear onClick={() => setRes(null)} />
+          ) : (
+            <button onClick={() => setRes(null)} className={`${BOTON_SEC} w-full`}>
+              Siguiente
+            </button>
+          )}
         </div>
             )}
           </>
         );
         if (!res && !trabajando) return null;
-        if (!camara) return contenido;
+        const fondo =
+          nivelHoja === 'verde'
+            ? 'border-success-soft bg-success-soft'
+            : nivelHoja === 'naranja'
+              ? 'border-warning-soft bg-warning-soft'
+              : nivelHoja === 'rojo'
+                ? 'border-danger-soft bg-danger-soft'
+                : 'border-line bg-card';
+        if (!camara) return <div className={`rounded-xl border p-3 ${fondo}`}>{contenido}</div>;
         return (
           <div className="fixed inset-0 z-[55] grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4">
-            <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl">
+            <div className={`max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl border p-4 sm:rounded-2xl ${fondo}`}>
               {contenido}
             </div>
           </div>
