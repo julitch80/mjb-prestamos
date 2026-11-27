@@ -336,15 +336,10 @@ function Lector({ evento }: { evento: EventoGrados }) {
     if (lectura.tipo === 'invalida' || !inv) return setRes({ tipo: 'rojo', titulo: 'Invitación no válida' });
     const estudiante = inv.studentId ? await leerEstudiante(inv.studentId) : null;
     const vista = 'restantes' in inv ? inv : aVista(inv);
-    if (lectura.tipo === 'agotada') {
-      return setRes({
-        tipo: 'rojo',
-        titulo: inv.cupos === 2 ? 'Ya ingresaron los dos invitados' : `Ya ingresaron los ${inv.cupos} invitados`,
-        detalle: <RegistrosPrevios inv={vista} />,
-        estudiante,
-        prueba: inv.prueba ? vista : undefined,
-      });
-    }
+    // Agotada tambien va como 'invitacion' (no como 'rojo'): ResultadoInvitacion pinta el
+    // mismo rojo «Ya ingresaron…» y ADEMAS ofrece «Deshacer el último ingreso», por si el
+    // portero marco el segundo por error (26-nov). Invalida/anulada/cerrado siguen en rojo
+    // sin deshacer, arriba.
     setRes({ tipo: 'invitacion', inv: vista, estudiante });
   }
 
@@ -419,7 +414,7 @@ function Lector({ evento }: { evento: EventoGrados }) {
       const est = res && 'estudiante' in res ? (res.estudiante ?? null) : null;
       if (g.motivo === 'agotada') {
         const inv = g.detalles.invitacion as VistaInvitacion;
-        setRes({ tipo: 'rojo', titulo: 'Ya ingresaron los dos invitados', detalle: <RegistrosPrevios inv={inv} />, estudiante: est });
+        setRes({ tipo: 'invitacion', inv, estudiante: est });
       } else if (g.motivo === 'ya_llego') {
         setRes({ tipo: 'rojo', titulo: 'El graduando ya llegó', detalle: `A las ${horaCorta(g.detalles.en as number)} · registró ${nombreCorto(g.detalles.por as string)}`, estudiante: est });
       } else if (g.motivo === 'invalida') setRes({ tipo: 'rojo', titulo: 'Invitación no válida' });
@@ -441,7 +436,7 @@ function Lector({ evento }: { evento: EventoGrados }) {
           pausado={res !== null || trabajando}
           guia="arriba"
           encabezado={(cerrar) => (
-            <div className="flex items-center justify-between gap-2 p-3">
+            <div className="flex items-center justify-between gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
               <button
                 type="button"
                 onClick={cerrar}
@@ -565,8 +560,10 @@ function Lector({ evento }: { evento: EventoGrados }) {
                 : 'border-line bg-card';
         if (!camara) return <div className={`rounded-xl border p-3 ${fondo}`}>{contenido}</div>;
         return (
-          <div className="fixed inset-0 z-[55] grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4">
-            <div className={`max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl border p-4 sm:rounded-2xl ${fondo}`}>
+          // NO cubre la franja de arriba del visor: alli estan «← Menú» y el aforo, y con
+          // `inset-0` esta capa se comia el toque (bug del ensayo, 26-nov).
+          <div className="fixed inset-x-0 bottom-0 top-[calc(76px+env(safe-area-inset-top))] z-[55] grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4">
+            <div className={`max-h-[calc(100dvh-96px)] w-full max-w-md overflow-y-auto rounded-t-2xl border p-4 sm:rounded-2xl ${fondo}`}>
               {contenido}
             </div>
           </div>
