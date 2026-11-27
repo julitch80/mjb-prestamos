@@ -38,6 +38,8 @@ export interface EventoGrados {
   ensayo: boolean;
   creadoPor: string;
   creadoEn: number;
+  /** Solo el ensayo: la ultima vez que se reinicio (accion reiniciarEnsayo). */
+  ultimoReinicio?: { por: string; en: number };
 }
 
 export interface RegistroInvitacion {

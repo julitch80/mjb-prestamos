@@ -329,6 +329,8 @@ export async function administrarGrados(
     return generarInvitaciones(db, ev, generarToken, ahora);
   }
 
+  if (accion === 'reiniciarEnsayo') return reiniciarEnsayo(db, ev, u.email, ahora);
+
   // Lo que sigue opera sobre UNA invitacion, por su token.
   const token = texto(d.token, 80);
   if (!token) throw new HttpsError('invalid-argument', 'Falta la invitación.');
@@ -409,4 +411,48 @@ async function generarInvitaciones(db: Firestore, ev: EventoGrados, generarToken
     await lote.commit();
   }
   return { ok: true, creadas: nuevos.length, existentes: existentes.size };
+}
+
+/**
+ * Deja el ENSAYO como recien creado (pedido de Julian, 26-nov) para repetir la prueba:
+ * invitaciones con 0 usados y sin registros, graduandos sin llegada, aforo en 0, y BORRA los
+ * ingresos. Borrar es aceptable aqui y solo aqui: son datos de prueba sin estudiantes.
+ * El evento real lo rechaza el SERVIDOR, no solo la pantalla.
+ *
+ * Traza: `reinicios/{id}` con quien, cuando y cuanto se borro, y `ultimoReinicio` en el
+ * evento. Va por lotes de 400 (el limite de Firestore es 500); el ensayo tiene ~3
+ * invitaciones y unas decenas de ingresos, asi que normalmente es UN lote.
+ */
+async function reiniciarEnsayo(db: Firestore, ev: EventoGrados, email: string, ahora: number) {
+  if (!ev.ensayo) throw new HttpsError('failed-precondition', 'Solo el ensayo se puede reiniciar.', { motivo: 'no_es_ensayo' });
+  const base = rutaEvento(ev.eventoId);
+  const [invs, grads, ings, aforoSnap] = await Promise.all([
+    db.collection(`${base}/invitaciones`).get(),
+    db.collection(`${base}/graduandos`).get(),
+    db.collection(colIngresos(ev.eventoId)).get(),
+    db.doc(rutaAforo(ev.eventoId)).get(),
+  ]);
+  const escrituras: ((b: FirebaseFirestore.WriteBatch) => void)[] = [];
+  for (const d of invs.docs) escrituras.push((b) => b.update(d.ref, { usados: 0, registros: [] }));
+  for (const d of grads.docs) escrituras.push((b) => b.update(d.ref, { llego: false, en: null, por: null, deshechos: [] }));
+  for (const d of ings.docs) escrituras.push((b) => b.delete(d.ref));
+  for (let i = 0; i < escrituras.length; i += 400) {
+    const b = db.batch();
+    for (const w of escrituras.slice(i, i + 400)) w(b);
+    await b.commit();
+  }
+  const traza = {
+    por: email,
+    en: ahora,
+    invitaciones: invs.size,
+    graduandos: grads.size,
+    ingresosBorrados: ings.size,
+    aforoAntes: aforoSnap.exists ? aforoSnap.data() : null,
+  };
+  const b = db.batch();
+  b.set(db.doc(rutaAforo(ev.eventoId)), { invitados: 0, graduandos: 0, manuales: 0, manualesRecientes: [] });
+  b.set(db.collection(`${base}/reinicios`).doc(), traza);
+  b.update(db.doc(base), { ultimoReinicio: { por: email, en: ahora } });
+  await b.commit();
+  return { ok: true, ingresosBorrados: ings.size, invitaciones: invs.size };
 }

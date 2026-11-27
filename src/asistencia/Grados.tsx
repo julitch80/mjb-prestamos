@@ -892,6 +892,7 @@ function Preparar({ evento, onCambio }: { evento: EventoGrados; onCambio: () => 
   const [porteria, setPorteria] = useState(evento.porteria.join('\n'));
   const [trabajando, setTrabajando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tono: 'verde' | 'rojo'; texto: string } | null>(null);
+  const [confirmaReinicio, setConfirmaReinicio] = useState(false);
 
   async function recargar() {
     try {
@@ -1043,6 +1044,41 @@ function Preparar({ evento, onCambio }: { evento: EventoGrados; onCambio: () => 
           ))
         )}
       </section>
+
+      {/* Solo en el ensayo; el servidor rechaza el evento real aunque la pantalla fallara. */}
+      {evento.ensayo && !cerrado && (
+        <section className="rounded-xl border border-line bg-card p-3">
+          <p className="text-sm font-semibold text-strong">Reiniciar ensayo</p>
+          <p className="text-xs text-muted">
+            Deja las invitaciones de prueba sin usar y el aforo en 0, para repetir la prueba.
+            {evento.ultimoReinicio && ` Último reinicio: ${new Date(evento.ultimoReinicio.en).toLocaleString('es-CO')} · ${nombreCorto(evento.ultimoReinicio.por)}.`}
+          </p>
+          {confirmaReinicio ? (
+            <div className="mt-2 space-y-2 rounded-lg border border-danger-soft bg-danger-soft p-3 text-danger-soft-fg">
+              <p className="text-sm font-semibold">¿Borrar todos los ingresos del ensayo? No afecta Grados 2026.</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  disabled={trabajando}
+                  onClick={() => {
+                    setConfirmaReinicio(false);
+                    void hacer({ accion: 'reiniciarEnsayo' }, 'Ensayo reiniciado: invitaciones sin usar y aforo en 0');
+                  }}
+                  className={`${BOTON_SEC} border-danger text-danger-soft-fg`}
+                >
+                  Sí, borrar los ingresos del ensayo
+                </button>
+                <button disabled={trabajando} onClick={() => setConfirmaReinicio(false)} className={BOTON_SEC}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button disabled={trabajando} onClick={() => setConfirmaReinicio(true)} className={`${BOTON_SEC} mt-2`}>
+              Reiniciar ensayo
+            </button>
+          )}
+        </section>
+      )}
 
       {!cerrado && (
         <button
