@@ -27,6 +27,7 @@ const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).pad
 import { EntregasGuiaResumen } from './EntregasPaso';
 import SeguimientoPlanCasa from './SeguimientoPlanCasa';
 import { PanelSustentacionesPAE } from './SustentacionesPAE';
+import RevisionGuias from './RevisionGuias';
 import { ConsultasPanel, useConsultas } from './ConsultasPanel';
 import { PestanasSubrayadas } from '../Navegacion';
 import { construirAvanceDocentes, filtrarPorJornada, jornadaDePlan, type DatosPlanAvance, type FiltroJornada } from '../../data/planCasa/avanceDocentes';
@@ -1280,7 +1281,7 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
   const [error, setError] = useState('');
   const [creando, setCreando] = useState(false);
   const [aviso, setAviso] = useState('');
-  const [vista, setVista] = useState<'planes' | 'avance' | 'seguimiento' | 'sustentaciones' | 'consultas'>(vistaInicial ?? 'planes');
+  const [vista, setVista] = useState<'planes' | 'avance' | 'seguimiento' | 'sustentaciones' | 'revision' | 'consultas'>(vistaInicial ?? 'planes');
   const [puedeConsultas, setPuedeConsultas] = useState(false);
   const consultas = useConsultas(puedeConsultas);
   const [eligiendoCartas, setEligiendoCartas] = useState(false);
@@ -1316,7 +1317,7 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
         <h2 className="text-lg font-semibold text-strong flex-1">Plan Académico Especial</h2>
         {!creando && <button onClick={() => { setCreando(true); setAviso(''); }} className={CLASE_BOTON}><Plus size={16} />Nuevo plan</button>}
       </div>
-      <PestanasSubrayadas opciones={[{ id: 'planes', label: 'Planes' }, { id: 'avance', label: 'Avance docentes' }, { id: 'seguimiento', label: 'Seguimiento' }, { id: 'sustentaciones', label: 'Sustentación' },
+      <PestanasSubrayadas opciones={[{ id: 'planes', label: 'Planes' }, { id: 'avance', label: 'Avance docentes' }, { id: 'seguimiento', label: 'Seguimiento' }, { id: 'revision', label: 'Revisión de guías' }, { id: 'sustentaciones', label: 'Sustentación' },
         ...(puedeConsultas ? [{ id: 'consultas', label: consultas.pendientes ? `Consultas (${consultas.pendientes})` : 'Consultas' }] : [])]} activa={vista} onCambio={id => setVista(id as typeof vista)} />
       {aviso && <p className="rounded-xl bg-success-soft text-success-soft-fg text-sm p-3">{aviso}</p>}
       {creando && <NuevoPlan onCerrar={() => setCreando(false)} onCreado={m => { setCreando(false); setAviso(m); }} />}
@@ -1383,6 +1384,7 @@ export default function PanelPlanCasa({ vistaInicial }: { vistaInicial?: 'seguim
       )}
       {vista === 'avance' && planes && <AvanceDocentes planes={planes} />}
       {vista === 'seguimiento' && <SeguimientoPlanCasa />}
+      {vista === 'revision' && planes && <RevisionGuias planes={planes} />}
       {vista === 'sustentaciones' && planes && <PanelSustentacionesPAE planes={planes} />}
       {vista === 'consultas' && puedeConsultas && <ConsultasPanel datos={consultas} />}
     </div>
