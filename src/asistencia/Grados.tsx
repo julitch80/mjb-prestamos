@@ -355,9 +355,15 @@ function Lector({ evento }: { evento: EventoGrados }) {
         </button>
       )}
 
-      {trabajando && <p className="text-sm text-muted">Consultando…</p>}
-
-      {res && (
+      {/* El resultado se arma una vez y se pinta en dos sitios. Con la camara abierta
+          (EscanerQr es `fixed inset-0 z-50`) va en una hoja ENCIMA del escaner, como en
+          pasar lista: dibujado en linea quedaba tapado y el lector parecia no reaccionar
+          (bug del ensayo, 26-nov). El escaner no se desmonta, solo se pausa. */}
+      {(() => {
+        const contenido = (
+          <>
+            {trabajando && !res && <p className="text-sm text-muted">Consultando…</p>}
+            {res && (
         <div className="space-y-2">
           {res.tipo === 'rojo' && (
             <>
@@ -400,10 +406,22 @@ function Lector({ evento }: { evento: EventoGrados }) {
           )}
 
           <button onClick={() => setRes(null)} className={`${BOTON_SEC} w-full`}>
-            Siguiente
+            {camara ? 'Seguir leyendo' : 'Siguiente'}
           </button>
         </div>
-      )}
+            )}
+          </>
+        );
+        if (!res && !trabajando) return null;
+        if (!camara) return contenido;
+        return (
+          <div className="fixed inset-0 z-[55] grid place-items-end bg-black/40 p-0 sm:place-items-center sm:p-4">
+            <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-line bg-card p-4 sm:rounded-2xl">
+              {contenido}
+            </div>
+          </div>
+        );
+      })()}
 
       <section className="rounded-xl border border-line bg-card p-3">
         <p className="text-sm font-semibold text-strong">Si el QR no lee: buscar por apellido</p>
