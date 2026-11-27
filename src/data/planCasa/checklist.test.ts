@@ -100,13 +100,13 @@ describe('puedoRevisarPaso', () => {
     const gg = g({ aprobada, seguimiento: { p1: { estado: 'revisado' } } });
     expect(entregasPorRevisar({ ...base, hoy: '2026-11-03', correo: 'a@x.co', asigs, guias: [gg], conEntregas: { [llavePaso('g1', 'p1')]: 5 } })).toHaveLength(0);
   });
-  it('guía integrada: con parte propia deja de aparecer al marcarla; sin parte propia aparece hasta «revisado»', () => {
+  it('guía integrada: con parte propia deja de aparecer al marcarla; sin parte propia en el paso no le toca', () => {
     const p = paso('p1', [{ asignaturaId: 'len' }]);
     const aprobada = guiaBase({ pasos: [p] });
     const gg = g({ aprobada, seguimiento: { p1: { estado: 'entregado', porAsignatura: { len: { revisado: true } } } } });
     const d = { ...base, hoy: '2026-11-03', asigs, guias: [gg] };
     expect(entregasPorRevisar({ ...d, correo: 'b@x.co' })).toHaveLength(0);
-    expect(entregasPorRevisar({ ...d, correo: 'a@x.co' })).toHaveLength(1);
+    expect(entregasPorRevisar({ ...d, correo: 'a@x.co' })).toHaveLength(0);
   });
 });
 

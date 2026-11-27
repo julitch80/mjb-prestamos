@@ -95,7 +95,10 @@ export function entregasPorRevisar(d: DatosChequeo): EntregaPorRevisar[] {
       // Guía integrada: a un docente con parte propia le toca mientras no haya revisado SU parte.
       if (p.componentes?.length && !d.gestor) {
         const mias = p.componentes.filter(c => minus(d.asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo) === yo);
-        if (mias.length && mias.every(c => seg?.porAsignatura?.[c.asignaturaId]?.revisado)) continue;
+        // Sin parte propia en ESTE paso (otras asignaturas de la guía): no le toca; antes le quedaba
+        // «por revisar» hasta que los demás revisaran, aunque ya hubiera revisado lo suyo.
+        if (!mias.length) continue;
+        if (mias.every(c => seg?.porAsignatura?.[c.asignaturaId]?.revisado)) continue;
       }
       salida.push({ guiaId: g.id, pasoId: p.id, titulo: p.titulo });
     }
