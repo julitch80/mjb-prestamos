@@ -1013,7 +1013,7 @@ function PlanDocente({ plan, gestor, amplio = gestor, datos, foco }: { plan: Pla
           <ul className="space-y-1.5">
             {porRevisar.map(e => (
               <li key={`${e.guiaId}-${e.pasoId}`} className="flex items-center gap-2 rounded-xl bg-card border border-line px-3 py-2">
-                <span className="flex-1 min-w-0 text-xs text-soft">Paso {e.pasoNum}: {e.titulo}{e.partes.length ? ` · ${e.partes.join(', ')}` : ''} · entregó {fechaEntrega(e.entregadoEn)}</span>
+                <span className="flex-1 min-w-0 text-xs text-soft">Paso {e.pasoNum}: {e.titulo} · {e.motivo} · entregó {fechaEntrega(e.entregadoEn)}</span>
                 <button type="button" onClick={() => revisarPaso(e.guiaId, e.pasoId)}
                   className="min-h-[44px] px-4 rounded-full bg-accent text-strong text-sm font-medium flex-shrink-0">Revisar</button>
               </li>))}
@@ -1249,7 +1249,7 @@ export default function PlanCasaDocente() {
                 <li key={`${e.planId}-${e.guiaId}-${e.pasoId}`} className="flex items-center gap-2 rounded-xl bg-card border border-line px-3 py-2">
                   <span className="flex-1 min-w-0 text-sm text-strong">
                     <b>{e.estudiante}</b> · {e.grupo}
-                    <span className="block text-xs text-soft">Paso {e.pasoNum}: {e.titulo}{e.partes.length ? ` · ${e.partes.join(', ')}` : ''} · entregó {fechaEntrega(e.entregadoEn)}</span>
+                    <span className="block text-xs text-soft">Paso {e.pasoNum}: {e.titulo} · {e.motivo} · entregó {fechaEntrega(e.entregadoEn)}</span>
                   </span>
                   <button type="button"
                     onClick={() => { escoger(e.planId); setFoco(f => ({ seccion: `g-${e.guiaId}`, pasoId: e.pasoId, n: (f?.n ?? 0) + 1 })); }}

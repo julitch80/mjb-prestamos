@@ -97,6 +97,17 @@ export function entregasPorRevisar(d: DatosChequeo): EntregaPorRevisar[] {
         const dueño = minus(d.asigs.find(a => a.asignaturaId === p.id.slice(4))?.docenteCorreo);
         if (dueño && dueño !== yo) continue;
       }
+      // Paso general (sin partes ni «ent-»): en una guía de una sola asignatura lo revisa su docente;
+      // en una guía de varias asignaturas, el responsable. A los demás no les queda pendiente.
+      if (!d.gestor && !p.componentes?.length && !p.id.startsWith('ent-')) {
+        const ids = g.asignaturaIds ?? [];
+        const dueños = ids.map(id => minus(d.asigs.find(a => a.asignaturaId === id)?.docenteCorreo)).filter(Boolean);
+        const responsable = minus(g.responsableCorreo);
+        const meToca = ids.length <= 1
+          ? (dueños.length ? dueños.includes(yo) : responsable === yo || !responsable)
+          : (responsable ? responsable === yo : dueños.includes(yo));
+        if (!meToca) continue;
+      }
       // Guía integrada: a un docente con parte propia le toca mientras no haya revisado SU parte.
       if (p.componentes?.length && !d.gestor) {
         const mias = p.componentes.filter(c => minus(d.asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo) === yo);

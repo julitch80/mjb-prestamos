@@ -34,6 +34,8 @@ export interface EntregaRecibida {
   entregadoEn: number;
   /** Nombres de las asignaturas mías por revisar en una guía integrada (vacío en los demás casos). */
   partes: string[];
+  /** Por qué le aparece a este usuario (para que el docente lo entienda). */
+  motivo: string;
 }
 
 const minus = (s: string | undefined) => (s ?? '').trim().toLowerCase();
@@ -56,9 +58,15 @@ export function entregasRecibidasPorRevisar(
         .filter(c => !seg?.porAsignatura?.[c.asignaturaId]?.revisado
           && (o.gestor || minus(d.asigs.find(a => a.asignaturaId === c.asignaturaId)?.docenteCorreo) === yo))
         .map(c => o.nombre(d.plan.id, c.asignaturaId));
+      const nombreAsig = (id: string) => o.nombre(d.plan.id, id);
+      const motivo = o.gestor ? 'coordinación / equipo'
+        : partes.length ? `su parte: ${partes.join(', ')}`
+        : paso.id.startsWith('ent-') ? `entregable de ${nombreAsig(paso.id.slice(4))}`
+        : minus(g.responsableCorreo) === yo ? 'usted es responsable de la guía'
+        : `guía de ${(g.asignaturaIds ?? []).map(nombreAsig).join(', ')}`;
       salida.push({
         planId: d.plan.id, estudiante: (d.plan.nombres ?? '').trim().split(/\s+/)[0] ?? '', grupo: d.plan.grupo,
-        guiaId: e.guiaId, pasoId: e.pasoId, titulo: e.titulo, pasoNum: pasos.indexOf(paso) + 1, entregadoEn: cuando, partes,
+        guiaId: e.guiaId, pasoId: e.pasoId, titulo: e.titulo, pasoNum: pasos.indexOf(paso) + 1, entregadoEn: cuando, partes, motivo,
       });
     }
   }
